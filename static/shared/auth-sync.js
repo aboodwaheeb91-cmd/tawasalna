@@ -38,46 +38,69 @@
 
   // ── Session state resolver ───────────────────────────────────────
   // Returns: { state, isAuthenticated, userType, userId, reason }
-  // States: guest | authenticated | expired | invalid | stale
   //
-  // State machine (in order):
-  //   no jwt                          → guest
-  //   unparseable jwt                 → invalid
-  //   exp missing or non-numeric      → invalid   (server always sets exp; absence is malformation)
-  //   exp < now                       → expired
-  //   tw_user absent or missing .id   → stale
-  //   jwt.user_id ≠ tw_user.id        → stale     (cross-tab account switch mid-session)
-  //   jwt.user_type ≠ tw_user.type    → stale     (type mismatch is a logical error)
-  //   all checks pass                 → authenticated
+  // State machine (exact order per VM-10A):
+  //   1. no jwt AND no tw_user                          → guest
+  //   2. tw_user present but no jwt                     → stale   (partial session — jwt was cleared without user)
+  //   3. jwt present but unparseable                    → invalid
+  //   4. jwt.user_id missing or null                    → invalid  (server.py always sets user_id)
+  //   5. jwt.user_type missing or null                  → invalid  (server.py always sets user_type)
+  //   6. jwt.exp missing, non-numeric, or non-finite    → invalid
+  //   7. jwt.exp <= now                                 → expired  (<= catches exp exactly equal to now)
+  //   8. tw_user absent or missing .id                  → stale
+  //   9. jwt.user_id ≠ tw_user.id                       → stale   (account switch mid-session)
+  //  10. jwt.user_type ≠ tw_user.user_type              → stale
+  //  11. all checks pass                                → authenticated
   function _resolveSession() {
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!jwt) {
+    var jwt     = localStorage.getItem('tw_jwt')  || '';
+    var userStr = localStorage.getItem('tw_user') || '';
+
+    var user = null;
+    try { user = JSON.parse(userStr || 'null'); } catch (e) {}
+    var hasUser = !!(user && user.id);
+
+    // 1. No session data at all → guest
+    if (!jwt && !hasUser) {
       return { state: 'guest', isAuthenticated: false, userType: null, userId: null, reason: 'no_jwt' };
     }
+    // 2. tw_user present but JWT missing → stale
+    if (!jwt && hasUser) {
+      return { state: 'stale', isAuthenticated: false, userType: null, userId: null, reason: 'no_jwt_with_user' };
+    }
+    // 3. JWT present — validate structure
     var claims = _parseJwtPayload(jwt);
     if (!claims) {
       return { state: 'invalid', isAuthenticated: false, userType: null, userId: null, reason: 'malformed_jwt' };
     }
-    // exp MUST be a numeric Unix timestamp — missing or wrong type → invalid
-    if (typeof claims.exp !== 'number') {
+    // 4. user_id MUST be present (server.py _jwt_encode always sets it)
+    if (claims.user_id === undefined || claims.user_id === null) {
+      return { state: 'invalid', isAuthenticated: false, userType: null, userId: null, reason: 'missing_user_id' };
+    }
+    // 5. user_type MUST be present
+    if (claims.user_type === undefined || claims.user_type === null) {
+      return { state: 'invalid', isAuthenticated: false, userType: null, userId: null, reason: 'missing_user_type' };
+    }
+    // 6. exp MUST be a finite numeric Unix timestamp
+    if (typeof claims.exp !== 'number' || !isFinite(claims.exp)) {
       return { state: 'invalid', isAuthenticated: false, userType: null, userId: null, reason: 'missing_exp' };
     }
+    // 7. Token expiry check — <= to catch exp exactly equal to current second
     var now = Math.floor(Date.now() / 1000);
-    if (claims.exp < now) {
+    if (claims.exp <= now) {
       return { state: 'expired', isAuthenticated: false, userType: null, userId: null, reason: 'jwt_expired' };
     }
-    var user = null;
-    try { user = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch (e) {}
-    if (!user || !user.id) {
+    // 8. JWT valid — check tw_user
+    if (!hasUser) {
       return { state: 'stale', isAuthenticated: false, userType: null, userId: null, reason: 'no_user_object' };
     }
-    // Cross-check JWT claims against tw_user to catch account-switch scenarios
-    if (claims.user_id !== undefined && String(claims.user_id) !== String(user.id)) {
+    // 9-10. Cross-check JWT claims against tw_user
+    if (String(claims.user_id) !== String(user.id)) {
       return { state: 'stale', isAuthenticated: false, userType: null, userId: null, reason: 'user_id_mismatch' };
     }
-    if (claims.user_type !== undefined && claims.user_type !== user.user_type) {
+    if (claims.user_type !== user.user_type) {
       return { state: 'stale', isAuthenticated: false, userType: null, userId: null, reason: 'user_type_mismatch' };
     }
+    // 11. All checks pass
     return {
       state: 'authenticated',
       isAuthenticated: true,
@@ -93,7 +116,7 @@
     var jwt = localStorage.getItem('tw_jwt') || '';
     if (!jwt) return;
     var claims = _parseJwtPayload(jwt);
-    if (!claims || typeof claims.exp !== 'number') return;
+    if (!claims || typeof claims.exp !== 'number' || !isFinite(claims.exp)) return;
     var now    = Math.floor(Date.now() / 1000);
     var msLeft = (claims.exp - now) * 1000 + 500;
     if (msLeft <= 0) return;
@@ -102,7 +125,8 @@
       _expiryTimer = null;
       // Guard: if JWT was renewed while timer slept, reschedule instead of expiring
       var fresh = _parseJwtPayload(localStorage.getItem('tw_jwt') || '');
-      if (fresh && typeof fresh.exp === 'number' && fresh.exp > Math.floor(Date.now() / 1000)) {
+      if (fresh && typeof fresh.exp === 'number' && isFinite(fresh.exp)
+          && fresh.exp > Math.floor(Date.now() / 1000)) {
         _scheduleExpiryTimer();
         return;
       }

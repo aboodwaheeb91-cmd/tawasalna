@@ -321,6 +321,75 @@ TwAuthSync.invalidateSession('multi_handler');
 check('R43 — all 3 handlers receive invalidate event', h1 > 0 && h2 > 0 && h3 > 0);
 
 // ════════════════════════════════════════════════════════════════════
+console.log('\n19 — State: stale (tw_user present, no JWT)');
+
+resetStorage();
+fakeLocalStorage.setItem('tw_user', JSON.stringify({ id: 5, user_type: 'emp' }));
+// no tw_jwt set
+{
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R44 — tw_user without jwt → state:stale',      s.state === 'stale');
+  check('R45 — tw_user without jwt → reason matches',   s.reason === 'no_jwt_with_user');
+}
+
+// ════════════════════════════════════════════════════════════════════
+console.log('\n20 — State: invalid (JWT missing user_id claim)');
+
+resetStorage();
+fakeLocalStorage.setItem('tw_jwt', makeJwt({ user_type: 'emp', exp: Math.floor(Date.now()/1000) + 86400 }));
+{
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R46 — missing user_id → state:invalid',      s.state === 'invalid');
+  check('R47 — missing user_id → reason matches',     s.reason === 'missing_user_id');
+}
+
+// ════════════════════════════════════════════════════════════════════
+console.log('\n21 — State: invalid (JWT missing user_type claim)');
+
+resetStorage();
+fakeLocalStorage.setItem('tw_jwt', makeJwt({ user_id: 1, exp: Math.floor(Date.now()/1000) + 86400 }));
+{
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R48 — missing user_type → state:invalid',    s.state === 'invalid');
+  check('R49 — missing user_type → reason matches',   s.reason === 'missing_user_type');
+}
+
+// ════════════════════════════════════════════════════════════════════
+console.log('\n22 — State: expired (exp exactly equals now)');
+
+resetStorage();
+{
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Build a JWT with exp == now (boundary — <= catches this)
+  fakeLocalStorage.setItem('tw_jwt', makeJwt({ user_id: 1, user_type: 'emp', exp: nowSec }));
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R50 — exp == now → state:expired',           s.state === 'expired');
+  check('R51 — exp == now → reason:jwt_expired',      s.reason === 'jwt_expired');
+}
+
+// ════════════════════════════════════════════════════════════════════
+console.log('\n23 — State: invalid (non-finite exp: Infinity)');
+
+resetStorage();
+fakeLocalStorage.setItem('tw_jwt', makeJwt({ user_id: 1, user_type: 'emp', exp: Infinity }));
+{
+  // Note: JSON.stringify(Infinity) → "null", so the claim will be null after parse.
+  // The guard: typeof claims.exp !== 'number' || !isFinite(claims.exp) catches both.
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R52 — Infinity exp → state:invalid or expired', s.state === 'invalid' || s.state === 'expired');
+}
+
+// ════════════════════════════════════════════════════════════════════
+console.log('\n24 — Regression: no jwt no tw_user → guest (not stale)');
+
+resetStorage();
+{
+  const s = TwAuthSync.getSessionSnapshot();
+  check('R53 — no jwt, no tw_user → state:guest',  s.state === 'guest');
+  check('R54 — no jwt, no tw_user → reason:no_jwt', s.reason === 'no_jwt');
+}
+
+// ════════════════════════════════════════════════════════════════════
 // Results
 console.log(`\n${'='.repeat(55)}`);
 console.log(`Tests run: ${testsRun}  |  Passed: ${passed}  |  Failed: ${testsRun - passed}`);

@@ -359,21 +359,24 @@ companyState.permissions.isOwner = true | false
 
 | الحالة | الوصف | `isAuthenticated` |
 |--------|-------|-------------------|
-| `guest` | لا يوجد JWT في localStorage | `false` |
+| `guest` | لا يوجد JWT ولا `tw_user` في localStorage | `false` |
 | `authenticated` | JWT صالح + user object + IDs متطابقة | `true` |
-| `expired` | JWT منتهي الصلاحية (claims.exp < now) | `false` |
-| `invalid` | JWT موجود لكن malformed أو `exp` غير رقمي | `false` |
-| `stale` | JWT صالح لكن tw_user غائب أو ID/type يختلف | `false` |
+| `expired` | JWT منتهي الصلاحية (`claims.exp <= now`) | `false` |
+| `invalid` | JWT موجود لكن malformed أو يفتقد `user_id`/`user_type`/`exp` | `false` |
+| `stale` | JWT صالح لكن `tw_user` غائب أو ID/type يختلف؛ أو `tw_user` موجود بلا JWT | `false` |
 
-**قواعد `_resolveSession()` بالترتيب:**
-1. لا `tw_jwt` → `guest`
-2. JWT غير قابل للـ parse → `invalid`
-3. `typeof claims.exp !== 'number'` → `invalid` (exp غائب أو ليس رقماً)
-4. `claims.exp < now` → `expired`
-5. `tw_user` غائب أو بلا `.id` → `stale`
-6. `claims.user_id !== tw_user.id` → `stale` (user_id_mismatch)
-7. `claims.user_type !== tw_user.user_type` → `stale` (user_type_mismatch)
-8. كل الشروط تجتازت → `authenticated`
+**قواعد `_resolveSession()` بالترتيب (VM-10A — 11 خطوة):**
+1. لا `tw_jwt` ولا `tw_user` → `guest` (reason: `no_jwt`)
+2. `tw_user` موجود لكن لا `tw_jwt` → `stale` (reason: `no_jwt_with_user`)
+3. JWT موجود لكن غير قابل للـ parse → `invalid` (reason: `malformed_jwt`)
+4. `claims.user_id` غائب أو null → `invalid` (reason: `missing_user_id`)
+5. `claims.user_type` غائب أو null → `invalid` (reason: `missing_user_type`)
+6. `typeof claims.exp !== 'number'` أو `!isFinite(claims.exp)` → `invalid` (reason: `missing_exp`)
+7. `claims.exp <= now` → `expired` (reason: `jwt_expired`) — `<=` يلتقط القيمة المساوية لـ now بالضبط
+8. `tw_user` غائب أو بلا `.id` → `stale` (reason: `no_user_object`)
+9. `String(claims.user_id) !== String(user.id)` → `stale` (reason: `user_id_mismatch`)
+10. `claims.user_type !== user.user_type` → `stale` (reason: `user_type_mismatch`)
+11. كل الشروط تجتازت → `authenticated` (reason: `ok`)
 
 **Session Fingerprint:** `_check()` تتابع `_prevJwt` + `_prevUserStr`. أي تغيير في `tw_user` (حتى مع نفس JWT) يُطلق callbacks — يحمي من account switch داخل نفس التاب.
 

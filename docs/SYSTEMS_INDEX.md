@@ -479,14 +479,16 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Permanent, session-aware header menu and declarative element visibility. Prevents Settings/Logout from appearing to guests; prevents Login/Register from appearing to authenticated users. Single source of truth for all header menu items — no per-page session checks.
 **Source of Truth:** `static/shared/auth-sync.js` (`TwAuthSync.getSessionSnapshot`, `TwAuthSync.invalidateSession`) · `tw_shared.js` (`_TW_HEADER_MENU_POLICY`, `_twMenuItemsForSnapshot`, `initGlobalHeaderMenu`, `_twApplyDeclarativeVisibility`)
 **Details:** `docs/design-system/VIEWER-MODES.md §VM-10` (VM-10A through VM-10I) · `CLAUDE.md` (all relevant mandatory rules sections)
-**Session States:** `guest | authenticated | expired | invalid | stale` — returned by `TwAuthSync.getSessionSnapshot()`. State machine: no_jwt→guest, malformed/missing exp→invalid, exp<now→expired, no tw_user/ID mismatch→stale, all OK→authenticated.
+**Session States:** `guest | authenticated | expired | invalid | stale` — returned by `TwAuthSync.getSessionSnapshot()`. 11-step state machine: (1) no jwt+user→guest, (2) user without jwt→stale, (3) malformed jwt→invalid, (4) missing user_id→invalid, (5) missing user_type→invalid, (6) non-finite exp→invalid, (7) exp<=now→expired, (8) no tw_user→stale, (9) user_id mismatch→stale, (10) user_type mismatch→stale, (11) all OK→authenticated.
+**JWT Claims Contract:** server.py always sets `user_id` (int), `user_type` (str), `exp` (Unix timestamp, 7-day lifetime). All three are mandatory in the state machine.
 **Session Fingerprint:** `_prevJwt` + `_prevUserStr` — both JWT and `tw_user` changes trigger callbacks.
 **Menu Policy:** `_TW_HEADER_MENU_POLICY` in `tw_shared.js` — each item declares `show: 'auth' | 'guest' | 'all'` and optional `accountTypes: string[]`. Candidates search = `auth` + `accountTypes:['co']`. Settings/Logout = `auth`. Login/Register = `guest`.
-**401 vs 403:** `loadGlobalBadges()` calls `invalidateSession('api_401')` only on HTTP 401 — not on 403 (forbidden preserves session).
+**401 vs 403:** `loadGlobalBadges()` calls `invalidateSession('api_401')` on HTTP 401 from BOTH `/notifications/` AND `/messages/unread/` — not on 403/5xx/network (forbidden/server error preserves session).
 **WS Lifecycle:** Generation-based (`_generation` counter + `_activeUserId`) — stale `onclose` callbacks discarded; account switch forces stop+restart.
-**localStorage Cleanup:** Allowlist `['tw_jwt', 'tw_user']` — never `startsWith('tw_')`.
-**Runtime Tests:** `test_auth_sync_runtime.js` — 43 Node.js behavioral assertions covering all 5 states, fingerprint, allowlist, 401/403, redirect.
-**Static Tests:** `test_global_ui_visibility.py` — 94 checks across A–I sections.
+**Badge Race Prevention:** `_badgeGeneration` module-level counter in `tw_shared.js` — `loadGlobalBadges()` captures `gen = ++_badgeGeneration`; callbacks bail if `gen !== _badgeGeneration`. `_twBadgeWsStop()` also increments `_badgeGeneration` to cancel in-flight HTTP requests on account switch. Badges cleared before fetch starts.
+**localStorage Cleanup:** Allowlist `['tw_jwt', 'tw_user']` — never `startsWith('tw_')`. `twLogout()` fallback uses `_LOGOUT_KEYS` array.
+**Runtime Tests:** `test_auth_sync_runtime.js` — 54 Node.js behavioral assertions. `test_tw_shared_runtime.js` — 32 Node.js behavioral assertions covering menu policy, 401/403, stale-generation, badge clear, twLogout fallback.
+**Static Tests:** `test_global_ui_visibility.py` — 104 checks across A–I sections.
 **Declarative Visibility:** `data-tw-session="authenticated|guest|all"` on any element + `data-tw-account-types="co"` for account-type filtering. Elements with `data-tw-session="authenticated" hidden` start hidden on public pages and are revealed by `_twApplyDeclarativeVisibility()`.
 **Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html`
 **Do not recreate:**

@@ -75,6 +75,16 @@ check("A19 — expiry timer capped at MAX_TIMEOUT_MS (2^31-1)",
       "_MAX_TIMEOUT_MS" in auth_sync and "0x7FFFFFFF" in auth_sync)
 check("A20 — session key allowlist defined (tw_jwt, tw_user)",
       "'tw_jwt'" in auth_sync and "'tw_user'" in auth_sync and "_SESSION_KEYS" in auth_sync)
+check("A21 — exp <= now catches boundary (not strict <)",
+      "claims.exp <= now" in auth_sync)
+check("A22 — missing user_id claim → invalid (reason: missing_user_id)",
+      "missing_user_id" in auth_sync)
+check("A23 — missing user_type claim → invalid (reason: missing_user_type)",
+      "missing_user_type" in auth_sync)
+check("A24 — tw_user present without JWT → stale (reason: no_jwt_with_user)",
+      "no_jwt_with_user" in auth_sync)
+check("A25 — non-finite exp → invalid (isFinite check)",
+      "isFinite(claims.exp)" in auth_sync)
 
 
 # ═══════════════════════════════════════════════════════
@@ -140,6 +150,21 @@ check("B27 — _clearBadges includes data-ah-notif-badge selector",
       "data-ah-notif-badge" in shared)
 check("B28 — loadGlobalBadges Authorization header uses userId from snapshot",
       "snap.userId" in shared or "userId" in shared)
+check("B29 — twLogout fallback uses key allowlist (not Object.keys loop)",
+      "_LOGOUT_KEYS" in shared and
+      "Object.keys(localStorage)" not in shared.split("function twLogout")[1].split("function ")[0])
+check("B30 — _badgeGeneration counter present (stale-response guard)",
+      "_badgeGeneration" in shared)
+check("B31 — loadGlobalBadges has no raw localStorage fallback (no tw_user parse inside)",
+      # Old fallback parsed tw_user directly inside loadGlobalBadges
+      "parse(localStorage.getItem('tw_user')" not in shared.split("function loadGlobalBadges")[1].split("function ")[0]
+      and "getTwUser()" not in shared.split("function loadGlobalBadges")[1].split("function ")[0])
+check("B32 — 401 on messages endpoint also handled",
+      shared.count("r.status === 401") >= 2)
+check("B33 — badges cleared at start of loadGlobalBadges (before fetch)",
+      'style.display = \'none\'' in shared.split("function loadGlobalBadges")[1].split("fetch(")[0]
+      or 'style.display="none"' in shared.split("function loadGlobalBadges")[1].split("fetch(")[0]
+      or "el.style.display = 'none'" in shared.split("var gen = ")[0].split("loadGlobalBadges")[-1])
 
 
 # ═══════════════════════════════════════════════════════

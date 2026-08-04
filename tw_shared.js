@@ -210,55 +210,67 @@ function safeText(el, text){
 // ══ Global Badge Loader ══
 // Populates all elements with data-badge="msgs" and data-badge="notif".
 // Call once after page init from any authenticated page.
-// Uses TwAuthSync.getSessionSnapshot() when available (VM-10A contract).
-// 401 → session invalid (invalidateSession). 403 → session valid but forbidden (no invalidation).
+// Requires TwAuthSync (VM-10A contract) — no raw localStorage fallback.
+// 401 → session invalid (invalidateSession). 403/5xx/network → preserve session.
+// _badgeGeneration: prevents stale HTTP responses from a prior account overwriting
+// the current account's badge counts after a cross-tab or within-tab account switch.
+var _badgeGeneration = 0;
+
 function loadGlobalBadges() {
-  try {
-    var userId, jwt;
-    if (window.TwAuthSync) {
-      var snap = TwAuthSync.getSessionSnapshot();
-      if (!snap.isAuthenticated) return;
-      userId = snap.userId;
-      jwt    = localStorage.getItem('tw_jwt') || '';
-    } else {
-      // TwAuthSync not yet loaded — fall back to raw localStorage
-      var u = JSON.parse(localStorage.getItem('tw_user') || 'null');
-      jwt   = localStorage.getItem('tw_jwt') || '';
-      if (!u || !u.id || !jwt) return;
-      userId = u.id;
-    }
-    if (!userId || !jwt) return;
+  // TwAuthSync is mandatory — never fall back to raw localStorage
+  if (!window.TwAuthSync) return;
+  var snap = TwAuthSync.getSessionSnapshot();
+  if (!snap.isAuthenticated) return;
+  var userId = snap.userId;
+  var jwt    = localStorage.getItem('tw_jwt') || '';
+  if (!userId || !jwt) return;
 
-    fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
-      .then(function(r) {
-        if (r.status === 401) {
-          // Token rejected by server → session is invalid → clear it
-          if (window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
-          return null;
-        }
-        // 403 = authenticated but not authorised for this resource — preserve session
-        return r.ok ? r.json() : null;
-      })
-      .then(function(d) {
-        if (!d) return;
-        var count = d.unread || 0;
-        document.querySelectorAll('[data-badge="notif"]').forEach(function(el) {
-          el.textContent = count > 9 ? '9+' : String(count);
-          el.style.display = count > 0 ? 'inline-block' : 'none';
-        });
-      }).catch(function() {});
+  // Clear badges before fetching — prevents stale counts from previous account
+  document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"]').forEach(function(el) {
+    el.textContent = '';
+    el.style.display = 'none';
+  });
 
-    fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d) return;
-        var count = d.count || 0;
-        document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
-          el.textContent = count > 9 ? '9+' : String(count);
-          el.style.display = count > 0 ? 'inline-block' : 'none';
-        });
-      }).catch(function() {});
-  } catch(e) {}
+  var gen = ++_badgeGeneration;  // capture generation — callbacks bail if account has changed
+
+  fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    .then(function(r) {
+      if (r.status === 401) {
+        // Token rejected by server → session is invalid → clear it
+        TwAuthSync.invalidateSession('api_401');
+        return null;
+      }
+      // 403 = authenticated but not authorised — preserve session
+      // 5xx / network error — preserve session (handled by .catch)
+      return r.ok ? r.json() : null;
+    })
+    .then(function(d) {
+      if (!d || gen !== _badgeGeneration) return;  // null result or stale generation
+      var count = d.unread || 0;
+      document.querySelectorAll('[data-badge="notif"]').forEach(function(el) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = count > 0 ? 'inline-block' : 'none';
+      });
+    }).catch(function() {});
+
+  fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    .then(function(r) {
+      if (r.status === 401) {
+        // Token rejected by server → session is invalid → clear it
+        TwAuthSync.invalidateSession('api_401');
+        return null;
+      }
+      // 403 = authenticated but not authorised — preserve session
+      return r.ok ? r.json() : null;
+    })
+    .then(function(d) {
+      if (!d || gen !== _badgeGeneration) return;  // null result or stale generation
+      var count = d.count || 0;
+      document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = count > 0 ? 'inline-block' : 'none';
+      });
+    }).catch(function() {});
 }
 
 // ══ Logo from Admin ══
@@ -315,10 +327,12 @@ function twLogout() {
   if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
     TwAuthSync.invalidateSession('logout', { redirect: '/login' });
   } else {
+    // Allowlist only — never startsWith('tw_') which would delete user preferences
+    var _LOGOUT_KEYS = ['tw_jwt', 'tw_user'];
     try {
-      Object.keys(localStorage)
-        .filter(function(k){ return k.startsWith('tw_'); })
-        .forEach(function(k){ localStorage.removeItem(k); });
+      for (var _li = 0; _li < _LOGOUT_KEYS.length; _li++) {
+        localStorage.removeItem(_LOGOUT_KEYS[_li]);
+      }
     } catch(e){}
     window.location.href = '/login';
   }
@@ -595,7 +609,8 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   }
 
   function _twBadgeWsStop() {
-    _generation++;         // invalidates all pending close/retry callbacks
+    _generation++;         // invalidates all pending WS close/retry callbacks
+    _badgeGeneration++;    // invalidates in-flight HTTP badge requests from prior account
     _activeUserId = null;
     _retries      = 0;
     if (_ws) { try { _ws.close(); } catch(e){} _ws = null; }
