@@ -478,9 +478,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 53. Global Session UI Visibility System (VM-10) ✅ Implemented
 **Purpose:** Permanent, session-aware header menu and declarative element visibility. Prevents Settings/Logout from appearing to guests; prevents Login/Register from appearing to authenticated users. Single source of truth for all header menu items — no per-page session checks.
 **Source of Truth:** `static/shared/auth-sync.js` (`TwAuthSync.getSessionSnapshot`, `TwAuthSync.invalidateSession`) · `tw_shared.js` (`_TW_HEADER_MENU_POLICY`, `_twMenuItemsForSnapshot`, `initGlobalHeaderMenu`, `_twApplyDeclarativeVisibility`)
-**Details:** `docs/design-system/VIEWER-MODES.md §VM-10` (VM-10A through VM-10F) · `CLAUDE.md` (all relevant mandatory rules sections)
-**Session States:** `guest | authenticated | expired | invalid | stale` — returned by `TwAuthSync.getSessionSnapshot()`
-**Menu Policy:** `_TW_HEADER_MENU_POLICY` in `tw_shared.js` — each item declares `show: 'auth' | 'guest' | 'all'`. Settings + Logout = `auth`. Login + Register = `guest`. Contact/Report/Suggest = `all` (disabled).
+**Details:** `docs/design-system/VIEWER-MODES.md §VM-10` (VM-10A through VM-10I) · `CLAUDE.md` (all relevant mandatory rules sections)
+**Session States:** `guest | authenticated | expired | invalid | stale` — returned by `TwAuthSync.getSessionSnapshot()`. State machine: no_jwt→guest, malformed/missing exp→invalid, exp<now→expired, no tw_user/ID mismatch→stale, all OK→authenticated.
+**Session Fingerprint:** `_prevJwt` + `_prevUserStr` — both JWT and `tw_user` changes trigger callbacks.
+**Menu Policy:** `_TW_HEADER_MENU_POLICY` in `tw_shared.js` — each item declares `show: 'auth' | 'guest' | 'all'` and optional `accountTypes: string[]`. Candidates search = `auth` + `accountTypes:['co']`. Settings/Logout = `auth`. Login/Register = `guest`.
+**401 vs 403:** `loadGlobalBadges()` calls `invalidateSession('api_401')` only on HTTP 401 — not on 403 (forbidden preserves session).
+**WS Lifecycle:** Generation-based (`_generation` counter + `_activeUserId`) — stale `onclose` callbacks discarded; account switch forces stop+restart.
+**localStorage Cleanup:** Allowlist `['tw_jwt', 'tw_user']` — never `startsWith('tw_')`.
+**Runtime Tests:** `test_auth_sync_runtime.js` — 43 Node.js behavioral assertions covering all 5 states, fingerprint, allowlist, 401/403, redirect.
+**Static Tests:** `test_global_ui_visibility.py` — 94 checks across A–I sections.
 **Declarative Visibility:** `data-tw-session="authenticated|guest|all"` on any element + `data-tw-account-types="co"` for account-type filtering. Elements with `data-tw-session="authenticated" hidden` start hidden on public pages and are revealed by `_twApplyDeclarativeVisibility()`.
 **Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html`
 **Do not recreate:**

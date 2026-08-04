@@ -360,26 +360,43 @@ companyState.permissions.isOwner = true | false
 | الحالة | الوصف | `isAuthenticated` |
 |--------|-------|-------------------|
 | `guest` | لا يوجد JWT في localStorage | `false` |
-| `authenticated` | JWT صالح + user object موجود | `true` |
+| `authenticated` | JWT صالح + user object + IDs متطابقة | `true` |
 | `expired` | JWT منتهي الصلاحية (claims.exp < now) | `false` |
-| `invalid` | JWT موجود لكن malformed | `false` |
-| `stale` | JWT صالح لكن tw_user غائب | `false` |
+| `invalid` | JWT موجود لكن malformed أو `exp` غير رقمي | `false` |
+| `stale` | JWT صالح لكن tw_user غائب أو ID/type يختلف | `false` |
+
+**قواعد `_resolveSession()` بالترتيب:**
+1. لا `tw_jwt` → `guest`
+2. JWT غير قابل للـ parse → `invalid`
+3. `typeof claims.exp !== 'number'` → `invalid` (exp غائب أو ليس رقماً)
+4. `claims.exp < now` → `expired`
+5. `tw_user` غائب أو بلا `.id` → `stale`
+6. `claims.user_id !== tw_user.id` → `stale` (user_id_mismatch)
+7. `claims.user_type !== tw_user.user_type` → `stale` (user_type_mismatch)
+8. كل الشروط تجتازت → `authenticated`
+
+**Session Fingerprint:** `_check()` تتابع `_prevJwt` + `_prevUserStr`. أي تغيير في `tw_user` (حتى مع نفس JWT) يُطلق callbacks — يحمي من account switch داخل نفس التاب.
+
+**Expiry Timer:** `_scheduleExpiryTimer()` تستخدم `setTimeout` مرة واحدة، مُحدودة بـ `_MAX_TIMEOUT_MS = 0x7FFFFFFF`. عند تجديد JWT أثناء النوم تُعيد الجدولة بدلاً من الانتهاء.
 
 ### [VM-10B] Global Header Menu Policy
 
 مصدر الحقيقة: `_TW_HEADER_MENU_POLICY` في `tw_shared.js`
 
-كل بند له `show: 'auth' | 'guest' | 'all'`:
+كل بند له `show: 'auth' | 'guest' | 'all'` و`accountTypes?: string[]` اختياري:
 
-| البند | show | يظهر لـ |
-|-------|------|---------|
-| الإعدادات | `auth` | مسجّلون فقط |
-| تواصل معنا | `all` | الجميع (disabled) |
-| الإبلاغ عن مشكلة | `all` | الجميع (disabled) |
-| اقترح ميزة | `all` | الجميع (disabled) |
-| تسجيل الخروج | `auth` | مسجّلون فقط |
-| تسجيل الدخول | `guest` | زوار غير مسجّلين |
-| إنشاء حساب | `guest` | زوار غير مسجّلين |
+| البند | show | accountTypes | يظهر لـ |
+|-------|------|-------------|---------|
+| الإعدادات | `auth` | — | جميع مسجّلي الدخول |
+| بحث عن موظفين | `auth` | `['co']` | شركات فقط |
+| تواصل معنا | `all` | — | الجميع (disabled) |
+| الإبلاغ عن مشكلة | `all` | — | الجميع (disabled) |
+| اقترح ميزة | `all` | — | الجميع (disabled) |
+| تسجيل الخروج | `auth` | — | جميع مسجّلي الدخول |
+| تسجيل الدخول | `guest` | — | زوار غير مسجّلين |
+| إنشاء حساب | `guest` | — | زوار غير مسجّلين |
+
+`_twMenuItemsForSnapshot(snapshot)` تُطبّق فلتر `show` ثم `accountTypes` (إذا محدد).
 
 **ممنوع:** إضافة بند بدون تعريف `show` صريح في `_TW_HEADER_MENU_POLICY`.
 
@@ -423,6 +440,33 @@ VM-10 = UX فقط — ليس ضماناً أمنياً.
 كل endpoint يتحقق من JWT server-side مستقلاً.
 ```
 
+### [VM-10G] Session Storage Cleanup Contract
+
+`invalidateSession()` تحذف مفاتيح محددة فقط (allowlist) — ليس كل مفاتيح `tw_`:
+
+```javascript
+var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
+```
+
+**ممنوع:** `startsWith('tw_')` لحذف مفاتيح الجلسة — يمكن أن يحذف تفضيلات المستخدم (`tw_cover_edu_*` إلخ).
+
+### [VM-10H] HTTP 401 vs 403 Contract
+
+في `loadGlobalBadges()`:
+- `401` → token منتهي أو غير صالح → `TwAuthSync.invalidateSession('api_401')` **فقط**
+- `403` → مصادق لكن ممنوع من هذا المورد → الجلسة محفوظة، لا invalidate
+
+**ممنوع:** `r.status === 401 || r.status === 403` — الجمع يُلغي جلسات صالحة عند خطأ Authorization.
+
+### [VM-10I] Badge WebSocket Generation Lifecycle
+
+الـ WS مُصمَّم لمنع إعادة الاتصال الخاطئة بعد logout/login:
+
+- `_generation` يُزاد عند كل `_twBadgeWsStop()` — يُلغي أي `onclose` معلق من الجيل السابق
+- `_activeUserId` يُتابع userId الحالي — account switch يُطلق stop+start دورة كاملة
+- `_initBadgeWS(gen)` تتحقق من `gen !== _generation` في البداية وفي `onclose`
+- **ممنوع:** استخدام `_stopped` boolean — يمنع إعادة الاتصال بعد logout+login
+
 ### Forbidden (VM-10)
 
 ```
@@ -432,6 +476,10 @@ VM-10 = UX فقط — ليس ضماناً أمنياً.
 ❌ إضافة منطق session check مكرر داخل صفحة جديدة بدلاً من initGlobalHeaderMenu
 ❌ Preview body class تُؤثر على Global Session menu
 ❌ إنشاء نظام visibility موازٍ خارج tw_shared.js/_twApplyDeclarativeVisibility
+❌ startsWith('tw_') لحذف مفاتيح الجلسة — استخدم _SESSION_KEYS allowlist
+❌ معالجة 403 كـ 401 (invalidateSession على 403)
+❌ _stopped boolean في WS lifecycle — استخدم _generation counter
+❌ تجاوز مطابقة claims.user_id مع tw_user.id في Session Resolver
 ```
 
 ---

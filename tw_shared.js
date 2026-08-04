@@ -210,18 +210,33 @@ function safeText(el, text){
 // ══ Global Badge Loader ══
 // Populates all elements with data-badge="msgs" and data-badge="notif".
 // Call once after page init from any authenticated page.
+// Uses TwAuthSync.getSessionSnapshot() when available (VM-10A contract).
+// 401 → session invalid (invalidateSession). 403 → session valid but forbidden (no invalidation).
 function loadGlobalBadges() {
   try {
-    var u   = JSON.parse(localStorage.getItem('tw_user') || 'null');
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!u || !u.id || !jwt) return;
+    var userId, jwt;
+    if (window.TwAuthSync) {
+      var snap = TwAuthSync.getSessionSnapshot();
+      if (!snap.isAuthenticated) return;
+      userId = snap.userId;
+      jwt    = localStorage.getItem('tw_jwt') || '';
+    } else {
+      // TwAuthSync not yet loaded — fall back to raw localStorage
+      var u = JSON.parse(localStorage.getItem('tw_user') || 'null');
+      jwt   = localStorage.getItem('tw_jwt') || '';
+      if (!u || !u.id || !jwt) return;
+      userId = u.id;
+    }
+    if (!userId || !jwt) return;
 
-    fetch('/notifications/' + u.id, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
       .then(function(r) {
-        if (r.status === 401 || r.status === 403) {
+        if (r.status === 401) {
+          // Token rejected by server → session is invalid → clear it
           if (window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
           return null;
         }
+        // 403 = authenticated but not authorised for this resource — preserve session
         return r.ok ? r.json() : null;
       })
       .then(function(d) {
@@ -233,7 +248,7 @@ function loadGlobalBadges() {
         });
       }).catch(function() {});
 
-    fetch('/messages/unread/' + u.id, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(d) {
         if (!d) return;
@@ -341,12 +356,16 @@ function twShareProfile() {
 // ── Central Header Menu Policy Registry (VM-10B) ──────────────────
 // Single source of truth for all header menu items.
 // show: 'all' | 'auth' | 'guest'
+// accountTypes: optional string[] — if set, item only shows for those user types.
 // Items with show:'auth' appear only when session is authenticated.
 // Items with show:'guest' appear only when session is guest/expired/invalid.
 // Items with disabled:true are shown greyed with "قريباً" — no route yet.
 var _TW_HEADER_MENU_POLICY = [
   { key: 'settings', label: 'الإعدادات', href: '/settings', show: 'auth',
     icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+  { key: 'candidates', label: 'بحث عن موظفين', href: '/company', show: 'auth',
+    accountTypes: ['co'],
+    icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' },
   { key: 'contact', label: 'تواصل معنا', disabled: true, show: 'all',
     icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
   { key: 'report', label: 'الإبلاغ عن مشكلة', disabled: true, show: 'all',
@@ -362,11 +381,20 @@ var _TW_HEADER_MENU_POLICY = [
 ];
 
 // Filter policy items for a given session snapshot (VM-10B)
+// Applies both show: and accountTypes: filters.
 function _twMenuItemsForSnapshot(snapshot) {
-  var auth = snapshot && snapshot.isAuthenticated;
+  var auth  = snapshot && snapshot.isAuthenticated;
+  var utype = snapshot && snapshot.userType;
   return _TW_HEADER_MENU_POLICY.filter(function (item) {
     if (item.show === 'all')   return true;
-    if (item.show === 'auth')  return auth;
+    if (item.show === 'auth') {
+      if (!auth) return false;
+      // accountTypes filter: if specified, only show for those user types
+      if (item.accountTypes) {
+        return item.accountTypes.indexOf(utype) !== -1;
+      }
+      return true;
+    }
     if (item.show === 'guest') return !auth;
     return true;
   });
@@ -508,28 +536,40 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 
 // ══ Global Real-time Badge WebSocket (VM-10E lifecycle) ══
 // Opens a WS on EVERY authenticated page. Closes on session invalidation.
+// Generation-based lifecycle: _generation is incremented on every stop so
+// stale onclose callbacks from prior connections are silently discarded.
+// _activeUserId tracks the current session owner — account switches
+// (cross-tab or within-tab) force a full stop+restart cycle.
 // Exposed: window._twBadgeWsStop(), window._twBadgeWsStart()
 (function() {
-  var _ws      = null;
-  var _retries = 0;
-  var _stopped = false;
+  var _ws           = null;
+  var _retries      = 0;
+  var _generation   = 0;       // incremented on stop; close handlers check this
+  var _activeUserId = null;    // userId the open WS belongs to
 
+  // Clear all badge elements including data-ah-notif-badge (legacy selector)
   function _clearBadges() {
-    document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"]').forEach(function(el) {
+    document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
       el.textContent = '';
       el.style.display = 'none';
     });
   }
 
-  function _initBadgeWS() {
-    if (_stopped || _ws) return;
-    var u = null;
-    try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!u || !u.id || !jwt) return;
+  function _initBadgeWS(gen) {
+    // Bail if a newer generation has superseded this invocation
+    if (gen !== _generation) return;
+    if (_ws) return;
 
+    var snap = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
+    if (!snap || !snap.isAuthenticated || !snap.userId) return;
+    var uid  = snap.userId;
+    var jwt  = localStorage.getItem('tw_jwt') || '';
+    if (!jwt) return;
+
+    _activeUserId = uid;
+    var capturedGen = gen;
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    _ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id);
+    _ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + uid);
 
     _ws.onmessage = function(e) {
       try {
@@ -545,37 +585,49 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     };
     _ws.onclose = function() {
       _ws = null;
-      if (!_stopped && _retries < 5) { _retries++; setTimeout(_initBadgeWS, _retries * 2000); }
+      // Only reconnect if same generation AND same user is still active
+      if (capturedGen === _generation && _activeUserId === uid && _retries < 5) {
+        _retries++;
+        setTimeout(function() { _initBadgeWS(_generation); }, _retries * 2000);
+      }
     };
     _ws.onerror = function() { if (_ws) { try { _ws.close(); } catch(ex){} } };
   }
 
   function _twBadgeWsStop() {
-    _stopped = true;
-    _retries = 0;
+    _generation++;         // invalidates all pending close/retry callbacks
+    _activeUserId = null;
+    _retries      = 0;
     if (_ws) { try { _ws.close(); } catch(e){} _ws = null; }
     _clearBadges();
   }
 
   function _twBadgeWsStart() {
-    _stopped = false;
     _retries = 0;
-    _initBadgeWS();
+    _initBadgeWS(_generation);
   }
 
   // Run after load so localStorage is populated by page auth guards
   window.addEventListener('load', function() {
-    setTimeout(_initBadgeWS, 200);
+    setTimeout(function() { _initBadgeWS(_generation); }, 200);
     // Wire session lifecycle after all scripts have loaded (including auth-sync.js)
     if (window.TwAuthSync) {
       TwAuthSync.onSessionChange(function(e) {
         var snap = e && e.snapshot;
-        if (snap && !snap.isAuthenticated) {
+        if (!snap || !snap.isAuthenticated) {
           _twBadgeWsStop();
-        } else if (snap && snap.isAuthenticated && !_ws && !_stopped) {
-          _stopped = false;
-          _retries = 0;
-          setTimeout(_initBadgeWS, 50);
+        } else {
+          // Authenticated — check for account switch (userId changed)
+          var newUid = snap.userId;
+          if (_activeUserId !== null && _activeUserId !== newUid) {
+            // Different user logged in: stop old WS (increments generation),
+            // then start fresh for new user.
+            _twBadgeWsStop();
+          }
+          if (!_ws) {
+            _retries = 0;
+            setTimeout(function() { _initBadgeWS(_generation); }, 50);
+          }
         }
       });
     }

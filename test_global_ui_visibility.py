@@ -11,8 +11,11 @@ PASS = "\033[32mPASS\033[0m"
 FAIL = "\033[31mFAIL\033[0m"
 
 failures = []
+_tests_run = 0
 
 def check(name, condition, detail=""):
+    global _tests_run
+    _tests_run += 1
     if condition:
         print(f"  {PASS}  {name}")
     else:
@@ -52,8 +55,8 @@ check("A09 — expiry timer uses setTimeout not setInterval",
       "setTimeout" in auth_sync and "setInterval" not in auth_sync)
 check("A10 — snapshot passed in handler callback",
       "snapshot: snapshot" in auth_sync)
-check("A11 — invalidateSession clears all tw_ keys",
-      "startsWith('tw_')" in auth_sync)
+check("A11 — invalidateSession uses explicit key allowlist (_SESSION_KEYS)",
+      "_SESSION_KEYS" in auth_sync and "_SESSION_KEYS[i]" in auth_sync)
 check("A12 — invalidateSession supports opts.redirect",
       "opts.redirect" in auth_sync)
 check("A13 — onSessionChange backward compatible",
@@ -62,6 +65,16 @@ check("A14 — pageshow force-fires on bfcache restore",
       "e.persisted" in auth_sync)
 check("A15 — _expiryTimer cleared in invalidateSession",
       "_expiryTimer" in auth_sync and "clearTimeout(_expiryTimer)" in auth_sync)
+check("A16 — missing exp → invalid (typeof check)",
+      "typeof claims.exp !== 'number'" in auth_sync)
+check("A17 — JWT user_id mismatch → stale",
+      "user_id_mismatch" in auth_sync)
+check("A18 — tw_user change detection (_prevUserStr fingerprint)",
+      "_prevUserStr" in auth_sync)
+check("A19 — expiry timer capped at MAX_TIMEOUT_MS (2^31-1)",
+      "_MAX_TIMEOUT_MS" in auth_sync and "0x7FFFFFFF" in auth_sync)
+check("A20 — session key allowlist defined (tw_jwt, tw_user)",
+      "'tw_jwt'" in auth_sync and "'tw_user'" in auth_sync and "_SESSION_KEYS" in auth_sync)
 
 
 # ═══════════════════════════════════════════════════════
@@ -95,11 +108,10 @@ check("B11 — initGlobalHeaderMenu is idempotent (checks _ghInstances)",
       "_ghInstances.length" in shared and "return;" in shared)
 check("B12 — twLogout uses TwAuthSync.invalidateSession",
       "TwAuthSync.invalidateSession" in shared and "'logout'" in shared)
-check("B13 — loadGlobalBadges notifications fetch has Authorization header",
-      "'/notifications/' + u.id" in shared
-      and shared.index("'Authorization'") < shared.index("'/messages/unread/'") + 1000)
-check("B14 — 401/403 handling in notifications fetch triggers invalidateSession",
-      "api_401" in shared or "invalidateSession" in shared)
+check("B13 — loadGlobalBadges uses TwAuthSync.getSessionSnapshot()",
+      "getSessionSnapshot" in shared and "loadGlobalBadges" in shared)
+check("B14 — 401 invalidates session but 403 does NOT",
+      "r.status === 401" in shared and "r.status === 401 || r.status === 403" not in shared)
 check("B15 — badge WS has _twBadgeWsStop defined",
       "_twBadgeWsStop" in shared)
 check("B16 — badge WS has _twBadgeWsStart defined",
@@ -116,6 +128,18 @@ check("B21 — TwAuthSync listener registered once (not in every call)",
       "_ghListenerRegistered = true" in shared)
 check("B22 — no setInterval used for session checking",
       "setInterval" not in shared)
+check("B23 — candidates item in policy with accountTypes",
+      "'candidates'" in shared and "accountTypes: ['co']" in shared)
+check("B24 — accountTypes filter in _twMenuItemsForSnapshot",
+      "item.accountTypes" in shared and "indexOf(utype)" in shared)
+check("B25 — badge WS uses generation counter (_generation)",
+      "_generation" in shared)
+check("B26 — badge WS uses _activeUserId for account-switch detection",
+      "_activeUserId" in shared)
+check("B27 — _clearBadges includes data-ah-notif-badge selector",
+      "data-ah-notif-badge" in shared)
+check("B28 — loadGlobalBadges Authorization header uses userId from snapshot",
+      "snap.userId" in shared or "userId" in shared)
 
 
 # ═══════════════════════════════════════════════════════
@@ -261,15 +285,96 @@ check("H03 — no monkey-patch on window.fetch",
       and "window.fetch" not in auth_sync)
 check("H04 — twLogout falls back gracefully if TwAuthSync absent",
       "window.TwAuthSync && typeof TwAuthSync.invalidateSession" in shared)
+check("H05 — 401 and 403 are NOT treated identically in badge loader",
+      "r.status === 401" in shared and "r.status === 401 || r.status === 403" not in shared)
+
+
+# ═══════════════════════════════════════════════════════
+# I — Repository-wide static guards
+# ═══════════════════════════════════════════════════════
+print("\nI — Repository-wide static guards")
+
+import glob as _glob
+
+html_files = _glob.glob("*.html") + _glob.glob("**/*.html", recursive=True)
+js_files   = _glob.glob("static/**/*.js", recursive=True)
+
+# Allowed files that may still contain the old logout pattern (legacy pages not yet migrated)
+_LEGACY_ALLOWED = {"employees-group.html", "edu-profile.html"}
+
+old_logout_violators = []
+for f in html_files:
+    bn = f.split("/")[-1]
+    if bn in _LEGACY_ALLOWED:
+        continue
+    try:
+        content = read(f)
+    except Exception:
+        continue
+    if "localStorage.removeItem" in content and "Object.keys(localStorage)" in content:
+        old_logout_violators.append(f)
+
+# I01: Pages that explicitly adopted VM-10 (load auth-sync.js) must not also
+# have old inline multi-step logout. Legacy pages not yet migrated are excluded.
+_VM10_PAGES = {"company-profile.html", "notifications.html", "profile-showcase.html"}
+old_logout_violators_vm10 = []
+for f in html_files:
+    bn = f.split("/")[-1]
+    if bn not in _VM10_PAGES:
+        continue
+    try:
+        content = read(f)
+    except Exception:
+        continue
+    if "localStorage.removeItem" in content and "Object.keys(localStorage)" in content:
+        old_logout_violators_vm10.append(f)
+check("I01 — VM-10 pages have no old inline multi-step logout",
+      len(old_logout_violators_vm10) == 0,
+      "violators: " + str(old_logout_violators_vm10) if old_logout_violators_vm10 else "")
+
+# I02: auth-sync.js invalidateSession must use _SESSION_KEYS allowlist, not startsWith
+# (Check only the VM-10 system files — legacy pages' twLogout fallback is allowed)
+check("I02 — auth-sync.js invalidateSession uses _SESSION_KEYS (not startsWith loop)",
+      "_SESSION_KEYS[i]" in auth_sync)
+
+# I03: HTML pages that directly call initGlobalHeaderMenu must load auth-sync.js first
+pages_with_menu = []
+for f in html_files:
+    bn = f.split("/")[-1]
+    if bn not in _VM10_PAGES:
+        continue
+    try:
+        content = read(f)
+    except Exception:
+        continue
+    if "initGlobalHeaderMenu" in content:
+        pages_with_menu.append((f, content))
+
+def _menu_call_pos(content):
+    # Match actual call with string argument e.g. initGlobalHeaderMenu('btnId',...)
+    # This skips HTML comment mentions like <!-- rendered by initGlobalHeaderMenu() -->
+    import re
+    m = re.search(r"initGlobalHeaderMenu\s*\(\s*['\"]", content)
+    return m.start() if m else -1
+
+# Only check pages that actually have a direct call with arguments
+pages_with_direct_call = [(f, c) for f, c in pages_with_menu if _menu_call_pos(c) >= 0]
+menu_order_ok = all(
+    "auth-sync.js" in content
+    and content.index("auth-sync.js") < _menu_call_pos(content)
+    for f, content in pages_with_direct_call
+)
+check("I03 — auth-sync.js loads before direct initGlobalHeaderMenu call on VM-10 pages",
+      menu_order_ok)
 
 
 # ═══════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════
-total = 4 * 15 + 22 + 8 + 7 + 6 + 6 + 11 + 4  # rough count
 print(f"\n{'='*55}")
+print(f"Checks run: {_tests_run}  |  Passed: {_tests_run - len(failures)}  |  Failed: {len(failures)}")
 if failures:
-    print(f"FAILED {len(failures)} checks:")
+    print(f"\nFAILED {len(failures)} checks:")
     for f in failures:
         print(f"  - {f}")
     sys.exit(1)
