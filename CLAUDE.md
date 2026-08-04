@@ -339,7 +339,21 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
    - Passwords are never returned from any endpoint
 
 6. **Real-time transport is WebSocket for messages, polling for notifications.**
-   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ✅ P0 Security Debt Resolved (PR `security/ws-auth-hardening`): the route now uses First-Message JWT Authentication. Client must send `{"type":"auth","token":"<jwt>"}` as the very first message; server responds with `{"type":"auth_ok"}` before any operational events flow. Application close codes 4001–4006 signal auth/policy failures — clients must not reconnect on these codes.
+   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ✅ P0 Security Debt Fully Resolved (PR `security/ws-auth-hardening`): the route uses First-Message JWT Authentication with fail-closed origin policy, bounded cache, async DB, per-user connection limits, and rate-limit-before-DB ordering.
+   - **WS auth handshake (permanent contract):** Client sends `{"type":"auth","token":"<jwt>"}` as the very first message; server validates via `_ws_validate_auth_frame()` and responds with `{"type":"auth_ok","user_id":<int>}` before any operational events flow. Client validates `auth_ok.user_id` matches expected uid.
+   - **Application close codes 4001–4007 (do not reconnect on any of these):**
+     - 4001 Unauthorized — invalid/expired JWT, missing claims, invalid user_type
+     - 4002 Auth Failed — auth timeout, oversized/malformed frame, wrong frame type
+     - 4003 Forbidden — JWT uid ≠ URL path user_id
+     - 4004 Bad Payload — JSON error or oversized frame in message loop
+     - 4005 Policy — typing rate limit or too many unknown events
+     - 4006 Origin Denied — origin rejected by fail-closed policy
+     - 4007 Too Many Connections — user already has 10 active connections
+   - **Origin policy (fail-closed):** Production defaults = `{https://tawasolna.com, https://www.tawasolna.com}`. `"null"` origin always rejected. No-origin = native clients, allowed with valid JWT. `WS_ALLOWED_ORIGINS="*"` raises RuntimeError at startup. `APP_ENV=development` adds localhost variants.
+   - **Connection limit:** max 10 simultaneous WS connections per user (`_WS_MAX_CONN_PER_USER`). `register()` returns `False` → caller sends 4007.
+   - **Rate-limit-before-DB:** For `typing`/`typing_stop`, `_ws_typing_rate_ok()` is called BEFORE `_ws_conversation_exists_async()`. This ordering is permanent and must never be reversed.
+   - **Legacy WS send path removed:** The path accepting `{receiver_id, content}` without `type` has been permanently removed. All message sends use HTTP (`POST /messages/{user_id}`).
+   - **Client lifecycle requirements:** `_wsGen` generation counter; client-side 5s auth timeout; `auth_ok.user_id` validation; `TwAuthSync.onSessionChange` integration; exponential backoff with jitter (max 5 retries, 30s cap); `messages.html` must load `auth-sync.js` before `messages.ws.js`.
    - Notifications: HTTP polling only — `fetch('/notifications/{user_id}')`. No WebSocket for notifications.
    - Do not add a second WebSocket route for messages or notifications.
    - Do not call `ws_manager.register()` before JWT verification completes.

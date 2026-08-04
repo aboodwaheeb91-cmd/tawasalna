@@ -277,7 +277,7 @@ async def security_headers(request, call_next):
     return response
 
 # ── Simple Rate Limiting ──
-from collections import defaultdict, deque
+from collections import defaultdict, deque, OrderedDict
 import time as _time
 _rate_store = defaultdict(list)
 _RATE_LIMIT = 60  # requests per minute
@@ -1678,51 +1678,106 @@ def icon():
 # First-Message JWT Authentication Protocol (security/ws-auth-hardening)
 #
 # Application Close Codes:
-#   4001 — Unauthorized  : missing/invalid/expired JWT; no auth message; missing claims
-#   4002 — (reserved — same meaning as 4001, kept for future granularity)
-#   4003 — Forbidden     : JWT user_id ≠ URL path user_id
-#   4004 — Bad Payload   : malformed JSON; message exceeds _WS_MAX_PAYLOAD bytes
-#   4005 — Policy        : typing rate limit exceeded
-#   4006 — Origin Denied : Origin header not in WS_ALLOWED_ORIGINS
+#   4001 — Unauthorized    : missing/invalid/expired JWT, missing/invalid claims
+#   4002 — Auth Failed     : oversized frame, malformed JSON, wrong type, auth timeout
+#   4003 — Forbidden       : JWT user_id ≠ URL path user_id
+#   4004 — Bad Payload     : malformed JSON or non-dict in message loop; oversize frame
+#   4005 — Policy          : typing rate limit exceeded; repeated unknown-event violations
+#   4006 — Origin Denied   : Origin header not in allowed origins (fail-closed)
+#   4007 — Too Many Conns  : user already has _WS_MAX_CONN_PER_USER connections
 #
-# Identity source: JWT claims only. URL path user_id is used for routing
-# and MUST match JWT; it is never trusted as identity by itself.
+# Identity source: JWT claims only. URL path user_id is routing hint only.
+# URL path MUST match JWT; it is never trusted as identity by itself.
+# Origin policy: production defaults (tawasolna.com); APP_ENV=development adds localhost.
+# WS_ALLOWED_ORIGINS="*" is permanently forbidden; "null" origin is always rejected.
 # ──────────────────────────────────────────────────────────────────────────────
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict
 
-# Auth timeout and payload size
-_WS_AUTH_TIMEOUT  = 5.0      # seconds to wait for first auth message
-_WS_MAX_PAYLOAD   = 65_536   # 64 KB hard ceiling per WebSocket frame
+_WS_AUTH_TIMEOUT      = 5.0       # seconds to wait for first auth message
+_WS_AUTH_FRAME_MAX    = 8_192     # 8 KB hard ceiling for the auth frame specifically
+_WS_MAX_PAYLOAD       = 65_536    # 64 KB hard ceiling per frame in the message loop
+_WS_MAX_CONN_PER_USER = 10        # max simultaneous WS connections per user (→ 4007)
 
-# Typing rate limit: _WS_TYPING_MAX events within _WS_TYPING_WINDOW seconds per user
 _WS_TYPING_MAX    = 10
 _WS_TYPING_WINDOW = 10.0
 _ws_typing_log: Dict[int, deque] = {}
 
-# Origin policy — inherits existing project CORS policy (allow_origins=["*"]).
-# Set WS_ALLOWED_ORIGINS env var to restrict (comma-separated origins, e.g.
-# "https://app.tawasalna.com").
-# SYSTEM GAP: current project CORS is allow_origins=["*"] (open).
-# Production deployments MUST set WS_ALLOWED_ORIGINS to a closed list.
-# Non-browser clients (Flutter) may omit Origin — allowed only with valid JWT.
-_WS_ALLOWED_ORIGINS_RAW = os.environ.get("WS_ALLOWED_ORIGINS", "").strip()
-_WS_ALLOWED_ORIGINS: list = (
-    [o.strip() for o in _WS_ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-    if _WS_ALLOWED_ORIGINS_RAW and _WS_ALLOWED_ORIGINS_RAW != "*"
-    else []  # empty = open (current project default)
-)
+_ws_event_violations: Dict[int, int] = {}
+_WS_MAX_VIOLATIONS = 10
 
-# Conversation membership cache — prevents typing spam to strangers
-_WS_CONV_CACHE: Dict[tuple, tuple] = {}  # (min_uid, max_uid) → (exists: bool, ts: float)
-_WS_CONV_CACHE_TTL = 300.0  # 5 minutes
+# ── Origin policy — fail closed ───────────────────────────────────────────────
+# Production: only tawasolna.com and www.tawasolna.com are allowed.
+# Development (APP_ENV=development): localhost variants are also allowed.
+# WS_ALLOWED_ORIGINS="*" is forbidden — enforced at startup with RuntimeError.
+# No-origin requests (native mobile/desktop clients) are allowed when JWT is valid.
+# "null" origin is always rejected (sandboxed iframe / local file protocol).
+_APP_ENV = os.environ.get("APP_ENV", "production").lower()
+_WS_PROD_ORIGINS = frozenset({"https://tawasolna.com", "https://www.tawasolna.com"})
+_WS_DEV_ORIGINS  = frozenset({
+    "http://localhost:8000", "http://localhost:3000", "http://localhost:5173",
+    "http://127.0.0.1:8000", "http://127.0.0.1:3000", "http://127.0.0.1:5173",
+})
+_WS_ALLOWED_ORIGINS_RAW = os.environ.get("WS_ALLOWED_ORIGINS", "").strip()
+if _WS_ALLOWED_ORIGINS_RAW == "*":
+    raise RuntimeError(
+        "WS_ALLOWED_ORIGINS='*' is forbidden — WebSocket origin policy must be "
+        "a closed list of origins. Unset WS_ALLOWED_ORIGINS to use production defaults."
+    )
+if _WS_ALLOWED_ORIGINS_RAW:
+    _WS_ALLOWED_ORIGINS: frozenset = frozenset(
+        o.strip() for o in _WS_ALLOWED_ORIGINS_RAW.split(",") if o.strip()
+    )
+elif _APP_ENV == "development":
+    _WS_ALLOWED_ORIGINS = _WS_PROD_ORIGINS | _WS_DEV_ORIGINS
+else:
+    _WS_ALLOWED_ORIGINS = _WS_PROD_ORIGINS
+
+
+# ── Bounded TTL cache for conversation membership ─────────────────────────────
+class _BoundedTTLCache:
+    """LRU-ish bounded cache with per-entry TTL. Evicts oldest entry on overflow."""
+    __slots__ = ("_maxsize", "_pos_ttl", "_neg_ttl", "_store")
+
+    def __init__(self, maxsize: int, pos_ttl: float, neg_ttl: float):
+        self._maxsize = maxsize
+        self._pos_ttl = pos_ttl
+        self._neg_ttl = neg_ttl
+        self._store: OrderedDict = OrderedDict()
+
+    def get(self, key) -> "Optional[bool]":
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        value, exp = entry
+        if time.time() > exp:
+            del self._store[key]
+            return None
+        return value
+
+    def set(self, key, value: bool) -> None:
+        ttl = self._pos_ttl if value else self._neg_ttl
+        if key in self._store:
+            del self._store[key]
+        elif len(self._store) >= self._maxsize:
+            self._store.popitem(last=False)  # evict oldest entry
+        self._store[key] = (value, time.time() + ttl)
+
+    def warm(self, key) -> None:
+        self.set(key, True)
+
+
+_ws_conv_cache = _BoundedTTLCache(maxsize=5000, pos_ttl=300.0, neg_ttl=60.0)
+_WS_VALID_USER_TYPES = frozenset({"emp", "co", "edu"})
 
 
 def _ws_origin_ok(websocket: WebSocket) -> bool:
-    if not _WS_ALLOWED_ORIGINS:
-        return True  # open policy
     origin = websocket.headers.get("origin", "")
-    return not origin or origin in _WS_ALLOWED_ORIGINS
+    if origin == "null":
+        return False  # sandboxed iframe / local file — always reject
+    if not origin:
+        return True   # native client (mobile/desktop) — allowed with valid JWT
+    return origin in _WS_ALLOWED_ORIGINS
 
 
 def _ws_typing_rate_ok(user_id: int) -> bool:
@@ -1736,54 +1791,116 @@ def _ws_typing_rate_ok(user_id: int) -> bool:
     return True
 
 
-def _ws_conversation_exists(a: int, b: int) -> bool:
+def _ws_cleanup_typing_log(user_id: int) -> None:
+    _ws_typing_log.pop(user_id, None)
+    _ws_event_violations.pop(user_id, None)
+
+
+async def _ws_conversation_exists_async(a: int, b: int) -> bool:
+    """Async conversation membership check — uses asyncpg pool or asyncio.to_thread fallback."""
     key = (min(a, b), max(a, b))
-    cached = _WS_CONV_CACHE.get(key)
-    if cached is not None and (time.time() - cached[1]) < _WS_CONV_CACHE_TTL:
-        return cached[0]
+    cached = _ws_conv_cache.get(key)
+    if cached is not None:
+        return cached
+    result = False
     try:
-        conn = get_conn()
-        rows = conn.run(
-            "SELECT 1 FROM messages "
-            "WHERE (sender_id=:a AND receiver_id=:b) OR (sender_id=:b AND receiver_id=:a) "
-            "LIMIT 1",
-            a=a, b=b,
-        )
-        result = bool(rows)
+        if _asyncpg_pool is not None:
+            async with _asyncpg_pool.acquire() as pg_conn:
+                row = await pg_conn.fetchrow(
+                    "SELECT 1 FROM messages "
+                    "WHERE (sender_id=$1 AND receiver_id=$2) "
+                    "   OR (sender_id=$2 AND receiver_id=$1) "
+                    "LIMIT 1",
+                    a, b,
+                )
+                result = row is not None
+        else:
+            def _sync_check():
+                conn = get_conn()
+                try:
+                    rows = conn.run(
+                        "SELECT 1 FROM messages "
+                        "WHERE (sender_id=:a AND receiver_id=:b) "
+                        "   OR (sender_id=:b AND receiver_id=:a) "
+                        "LIMIT 1",
+                        a=a, b=b,
+                    )
+                    return bool(rows)
+                finally:
+                    release_conn(conn)
+            result = await asyncio.to_thread(_sync_check)
     except Exception as exc:
-        print(f"[WS-SEC] conv_exists error a={a} b={b}: {exc}")
-        result = False
-    _WS_CONV_CACHE[key] = (result, time.time())
+        print(f"[WS-SEC] conv_exists_error pair=({min(a,b)},{max(a,b)}): {type(exc).__name__}")
+        return False  # fail closed — do not cache on error
+    _ws_conv_cache.set(key, result)
     return result
+
+
+def _ws_validate_auth_frame(raw: str) -> "tuple":
+    """Validate the first WS frame. Returns (auth_uid, 0) on success or (-1, close_code)."""
+    if len(raw) > _WS_AUTH_FRAME_MAX:
+        return -1, 4002
+    try:
+        msg = json.loads(raw)
+    except (ValueError, TypeError):
+        return -1, 4002
+    if not isinstance(msg, dict):
+        return -1, 4002
+    if msg.get("type") != "auth":
+        return -1, 4002
+    token = msg.get("token", "")
+    if not isinstance(token, str) or not token:
+        return -1, 4001
+    payload = _jwt_decode(token)
+    if not payload:
+        return -1, 4001
+    jwt_user_id = payload.get("user_id")
+    user_type   = payload.get("user_type")
+    if jwt_user_id is None or user_type is None:
+        return -1, 4001
+    if user_type not in _WS_VALID_USER_TYPES:
+        return -1, 4001
+    try:
+        auth_uid = int(jwt_user_id)
+        if auth_uid <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return -1, 4001
+    return auth_uid, 0
 
 
 class ConnectionManager:
     def __init__(self):
         self.active: Dict[int, list] = {}
         self.active_conversations: Dict[int, int] = {}
-        # Tracks which specific WebSocket last set active_conversations,
-        # so only the messenger WS (never the badge WS) can clear it on disconnect.
         self._conv_ws_owner: Dict[int, object] = {}
 
-    def register(self, user_id: int, ws: WebSocket):
-        """Register a WebSocket AFTER JWT auth succeeds. Never call before auth."""
-        if user_id not in self.active:
-            self.active[user_id] = []
-        self.active[user_id].append(ws)
+    def register(self, user_id: int, ws: WebSocket) -> bool:
+        """Register a WebSocket AFTER JWT auth succeeds. Returns False if limit exceeded."""
+        conns = self.active.get(user_id)
+        if conns is None:
+            self.active[user_id] = [ws]
+            return True
+        if ws in conns:
+            return True  # duplicate — idempotent
+        if len(conns) >= _WS_MAX_CONN_PER_USER:
+            return False  # too many connections → caller sends 4007
+        conns.append(ws)
+        return True
 
     def disconnect(self, user_id: int, ws: WebSocket):
         if user_id in self.active:
             self.active[user_id] = [w for w in self.active[user_id] if w != ws]
-            if self._conv_ws_owner.get(user_id) is ws or not self.active[user_id]:
+            if not self.active[user_id]:
+                del self.active[user_id]
+            if self._conv_ws_owner.get(user_id) is ws:
                 self.active_conversations.pop(user_id, None)
                 self._conv_ws_owner.pop(user_id, None)
 
     async def send_to_user(self, user_id: int, data: dict) -> bool:
-        import json
         if user_id not in self.active or not self.active[user_id]:
             return False
-        sent = False
-        dead = []
+        sent, dead = False, []
         for ws in self.active[user_id]:
             try:
                 await ws.send_text(json.dumps(data))
@@ -1791,7 +1908,10 @@ class ConnectionManager:
             except Exception:
                 dead.append(ws)
         for d in dead:
-            self.active[user_id].remove(d)
+            if d in self.active.get(user_id, []):
+                self.active[user_id].remove(d)
+        if user_id in self.active and not self.active[user_id]:
+            del self.active[user_id]
         return sent
 
 
@@ -1800,12 +1920,10 @@ ws_manager = ConnectionManager()
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    import json
-
-    # ── Step 1: Accept HTTP upgrade (no registration yet) ─────────────────────
+    # ── Step 1: Accept HTTP upgrade (no registration yet) ────────────────────
     await websocket.accept()
 
-    # ── Step 2: Origin check ──────────────────────────────────────────────────
+    # ── Step 2: Origin check — fail closed ───────────────────────────────────
     if not _ws_origin_ok(websocket):
         print(f"[WS-SEC] ORIGIN_DENIED path_uid={user_id} origin={websocket.headers.get('origin','<none>')}")
         await websocket.close(code=4006)
@@ -1816,56 +1934,29 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=_WS_AUTH_TIMEOUT)
     except asyncio.TimeoutError:
         print(f"[WS-SEC] AUTH_TIMEOUT path_uid={user_id}")
-        await websocket.close(code=4001)
+        await websocket.close(code=4002)
         return
     except Exception:
         return  # connection dropped before auth message
 
-    if len(raw) > _WS_MAX_PAYLOAD:
-        print(f"[WS-SEC] AUTH_OVERSIZE path_uid={user_id}")
-        await websocket.close(code=4004)
-        return
-
-    try:
-        auth_msg = json.loads(raw)
-    except (ValueError, TypeError):
-        print(f"[WS-SEC] AUTH_INVALID_JSON path_uid={user_id}")
-        await websocket.close(code=4004)
-        return
-
-    if auth_msg.get("type") != "auth":
-        print(f"[WS-SEC] AUTH_WRONG_TYPE type={auth_msg.get('type')!r} path_uid={user_id}")
-        await websocket.close(code=4001)
-        return
-
-    token = auth_msg.get("token", "")
-    if not isinstance(token, str) or not token:
-        print(f"[WS-SEC] AUTH_NO_TOKEN path_uid={user_id}")
-        await websocket.close(code=4001)
-        return
-
-    # JWT validation — never log the token itself
-    payload = _jwt_decode(token)
-    if not payload:
-        print(f"[WS-SEC] AUTH_JWT_INVALID path_uid={user_id}")
-        await websocket.close(code=4001)
-        return
-
-    jwt_user_id = payload.get("user_id")
-    if jwt_user_id is None:
-        print(f"[WS-SEC] AUTH_MISSING_CLAIMS path_uid={user_id}")
-        await websocket.close(code=4001)
+    auth_uid, err_code = _ws_validate_auth_frame(raw)
+    if err_code:
+        print(f"[WS-SEC] AUTH_FAIL code={err_code} path_uid={user_id}")
+        await websocket.close(code=err_code)
         return
 
     # Identity is ALWAYS from JWT — URL path must match but never overrides JWT
-    auth_uid = int(jwt_user_id)
     if auth_uid != user_id:
         print(f"[WS-SEC] AUTH_UID_MISMATCH jwt_uid={auth_uid} path_uid={user_id}")
         await websocket.close(code=4003)
         return
 
     # ── Step 4: Register only after successful auth ───────────────────────────
-    ws_manager.register(auth_uid, websocket)
+    if not ws_manager.register(auth_uid, websocket):
+        print(f"[WS-SEC] TOO_MANY_CONN uid={auth_uid}")
+        await websocket.close(code=4007)
+        return
+
     print(f"[WS] CONNECTED uid={auth_uid}")
     try:
         await websocket.send_text(json.dumps({"type": "auth_ok", "user_id": auth_uid}))
@@ -1901,16 +1992,30 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     pass
                 break
 
+            if not isinstance(msg, dict):
+                print(f"[WS-SEC] NON_DICT_MSG uid={auth_uid}")
+                try:
+                    await websocket.close(code=4004)
+                except Exception:
+                    pass
+                break
+
             msg_type = msg.get("type", "")
 
             if msg_type == "active_conversation":
                 other_id = msg.get("other_id")
                 if other_id is not None:
                     try:
-                        ws_manager.active_conversations[auth_uid] = int(other_id)
-                        ws_manager._conv_ws_owner[auth_uid] = websocket
+                        other_id = int(other_id)
+                        if other_id <= 0:
+                            raise ValueError()
                     except (ValueError, TypeError):
-                        pass
+                        continue
+                    if not await _ws_conversation_exists_async(auth_uid, other_id):
+                        print(f"[WS-SEC] ACTIVE_CONV_UNAUTH uid={auth_uid} other={other_id}")
+                        continue
+                    ws_manager.active_conversations[auth_uid] = other_id
+                    ws_manager._conv_ws_owner[auth_uid] = websocket
 
             elif msg_type == "inactive_conversation":
                 if ws_manager._conv_ws_owner.get(auth_uid) is websocket:
@@ -1922,12 +2027,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 if to_id is not None:
                     try:
                         to_id = int(to_id)
+                        if to_id <= 0:
+                            raise ValueError()
                     except (ValueError, TypeError):
                         continue
-                    # Authorization: conversation must already exist between both users
-                    if not _ws_conversation_exists(auth_uid, to_id):
-                        print(f"[WS-SEC] TYPING_UNAUTH uid={auth_uid} to={to_id}")
-                        continue
+                    # Rate limit BEFORE DB lookup
                     if not _ws_typing_rate_ok(auth_uid):
                         print(f"[WS-SEC] TYPING_RATE_LIMIT uid={auth_uid}")
                         try:
@@ -1935,49 +2039,27 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                         except Exception:
                             pass
                         break
+                    # Authorization: conversation must already exist between both users
+                    if not await _ws_conversation_exists_async(auth_uid, to_id):
+                        print(f"[WS-SEC] TYPING_UNAUTH uid={auth_uid} to={to_id}")
+                        continue
                     await ws_manager.send_to_user(to_id, {"type": msg_type, "from_user_id": auth_uid})
 
-            elif not msg_type:
-                # Legacy WS send path (HTTP send is primary — this is fallback only).
-                # Sender is ALWAYS auth_uid from JWT; receiver_id comes from payload only.
-                receiver_id = msg.get("receiver_id")
-                content = msg.get("content", "")
-                if receiver_id and content:
-                    try:
-                        receiver_id = int(receiver_id)
-                    except (ValueError, TypeError):
-                        continue
-                    saved = send_message(auth_uid, receiver_id, content)
-                    msg_id = saved.get("id")
-                    receiver_has_conv_open = ws_manager.active_conversations.get(receiver_id) == auth_uid
-                    if receiver_has_conv_open:
-                        mark_message_read_immediate(msg_id)
-                        await ws_manager.send_to_user(receiver_id, {
-                            "type": "message", "from": auth_uid, "id": msg_id,
-                            "content": content, "created_at": saved.get("created_at", ""),
-                            "is_read": True,
-                        })
-                        await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "read"}))
-                    else:
-                        was_delivered = await ws_manager.send_to_user(receiver_id, {
-                            "type": "message", "from": auth_uid, "id": msg_id,
-                            "content": content, "created_at": saved.get("created_at", ""),
-                        })
-                        if was_delivered:
-                            mark_message_delivered(msg_id)
-                            await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
-                    await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
-                    unread = get_unread_count(receiver_id)
-                    await ws_manager.send_to_user(receiver_id, {"type": "badge_update", "badge": "messages", "count": unread})
-                    # Warm the conversation cache so typing is allowed immediately after first send
-                    _WS_CONV_CACHE[(min(auth_uid, receiver_id), max(auth_uid, receiver_id))] = (True, time.time())
-
             else:
-                # Unknown / disallowed event type — log and ignore
-                print(f"[WS-SEC] UNKNOWN_TYPE type={msg_type!r} uid={auth_uid}")
+                count = _ws_event_violations.get(auth_uid, 0) + 1
+                _ws_event_violations[auth_uid] = count
+                print(f"[WS-SEC] UNKNOWN_TYPE type={msg_type!r} uid={auth_uid} violation={count}")
+                if count >= _WS_MAX_VIOLATIONS:
+                    print(f"[WS-SEC] VIOLATION_LIMIT uid={auth_uid}")
+                    try:
+                        await websocket.close(code=4005)
+                    except Exception:
+                        pass
+                    break
 
     finally:
         ws_manager.disconnect(auth_uid, websocket)
+        _ws_cleanup_typing_log(auth_uid)
         print(f"[WS] DISCONNECTED uid={auth_uid}")
 
 

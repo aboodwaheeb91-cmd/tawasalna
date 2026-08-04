@@ -182,10 +182,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 18. Messaging / Direct Messaging
 **Purpose:** Direct messaging between users with typing indicators, delivery/read receipts, active-conversation signalling.
 **Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` · client in `messages.ws.js` · shared badge client in `tw_shared.js`
-**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and in use**. ✅ P0 Security Debt Resolved: First-Message JWT Authentication implemented (PR `security/ws-auth-hardening`). The route now requires `{"type":"auth","token":"<jwt>"}` as the first message; operational events are rejected until `auth_ok` is received from the server.
-**Auth Protocol:** 5-step handshake — accept HTTP upgrade → origin check → 5s auth window → JWT decode + uid match → register + send `auth_ok`. Close codes: 4001 (Unauthorized), 4003 (Forbidden), 4004 (Bad Payload), 4005 (Policy), 4006 (Origin).
-**Details:** `ARCHITECTURE.md §47–48` · `ARCHITECTURE.md Messenger Premium UI Contract`
-**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. Do not call `ws_manager.register()` before JWT verification. Do not use URL path `user_id` as identity — identity always from JWT claims.
+**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and fully hardened**. ✅ P0 Security Debt Fully Resolved (PR `security/ws-auth-hardening`). Complete auth hardening: fail-closed origin policy, `_BoundedTTLCache`, async DB (`asyncio.to_thread` / asyncpg pool), per-user connection limit (10 max → 4007), rate-limit-before-DB for typing, event violation counter, legacy WS send path removed, full client lifecycle with `_wsGen` generation counter + `TwAuthSync` integration.
+**Auth Protocol:** `_ws_validate_auth_frame()` helper — accept HTTP upgrade → origin check (fail closed) → 5s auth window (close 4002 on timeout) → validate `{type:"auth",token:"<jwt>"}` → JWT decode + `user_type` check + positive int uid → URL match (close 4003) → connection limit (close 4007) → register + send `auth_ok`. Client validates `auth_ok.user_id`.
+**Close Codes:** 4001 Unauthorized · 4002 Auth Failed · 4003 Forbidden · 4004 Bad Payload · 4005 Policy · 4006 Origin Denied · 4007 Too Many Connections. Clients must NOT reconnect on 4001–4007.
+**Details:** `ARCHITECTURE.md §47` (full spec with origin policy, close codes, event matrix, bounded cache, async DB, client lifecycle)
+**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. Do not call `ws_manager.register()` before JWT verification. Do not use URL path `user_id` as identity — identity always from JWT claims. Do not set `WS_ALLOWED_ORIGINS="*"`. Do not call `_ws_conversation_exists_async` before rate limiter for typing. Do not add legacy WS send path back.
 
 ---
 

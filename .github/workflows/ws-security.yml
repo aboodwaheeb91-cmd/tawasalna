@@ -1,0 +1,57 @@
+name: WebSocket Security Tests
+
+on:
+  push:
+    paths:
+      - 'server.py'
+      - 'messages.ws.js'
+      - 'tw_shared.js'
+      - 'test_ws_security.py'
+      - 'test_ws_behavioral.py'
+      - 'test_ws_client.mjs'
+      - '.github/workflows/ws-security.yml'
+  pull_request:
+    paths:
+      - 'server.py'
+      - 'messages.ws.js'
+      - 'tw_shared.js'
+      - 'test_ws_security.py'
+      - 'test_ws_behavioral.py'
+      - 'test_ws_client.mjs'
+
+jobs:
+  ws-security:
+    name: WebSocket Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check — server.py
+        env:
+          APP_ENV: development
+        run: python -m py_compile server.py
+
+      - name: Syntax check — messages.ws.js
+        run: node --check messages.ws.js
+
+      - name: A — Static verification (source inspection)
+        run: python test_ws_security.py
+
+      - name: B — Behavioral tests (logic correctness)
+        run: python test_ws_behavioral.py
+
+      - name: C — Client lifecycle tests (Node.js)
+        run: node test_ws_client.mjs

@@ -421,6 +421,16 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 (function() {
   var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
   var _activeUid = 0;
+  var _activeSocket = null;   // current active WS reference
+  var _reconnectTimer = null; // active reconnect timer handle
+
+  function _clearSocket() {
+    _gen++;
+    var sock = _activeSocket;
+    _activeSocket = null;
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+    if (sock) { try { sock.close(); } catch(e) {} }
+  }
 
   function _initBadgeWS() {
     var u = null;
@@ -431,14 +441,17 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     _gen++;
     _activeUid = u.id;
     var capturedGen = _gen;
-    var capturedUid = u.id;
+    var capturedUid = Number(u.id);
 
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id);
+    var ws;
+    try { ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id); } catch(e) { return; }
+    _activeSocket = ws;
     var retries = 0;
     var wsReady = false;
 
     ws.onopen = function() {
+      if (capturedGen !== _gen) { ws.close(); return; }
       wsReady = false;
       ws.send(JSON.stringify({type: 'auth', token: jwt}));
     };
@@ -448,6 +461,8 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
       try {
         var data = JSON.parse(e.data);
         if (data.type === 'auth_ok') {
+          // Validate server echoed the correct user_id
+          if (Number(data.user_id) !== capturedUid) { ws.close(); return; }
           wsReady = true;
           return;
         }
@@ -463,11 +478,16 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     };
     ws.onclose = function(event) {
       wsReady = false;
-      // Auth/Policy close codes — do not reconnect
-      if (event.code >= 4001 && event.code <= 4006) return;
+      if (ws === _activeSocket) _activeSocket = null;
+      // Auth/Policy close codes (4001-4007) — do not reconnect
+      if (event.code >= 4001 && event.code <= 4007) return;
       // Superseded by a newer session — do not reconnect
       if (capturedGen !== _gen) return;
-      if (retries < 5) { retries++; setTimeout(_initBadgeWS, retries * 2000); }
+      if (retries < 5) {
+        retries++;
+        var delay = Math.min(30000, Math.pow(2, retries) * 1000 + Math.floor(Math.random() * 1000));
+        _reconnectTimer = setTimeout(_initBadgeWS, delay);
+      }
     };
     ws.onerror = function() { ws.close(); };
   }
@@ -476,6 +496,17 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   window.addEventListener('load', function() {
     setTimeout(_initBadgeWS, 200);
   });
+
+  // TwAuthSync: close socket on logout or account-switch
+  if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
+    TwAuthSync.onSessionChange(function(info) {
+      _clearSocket();
+      // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
+      if (info && info.jwt) {
+        setTimeout(_initBadgeWS, 300);
+      }
+    });
+  }
 })();
 
 
