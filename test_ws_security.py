@@ -6,8 +6,9 @@ establishing live WebSocket connections (which would require a running DB).
 
 Coverage:
   A — Backend (server.py): 29 checks (A01-A29)
-  B — Messages client (messages.ws.js): 14 checks (B01-B14)
+  B — Messages client (messages.ws.js): 17 checks (B01-B17)
   C — Badge WS client (tw_shared.js): 12 checks (C01-C12)
+  D — Messages API client (messages.api.js): 5 checks (D01-D05)
 
 Run:  python test_ws_security.py
 """
@@ -37,6 +38,7 @@ def _read(path):
 srv  = _read("server.py")
 ws   = _read("messages.ws.js")
 shr  = _read("tw_shared.js")
+api  = _read("messages.api.js")
 
 # Extract the WS section of server.py (from class ConnectionManager onwards)
 ws_section_start = srv.find("class ConnectionManager:")
@@ -253,6 +255,18 @@ else:
 check("B14  _wsRetries NOT reset inside onopen (only on auth_ok / session change)",
       "_wsRetries = 0" not in onopen_body_b14)
 
+# B15: location.replace('/login') in TwAuthSync session handler (logout / invalid session path)
+check("B15  location.replace('/login') present in TwAuthSync session handler",
+      "location.replace('/login')" in ws)
+
+# B16: location.reload() in TwAuthSync session handler (account-switch path)
+check("B16  location.reload() present in TwAuthSync session handler",
+      "location.reload()" in ws)
+
+# B17: _jwt = '' assigned in logout path of TwAuthSync session handler
+check("B17  _jwt = '' assigned in logout/invalid path of TwAuthSync handler",
+      re.search(r"_jwt\s*=\s*''|_jwt\s*=\s*\"\"", ws) is not None)
+
 print("\n── C  Badge WS client (tw_shared.js) ──────────────────────────────────")
 
 # Find the IIFE badge WS block
@@ -314,6 +328,29 @@ check("C11  _retries at IIFE level (not var retries inside _initBadgeWS)",
 # C12: _sessionReinitTimer declared at IIFE level in Badge WS
 check("C12  _sessionReinitTimer declared at IIFE level in Badge WS",
       re.search(r"var\s+_sessionReinitTimer\s*=\s*null", badge_block) is not None)
+
+print("\n── D  Messages API client (messages.api.js) ───────────────────────────")
+
+# D01: getMessagesJwt() defined — reads JWT at call time (not from stale in-memory _jwt)
+check("D01  getMessagesJwt() function defined in messages.api.js",
+      "function getMessagesJwt()" in api)
+
+# D02: _isMessagesAuthValid() defined — guards all API calls
+check("D02  _isMessagesAuthValid() function defined in messages.api.js",
+      "function _isMessagesAuthValid()" in api)
+
+# D03: No hardcoded 'Bearer ' + _jwt pattern — all headers use getMessagesJwt()
+check("D03  No hardcoded 'Bearer ' + _jwt pattern in messages.api.js",
+      "'Bearer ' + _jwt" not in api and '"Bearer " + _jwt' not in api)
+
+# D04: getMessagesJwt() used inside Authorization header value
+check("D04  getMessagesJwt() called inside Authorization header in messages.api.js",
+      "'Authorization': 'Bearer ' + getMessagesJwt()" in api or
+      '"Authorization": "Bearer " + getMessagesJwt()' in api)
+
+# D05: _isMessagesAuthValid() guard present in apiSendMessage
+check("D05  _isMessagesAuthValid() guard present in apiSendMessage",
+      re.search(r"function\s+apiSendMessage.*?_isMessagesAuthValid", api, re.DOTALL) is not None)
 
 # ── Summary ───────────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
  * exercising the logic with mock DOM and WebSocket objects.
  * No real server required.
  *
- * 34 scenarios:
+ * 37 scenarios:
  *   T01  connectWS without _user → no socket
  *   T02  onopen sends {type:'auth',token:...} as first message
  *   T03  auth_ok with correct uid sets _wsReady = true
@@ -19,10 +19,18 @@
  *  T11  _wsReady reset to false on close
  *  T12  _wsGen increments on each connectWS call
  *  T13  Client-side auth timeout scheduled in onopen
+ *  T15  Logout (empty jwt) → location.replace('/login'), no reconnect timer
+ *  T16  Account switch (different userId) → window.location.reload() called
+ *  T17  Account switch → no new WebSocket (page reload handles re-init)
+ *  T18  isAuthenticated=false → location.replace('/login') called
+ *  T19  Logout after switch → switch timer cancelled
  *  T31  5-cycle retry lifecycle → _wsRetries not reset in onopen, stops at 5
  *  T32  Auth timeout timer cleared on auth_ok
  *  T33  Auth timeout timer cleared on onclose
  *  T34  Badge WS V2 snapshot (no jwt) + localStorage JWT → socket created
+ *  T35  Logout → _user/_currentConvId cleared, replace('/login') called
+ *  T36  Same user + authenticated → no reload/replace, reconnect timer scheduled
+ *  T37  Account switch → location.reload() called, no new WS
  *
  * Run:  node test_ws_client.mjs
  */
@@ -321,6 +329,7 @@ function makeFreshContextWithAuth(snapshot = null) {
   MockWebSocket.reset();
 
   let sessionChangeCb = null;
+  const locationCalls = [];
 
   const ctx = {
     WebSocket: MockWebSocket,
@@ -338,7 +347,15 @@ function makeFreshContextWithAuth(snapshot = null) {
       querySelector:  () => null,
       querySelectorAll: () => ({ forEach: () => {} }),
     },
-    window: { location: { protocol: 'https:', host: 'tawasolna.com' } },
+    window: {
+      location: {
+        protocol: 'https:',
+        host: 'tawasolna.com',
+        replace(url) { locationCalls.push({ action: 'replace', url }); },
+        reload()     { locationCalls.push({ action: 'reload' }); },
+      },
+    },
+    _locationCalls: locationCalls,
     _scheduledTimers: scheduledTimers,
     setTimeout(fn, delay) {
       const id = timerCounter++;
@@ -350,6 +367,7 @@ function makeFreshContextWithAuth(snapshot = null) {
       if (t) t.cancelled = true;
     },
     _user: { id: 42 },
+    _jwt: 'test.jwt.token',
     _currentConvId: null,
     _typingHideTimer: null,
     _pendingStatus: {},
@@ -391,7 +409,8 @@ function firePendingTimer() {
         ctx._wsGen > genBefore);  // gen advances on any session change
 })();
 
-// T15: Logout (no jwt in info) → socket closed, no reconnect timer
+// T15: Logout → location.replace('/login') called, no reconnect timer
+// Proper logout simulation: clear JWT from localStorage AND fire with empty jwt
 (function test_T15() {
   const ctx = makeFreshContextWithAuth();
   ctx.connectWS();
@@ -399,16 +418,18 @@ function firePendingTimer() {
   ws.onopen && ws.onopen();
   ws._receive({ type: 'auth_ok', user_id: 42 });
 
-  scheduledTimers.length = 0;  // clear timers from connectWS
-  ctx._fireSessionChange({});   // logout — no jwt
+  scheduledTimers.length = 0;
+  // Simulate real logout: clear JWT from localStorage, then fire with empty jwt
+  ctx.localStorage._data.tw_jwt = '';
+  ctx._fireSessionChange({ jwt: '' });
 
-  const reconnectTimers = scheduledTimers.filter(t => !t.cancelled);
-  check('T15  Logout (no jwt) → no reconnect timer scheduled',
-        reconnectTimers.length === 0);
+  check('T15  Logout (empty jwt) → location.replace(\'/login\') called, no reconnect timer',
+        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login') &&
+        scheduledTimers.filter(t => !t.cancelled).length === 0);
 })();
 
-// T16: Account switch → new socket URL contains new user ID
-// Uses V2 snapshot format: no jwt field; JWT comes from info.jwt
+// T16: Account switch (different userId) → window.location.reload() called
+// Cross-account switch triggers a full page reload for clean re-init
 (function test_T16() {
   const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 55, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
@@ -418,17 +439,13 @@ function firePendingTimer() {
 
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'user.b.jwt' });
-  // Fire the 500ms switch timer
-  const switchTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
-  if (switchTimer) { switchTimer.cancelled = true; switchTimer.fn(); }
 
-  const ws2 = MockWebSocket.last();
-  check('T16  Account switch (V2 snapshot, no jwt field) → new socket to new user URL',
-        ws2 !== null && ws2 !== ws1 && ws2.url.includes('/55'));
+  check('T16  Account switch (different userId) → window.location.reload() called',
+        ctx._locationCalls.some(c => c.action === 'reload'));
 })();
 
-// T17: Account switch → new socket sends fresh JWT from info.jwt (not snapshot.jwt)
-// V2 contract: snapshot has no jwt field; JWT sourced from info.jwt captured at callback entry
+// T17: Account switch → no new WebSocket (page reload handles re-init)
+// After reload() is called, no WS reconnect is scheduled or created
 (function test_T17() {
   const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 55, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
@@ -436,18 +453,14 @@ function firePendingTimer() {
 
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'fresh.b.jwt' });
-  const switchTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
-  if (switchTimer) { switchTimer.cancelled = true; switchTimer.fn(); }
 
-  const ws2 = MockWebSocket.last();
-  ws2 && ws2.onopen && ws2.onopen();
-  const authMsg = ws2 && ws2.sent.length > 0 ? (() => { try { return JSON.parse(ws2.sent[0]); } catch { return {}; } })() : {};
-  check('T17  Account switch → auth frame uses info.jwt (fresh.b.jwt), not snapshot.jwt',
-        authMsg.type === 'auth' && authMsg.token === 'fresh.b.jwt');
+  check('T17  Account switch → no new WebSocket created (page reload handles re-init)',
+        MockWebSocket._instances.length === 0 &&
+        ctx._locationCalls.some(c => c.action === 'reload'));
 })();
 
-// T18: getSessionSnapshot returns isAuthenticated=false → no new socket
-// V2 snapshot format with explicit unauthenticated state
+// T18: getSessionSnapshot returns isAuthenticated=false → location.replace('/login'), no new socket
+// V2 snapshot format with explicit unauthenticated state — JWT present but session invalid
 (function test_T18() {
   const snapshot = { state: 'unauthenticated', isAuthenticated: false, userType: null, userId: null, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
@@ -455,14 +468,13 @@ function firePendingTimer() {
 
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'some.jwt' });
-  const switchTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
-  if (switchTimer) { switchTimer.cancelled = true; switchTimer.fn(); }
 
-  check('T18  V2 snapshot isAuthenticated=false → no new WebSocket',
+  check('T18  V2 snapshot isAuthenticated=false → location.replace(\'/login\'), no new WS',
+        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login') &&
         MockWebSocket._instances.length === 0);
 })();
 
-// T19: Session switch then logout → switch timer cancelled
+// T19: Session switch then real logout → switch timer cancelled
 (function test_T19() {
   const ctx = makeFreshContextWithAuth();
   ctx.connectWS();
@@ -470,9 +482,10 @@ function firePendingTimer() {
   scheduledTimers.length = 0;
   ctx._fireSessionChange({ jwt: 'new.jwt' });
   const switchTimerAfterSwitch = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
-  // Now fire logout
-  ctx._fireSessionChange({});
-  // Switch timer must be cancelled
+  // Simulate real logout: clear JWT, then fire empty jwt
+  ctx.localStorage._data.tw_jwt = '';
+  ctx._fireSessionChange({ jwt: '' });
+  // Switch timer must be cancelled by step 1 of the logout handler
   check('T19  Logout after switch → switch timer cancelled',
         switchTimerAfterSwitch !== undefined && switchTimerAfterSwitch.cancelled === true);
 })();
@@ -827,6 +840,58 @@ console.log('\n── Retry lifecycle and auth-timer contract tests (T31–T34) 
   if (initTimer) { initTimer.cancelled = true; initTimer.fn(); }
   check('T34  Badge WS V2 snapshot (no jwt field) + localStorage JWT → socket created at /42',
         MockWebSocket._instances.length === 1 && (MockWebSocket.last() || {}).url?.includes('/42'));
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session switch / logout navigation tests (T35–T37)
+// Verifies that the new TwAuthSync handler correctly redirects on logout,
+// reloads on account switch, and reconnects on same-user JWT refresh.
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log('\n── Session switch / logout navigation tests (T35–T37) ──────────────────');
+
+// T35: Logout → _user/_currentConvId cleared, location.replace('/login') called
+(function test_T35() {
+  const ctx = makeFreshContextWithAuth();
+  ctx._currentConvId = 123;
+  ctx.connectWS();
+
+  ctx.localStorage._data.tw_jwt = '';
+  ctx._fireSessionChange({ jwt: '' });
+
+  check('T35  Logout → _user cleared, _currentConvId cleared, replace(\'/login\') called',
+        ctx._user === null &&
+        ctx._currentConvId === null &&
+        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login'));
+})();
+
+// T36: Same user + still authenticated → no reload/replace, reconnect timer scheduled
+(function test_T36() {
+  const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 42, reason: 'ok' };
+  const ctx = makeFreshContextWithAuth(snapshot);
+  ctx.connectWS();
+
+  scheduledTimers.length = 0;
+  ctx._fireSessionChange({ jwt: 'same.user.fresh.jwt' });
+
+  const switchTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
+  check('T36  Same user + authenticated → no reload/replace, reconnect timer scheduled',
+        ctx._locationCalls.length === 0 &&
+        switchTimer !== undefined);
+})();
+
+// T37: Account switch → location.reload() called, no new WS created
+(function test_T37() {
+  const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 77, reason: 'ok' };
+  const ctx = makeFreshContextWithAuth(snapshot);
+  ctx.connectWS();
+
+  MockWebSocket.reset();
+  ctx._fireSessionChange({ jwt: 'user.c.jwt' });
+
+  check('T37  Account switch (userId 77 ≠ 42) → location.reload() called, no new WS',
+        ctx._locationCalls.some(c => c.action === 'reload') &&
+        MockWebSocket._instances.length === 0);
 })();
 
 // ── Summary ──────────────────────────────────────────────────────────────

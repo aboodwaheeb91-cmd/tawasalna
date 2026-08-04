@@ -231,10 +231,18 @@ function connectWS() {
   ws.onerror = function() { ws.close(); };
 }
 
-// ── TwAuthSync lifecycle — close socket on logout or account-switch ───────
+// ── TwAuthSync lifecycle — handle logout and account-switch on messages page ──
 // TwAuthSync fires when tw_jwt changes in any tab or on page focus/visibility.
+// Behavior by case:
+//   No JWT (logout/expired)           → clear state, redirect to /login
+//   JWT but isAuthenticated=false     → clear state, redirect to /login
+//   JWT, different userId             → window.location.reload() (clean re-init)
+//   JWT, same userId (token refresh)  → update _jwt, reconnect WS
 if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
   TwAuthSync.onSessionChange(function(info) {
+    // Step 1: Capture current user before any state mutation
+    var prevUserId = _user ? Number(_user.id) : null;
+
     // Invalidate all active closures by advancing the generation counter
     _wsGen++;
     _wsRetries = 0;  // new session resets the retry counter
@@ -245,31 +253,62 @@ if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
     var sock = _ws;
     _ws = null;
     if (sock) { try { sock.close(); } catch(e) {} }
-    // Reconnect on account-switch (new JWT exists); stay disconnected on logout
-    if (info && info.jwt) {
-      var capturedJwt = info.jwt;  // capture before async delay — info may not be in scope later
-      _wsSessionSwitchTimer = setTimeout(function() {
-        _wsSessionSwitchTimer = null;
-        // V2 contract: getSessionSnapshot() returns {state,isAuthenticated,userType,userId,reason}
-        // — no jwt field. JWT always comes from info.jwt (capturedJwt) or localStorage.
-        var snapshot = (info && info.snapshot) ||
-            ((typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
-            ? TwAuthSync.getSessionSnapshot() : null);
-        var freshUser = null;
-        var freshJwt = capturedJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
-        if (snapshot) {
-          if (!snapshot.isAuthenticated) return;
-          freshUser = { id: snapshot.userId };
-          // V2 snapshot has no jwt — freshJwt is already sourced above
-        } else {
-          try { freshUser = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'); } catch(e) {}
-          if (!freshJwt) freshJwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
-        }
-        if (!freshUser || !freshUser.id || !freshJwt) return;
-        _user = freshUser;
-        _wsPendingJwt = freshJwt;  // stage fresh JWT for onopen auth frame
-        connectWS();
-      }, 500);
+
+    // Step 2: Determine current JWT — info.jwt is synchronously captured before any delay
+    var capturedJwt = (info && info.jwt) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+
+    // Step 3: No JWT → logout path: clear state, redirect to login
+    if (!capturedJwt) {
+      _jwt = '';
+      _user = null;
+      _currentConvId = null;
+      window.location.replace('/login');
+      return;
     }
+
+    // Step 4: JWT present but snapshot says session is invalid (e.g. token revoked)
+    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+        ? TwAuthSync.getSessionSnapshot() : null;
+    if (snapshot && !snapshot.isAuthenticated) {
+      _jwt = '';
+      _user = null;
+      _currentConvId = null;
+      window.location.replace('/login');
+      return;
+    }
+
+    // Step 5: Determine the incoming user ID
+    var newUserId = null;
+    if (snapshot) {
+      newUserId = snapshot.userId ? Number(snapshot.userId) : null;
+    } else {
+      try {
+        var freshUser = JSON.parse(
+            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
+        newUserId = freshUser ? Number(freshUser.id) : null;
+      } catch(e) {}
+    }
+
+    // Step 6: Account switch (different user) → full page reload for clean re-init
+    if (newUserId && prevUserId && newUserId !== prevUserId) {
+      window.location.reload();
+      return;
+    }
+
+    // Step 7: Same user (token refresh) → update JWT, stage for WS auth, reconnect
+    _jwt = capturedJwt;
+    _wsPendingJwt = capturedJwt;
+    _wsSessionSwitchTimer = setTimeout(function() {
+      _wsSessionSwitchTimer = null;
+      if (!_user || !_user.id) return;
+      // Refresh _user from localStorage in case profile data changed
+      try {
+        var u = JSON.parse(
+            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
+        if (u && u.id) _user = u;
+      } catch(e) {}
+      connectWS();
+    }, 500);
   });
 }

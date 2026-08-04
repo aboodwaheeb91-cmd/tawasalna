@@ -1083,6 +1083,54 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 
 ---
 
+## Messenger Session Lifecycle Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecycle`.
+
+### TwAuthSync.onSessionChange handler (messages.ws.js) — permanent decision tree
+
+| Condition | Action |
+|-----------|--------|
+| `capturedJwt` empty (logout / expired) | `_jwt = ''` + `_user = null` + `_currentConvId = null` + `window.location.replace('/login')` |
+| JWT present but `snapshot.isAuthenticated === false` | Same as above — redirect to `/login` |
+| JWT present, `newUserId !== prevUserId` (account switch) | `window.location.reload()` — clean re-init |
+| JWT present, same userId (token refresh) | Update `_jwt` + `_wsPendingJwt` + schedule 500ms WS reconnect |
+
+1. **`capturedJwt` is always sourced synchronously:** `info.jwt` first, then `localStorage.getItem('tw_jwt')`. Never from `snapshot.jwt` (V2 snapshot has no jwt field).
+
+2. **Account switch = full page reload.** Do NOT attempt partial state clearing (conv list, messages, `_user`, `_currentConvId`, etc.) — it is error-prone and incomplete. `window.location.reload()` is the only approved account-switch action.
+
+3. **Logout/invalid → redirect, not reconnect.** Empty JWT or `isAuthenticated=false` → `window.location.replace('/login')`. Never reconnect WS after logout.
+
+4. **`_jwt = ''` must be assigned before redirect** in the logout/invalid path. This prevents in-flight callbacks from using the old JWT.
+
+5. **`_currentConvId = null` must be assigned before redirect** in the logout/invalid path. This prevents a stale conversation ID from appearing if navigation is delayed.
+
+### messages.api.js — permanent API session contract
+
+6. **`getMessagesJwt()` is the only approved JWT source** in `messages.api.js`. It reads `localStorage.getItem('tw_jwt')` at call time — never uses the stale in-memory `_jwt` variable.
+
+7. **`_isMessagesAuthValid()` must guard every API function** before making any `fetch()`. The guard checks: `_user.id` is set, `getMessagesJwt()` is non-empty, and `TwAuthSync.getSessionSnapshot().isAuthenticated` is true (when snapshot is available).
+
+8. **`'Bearer ' + _jwt` is permanently forbidden** in `messages.api.js`. All Authorization headers must use `'Bearer ' + getMessagesJwt()`.
+
+9. **`_isMessagesAuthValid()` return values are final:** functions returning null-on-not-found (`apiLookupByTwId`, `apiGetUser`) resolve with `null`; functions rejecting on error reject with `'unauthenticated'`.
+
+### Forbidden (permanent)
+
+```
+❌ Using _jwt directly in Authorization headers in messages.api.js
+❌ Adding a new fetch() in messages.api.js without an _isMessagesAuthValid() guard
+❌ Partial account-switch handling in messages page — only window.location.reload()
+❌ Reconnecting WS after logout (empty JWT or isAuthenticated=false)
+❌ Reading snapshot.jwt — V2 TwAuthSync snapshot has no jwt field
+❌ Clearing conversation state manually on account switch (reload handles it)
+❌ Redirecting to any URL other than '/login' on logout/invalid session
+```
+
+---
+
 ## Post Appreciation System Rules — أقدّر (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.

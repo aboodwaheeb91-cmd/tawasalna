@@ -3970,6 +3970,30 @@ Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been
 - `TwAuthSync.onSessionChange` integration via `_clearSocket()` helper (also cancels `_sessionReinitTimer`)
 - **Same V2 snapshot contract as messages.ws.js** — no `snapshot.jwt`
 
+### Messenger Session Lifecycle (messages.ws.js + messages.api.js)
+
+**TwAuthSync.onSessionChange handler — permanent decision tree (PR `security/ws-auth-hardening`):**
+
+| Condition | Action |
+|-----------|--------|
+| `capturedJwt` is empty (logout / expired) | `_jwt = ''`, `_user = null`, `_currentConvId = null`, `window.location.replace('/login')` |
+| JWT present but `snapshot.isAuthenticated === false` | Same as above — redirect to `/login` |
+| JWT present, `newUserId !== prevUserId` (account switch) | `window.location.reload()` — clean re-init, no partial state |
+| JWT present, same userId (token refresh) | Update `_jwt`, stage `_wsPendingJwt`, schedule 500ms WS reconnect |
+
+**`capturedJwt` sourcing (permanent):**
+1. `info.jwt` — synchronously captured from the callback parameter before any `setTimeout`
+2. `localStorage.getItem('tw_jwt')` — fallback when `info.jwt` is absent or empty
+
+**Why reload on account switch:**  
+Manually clearing conversation list, message history, `_currentConvId`, `_user`, `_jwt`, and all UI state is error-prone. A full `window.location.reload()` guarantees a clean re-init from the new session's data. The page will re-read all state from `localStorage` on load.
+
+**messages.api.js session contract (permanent):**
+- `getMessagesJwt()` reads from `localStorage.getItem('tw_jwt')` at call time — never uses stale in-memory `_jwt`
+- `_isMessagesAuthValid()` guards all API calls: checks `_user.id`, `getMessagesJwt()`, and `TwAuthSync.getSessionSnapshot().isAuthenticated`
+- All 6 API functions (`apiGetConversations`, `apiGetMessages`, `apiSendMessage`, `apiGetUnreadCount`, `apiLookupByTwId`, `apiGetUser`) call `_isMessagesAuthValid()` before making any `fetch()`
+- Functions that return `null` on not-found use `Promise.resolve(null)` on auth failure; functions that reject on error use `Promise.reject('unauthenticated')`
+
 ### ممنوعات
 
 ```
@@ -3989,6 +4013,9 @@ Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been
 ❌ لا تقرأ snapshot.jwt — لا يوجد في V2 TwAuthSync snapshot؛ JWT من info.jwt أو localStorage فقط
 ❌ لا تحذف dead socket مباشرة من self.active في send_to_user — يجب المرور عبر disconnect()
 ❌ لا تترك _sessionReinitTimer بدون إلغاء في _clearSocket() — يسبب reconnect stale بعد logout
+❌ لا تستخدم _jwt مباشرة في Authorization headers في messages.api.js — استخدم getMessagesJwt() فقط
+❌ لا تضيف fetch() في messages.api.js بدون guard من _isMessagesAuthValid()
+❌ لا تعمل partial account switch في messages page — الحل الوحيد هو window.location.reload()
 ```
 
 ---
