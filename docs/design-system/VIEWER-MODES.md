@@ -491,6 +491,7 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 | `notifications.html` | ✅ مكتمل | `ntMenuBtn` / `ntMenuDropdown` / `ntMenuDynamic` |
 | `messages.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` |
 | `home-v2.html` | ✅ مكتمل | `hwMenuBtn` / `hwMenuDropdown` |
+| `edu-profile.html` | ✅ مكتمل | `epMenuBtn` / `epMenuDropdown` |
 
 **قاعدة الاعتماد (إلزامية لأي صفحة جديدة تحمل `.sc-menu-dropdown`):**
 1. تحميل `/tw_shared.js` قبل ملفات الصفحة
@@ -529,4 +530,5 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
 rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
 rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).
-rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).*
+rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).
+rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).*

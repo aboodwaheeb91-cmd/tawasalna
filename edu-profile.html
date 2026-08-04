@@ -178,6 +178,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
 </style>
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/app-header.css">
 </head>
 <body>
 
@@ -185,26 +186,22 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <nav class="nav">
   <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
 
-  <!-- Owner actions -->
+  <!-- Owner actions (VM-01) -->
   <div id="ownerActions" style="display:none;align-items:center;gap:6px">
     <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
     <button class="nb nb-ghost" onclick="goHome()">📊 لوحة التحكم</button>
-    <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
   </div>
 
   <div style="flex:1"></div>
-  <button class="nb nb-danger" onclick="doLogout()">خروج</button>
-</nav>
 
-<!-- Dropdown (outside nav) -->
-<div id="dropMenu" style="display:none;position:fixed;top:52px;z-index:9999;background:#0d1526;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:6px;min-width:180px;box-shadow:0 10px 30px rgba(0,0,0,.6)">
-  <a class="drop-item" href="edu.html">📊 لوحة التحكم</a>
-  <a class="drop-item" href="/messages">💬 الرسائل</a>
-  <a class="drop-item" href="notifications.html">🔔 الإشعارات</a>
-  <a class="drop-item" href="settings.html">⚙️ الإعدادات</a>
-  <div style="height:1px;background:rgba(255,255,255,.08);margin:4px 0"></div>
-  <a class="drop-item" onclick="doLogout()" style="color:#f87171;cursor:pointer">🚪 خروج</a>
-</div>
+  <!-- Global session UI (VM-10) -->
+  <a href="/notifications" class="nb nb-ghost" title="الإشعارات" data-tw-session="authenticated" hidden>🔔</a>
+  <a href="/messages" class="nb nb-ghost" title="الرسائل" data-tw-session="authenticated" hidden>💬</a>
+  <div class="sc-menu-wrap" id="epMenuWrap">
+    <button class="nb nb-ghost" id="epMenuBtn" title="القائمة">☰</button>
+    <div class="sc-menu-dropdown" id="epMenuDropdown"></div>
+  </div>
+</nav>
 
 <!-- ══ HERO ══ -->
 <div class="hero" id="heroSection">
@@ -422,10 +419,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 </div>
 
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/auth-sync.js"></script>
 <script>
 let _user=null, _isOwner=false, _following=false;
 let _data={name:'',desc:'',type:'مركز تدريب',loc:'',founded:'',web:'',email:''};
-let _menuOpen=false;
 
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
 
@@ -547,30 +544,6 @@ function sendContact(){
   document.getElementById('contactOverlay').classList.remove('show');
 }
 
-// Dropdown
-function toggleMenu(e){
-  e.stopPropagation();
-  _menuOpen=!_menuOpen;
-  const m=document.getElementById('dropMenu');
-  const btn=document.getElementById('menuBtn');
-  if(!m||!btn)return;
-  if(_menuOpen){
-    const r=btn.getBoundingClientRect();
-    m.style.left=r.left+'px';
-    m.style.display='block';
-  } else {
-    m.style.display='none';
-  }
-}
-document.addEventListener('click',e=>{
-  const btn=document.getElementById('menuBtn');
-  const m=document.getElementById('dropMenu');
-  if(_menuOpen&&m&&btn&&!btn.contains(e.target)&&!m.contains(e.target)){
-    _menuOpen=false;
-    m.style.display='none';
-  }
-});
-
 // Cover photo
 function setCover(src){
   const img=document.getElementById('coverImg');
@@ -591,17 +564,10 @@ function uploadCover(input){
   reader.readAsDataURL(input.files[0]);
 }
 
-function doLogout(){localStorage.removeItem('tw_user');window.location.href='/';}
-
 function goHome(){
   if(!_user){window.location.href='/';return;}
   window.location.href='edu.html';
 }
-
-// Drop item style
-const style=document.createElement('style');
-style.textContent=`.drop-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;color:rgba(255,255,255,.7);text-decoration:none;cursor:pointer;transition:all .15s;white-space:nowrap;}.drop-item:hover{background:rgba(255,255,255,.06);color:#fff;}`;
-document.head.appendChild(style);
 
 // ── Load profile from API ──
 (function(){
@@ -657,6 +623,10 @@ document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e
 document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;if(window.showToast)showToast('جاري التحديث...','info',1200);location.reload();}},{passive:true});
 document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>120&&!_ptrEA){_ptrEA=true;}}},{passive:true});
 
+// ── Global Session UI (VM-10) ──
+if (window.initGlobalHeaderMenu) {
+  initGlobalHeaderMenu('epMenuBtn', 'epMenuDropdown');
+}
 </script>
 </body>
 </html>

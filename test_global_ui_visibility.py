@@ -387,7 +387,7 @@ html_files = _glob.glob("*.html") + _glob.glob("**/*.html", recursive=True)
 js_files   = _glob.glob("static/**/*.js", recursive=True)
 
 # Allowed files that may still contain the old logout pattern (legacy pages not yet migrated)
-_LEGACY_ALLOWED = {"employees-group.html", "edu-profile.html"}
+_LEGACY_ALLOWED = set()  # all pages with session actions now adopted
 
 old_logout_violators = []
 for f in html_files:
@@ -481,6 +481,49 @@ for f in html_files:
 check("I04 — all pages with .sc-menu-dropdown load auth-sync.js (auto-detected)",
       len(_sc_dropdown_missing_sync) == 0,
       "missing auth-sync.js: " + str(_sc_dropdown_missing_sync) if _sc_dropdown_missing_sync else "")
+
+
+# ═══════════════════════════════════════════════════════
+# L — edu-profile.html (VM-10 adoption)
+# ═══════════════════════════════════════════════════════
+print("\nL — edu-profile.html")
+
+ep = read("edu-profile.html")
+
+check("L01 — tw_shared.js loaded in edu-profile.html",
+      "/tw_shared.js" in ep)
+check("L02 — auth-sync.js loaded in edu-profile.html",
+      "auth-sync.js" in ep)
+check("L03 — auth-sync.js loads before initGlobalHeaderMenu call",
+      "auth-sync.js" in ep
+      and ep.index("auth-sync.js") < ep.index("initGlobalHeaderMenu"))
+check("L04 — app-header.css loaded",
+      "app-header.css" in ep)
+check("L05 — sc-menu-dropdown element present",
+      'sc-menu-dropdown' in ep)
+check("L06 — initGlobalHeaderMenu wired to epMenuBtn",
+      "initGlobalHeaderMenu('epMenuBtn'" in ep)
+check("L07 — static doLogout() function removed",
+      "function doLogout" not in ep)
+check("L08 — static toggleMenu() function removed",
+      "function toggleMenu" not in ep)
+check("L09 — _menuOpen variable removed",
+      "_menuOpen" not in ep)
+check("L10 — static #dropMenu div removed",
+      'id="dropMenu"' not in ep)
+check("L11 — static logout button removed from nav",
+      'onclick="doLogout()"' not in ep)
+check("L12 — notifications link has data-tw-session=authenticated",
+      'href="/notifications"' in ep
+      and 'data-tw-session="authenticated"' in ep)
+check("L13 — messages link has data-tw-session=authenticated",
+      'href="/messages"' in ep
+      and ep.count('data-tw-session="authenticated"') >= 1)
+check("L14 — both session nav icons start hidden",
+      ep.count('data-tw-session="authenticated" hidden') >= 2)
+check("L15 — owner actions still present (VM-01 separation)",
+      'id="ownerActions"' in ep
+      and 'onclick="openEditModal()"' in ep)
 
 
 # ═══════════════════════════════════════════════════════
