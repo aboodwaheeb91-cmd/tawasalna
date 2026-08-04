@@ -470,6 +470,43 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 - `_initBadgeWS(gen)` تتحقق من `gen !== _generation` في البداية وفي `onclose`
 - **ممنوع:** استخدام `_stopped` boolean — يمنع إعادة الاتصال بعد logout+login
 
+### [VM-10J] Global Site Header — Auto-Detection Marker
+
+**التعريف:** أي صفحة تحتوي على `.sc-menu-dropdown` تُعتبر تلقائياً ضمن نطاق VM-10.
+
+هذا هو المؤشر الرسمي للكشف التلقائي عن الصفحات المعتمِدة للـ Global Site Header:
+
+```
+المؤشر:  class="sc-menu-dropdown"
+الوجود:  أي صفحة HTML تحمل هذه الـ class
+الالتزام: يجب أن تحمل auth-sync.js وأن تستدعي initGlobalHeaderMenu
+```
+
+**الصفحات المعتمِدة (جميعها تحمل `.sc-menu-dropdown`):**
+
+| الصفحة | حالة الاعتماد | الـ IDs |
+|--------|--------------|---------|
+| `profile-showcase.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` / `scMenuDynamic` |
+| `company-profile.html` | ✅ مكتمل | `coMenuBtn` / `coMenuDropdown` / `coMenuDynamic` |
+| `notifications.html` | ✅ مكتمل | `ntMenuBtn` / `ntMenuDropdown` / `ntMenuDynamic` |
+| `messages.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` |
+| `home-v2.html` | ✅ مكتمل | `hwMenuBtn` / `hwMenuDropdown` |
+
+**قاعدة الاعتماد (إلزامية لأي صفحة جديدة تحمل `.sc-menu-dropdown`):**
+1. تحميل `/tw_shared.js` قبل ملفات الصفحة
+2. تحميل `/static/shared/auth-sync.js` بعد `tw_shared.js`
+3. استدعاء `initGlobalHeaderMenu(btnId, ddId)` أو `initGlobalHeaderMenu(btnId, ddId, dynId)` عند التهيئة
+4. إضافة `data-tw-session="authenticated" hidden` على أيقونات الهيدر الخاصة بالمسجّلين
+5. إفراغ محتوى الـ dropdown الثابت — `initGlobalHeaderMenu` يملأه ديناميكياً
+
+**ممنوع:**
+```
+❌ صفحة تحمل .sc-menu-dropdown بدون auth-sync.js
+❌ منطق toggle محلي للـ dropdown موازٍ لـ initGlobalHeaderMenu
+❌ startsWith('tw_') في أي logout handler على صفحة VM-10
+❌ static Settings/Logout buttons داخل .sc-menu-dropdown
+```
+
 ### Forbidden (VM-10)
 
 ```
@@ -491,4 +528,5 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
 موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
 rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
-rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).*
+rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).
+rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).*

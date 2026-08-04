@@ -268,6 +268,43 @@ check("J06 — initGlobalHeaderMenu wired in messages.render.js",
 
 
 # ═══════════════════════════════════════════════════════
+# K — home-v2.html (VM-10 adoption)
+# ═══════════════════════════════════════════════════════
+print("\nK — home-v2.html")
+
+hv2       = read("home-v2.html")
+hv2_hdr   = read("static/home/home.header.js")
+
+check("K01 — tw_shared.js loaded in home-v2.html",
+      "/tw_shared.js" in hv2)
+check("K02 — auth-sync.js loaded in home-v2.html",
+      "auth-sync.js" in hv2)
+check("K03 — auth-sync.js loads before home.header.js",
+      "auth-sync.js" in hv2
+      and hv2.index("auth-sync.js") < hv2.index("home.header.js"))
+check("K04 — notifications link has data-tw-session=authenticated",
+      'href="/notifications"' in hv2
+      and 'data-tw-session="authenticated"' in hv2)
+check("K05 — messages link has data-tw-session=authenticated",
+      'href="/messages"' in hv2
+      and hv2.count('data-tw-session="authenticated"') >= 2)
+check("K06 — both nav icons start hidden (hidden attribute)",
+      hv2.count('data-tw-session="authenticated" hidden') >= 2)
+check("K07 — static Settings link removed from dropdown",
+      re.search(r'<a[^>]+href=["\']?/settings["\']?[^>]*>.*?الإعدادات', hv2) is None)
+check("K08 — static hwLogoutBtn removed from dropdown",
+      'id="hwLogoutBtn"' not in hv2)
+check("K09 — home.header.js has no startsWith logout violation",
+      "startsWith('tw_')" not in hv2_hdr
+      and 'startsWith("tw_")' not in hv2_hdr)
+check("K10 — home.header.js calls initGlobalHeaderMenu",
+      "initGlobalHeaderMenu('hwMenuBtn'" in hv2_hdr)
+check("K11 — home.header.js has no local menu toggle",
+      "menuDrop.classList.toggle" not in hv2_hdr
+      and "classList.toggle('open')" not in hv2_hdr)
+
+
+# ═══════════════════════════════════════════════════════
 # F — company.main.js
 # ═══════════════════════════════════════════════════════
 print("\nF — company.main.js")
@@ -366,7 +403,19 @@ for f in html_files:
 
 # I01: Pages that explicitly adopted VM-10 (load auth-sync.js) must not also
 # have old inline multi-step logout. Legacy pages not yet migrated are excluded.
-_VM10_PAGES = {"company-profile.html", "notifications.html", "profile-showcase.html", "messages.html"}
+# Auto-detect VM-10 pages: any HTML page that has a .sc-menu-dropdown element.
+_VM10_PAGES = set()
+for _f in html_files:
+    _bn = _f.split("/")[-1]
+    if _bn in _LEGACY_ALLOWED:
+        continue
+    try:
+        _c = read(_f)
+        if 'sc-menu-dropdown' in _c:
+            _VM10_PAGES.add(_bn)
+    except Exception:
+        pass
+
 old_logout_violators_vm10 = []
 for f in html_files:
     bn = f.split("/")[-1]
@@ -416,6 +465,22 @@ menu_order_ok = all(
 )
 check("I03 — auth-sync.js loads before direct initGlobalHeaderMenu call on VM-10 pages",
       menu_order_ok)
+
+# I04: All pages that contain .sc-menu-dropdown (auto-detected VM-10 pages) must load auth-sync.js
+_sc_dropdown_missing_sync = []
+for f in html_files:
+    bn = f.split("/")[-1]
+    if bn in _LEGACY_ALLOWED:
+        continue
+    try:
+        content = read(f)
+    except Exception:
+        continue
+    if 'sc-menu-dropdown' in content and 'auth-sync.js' not in content:
+        _sc_dropdown_missing_sync.append(f)
+check("I04 — all pages with .sc-menu-dropdown load auth-sync.js (auto-detected)",
+      len(_sc_dropdown_missing_sync) == 0,
+      "missing auth-sync.js: " + str(_sc_dropdown_missing_sync) if _sc_dropdown_missing_sync else "")
 
 
 # ═══════════════════════════════════════════════════════

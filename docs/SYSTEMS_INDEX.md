@@ -490,7 +490,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Runtime Tests:** `test_auth_sync_runtime.js` — 54 Node.js behavioral assertions. `test_tw_shared_runtime.js` — 32 Node.js behavioral assertions covering menu policy, 401/403, stale-generation, badge clear, twLogout fallback.
 **Static Tests:** `test_global_ui_visibility.py` — 104 checks across A–I sections.
 **Declarative Visibility:** `data-tw-session="authenticated|guest|all"` on any element + `data-tw-account-types="co"` for account-type filtering. Elements with `data-tw-session="authenticated" hidden` start hidden on public pages and are revealed by `_twApplyDeclarativeVisibility()`.
-**Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html`
+**Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html` · `home-v2.html`
 **Do not recreate:**
 - Never add `show: settings` or `show: logout` logic per page — use `_TW_HEADER_MENU_POLICY`
 - Never repeat session check inside a page module — use `initGlobalHeaderMenu` + `data-tw-session`
