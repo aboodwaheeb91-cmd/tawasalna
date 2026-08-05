@@ -2066,14 +2066,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                             raise ValueError()
                     except (ValueError, TypeError):
                         continue
-                    # Rate limit BEFORE DB lookup
+                    # Rate limit BEFORE DB lookup — drop excess, never close the authenticated socket
                     if not _ws_typing_rate_ok(auth_uid):
-                        print(f"[WS-SEC] TYPING_RATE_LIMIT uid={auth_uid}")
-                        try:
-                            await websocket.close(code=4005)
-                        except Exception:
-                            pass
-                        break
+                        continue  # drop excess typing event; do not disconnect the authenticated socket
                     # Authorization: conversation must already exist between both users
                     if not await _ws_conversation_exists_async(auth_uid, to_id):
                         print(f"[WS-SEC] TYPING_UNAUTH uid={auth_uid} to={to_id}")

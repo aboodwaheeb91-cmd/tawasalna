@@ -5,7 +5,7 @@
  * exercising the logic with mock DOM and WebSocket objects.
  * No real server required.
  *
- * 37 scenarios:
+ * 42 scenarios:
  *   T01  connectWS without _user → no socket
  *   T02  onopen sends {type:'auth',token:...} as first message
  *   T03  auth_ok with correct uid sets _wsReady = true
@@ -31,6 +31,11 @@
  *  T35  Logout → _user/_currentConvId cleared, replace('/login') called
  *  T36  Same user + authenticated → no reload/replace, reconnect timer scheduled
  *  T37  Account switch → location.reload() called, no new WS
+ *  T38  Typing throttle: 30 rapid keystrokes → exactly 1 typing event sent
+ *  T39  Typing debounce: 1800ms idle → typing_stop sent, throttle cleared
+ *  T40  closeConversationUI clears both _typingTimer and _typingThrottle
+ *  T41  doSendMessage clears throttle timer and sends typing_stop
+ *  T42  Input with no active conversation (_currentConvId=null) → no sendTyping
  *
  * Run:  node test_ws_client.mjs
  */
@@ -893,6 +898,177 @@ console.log('\n── Session switch / logout navigation tests (T35–T37) ─�
         ctx._locationCalls.some(c => c.action === 'reload') &&
         MockWebSocket._instances.length === 0);
 })();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typing throttle tests (T38–T42)
+// Loads messages.render.js in a minimal DOM context and exercises the
+// input event handler throttle/debounce logic.
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log('\n── Typing throttle tests (messages.render.js) ───────────────────────────');
+
+function makeRenderThrottleContext() {
+  scheduledTimers.length = 0;
+
+  const sendTypingCalls    = [];
+  const sendTypingStopCalls = [];
+  let   inputEventFn       = null;
+  let   domLoadFn          = null;
+
+  const mockMsgInput = {
+    value: '',
+    scrollHeight: 20,
+    style: {},
+    addEventListener(event, fn) { if (event === 'input') inputEventFn = fn; },
+  };
+
+  const ctx = {
+    document: {
+      addEventListener(event, fn) { if (event === 'DOMContentLoaded') domLoadFn = fn; },
+      getElementById(id) {
+        if (id === 'msgInput') return mockMsgInput;
+        return null;
+      },
+      querySelector:    () => null,
+      querySelectorAll: () => ({ forEach() {} }),
+    },
+    location: { search: '' },
+    window:   { addEventListener: () => {} },
+    localStorage: {
+      _data: { tw_jwt: 'render.test.jwt' },
+      getItem(k) { return this._data[k] || null; },
+    },
+    _scheduledTimers: scheduledTimers,
+    setTimeout(fn, delay) {
+      const id = timerCounter++;
+      scheduledTimers.push({ id, fn, delay, cancelled: false });
+      return id;
+    },
+    clearTimeout(id) {
+      const t = scheduledTimers.find(t => t.id === id);
+      if (t) t.cancelled = true;
+    },
+    setInterval:  () => 9999,
+    clearInterval: () => {},
+    URLSearchParams: class { constructor() {} get() { return null; } },
+    // State globals (mirrors messages.state.js)
+    _user:          { id: 42 },
+    _jwt:           'render.test.jwt',
+    _currentConvId: 100,
+    _activeConvMeta: null,
+    _pendingStatus:  {},
+    _typingTimer:    null,
+    _typingThrottle: null,
+    _typingHideTimer: null,
+    // External functions called by messages.render.js
+    sendTyping(convId)     { sendTypingCalls.push(convId); },
+    sendTypingStop(convId) { sendTypingStopCalls.push(convId); },
+    sendInactiveConversation: () => {},
+    hideTypingBubble:     () => {},
+    connectWS:            () => {},
+    // messages.api.js functions (render.js references but does not define)
+    apiGetConversations:  () => Promise.resolve({ ok: false, data: { conversations: [] } }),
+    apiGetMessages:       () => Promise.resolve({ ok: false, data: { messages: [] } }),
+    apiGetUnreadCount:    () => Promise.resolve({ ok: false, data: {} }),
+    apiLookupByTwId:      () => Promise.resolve(null),
+    apiSendMessage:       () => Promise.resolve({ ok: false }),
+    requestAnimationFrame: fn => { fn && fn(); return 0; },
+    performance: { now: () => Date.now() },
+    Promise,
+    esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    },
+    twDebugLog: () => {},
+    scrollDown:  () => {},
+    JSON, Math,
+  };
+
+  const src = readFileSync('messages.render.js', 'utf8');
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+
+  // Fire DOMContentLoaded so event listeners are attached
+  if (domLoadFn) domLoadFn();
+
+  const fireInput = () => { if (inputEventFn) inputEventFn.call(mockMsgInput); };
+
+  return { ctx, mockMsgInput, sendTypingCalls, sendTypingStopCalls, fireInput };
+}
+
+// T38: 30 rapid keystrokes → exactly 1 typing event (throttle guards the rest)
+(function test_T38() {
+  const { ctx, sendTypingCalls, fireInput } = makeRenderThrottleContext();
+  ctx._currentConvId = 100;
+  for (let i = 0; i < 30; i++) fireInput();
+  check('T38  30 rapid keystrokes → exactly 1 sendTyping call (throttle)',
+        sendTypingCalls.length === 1,
+        `sendTyping called ${sendTypingCalls.length} time(s)`);
+})();
+
+// T39: After 1800ms idle (fire debounce timer) → sendTypingStop called, _typingThrottle cleared
+(function test_T39() {
+  const { ctx, sendTypingStopCalls, fireInput } = makeRenderThrottleContext();
+  ctx._currentConvId = 100;
+  // Trigger one keystroke so both timers are set
+  fireInput();
+  // Find and fire the 1800ms debounce timer
+  const debounceTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 1800);
+  if (debounceTimer) { debounceTimer.cancelled = true; debounceTimer.fn(); }
+  check('T39  1800ms idle → sendTypingStop called once, _typingThrottle cleared',
+        sendTypingStopCalls.length === 1 && ctx._typingThrottle === null,
+        `sendTypingStop calls: ${sendTypingStopCalls.length}, _typingThrottle: ${ctx._typingThrottle}`);
+})();
+
+// T40: closeConversationUI clears both _typingTimer and _typingThrottle
+(function test_T40() {
+  const { ctx, fireInput } = makeRenderThrottleContext();
+  ctx._currentConvId = 100;
+  fireInput();  // sets both _typingTimer and _typingThrottle
+  const hadTimer    = ctx._typingTimer !== null;
+  const hadThrottle = ctx._typingThrottle !== null;
+  // closeConversationUI is defined in messages.render.js and exposed on ctx
+  if (typeof ctx.closeConversationUI === 'function') {
+    ctx.closeConversationUI();
+  }
+  check('T40  closeConversationUI clears _typingTimer and _typingThrottle',
+        hadTimer && hadThrottle && ctx._typingTimer === null && ctx._typingThrottle === null,
+        `hadTimer:${hadTimer} hadThrottle:${hadThrottle} after: timer=${ctx._typingTimer} throttle=${ctx._typingThrottle}`);
+})();
+
+// T41: doSendMessage clears throttle and sends typing_stop
+(function test_T41() {
+  const { ctx, sendTypingStopCalls, fireInput } = makeRenderThrottleContext();
+  ctx._currentConvId = 100;
+  fireInput();  // arm both timers
+  const hadThrottle = ctx._typingThrottle !== null;
+  // Provide mock DOM elements doSendMessage needs
+  ctx.document.getElementById = (id) => {
+    if (id === 'msgInput')  return { value: 'hello', style: {}, scrollHeight: 20, focus() {} };
+    if (id === 'messages')  return { insertAdjacentHTML() {}, scrollTop: 0, scrollHeight: 0 };
+    return null;
+  };
+  // Override apiSendMessage with one that returns a resolved promise (avoids .then crash)
+  ctx.apiSendMessage = () => Promise.resolve({ ok: false, message: {} });
+  if (typeof ctx.doSendMessage === 'function') ctx.doSendMessage();
+  check('T41  doSendMessage clears _typingThrottle and sends typing_stop',
+        hadThrottle && ctx._typingThrottle === null && sendTypingStopCalls.length >= 1,
+        `hadThrottle:${hadThrottle} _typingThrottle:${ctx._typingThrottle} typingStops:${sendTypingStopCalls.length}`);
+})();
+
+// T42: Input event when _currentConvId is null → no sendTyping, no timers
+(function test_T42() {
+  const { ctx, sendTypingCalls, sendTypingStopCalls, fireInput } = makeRenderThrottleContext();
+  ctx._currentConvId = null;  // no active conversation
+  fireInput();
+  check('T42  Input with _currentConvId=null → no sendTyping, no typing timers set',
+        sendTypingCalls.length === 0 &&
+        ctx._typingTimer === null &&
+        ctx._typingThrottle === null,
+        `sendTyping:${sendTypingCalls.length} timer:${ctx._typingTimer} throttle:${ctx._typingThrottle}`);
+})();
+
 
 // ── Summary ──────────────────────────────────────────────────────────────
 

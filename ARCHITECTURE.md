@@ -3897,7 +3897,7 @@ Class: `_BoundedTTLCache`
 **Typing rate limiter (`_ws_typing_rate_ok`):**
 - Sliding window: **10 events / 10 seconds** per `user_id` (`_WS_TYPING_MAX=10`, `_WS_TYPING_WINDOW=10.0s`)
 - Implementation: `_ws_typing_log: Dict[int, deque]` (module-level)
-- Exceeded → close 4005
+- Exceeded → **`continue`** (event silently dropped; connection stays open). **Not** close 4005 — close 4005 is reserved for real protocol violations (`active_conversation` ctrl limit, repeated unknown event types).
 - Cleaned up in `_ws_cleanup_typing_log(user_id)` from the `finally` block of the endpoint
 
 **Control rate limiter (`_ws_ctrl_rate_ok`):**
@@ -6894,10 +6894,14 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 
 **Rule:** Typing appears as a temporary **in-chat bubble** (not in the header) — a received-message bubble with animated dots, inside `#messages`.
 
-**Client (sender side):**
-- `msgInput` `input` event → debounced: send `{type: "typing", to_user_id: X}` once per burst
-- After 1.8s idle → send `{type: "typing_stop", to_user_id: X}`
-- Timer variable: `_typingTimer` (in `messages.state.js`)
+**Client (sender side) — throttle + debounce contract (permanent, `messages.render.js`):**
+- `msgInput` `input` event → **throttled** at most once per **1500ms** + **debounced** stop
+- Throttle: `_typingThrottle` timer (module-level in `messages.state.js`). First keystroke in a 1500ms window sends `{type: "typing", to_user_id: X}`; all subsequent keystrokes during the window are silent (no WS send). After 1500ms the throttle clears, allowing the next keystroke to send again.
+- Debounce: `_typingTimer` resets on every keystroke. Fires 1800ms after the last keystroke → sends `{type: "typing_stop", to_user_id: X}` and clears `_typingThrottle`.
+- `doSendMessage()` clears BOTH timers and sends `typing_stop` immediately.
+- `closeConversationUI()` clears BOTH timers so the previous conversation's pending events never fire.
+- **Why throttle:** the server rate-limit is 10 typing events per 10 seconds. A user typing continuously at 5 chars/s can trigger the limit in 2 seconds without throttling. The 1500ms throttle keeps the maximum possible rate at 6–7 events per 10 seconds — safely under the limit.
+- Timer variables: `_typingTimer` (debounce) + `_typingThrottle` (throttle), both in `messages.state.js`
 
 **Server:**
 - Routes `typing` → `send_to_user(to_user_id, {type: "typing", from_user_id: sender})`

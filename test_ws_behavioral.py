@@ -13,6 +13,7 @@ Scenarios:
   D — _ws_origin_ok()                            ( 4 tests)
   E — _ws_typing_rate_ok() / _ws_ctrl_rate_ok()  ( 4 tests)
   F — _ws_cleanup_typing_log()                   ( 3 tests)
+  G — Typing rate-limit drop behavior            ( 5 tests: G01-G05)
 
 Run:  python test_ws_behavioral.py
 """
@@ -220,7 +221,7 @@ def test_P08():
 
 
 def test_P09():
-    """Typing rate-limit-before-DB: when rate exceeded, DB never queried."""
+    """Typing rate-limit-before-DB: when rate exceeded, DB never queried and connection NOT closed."""
     uid = 5003
     server._ws_typing_log.pop(uid, None)
     for _ in range(server._WS_TYPING_MAX):
@@ -237,8 +238,11 @@ def test_P09():
          patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
         run(server.websocket_endpoint(ws, uid))
 
-    check("P09  Typing rate limit → DB never called (rate-before-DB ordering)",
-          ws.closed_code == 4005 and mock_conv.call_count == 0)
+    # After fix: excess typing is dropped (continue), not disconnected.
+    # ws.closed_code is None because receive_text raises WebSocketDisconnect
+    # naturally after messages are exhausted — server never calls websocket.close().
+    check("P09  Typing rate limit → DB never called, connection not killed (rate-before-DB ordering)",
+          ws.closed_code != 4005 and mock_conv.call_count == 0)
     server._ws_typing_log.pop(uid, None)
 
 
@@ -815,6 +819,145 @@ def test_F03():
 
 
 test_F01(); test_F02(); test_F03()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ══ G: Typing rate-limit drop behavior (post-hotfix) ═════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print("\n── G  Typing rate-limit drop behavior ──────────────────────────────────")
+
+
+def test_G01():
+    """Typing rate limit exceeded → connection NOT closed (no 4005, no disconnect code)."""
+    uid = 7001
+    server._ws_typing_log.pop(uid, None)
+    for _ in range(server._WS_TYPING_MAX):
+        server._ws_typing_rate_ok(uid)
+
+    mock_conv = AsyncMock(return_value=True)
+    ws = FakeWS(origin="", recv=[
+        json.dumps({"type": "auth", "token": "tok"}),
+        json.dumps({"type": "typing", "to_user_id": 200}),
+    ])
+    mgr = server.ConnectionManager()
+    with patch.object(server, "ws_manager", mgr), \
+         patch.object(server, "_jwt_decode", return_value={"user_id": uid, "user_type": "emp"}), \
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+        run(server.websocket_endpoint(ws, uid))
+
+    check("G01  Typing rate limit exceeded → ws.closed_code is None (natural disconnect, not error)",
+          ws.closed_code is None,
+          f"got closed_code={ws.closed_code!r}")
+    server._ws_typing_log.pop(uid, None)
+
+
+def test_G02():
+    """Typing rate limit exceeded → DB (_ws_conversation_exists_async) never called."""
+    uid = 7002
+    server._ws_typing_log.pop(uid, None)
+    for _ in range(server._WS_TYPING_MAX):
+        server._ws_typing_rate_ok(uid)
+
+    mock_conv = AsyncMock(return_value=True)
+    ws = FakeWS(origin="", recv=[
+        json.dumps({"type": "auth", "token": "tok"}),
+        json.dumps({"type": "typing", "to_user_id": 200}),
+    ])
+    mgr = server.ConnectionManager()
+    with patch.object(server, "ws_manager", mgr), \
+         patch.object(server, "_jwt_decode", return_value={"user_id": uid, "user_type": "emp"}), \
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+        run(server.websocket_endpoint(ws, uid))
+
+    check("G02  Typing rate limit exceeded → DB never queried (rate-before-DB ordering preserved)",
+          mock_conv.call_count == 0,
+          f"DB called {mock_conv.call_count} time(s)")
+    server._ws_typing_log.pop(uid, None)
+
+
+def test_G03():
+    """Multiple excess typing events all dropped; violation counter NOT incremented."""
+    uid = 7003
+    server._ws_typing_log.pop(uid, None)
+    server._ws_event_violations.pop(uid, None)
+    for _ in range(server._WS_TYPING_MAX):
+        server._ws_typing_rate_ok(uid)
+
+    mock_conv = AsyncMock(return_value=True)
+    # Send 3 excess typing events
+    excess_msgs = [json.dumps({"type": "typing", "to_user_id": 200}) for _ in range(3)]
+    ws = FakeWS(origin="", recv=[
+        json.dumps({"type": "auth", "token": "tok"}),
+    ] + excess_msgs)
+    mgr = server.ConnectionManager()
+    with patch.object(server, "ws_manager", mgr), \
+         patch.object(server, "_jwt_decode", return_value={"user_id": uid, "user_type": "emp"}), \
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+        run(server.websocket_endpoint(ws, uid))
+
+    violations = server._ws_event_violations.get(uid, 0)
+    check("G03  Multiple excess typing events dropped; no violation counter increment; still alive",
+          ws.closed_code is None and violations == 0,
+          f"closed_code={ws.closed_code!r} violations={violations}")
+    server._ws_typing_log.pop(uid, None)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_G04():
+    """Normal typing events (within rate limit) reach DB check."""
+    uid = 7004
+    server._ws_typing_log.pop(uid, None)
+
+    mock_conv = AsyncMock(return_value=False)  # conv doesn't exist — but DB IS queried
+    ws = FakeWS(origin="", recv=[
+        json.dumps({"type": "auth", "token": "tok"}),
+        json.dumps({"type": "typing", "to_user_id": 200}),
+    ])
+    mgr = server.ConnectionManager()
+    with patch.object(server, "ws_manager", mgr), \
+         patch.object(server, "_jwt_decode", return_value={"user_id": uid, "user_type": "emp"}), \
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+        run(server.websocket_endpoint(ws, uid))
+
+    check("G04  Under rate limit → DB queried (normal typing path unaffected)",
+          mock_conv.call_count >= 1,
+          f"DB called {mock_conv.call_count} time(s)")
+    server._ws_typing_log.pop(uid, None)
+
+
+def test_G05():
+    """After typing rate limit exceeded, connection still accepts other event types."""
+    uid = 7005
+    server._ws_typing_log.pop(uid, None)
+    server._ws_ctrl_log.pop(uid, None)
+    server._ws_event_violations.pop(uid, None)
+    for _ in range(server._WS_TYPING_MAX):
+        server._ws_typing_rate_ok(uid)
+
+    mock_conv = AsyncMock(return_value=True)
+    ws = FakeWS(origin="", recv=[
+        json.dumps({"type": "auth", "token": "tok"}),
+        json.dumps({"type": "typing", "to_user_id": 200}),   # rate-limited, dropped
+        json.dumps({"type": "active_conversation", "other_id": 200}),  # should still work
+    ])
+    mgr = server.ConnectionManager()
+    with patch.object(server, "ws_manager", mgr), \
+         patch.object(server, "_jwt_decode", return_value={"user_id": uid, "user_type": "emp"}), \
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+        run(server.websocket_endpoint(ws, uid))
+
+    # active_conversation triggers DB check (mock_conv.call_count >= 1)
+    # and connection still ends naturally
+    check("G05  After typing rate limit, connection accepts active_conversation events",
+          ws.closed_code is None and mock_conv.call_count >= 1,
+          f"closed_code={ws.closed_code!r} db_calls={mock_conv.call_count}")
+    server._ws_typing_log.pop(uid, None)
+    server._ws_ctrl_log.pop(uid, None)
+    server._ws_event_violations.pop(uid, None)
+
+
+test_G01(); test_G02(); test_G03(); test_G04(); test_G05()
 
 
 # ── Summary ──────────────────────────────────────────────────────────────────
