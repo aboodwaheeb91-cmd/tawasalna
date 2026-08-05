@@ -2150,45 +2150,46 @@
     if (appClose) appClose.addEventListener('click', function () { window.closeApplicantsModal && window.closeApplicantsModal(); });
   }
 
-  // ── Auth-sync: cross-tab session invalidation ──
-  // Wires TwAuthSync (static/shared/auth-sync.js) into Company Profile.
-  // On JWT change: immediately strips owner mode, closes edit modal,
-  // then background-reloads to get authoritative viewer_type from server.
-  //
-  // bfcache case (reason === 'pageshow', jwt present):
-  //   auth-sync fires with force:true even when JWT is unchanged — this previously
-  //   caused a mixed UI state (visitor header + owner job cards) because owner mode
-  //   was stripped immediately while the DOM was still showing owner card HTML from
-  //   bfcache. Fix: skip the strip when JWT is still valid; just background-verify.
+  // ── Auth-sync: VM-01 bfcache session revalidation (company-profile) ──
+  // @vm-extract-begin: co-authsync
   (function () {
     if (!window.TwAuthSync) return;
     TwAuthSync.onSessionChange(function (e) {
-      var reason = e && e.reason;
-      var jwt    = (e && e.jwt) || '';
+      var reason   = e && e.reason;
+      var snapshot = (e && e.snapshot)
+        || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
 
-      // bfcache restore with a valid JWT — page state is still correct.
-      // Background-verify only; do NOT strip owner mode prematurely.
-      if (reason === 'pageshow' && jwt) {
-        if (window.loadData) loadData({ silent: true });
-        return;
+      // Identity-aware bfcache carve-out.
+      // Old pattern (reason === 'pageshow' && jwt) was account-switch vulnerable:
+      // Account B's valid JWT is truthy while Account A's owner UI is showing.
+      // New pattern checks snapshot.userId === companyState.profile.id.
+      if (reason === 'pageshow') {
+        var _coProfileId = window.companyState && companyState.profile ? companyState.profile.id : null;
+        if (snapshot && snapshot.isAuthenticated &&
+            snapshot.userId != null &&
+            _coProfileId != null &&
+            String(snapshot.userId) === String(_coProfileId) &&
+            companyState.viewMode === 'owner') {
+          // Same valid owner — background-verify only; do NOT strip owner mode.
+          if (window.loadData) loadData({ silent: true });
+          return;
+        }
       }
 
-      // JWT is missing or changed (logout / account switch in another tab).
+      // JWT is missing or changed (logout / account switch / expired).
       // Immediately revoke owner UI for security.
       if (window.companyState && companyState.viewMode === 'owner') {
         companyState.viewMode = 'guest';
         if (window._applyViewMode) _applyViewMode();
-        // Close edit modal if open
         var ov = document.getElementById('editOverlay');
         if (ov) ov.classList.remove('show');
-        // Disable save button defensively
         var saveBtn = document.getElementById('editSaveBtn');
         if (saveBtn) saveBtn.disabled = true;
       }
-      // Background re-verify — gets fresh viewer_type from server
       if (window.loadData) loadData({ silent: true });
     });
   }());
+  // @vm-extract-end: co-authsync
 
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {

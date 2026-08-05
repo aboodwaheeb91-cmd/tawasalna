@@ -1,0 +1,63 @@
+name: VM-01 bfcache Session Revalidation
+
+on:
+  push:
+    branches:
+      - fix/vm01-bfcache-session-revalidation
+      - main
+    paths:
+      - 'profile-v2.render.js'
+      - 'edu-profile.html'
+      - 'static/company/company.main.js'
+      - 'test_vm01_bfcache_runtime.js'
+      - '.github/workflows/vm01-bfcache.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'profile-v2.render.js'
+      - 'edu-profile.html'
+      - 'static/company/company.main.js'
+      - 'test_vm01_bfcache_runtime.js'
+
+jobs:
+  vm01-bfcache-tests:
+    name: VM-01 bfcache runtime tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run VM-01 bfcache runtime tests
+        run: node test_vm01_bfcache_runtime.js
+
+  syntax-check:
+    name: JS syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check profile-v2 JS files syntax
+        run: |
+          node --check profile-v2.render.js
+          node --check profile-v2.state.js
+          node --check profile-v2.api.js
+
+      - name: Check company.main.js syntax
+        run: node --check static/company/company.main.js
+
+      - name: Check test file syntax
+        run: node --check test_vm01_bfcache_runtime.js

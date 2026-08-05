@@ -528,10 +528,185 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 
 ---
 
+---
+
+## VM-01-BFCACHE — bfcache Session Revalidation (PR fix/vm01-bfcache-session-revalidation)
+
+### المشكلة
+
+`pageshow` يُعيد استعادة الـ JS heap كاملاً من bfcache دون إعادة تحميل الصفحة.
+بعد الـ logout + Back، `_scViewerType` تظل `'owner'` في الـ heap القديم وتُظهر أزرار التعديل لمستخدم بدون جلسة صالحة.
+
+### الحل المُنفَّذ
+
+**`TwAuthSync.onSessionChange`** في كل صفحة تملك owner mode تستقبل `reason === 'pageshow'` وتُقرر:
+
+1. **Carve-out (نفس المالك + جلسة صالحة):** `reason === 'pageshow' AND snapshot.isAuthenticated AND snapshot.userId === profileId AND viewerType === 'owner'` → تحقق خلفي فقط بدون إلغاء.
+2. **Revoke (أي حالة أخرى):** إلغاء فوري لحالة المالك + إعادة رسم بيانات عامة.
+
+**ملاحظة مهمة — Preview Mode لا يُعفي من الـ Revoke:**
+Preview mode (`preview-public-user` / `preview-guest`) لا يمنع إلغاء الجلسة. تسجيل الخروج أو تبديل الحساب أثناء Preview يجب أن يُلغي owner UI فوراً ويُنهي Preview mode بأمان.
+
+### Generation Guard (`_scOwnerHydrationGeneration`)
+
+```
+window._scOwnerHydrationGeneration = 0;  // مُعرَّف عالمياً بعد renderProfile
+```
+
+- كل `renderProfile` في owner mode تزيد العداد وتحفظ `capturedGen = ++_scOwnerHydrationGeneration`.
+- `renderProfile` في non-owner mode تزيد العداد أيضاً وتُصفي private state فوراً.
+- Revoke يزيد العداد أيضاً → يُلغي أي hydration قديم في الطيران.
+- عند وصول نتيجة الـ Promise (`.then()` و`.catch()`): `if (capturedGen !== _scOwnerHydrationGeneration) return;`
+
+**الخمس شروط للتحقق داخل `.then()`:**
+```javascript
+if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;   // gen mismatch
+if (window._scViewerType !== 'owner') return;                          // revoked
+if (_snap && !_snap.isAuthenticated) return;                           // logged out
+if (_snap && _snap.userId != null && String(_snap.userId) !== String(window._scProfileId)) return;  // account switch
+if (!window._currentJwt || !_currentJwt()) return;                    // jwt gone
+```
+
+**شرط مطلوب أيضاً في `.catch()`:**
+```javascript
+.catch(function(){
+  if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;  // stale catch guard
+  window._scOwnerProfile        = null;
+  window._scOwnerProfilePromise = null;
+});
+```
+بدون هذا الشرط، `.catch()` قديم يُمكن أن يُصفي hydration أحدث.
+
+### renderProfile — Non-Owner Private State Clear
+
+عندما تستقبل `renderProfile` استجابة من الـ backend تُؤكد non-owner (بعد background re-verify):
+```javascript
+if(_vt !== 'owner'){
+  window._scOwnerHydrationGeneration = (window._scOwnerHydrationGeneration||0) + 1;
+  window._scOwnerProfile        = null;
+  window._scOwnerProfilePromise = null;
+}
+```
+هذا يُضمن أن البيانات الخاصة تُصفى حتى في مسار re-verify الخلفي.
+
+### Edu Profile — Fail-Closed Guard (`_isCurrentEduOwner`)
+
+دالة **fail-closed** تقرأ snapshot الحالي في وقت الاستدعاء — لا تعتمد على closure قديم أو localStorage:
+
+```javascript
+function _isCurrentEduOwner() {
+  // Fail-closed: without TwAuthSync ownership cannot be confirmed.
+  if (!window.TwAuthSync || !TwAuthSync.getSessionSnapshot) return false;
+  var _snap = TwAuthSync.getSessionSnapshot();
+  if (!_snap || !_snap.isAuthenticated || _snap.userType !== 'edu') return false;
+  if (_snap.userId == null) return false;
+  return !_urlId || String(_snap.userId) === String(_urlId);
+}
+```
+
+**المتطلب الجديد:** بدون TwAuthSync → `false` مباشرة (لا fallback إلى localStorage).
+**تُستدعى قبل:** `openEditModal()` · `saveEdit()` · `uploadCover()`.
+
+### Edu Profile — `_applyEduOwnerMode(isOwner, snap)` (Unified State Controller)
+
+دالة موحدة تتحكم في كل تحولات owner/guest UI — بدلاً من تكرار المنطق في كل مكان:
+
+```javascript
+function _applyEduOwnerMode(isOwner, snap) {
+  if (isOwner) {
+    _isOwner = true;
+    // restore _user from localStorage if userId matches
+    if (ownerEl)   ownerEl.style.display   = 'flex';
+    if (visitorEl) visitorEl.style.display = 'none';
+    if (coverBtn)  coverBtn.style.display  = 'flex';
+  } else {
+    _isOwner = false; _user = null;
+    if (ownerEl)   ownerEl.style.display   = 'none';
+    if (visitorEl) visitorEl.style.display = 'flex';
+    if (coverBtn)  coverBtn.style.display  = 'none';
+    if (editOv)    editOv.classList.remove('show');
+  }
+}
+```
+
+Handler يستدعيها مع `nowOwner = _isCurrentEduOwner()` — يدعم كل من Revoke و Guest→Owner activation.
+
+### Edu Profile — `saveEdit()` Live Snapshot
+
+`saveEdit()` تستخدم `snapshot.userId` الحالي (live) بدلاً من `_user.id` القديم:
+```javascript
+var _snapNow = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
+var _liveUserId = _snapNow && _snapNow.userId != null ? String(_snapNow.userId) : null;
+if (!_liveUserId) return;
+```
+هذا يُغلق نافذة race في تبديل الحساب.
+
+### Company Profile — Identity-Aware Carve-Out
+
+`company.main.js` استُبدل فيه النمط القديم `reason === 'pageshow' && jwt` بتحقق يعتمد على الهوية:
+
+```javascript
+if (reason === 'pageshow') {
+  var _coProfileId = window.companyState && companyState.profile ? companyState.profile.id : null;
+  if (snapshot && snapshot.isAuthenticated &&
+      snapshot.userId != null &&
+      _coProfileId != null &&
+      String(snapshot.userId) === String(_coProfileId) &&
+      companyState.viewMode === 'owner') {
+    if (window.loadData) loadData({ silent: true });
+    return;
+  }
+}
+```
+
+النمط القديم (`jwt` فقط) كان عرضة لـ account-switch gap: JWT للحساب B صالح بينما owner UI يعرض بيانات الحساب A.
+
+### Pre-existing Fix: Authorization Headers في edu-profile.html
+
+`saveEdit()` كانت تُرسل طلبات `PUT /profile/` و`PUT /auth/user/*/name` بدون `Authorization: Bearer`.
+الـ backend يطلب `Depends(verify_token)` في كلا الـ endpoint.
+
+### Test Contract
+
+الاختبارات في `test_vm01_bfcache_runtime.js` تستخدم **Node.js `vm` module** لتشغيل الكود الحقيقي من الملفات الإنتاجية:
+- `@vm-extract-begin: p2-authsync` / `@vm-extract-end: p2-authsync` → اختبار handler Profile V2
+- `@vm-extract-begin: edu-authsync` / `@vm-extract-end: edu-authsync` → اختبار handler edu-profile
+- `@vm-extract-begin: co-authsync` / `@vm-extract-end: co-authsync` → اختبار handler company.main.js
+- الاختبار يُسجّل الـ callback الحقيقي عبر `TwAuthSync.onSessionChange` ثم يستدعيه مباشرة.
+- **ممنوع:** إعادة كتابة منطق الـ handler داخل الاختبار.
+
+### صفحات مكتملة (VM-01-BFCACHE)
+
+| الصفحة | Handler | Generation Guard | Live Guard | Carve-out Pattern |
+|--------|---------|-----------------|------------|-------------------|
+| `profile-showcase.html` (Profile V2) | ✅ IIFE في `profile-v2.render.js` | ✅ `.then()` + `.catch()` guard | ✅ `_ownerGuard()` في `profile-v2.api.js` | Identity-aware (userId === profileId) |
+| `edu-profile.html` | ✅ IIFE + `_applyEduOwnerMode` | — | ✅ `_isCurrentEduOwner()` fail-closed | Identity-aware (userId === urlId) |
+| `company-profile.html` | ✅ IIFE في `company.main.js` | — | ✅ `companyState.viewMode` | Identity-aware (userId === companyState.profile.id) |
+
+### ممنوع (VM-01-BFCACHE — دائم)
+
+```
+❌ قراءة _scViewerType كحماية أمنية بدون التحقق من TwAuthSync snapshot
+❌ bfcache carve-out يعتمد على jwt فقط (يجب أيضاً snapshot.userId === profileId)
+❌ Preview mode يمنع session revocation (preview لا يُعفي من الـ revoke)
+❌ .catch() في owner hydration بدون generation guard
+❌ _isCurrentEduOwner() مع fallback إلى localStorage (يجب أن تكون fail-closed)
+❌ إضافة owner mutation في edu-profile.html بدون استدعاء _isCurrentEduOwner()
+❌ تجاهل generation guard عند تغيير منطق hydration في profile-v2.render.js
+❌ إرسال طلب PUT /profile/ أو PUT /auth/user/*/name بدون Authorization header
+❌ إعادة تعريف window._scOwnerHydrationGeneration كـ boolean بدلاً من عداد
+❌ saveEdit() في edu-profile.html تستخدم _user.id بدلاً من live snapshot.userId
+❌ إعادة كتابة منطق الـ handler داخل الاختبار (يجب استخدام vm module + @vm-extract markers)
+```
+
+---
+
 *آخر تحديث: 2026-07-18 — V1: Viewer Modes & Permissions System foundation.
 يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
 موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
 rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
 rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).
 rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).
-rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).*
+rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).
+rev.6 (2026-08-05): إضافة VM-01-BFCACHE — bfcache session revalidation hotfix (PR fix/vm01-bfcache-session-revalidation)؛ Generation guard + edu live guard + Authorization header fix.
+rev.7 (2026-08-05): Final runtime integrity — preview no-exemption، .catch() generation guard، renderProfile non-owner clear، _isCurrentEduOwner() fail-closed، _applyEduOwnerMode unified، saveEdit() live snapshot، company identity-aware carve-out، tests rewritten with Node.js vm module + @vm-extract markers.*
