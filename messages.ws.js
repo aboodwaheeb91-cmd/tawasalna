@@ -1,32 +1,35 @@
-/* ── WebSocket Real-time ───────────────────────────────────────────────────
- * Security Debt (P0): /ws/{user_id} accepts any user_id from URL with no
- * JWT verification. Fix deferred to Step 3 — WebSocket Security Hardening.
- * ───────────────────────────────────────────────────────────────────────── */
+/* ── WebSocket Real-time ─────────────────────────────────────────────────── */
 
-var _ws = null;
-var _wsRetries = 0;
+var _ws             = null;    // current active socket reference
+var _wsGen          = 0;       // increments on each connectWS() call — stale closures self-cancel
+var _wsRetries      = 0;
+var _wsReady        = false;   // true only after server sends auth_ok
+var _wsReconnectTimer      = null;  // active reconnect timer handle
+var _wsSessionSwitchTimer  = null;  // account-switch reconnect timer (cancellable)
+var _wsPendingJwt   = '';      // fresh JWT staged for next onopen auth frame (account switch)
+var _wsAuthTimeoutTimer = null; // cancellable handle for the 5s client-side auth timeout
 
 // ── Active conversation signalling ───────────────────────────────────────
 
 function sendActiveConversation(otherId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'active_conversation', other_id: otherId}));
 }
 
 function sendInactiveConversation(otherId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'inactive_conversation', other_id: otherId}));
 }
 
 // ── Typing events ──────────────────────────────────────────────────────────
 
 function sendTyping(toUserId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'typing', to_user_id: toUserId}));
 }
 
 function sendTypingStop(toUserId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'typing_stop', to_user_id: toUserId}));
 }
 
@@ -101,75 +104,211 @@ function applyMsgBadge(count) {
 
 function connectWS() {
   if (!_user || !_user.id) return;
+
+  _wsGen++;
+  var capturedGen = _wsGen;
+  var capturedUid = Number(_user.id);
+
   var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   var wsUrl = protocol + '//' + window.location.host + '/ws/' + _user.id;
-  try {
-    _ws = new WebSocket(wsUrl);
-    _ws.onopen = function() {
-      _wsRetries = 0;
-      // If a conversation was opened before WS connected (e.g. ?with= deep-link), signal it now
-      if (_currentConvId) sendActiveConversation(_currentConvId);
-    };
-    _ws.onmessage = function(e) {
+  var ws;
+  try { ws = new WebSocket(wsUrl); } catch(e) { return; }
+  _ws = ws;
+  _wsReady = false;
+
+  ws.onopen = function() {
+    if (capturedGen !== _wsGen || ws !== _ws) { ws.close(); return; }
+    _wsReady = false;
+    // First message must be auth — no operational events until auth_ok received
+    var jwt = _wsPendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    _wsPendingJwt = '';  // consume the pending JWT; fall back to localStorage on reconnects
+    ws.send(JSON.stringify({type: 'auth', token: jwt}));
+    // Client-side auth timeout: store handle so onclose and auth_ok can cancel it
+    _wsAuthTimeoutTimer = setTimeout(function() {
+      _wsAuthTimeoutTimer = null;
+      if (capturedGen === _wsGen && ws === _ws && !_wsReady) {
+        ws.close(1000, 'auth_timeout');
+      }
+    }, 5000);
+  };
+
+  ws.onmessage = function(e) {
+    // Stale-connection guards: generation and socket identity
+    if (capturedGen !== _wsGen || ws !== _ws) return;
+    try {
+      var data = JSON.parse(e.data);
+
+      // Auth handshake — must be first exchange
+      if (data.type === 'auth_ok') {
+        // Validate server echoed the correct user_id
+        if (Number(data.user_id) !== capturedUid) {
+          // Mismatch: advance generation so stale closures self-cancel, close with Forbidden
+          _wsGen++;
+          _wsReady = false;
+          ws.close(4003);
+          return;
+        }
+        if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
+        _wsRetries = 0;
+        _wsReady = true;
+        // Signal active conversation now that the connection is authenticated
+        if (_currentConvId) sendActiveConversation(_currentConvId);
+        return;
+      }
+      // Drop all operational events until auth is confirmed
+      if (!_wsReady) return;
+
+      // Normalize to number for all id comparisons — prevents string/number mismatch
+      var fromId = Number(data.from || data.from_user_id);
+      var convId  = Number(_currentConvId);
+
+      if (data.type === 'message' && fromId === convId) {
+        var _twRx = performance.now();
+        var msgs = document.getElementById('messages');
+        var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+        var innerHtml = '<div class="msg in">'
+          + '<div class="msg-text">' + esc(data.content) + '</div>'
+          + '<div class="msg-time">' + esc(t) + '</div>'
+          + '</div>';
+        // Cancel any pending hide timer
+        if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
+        var typingEl = document.getElementById('typing-bubble-' + fromId);
+        if (typingEl) {
+          // Transform typing bubble in-place — no jump, no duplicate
+          typingEl.removeAttribute('id');
+          typingEl.classList.remove('typing-bubble');
+          typingEl.setAttribute('data-msg-id', data.id);
+          typingEl.innerHTML = innerHtml;
+        } else {
+          msgs.insertAdjacentHTML('beforeend',
+            '<div class="msg-wrap in" data-msg-id="' + data.id + '">' + innerHtml + '</div>'
+          );
+        }
+        scrollDown();
+        twDebugLog('WS→DOM', { ms: (performance.now() - _twRx).toFixed(0), id: data.id, from: fromId, via: typingEl ? 'transform' : 'append' });
+      }
+
+      if (data.type === 'message') {
+        loadConversations();
+      }
+
+      if (data.type === 'status_update') {
+        updateMessageStatus(data);
+      }
+
+      if (data.type === 'typing' && fromId === convId) {
+        showTypingBubble(fromId);
+      }
+
+      if (data.type === 'typing_stop' && fromId === convId) {
+        // Delay hide 2.5s — lets the bubble linger naturally after typing stops
+        _scheduleHideTypingBubble(fromId, 2500);
+      }
+
+      if (data.type === 'badge_update' && data.badge === 'messages') {
+        applyMsgBadge(data.count || 0);
+      }
+
+    } catch(ex) {}
+  };
+
+  ws.onclose = function(event) {
+    // Cancel auth timeout only for the connection that owns it (prevent cross-connection cancellation)
+    if (ws === _ws && _wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
+    if (capturedGen !== _wsGen) return;  // superseded by newer session — ignore
+    _wsReady = false;
+    if (ws === _ws) _ws = null;
+    // Auth/Policy close codes (4001-4007) — do not reconnect
+    if (event.code >= 4001 && event.code <= 4007) return;
+    if (_wsRetries < 5) {
+      _wsRetries++;
+      // Exponential backoff with jitter: 2^n seconds ± 1s, capped at 30s
+      var delay = Math.min(30000, Math.pow(2, _wsRetries) * 1000 + Math.floor(Math.random() * 1000));
+      _wsReconnectTimer = setTimeout(connectWS, delay);
+    }
+  };
+
+  ws.onerror = function() { ws.close(); };
+}
+
+// ── TwAuthSync lifecycle — handle logout and account-switch on messages page ──
+// TwAuthSync fires when tw_jwt changes in any tab or on page focus/visibility.
+// Behavior by case:
+//   No JWT (logout/expired)           → clear state, redirect to /login
+//   JWT but isAuthenticated=false     → clear state, redirect to /login
+//   JWT, different userId             → window.location.reload() (clean re-init)
+//   JWT, same userId (token refresh)  → update _jwt, reconnect WS
+if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
+  TwAuthSync.onSessionChange(function(info) {
+    // Step 1: Capture current user before any state mutation
+    var prevUserId = _user ? Number(_user.id) : null;
+
+    // Invalidate all active closures by advancing the generation counter
+    _wsGen++;
+    _wsRetries = 0;  // new session resets the retry counter
+    _wsReady = false;
+    if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
+    if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+    if (_wsSessionSwitchTimer) { clearTimeout(_wsSessionSwitchTimer); _wsSessionSwitchTimer = null; }
+    var sock = _ws;
+    _ws = null;
+    if (sock) { try { sock.close(); } catch(e) {} }
+
+    // Step 2: Determine current JWT — info.jwt is synchronously captured before any delay
+    var capturedJwt = (info && info.jwt) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+
+    // Step 3: No JWT → logout path: clear state, redirect to login
+    if (!capturedJwt) {
+      _jwt = '';
+      _user = null;
+      _currentConvId = null;
+      window.location.replace('/login');
+      return;
+    }
+
+    // Step 4: JWT present but snapshot says session is invalid (e.g. token revoked)
+    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+        ? TwAuthSync.getSessionSnapshot() : null;
+    if (snapshot && !snapshot.isAuthenticated) {
+      _jwt = '';
+      _user = null;
+      _currentConvId = null;
+      window.location.replace('/login');
+      return;
+    }
+
+    // Step 5: Determine the incoming user ID
+    var newUserId = null;
+    if (snapshot) {
+      newUserId = snapshot.userId ? Number(snapshot.userId) : null;
+    } else {
       try {
-        var data = JSON.parse(e.data);
+        var freshUser = JSON.parse(
+            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
+        newUserId = freshUser ? Number(freshUser.id) : null;
+      } catch(e) {}
+    }
 
-        // Normalize to number for all id comparisons — prevents string/number mismatch
-        var fromId = Number(data.from || data.from_user_id);
-        var convId  = Number(_currentConvId);
+    // Step 6: Account switch (different user) → full page reload for clean re-init
+    if (newUserId && prevUserId && newUserId !== prevUserId) {
+      window.location.reload();
+      return;
+    }
 
-        if (data.type === 'message' && fromId === convId) {
-          var _twRx = performance.now();
-          var msgs = document.getElementById('messages');
-          var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-          var innerHtml = '<div class="msg in">'
-            + '<div class="msg-text">' + esc(data.content) + '</div>'
-            + '<div class="msg-time">' + esc(t) + '</div>'
-            + '</div>';
-          // Cancel any pending hide timer
-          if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
-          var typingEl = document.getElementById('typing-bubble-' + fromId);
-          if (typingEl) {
-            // Transform typing bubble in-place — no jump, no duplicate
-            typingEl.removeAttribute('id');
-            typingEl.classList.remove('typing-bubble');
-            typingEl.setAttribute('data-msg-id', data.id);
-            typingEl.innerHTML = innerHtml;
-          } else {
-            msgs.insertAdjacentHTML('beforeend',
-              '<div class="msg-wrap in" data-msg-id="' + data.id + '">' + innerHtml + '</div>'
-            );
-          }
-          scrollDown();
-          twDebugLog('WS→DOM', { ms: (performance.now() - _twRx).toFixed(0), id: data.id, from: fromId, via: typingEl ? 'transform' : 'append' });
-        }
-
-        if (data.type === 'message') {
-          loadConversations();
-        }
-
-        if (data.type === 'status_update') {
-          updateMessageStatus(data);
-        }
-
-        if (data.type === 'typing' && fromId === convId) {
-          showTypingBubble(fromId);
-        }
-
-        if (data.type === 'typing_stop' && fromId === convId) {
-          // Delay hide 2.5s — lets the bubble linger naturally after typing stops
-          _scheduleHideTypingBubble(fromId, 2500);
-        }
-
-        if (data.type === 'badge_update' && data.badge === 'messages') {
-          applyMsgBadge(data.count || 0);
-        }
-
-      } catch(ex) {}
-    };
-    _ws.onclose = function() {
-      if (_wsRetries < 5) { _wsRetries++; setTimeout(connectWS, _wsRetries * 2000); }
-    };
-    _ws.onerror = function() { _ws.close(); };
-  } catch(e) {}
+    // Step 7: Same user (token refresh) → update JWT, stage for WS auth, reconnect
+    _jwt = capturedJwt;
+    _wsPendingJwt = capturedJwt;
+    _wsSessionSwitchTimer = setTimeout(function() {
+      _wsSessionSwitchTimer = null;
+      if (!_user || !_user.id) return;
+      // Refresh _user from localStorage in case profile data changed
+      try {
+        var u = JSON.parse(
+            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
+        if (u && u.id) _user = u;
+      } catch(e) {}
+      connectWS();
+    }, 500);
+  });
 }

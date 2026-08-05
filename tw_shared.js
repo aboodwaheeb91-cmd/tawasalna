@@ -548,18 +548,28 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   _twApplyDeclarativeVisibility();
 }
 
-// ══ Global Real-time Badge WebSocket (VM-10E lifecycle) ══
-// Opens a WS on EVERY authenticated page. Closes on session invalidation.
-// Generation-based lifecycle: _generation is incremented on every stop so
-// stale onclose callbacks from prior connections are silently discarded.
-// _activeUserId tracks the current session owner — account switches
-// (cross-tab or within-tab) force a full stop+restart cycle.
+// ══ Global Real-time Badge WebSocket ══
+// Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
+// Handles badge_update events to update [data-badge="msgs"] in real time.
+// Auth protocol: sends {"type":"auth","token":"..."} as the first message;
+// only processes badge_update after server confirms with auth_ok.
 // Exposed: window._twBadgeWsStop(), window._twBadgeWsStart()
 (function() {
-  var _ws           = null;
-  var _retries      = 0;
-  var _generation   = 0;       // incremented on stop; close handlers check this
-  var _activeUserId = null;    // userId the open WS belongs to
+  var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
+  var _activeUid = 0;
+  var _activeSocket = null;    // current active WS reference
+  var _reconnectTimer = null;  // active reconnect timer handle
+  var _retries = 0;            // IIFE-level: persists across _initBadgeWS() calls; reset on auth_ok or new session
+  var _sessionReinitTimer = null; // cancellable handle for 300ms session-switch reinit
+
+  function _clearSocket() {
+    _gen++;
+    var sock = _activeSocket;
+    _activeSocket = null;
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+    if (_sessionReinitTimer) { clearTimeout(_sessionReinitTimer); _sessionReinitTimer = null; }
+    if (sock) { try { sock.close(); } catch(e) {} }
+  }
 
   // Clear all badge elements including data-ah-notif-badge (legacy selector)
   function _clearBadges() {
@@ -569,25 +579,60 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     });
   }
 
-  function _initBadgeWS(gen) {
-    // Bail if a newer generation has superseded this invocation
-    if (gen !== _generation) return;
-    if (_ws) return;
+  // pendingJwt: JWT captured synchronously from info.jwt before the async delay fires.
+  // V2 contract: getSessionSnapshot() returns {state,isAuthenticated,userType,userId,reason}
+  // — no jwt field. JWT always comes from pendingJwt or localStorage.
+  function _initBadgeWS(pendingJwt) {
+    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+        ? TwAuthSync.getSessionSnapshot() : null;
+    var uid, jwt;
+    if (snapshot) {
+      if (!snapshot.isAuthenticated) return;
+      uid = snapshot.userId;
+      jwt = pendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    } else {
+      var u = null;
+      try { u = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'); } catch(e){}
+      jwt = pendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+      if (!u || !u.id || !jwt) return;
+      uid = u.id;
+    }
+    if (!uid || !jwt) return;
 
-    var snap = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
-    if (!snap || !snap.isAuthenticated || !snap.userId) return;
-    var uid  = snap.userId;
-    var jwt  = localStorage.getItem('tw_jwt') || '';
-    if (!jwt) return;
+    _gen++;
+    _activeUid = uid;
+    var capturedGen = _gen;
+    var capturedUid = Number(uid);
 
-    _activeUserId = uid;
-    var capturedGen = gen;
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    _ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + uid);
+    var ws;
+    try { ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + uid); } catch(e) { return; }
+    _activeSocket = ws;
+    var wsReady = false;
 
-    _ws.onmessage = function(e) {
+    ws.onopen = function() {
+      if (capturedGen !== _gen) { ws.close(); return; }
+      wsReady = false;
+      ws.send(JSON.stringify({type: 'auth', token: jwt}));
+    };
+    ws.onmessage = function(e) {
+      // Stale-connection guard: superseded by newer login or _initBadgeWS call
+      if (capturedGen !== _gen || capturedUid !== _activeUid) return;
       try {
         var data = JSON.parse(e.data);
+        if (data.type === 'auth_ok') {
+          // Validate server echoed the correct user_id
+          if (Number(data.user_id) !== capturedUid) {
+            // Mismatch: advance generation to cancel stale closures, close with Forbidden
+            _gen++;
+            ws.close(4003);
+            return;
+          }
+          _retries = 0;  // reset retry counter on successful auth
+          wsReady = true;
+          return;
+        }
+        if (!wsReady) return;
         if (data.type === 'badge_update' && data.badge === 'messages') {
           var count = data.count || 0;
           document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
@@ -597,56 +642,54 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
         }
       } catch(ex) {}
     };
-    _ws.onclose = function() {
-      _ws = null;
-      // Only reconnect if same generation AND same user is still active
-      if (capturedGen === _generation && _activeUserId === uid && _retries < 5) {
+    ws.onclose = function(event) {
+      wsReady = false;
+      if (ws === _activeSocket) _activeSocket = null;
+      // Auth/Policy close codes (4001-4007) — do not reconnect
+      if (event.code >= 4001 && event.code <= 4007) return;
+      // Superseded by a newer session — do not reconnect
+      if (capturedGen !== _gen) return;
+      if (_retries < 5) {
         _retries++;
-        setTimeout(function() { _initBadgeWS(_generation); }, _retries * 2000);
+        var delay = Math.min(30000, Math.pow(2, _retries) * 1000 + Math.floor(Math.random() * 1000));
+        _reconnectTimer = setTimeout(_initBadgeWS, delay);
       }
     };
-    _ws.onerror = function() { if (_ws) { try { _ws.close(); } catch(ex){} } };
+    ws.onerror = function() { ws.close(); };
   }
 
   function _twBadgeWsStop() {
-    _generation++;         // invalidates all pending WS close/retry callbacks
+    _clearSocket();
     _badgeGeneration++;    // invalidates in-flight HTTP badge requests from prior account
-    _activeUserId = null;
-    _retries      = 0;
-    if (_ws) { try { _ws.close(); } catch(e){} _ws = null; }
+    _retries = 0;
     _clearBadges();
   }
 
   function _twBadgeWsStart() {
     _retries = 0;
-    _initBadgeWS(_generation);
+    _initBadgeWS();
   }
 
   // Run after load so localStorage is populated by page auth guards
   window.addEventListener('load', function() {
-    setTimeout(function() { _initBadgeWS(_generation); }, 200);
-    // Wire session lifecycle after all scripts have loaded (including auth-sync.js)
-    if (window.TwAuthSync) {
-      TwAuthSync.onSessionChange(function(e) {
-        var snap = e && e.snapshot;
-        if (!snap || !snap.isAuthenticated) {
-          _twBadgeWsStop();
-        } else {
-          // Authenticated — check for account switch (userId changed)
-          var newUid = snap.userId;
-          if (_activeUserId !== null && _activeUserId !== newUid) {
-            // Different user logged in: stop old WS (increments generation),
-            // then start fresh for new user.
-            _twBadgeWsStop();
-          }
-          if (!_ws) {
-            _retries = 0;
-            setTimeout(function() { _initBadgeWS(_generation); }, 50);
-          }
-        }
-      });
-    }
+    setTimeout(_initBadgeWS, 200);
   });
+
+  // TwAuthSync: close socket on logout or account-switch
+  if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
+    TwAuthSync.onSessionChange(function(info) {
+      _clearSocket();  // also cancels _sessionReinitTimer
+      _retries = 0;    // new session resets the retry counter
+      // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
+      if (info && info.jwt) {
+        var capturedJwt = info.jwt;  // capture before async delay
+        _sessionReinitTimer = setTimeout(function() {
+          _sessionReinitTimer = null;
+          _initBadgeWS(capturedJwt);
+        }, 300);
+      }
+    });
+  }
 
   window._twBadgeWsStop  = _twBadgeWsStop;
   window._twBadgeWsStart = _twBadgeWsStart;

@@ -1,0 +1,87 @@
+name: WebSocket Security Tests
+
+on:
+  push:
+    paths:
+      - 'server.py'
+      - 'messages.ws.js'
+      - 'messages.api.js'
+      - 'messages.render.js'
+      - 'messages.state.js'
+      - 'tw_shared.js'
+      - 'test_ws_security.py'
+      - 'test_ws_behavioral.py'
+      - 'test_ws_client.mjs'
+      - 'test_ws_api.mjs'
+      - 'Procfile'
+      - 'messages.html'
+      - 'static/shared/auth-sync.js'
+      - '.github/workflows/ws-security.yml'
+  pull_request:
+    paths:
+      - 'server.py'
+      - 'messages.ws.js'
+      - 'messages.api.js'
+      - 'messages.render.js'
+      - 'messages.state.js'
+      - 'tw_shared.js'
+      - 'test_ws_security.py'
+      - 'test_ws_behavioral.py'
+      - 'test_ws_client.mjs'
+      - 'test_ws_api.mjs'
+      - 'Procfile'
+      - 'messages.html'
+      - 'static/shared/auth-sync.js'
+      - '.github/workflows/ws-security.yml'
+
+jobs:
+  ws-security:
+    name: WebSocket Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check — server.py
+        env:
+          APP_ENV: development
+        run: python -m py_compile server.py
+
+      - name: Syntax check — messages.ws.js
+        run: node --check messages.ws.js
+
+      - name: Syntax check — messages.api.js
+        run: node --check messages.api.js
+
+      - name: Syntax check — messages.render.js
+        run: node --check messages.render.js
+
+      - name: Syntax check — messages.state.js
+        run: node --check messages.state.js
+
+      - name: Syntax check — tw_shared.js
+        run: node --check tw_shared.js
+
+      - name: A — Static verification (source inspection)
+        run: python test_ws_security.py
+
+      - name: B — Behavioral tests (logic correctness)
+        run: python test_ws_behavioral.py
+
+      - name: C — Client lifecycle tests (Node.js)
+        run: node test_ws_client.mjs
+
+      - name: D — API session guard tests (Node.js)
+        run: node test_ws_api.mjs

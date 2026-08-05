@@ -339,9 +339,30 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
    - Passwords are never returned from any endpoint
 
 6. **Real-time transport is WebSocket for messages, polling for notifications.**
-   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ⚠️ P0 Security Debt: the route accepts any `user_id` without JWT verification (hardening deferred). Do not build new features on top of the WebSocket until the auth debt is resolved.
+   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ✅ P0 Security Debt Fully Resolved (PR `security/ws-auth-hardening`): the route uses First-Message JWT Authentication with fail-closed origin policy, bounded cache, async DB, per-user connection limits, and rate-limit-before-DB ordering.
+   - **WS auth handshake (permanent contract):** Client sends `{"type":"auth","token":"<jwt>"}` as the very first message; server validates via `_ws_validate_auth_frame()` and responds with `{"type":"auth_ok","user_id":<int>}` before any operational events flow. Client validates `auth_ok.user_id` matches expected uid.
+   - **Application close codes 4001–4007 (do not reconnect on any of these):**
+     - 4001 Unauthorized — invalid/expired JWT, missing claims, invalid user_type
+     - 4002 Auth Failed — auth timeout, oversized/malformed frame, wrong frame type
+     - 4003 Forbidden — JWT uid ≠ URL path user_id
+     - 4004 Bad Payload — JSON error or oversized frame in message loop
+     - 4005 Policy — typing rate limit or too many unknown events
+     - 4006 Origin Denied — origin rejected by fail-closed policy
+     - 4007 Too Many Connections — user already has 10 active connections
+   - **Origin policy (fail-closed):** Production defaults = `{https://tawasolna.com, https://www.tawasolna.com}`. `"null"` origin always rejected. No-origin = native clients, allowed with valid JWT. `WS_ALLOWED_ORIGINS="*"` raises RuntimeError at startup. `APP_ENV=development` adds localhost variants.
+   - **Connection limit:** max 10 simultaneous WS connections per user (`_WS_MAX_CONN_PER_USER`). `register()` returns `False` → caller sends 4007.
+   - **Rate-limit-before-DB:** For `typing`/`typing_stop` AND `active_conversation`, the rate limiter (`_ws_typing_rate_ok()` / `_ws_ctrl_rate_ok()`) is called BEFORE `_ws_conversation_exists_async()`. This ordering is permanent and must never be reversed.
+   - **Rate limiter values (permanent):** Typing: `_WS_TYPING_MAX=10` / `_WS_TYPING_WINDOW=10.0s`. Control (active_conversation): `_WS_CTRL_MAX=30` / `_WS_CTRL_WINDOW=10.0s`.
+   - **Schema validation (permanent):** The `type` field in message-loop frames is validated as a non-empty string ≤ 80 chars BEFORE `len()` or slicing. Non-string/empty/oversized `type` → close 4004. Valid unknown strings → violation counter → close 4005 at limit.
+   - **Dead socket cleanup contract (permanent):** `send_to_user()` must route dead sockets through `self.disconnect(user_id, dead_ws)` — never direct list removal. When the last connection dies, `_ws_cleanup_typing_log(user_id)` is also called.
+   - **Legacy WS send path removed:** The path accepting `{receiver_id, content}` without `type` has been permanently removed. All message sends use HTTP (`POST /messages/{user_id}`).
+   - **Client lifecycle requirements (permanent):** `_wsGen` generation counter; `_wsAuthTimeoutTimer` (cancellable 5s auth timeout handle); `_wsRetries` reset ONLY on `auth_ok` success or session change (NOT in `onopen`); `auth_ok.user_id` validation; `TwAuthSync.onSessionChange` integration; exponential backoff with jitter (max 5 retries, 30s cap); `messages.html` must load `auth-sync.js` before `messages.ws.js`.
+   - **TwAuthSync V2 snapshot contract (permanent):** `getSessionSnapshot()` returns `{state, isAuthenticated, userType, userId, reason}` — **no `jwt` field**. JWT always from `info.jwt` (callback param) or `localStorage.getItem('tw_jwt')`. Never `snapshot.jwt`. Badge WS `_sessionReinitTimer` must be cancelled by `_clearSocket()`.
+   - **`_ws_ctrl_rate_ok()` (permanent):** defined in `server.py`; handles rate limiting for `active_conversation` events (30/10s). Called BEFORE `_ws_conversation_exists_async()` for `active_conversation` events.
    - Notifications: HTTP polling only — `fetch('/notifications/{user_id}')`. No WebSocket for notifications.
    - Do not add a second WebSocket route for messages or notifications.
+   - Do not call `ws_manager.register()` before JWT verification completes.
+   - Identity is always from JWT claims (`auth_uid`) — the URL path `user_id` is a routing hint only and must match JWT but never overrides it.
 
 7. **Supabase is the only database** — `SUPABASE_DB_URL` must be set. There is no local SQLite fallback.
 
@@ -1058,6 +1079,84 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 ❌ Adding a new system without an SYSTEMS_INDEX.md entry
 ❌ Skipping CLAUDE.md updates for mandatory AI rules "to save time"
 ❌ Saying "docs will be added in a follow-up PR" for same-session work
+```
+
+---
+
+## Messenger Session Lifecycle Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecycle`.
+
+### TwAuthSync.onSessionChange handler (messages.ws.js) — permanent decision tree
+
+| Condition | Action |
+|-----------|--------|
+| `capturedJwt` empty (logout / expired) | `_jwt = ''` + `_user = null` + `_currentConvId = null` + `window.location.replace('/login')` |
+| JWT present but `snapshot.isAuthenticated === false` | Same as above — redirect to `/login` |
+| JWT present, `newUserId !== prevUserId` (account switch) | `window.location.reload()` — clean re-init |
+| JWT present, same userId (token refresh) | Update `_jwt` + `_wsPendingJwt` + schedule 500ms WS reconnect |
+
+1. **`capturedJwt` is always sourced synchronously:** `info.jwt` first, then `localStorage.getItem('tw_jwt')`. Never from `snapshot.jwt` (V2 snapshot has no jwt field).
+
+2. **Account switch = full page reload.** Do NOT attempt partial state clearing (conv list, messages, `_user`, `_currentConvId`, etc.) — it is error-prone and incomplete. `window.location.reload()` is the only approved account-switch action.
+
+3. **Logout/invalid → redirect, not reconnect.** Empty JWT or `isAuthenticated=false` → `window.location.replace('/login')`. Never reconnect WS after logout.
+
+4. **`_jwt = ''` must be assigned before redirect** in the logout/invalid path. This prevents in-flight callbacks from using the old JWT.
+
+5. **`_currentConvId = null` must be assigned before redirect** in the logout/invalid path. This prevents a stale conversation ID from appearing if navigation is delayed.
+
+### messages.api.js — permanent API session contract
+
+6. **`getMessagesJwt()` is the only approved JWT source** in `messages.api.js`. It reads `localStorage.getItem('tw_jwt')` at call time — never uses the stale in-memory `_jwt` variable.
+
+7. **`_isMessagesAuthValid()` must guard every API function** before making any `fetch()`. The guard is a four-layer check — all must pass:
+   - `_user` and `_user.id` are set in memory
+   - `getMessagesJwt()` returns a non-empty JWT from localStorage
+   - `localStorage.getItem('tw_user')` parses to a valid user whose `id` matches `_user.id` (cross-account race guard — see rule 10)
+   - When `TwAuthSync.getSessionSnapshot()` is available: `snapshot.isAuthenticated` must be `true` AND `snapshot.userId` (when present) must match `_user.id`
+
+8. **`'Bearer ' + _jwt` is permanently forbidden** in `messages.api.js`. All Authorization headers must use `'Bearer ' + getMessagesJwt()`.
+
+9. **`_isMessagesAuthValid()` return values are final:** functions returning null-on-not-found (`apiLookupByTwId`, `apiGetUser`) resolve with `null`; functions rejecting on error reject with `'unauthenticated'`.
+
+10. **HTTP messaging API calls require the current localStorage `tw_user.id` to match the in-memory Messenger `_user.id`; mismatch blocks the request before fetch.** This closes the account-switch race window: during the brief period between `TwAuthSync.onSessionChange` firing and `window.location.reload()` completing, Account A's stale in-memory `_user` cannot send HTTP requests using Account B's JWT or `tw_user` data.
+
+### messages.render.js — Typing Throttle Contract (permanent)
+
+11. **`_typingThrottle` is a module-level variable in `messages.state.js`** — alongside `_typingTimer`. Both are always `null` or a timer ID. Never use a boolean flag; always use the timer ID so `clearTimeout` works correctly.
+
+12. **Client typing events are throttled at most once per 1500ms per conversation.** The `msgInput` `input` event listener in `messages.render.js` enforces:
+    - If `_typingThrottle` is null → send `typing`, set `_typingThrottle = setTimeout(..., 1500)`
+    - If `_typingThrottle` is set → skip (no send)
+    - On every keystroke: reset `_typingTimer` (1800ms debounce for `typing_stop`)
+    - When `_typingTimer` fires: send `typing_stop` + clear `_typingThrottle`
+
+13. **Throttle must be cleared in three places (permanent):**
+    - `doSendMessage()` — clears both `_typingTimer` and `_typingThrottle` before sending `typing_stop`
+    - `closeConversationUI()` — clears both timers so the previous conversation's pending events never fire after a conversation switch
+    - The `_typingTimer` callback itself (1800ms debounce) — clears `_typingThrottle` after sending `typing_stop`
+
+14. **Typing rate limit exceeded on the server side → `continue` (drop), not `close(4005)`.** Close 4005 is reserved for real protocol violations (repeated unknown event types, `active_conversation` ctrl rate limit). A typing burst from a fast typist is NOT a protocol violation and must never disconnect an authenticated socket.
+
+15. **Rate-limit-before-DB ordering is permanent for typing events.** `_ws_typing_rate_ok(auth_uid)` is always called BEFORE `_ws_conversation_exists_async()`. This ordering must never be reversed, regardless of whether the rate limit triggers a `continue` or a disconnect.
+
+### Forbidden (permanent)
+
+```
+❌ Using _jwt directly in Authorization headers in messages.api.js
+❌ Adding a new fetch() in messages.api.js without an _isMessagesAuthValid() guard
+❌ Partial account-switch handling in messages page — only window.location.reload()
+❌ Reconnecting WS after logout (empty JWT or isAuthenticated=false)
+❌ Reading snapshot.jwt — V2 TwAuthSync snapshot has no jwt field
+❌ Clearing conversation state manually on account switch (reload handles it)
+❌ Redirecting to any URL other than '/login' on logout/invalid session
+❌ Skipping the localStorage tw_user.id comparison in _isMessagesAuthValid() — it is the cross-account race guard
+❌ Sending typing events without throttle (no _typingThrottle guard in the input handler)
+❌ Closing the WS (code 4005) when _ws_typing_rate_ok() returns False — use continue instead
+❌ Reversing the rate-limit-before-DB ordering for typing events
+❌ Clearing _typingThrottle on conversation switch without also clearing _typingTimer
 ```
 
 ---
