@@ -5,10 +5,12 @@ on:
     paths:
       - 'server.py'
       - 'messages.ws.js'
+      - 'messages.api.js'
       - 'tw_shared.js'
       - 'test_ws_security.py'
       - 'test_ws_behavioral.py'
       - 'test_ws_client.mjs'
+      - 'test_ws_api.mjs'
       - 'Procfile'
       - 'messages.html'
       - 'static/shared/auth-sync.js'
@@ -17,10 +19,12 @@ on:
     paths:
       - 'server.py'
       - 'messages.ws.js'
+      - 'messages.api.js'
       - 'tw_shared.js'
       - 'test_ws_security.py'
       - 'test_ws_behavioral.py'
       - 'test_ws_client.mjs'
+      - 'test_ws_api.mjs'
       - 'Procfile'
       - 'messages.html'
       - 'static/shared/auth-sync.js'
@@ -54,6 +58,9 @@ jobs:
       - name: Syntax check — messages.ws.js
         run: node --check messages.ws.js
 
+      - name: Syntax check — messages.api.js
+        run: node --check messages.api.js
+
       - name: Syntax check — tw_shared.js
         run: node --check tw_shared.js
 
@@ -65,3 +72,6 @@ jobs:
 
       - name: C — Client lifecycle tests (Node.js)
         run: node test_ws_client.mjs
+
+      - name: D — API session guard tests (Node.js)
+        run: node test_ws_api.mjs

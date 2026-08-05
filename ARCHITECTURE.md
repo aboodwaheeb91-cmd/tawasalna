@@ -3990,8 +3990,14 @@ Manually clearing conversation list, message history, `_currentConvId`, `_user`,
 
 **messages.api.js session contract (permanent):**
 - `getMessagesJwt()` reads from `localStorage.getItem('tw_jwt')` at call time — never uses stale in-memory `_jwt`
-- `_isMessagesAuthValid()` guards all API calls: checks `_user.id`, `getMessagesJwt()`, and `TwAuthSync.getSessionSnapshot().isAuthenticated`
+- `_isMessagesAuthValid()` is a **triple-layer guard** that blocks all API calls unless ALL of the following pass:
+  1. `_user` and `_user.id` are set in memory
+  2. `getMessagesJwt()` returns a non-empty JWT from localStorage
+  3. `localStorage.getItem('tw_user')` parses to a valid user whose `id` matches `_user.id` — **cross-account race guard**: during the window between `TwAuthSync.onSessionChange` firing and `window.location.reload()` executing, Account A cannot send HTTP requests using Account B's JWT or tw_user
+  4. When `TwAuthSync.getSessionSnapshot()` is available: `snapshot.isAuthenticated` must be `true` AND `snapshot.userId` (when present) must match `_user.id`
+- Any mismatch in any layer returns `false` and blocks the fetch permanently
 - All 6 API functions (`apiGetConversations`, `apiGetMessages`, `apiSendMessage`, `apiGetUnreadCount`, `apiLookupByTwId`, `apiGetUser`) call `_isMessagesAuthValid()` before making any `fetch()`
+- **HTTP messaging API calls require current localStorage user ID to match the in-memory Messenger user ID; mismatch blocks the request before fetch.**
 - Functions that return `null` on not-found use `Promise.resolve(null)` on auth failure; functions that reject on error use `Promise.reject('unauthenticated')`
 
 ### ممنوعات
@@ -4016,6 +4022,8 @@ Manually clearing conversation list, message history, `_currentConvId`, `_user`,
 ❌ لا تستخدم _jwt مباشرة في Authorization headers في messages.api.js — استخدم getMessagesJwt() فقط
 ❌ لا تضيف fetch() في messages.api.js بدون guard من _isMessagesAuthValid()
 ❌ لا تعمل partial account switch في messages page — الحل الوحيد هو window.location.reload()
+❌ لا تُرسل HTTP request من messages.api.js إذا كان currentStoredUser.id (localStorage) يختلف عن _user.id — cross-account guard إلزامي
+❌ لا تتجاوز مقارنة localStorage tw_user.id في _isMessagesAuthValid() — هي الحاجز الوحيد خلال نافذة account-switch race
 ```
 
 ---

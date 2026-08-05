@@ -1111,11 +1111,17 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 
 6. **`getMessagesJwt()` is the only approved JWT source** in `messages.api.js`. It reads `localStorage.getItem('tw_jwt')` at call time — never uses the stale in-memory `_jwt` variable.
 
-7. **`_isMessagesAuthValid()` must guard every API function** before making any `fetch()`. The guard checks: `_user.id` is set, `getMessagesJwt()` is non-empty, and `TwAuthSync.getSessionSnapshot().isAuthenticated` is true (when snapshot is available).
+7. **`_isMessagesAuthValid()` must guard every API function** before making any `fetch()`. The guard is a four-layer check — all must pass:
+   - `_user` and `_user.id` are set in memory
+   - `getMessagesJwt()` returns a non-empty JWT from localStorage
+   - `localStorage.getItem('tw_user')` parses to a valid user whose `id` matches `_user.id` (cross-account race guard — see rule 10)
+   - When `TwAuthSync.getSessionSnapshot()` is available: `snapshot.isAuthenticated` must be `true` AND `snapshot.userId` (when present) must match `_user.id`
 
 8. **`'Bearer ' + _jwt` is permanently forbidden** in `messages.api.js`. All Authorization headers must use `'Bearer ' + getMessagesJwt()`.
 
 9. **`_isMessagesAuthValid()` return values are final:** functions returning null-on-not-found (`apiLookupByTwId`, `apiGetUser`) resolve with `null`; functions rejecting on error reject with `'unauthenticated'`.
+
+10. **HTTP messaging API calls require the current localStorage `tw_user.id` to match the in-memory Messenger `_user.id`; mismatch blocks the request before fetch.** This closes the account-switch race window: during the brief period between `TwAuthSync.onSessionChange` firing and `window.location.reload()` completing, Account A's stale in-memory `_user` cannot send HTTP requests using Account B's JWT or `tw_user` data.
 
 ### Forbidden (permanent)
 
@@ -1127,6 +1133,7 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 ❌ Reading snapshot.jwt — V2 TwAuthSync snapshot has no jwt field
 ❌ Clearing conversation state manually on account switch (reload handles it)
 ❌ Redirecting to any URL other than '/login' on logout/invalid session
+❌ Skipping the localStorage tw_user.id comparison in _isMessagesAuthValid() — it is the cross-account race guard
 ```
 
 ---

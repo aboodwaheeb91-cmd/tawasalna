@@ -8,7 +8,7 @@ Coverage:
   A — Backend (server.py): 29 checks (A01-A29)
   B — Messages client (messages.ws.js): 17 checks (B01-B17)
   C — Badge WS client (tw_shared.js): 12 checks (C01-C12)
-  D — Messages API client (messages.api.js): 5 checks (D01-D05)
+  D — Messages API client (messages.api.js): 8 checks (D01-D08)
 
 Run:  python test_ws_security.py
 """
@@ -351,6 +351,21 @@ check("D04  getMessagesJwt() called inside Authorization header in messages.api.
 # D05: _isMessagesAuthValid() guard present in apiSendMessage
 check("D05  _isMessagesAuthValid() guard present in apiSendMessage",
       re.search(r"function\s+apiSendMessage.*?_isMessagesAuthValid", api, re.DOTALL) is not None)
+
+# D06: tw_user read from localStorage inside _isMessagesAuthValid
+check("D06  localStorage.getItem('tw_user') called inside _isMessagesAuthValid",
+      re.search(r"function\s+_isMessagesAuthValid.*?getItem\s*\(\s*['\"]tw_user['\"]",
+                api, re.DOTALL) is not None)
+
+# D07: currentStoredUser.id compared against _user.id (account-switch race guard)
+check("D07  currentStoredUser.id compared against _user.id in _isMessagesAuthValid",
+      re.search(r"Number\s*\(\s*currentStoredUser\.id\s*\)\s*!==\s*Number\s*\(\s*_user\.id\s*\)",
+                api) is not None)
+
+# D08: snapshot.userId compared against _user.id when snapshot is available
+check("D08  snapshot.userId compared against _user.id in _isMessagesAuthValid",
+      re.search(r"Number\s*\(\s*snap\.userId\s*\)\s*!==\s*Number\s*\(\s*_user\.id\s*\)",
+                api) is not None)
 
 # ── Summary ───────────────────────────────────────────────────────────────
 

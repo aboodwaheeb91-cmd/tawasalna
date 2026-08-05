@@ -6,13 +6,29 @@ function getMessagesJwt() {
   return (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
 }
 
-// Guard: block API calls when session is no longer valid
+// Guard: block API calls when session is no longer valid.
+// Triple-layer: (1) in-memory _user.id; (2) localStorage JWT; (3) localStorage tw_user.id
+// matches _user.id; (4) optional snapshot isAuthenticated + userId match.
+// Closes the account-switch race window: Account A cannot send HTTP requests
+// using Account B's JWT while window.location.reload() is pending.
 function _isMessagesAuthValid() {
   if (!_user || !_user.id) return false;
   if (!getMessagesJwt()) return false;
+  // Read tw_user from localStorage at call time — immune to stale in-memory state
+  var currentStoredUser = null;
+  try {
+    currentStoredUser = JSON.parse(
+      (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'
+    );
+  } catch(e) {}
+  if (!currentStoredUser || !currentStoredUser.id) return false;
+  if (Number(currentStoredUser.id) !== Number(_user.id)) return false;
   if (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function') {
     var snap = TwAuthSync.getSessionSnapshot();
-    if (snap && !snap.isAuthenticated) return false;
+    if (snap) {
+      if (!snap.isAuthenticated) return false;
+      if (snap.userId && Number(snap.userId) !== Number(_user.id)) return false;
+    }
   }
   return true;
 }
