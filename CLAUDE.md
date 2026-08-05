@@ -1123,6 +1123,25 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 
 10. **HTTP messaging API calls require the current localStorage `tw_user.id` to match the in-memory Messenger `_user.id`; mismatch blocks the request before fetch.** This closes the account-switch race window: during the brief period between `TwAuthSync.onSessionChange` firing and `window.location.reload()` completing, Account A's stale in-memory `_user` cannot send HTTP requests using Account B's JWT or `tw_user` data.
 
+### messages.render.js — Typing Throttle Contract (permanent)
+
+11. **`_typingThrottle` is a module-level variable in `messages.state.js`** — alongside `_typingTimer`. Both are always `null` or a timer ID. Never use a boolean flag; always use the timer ID so `clearTimeout` works correctly.
+
+12. **Client typing events are throttled at most once per 1500ms per conversation.** The `msgInput` `input` event listener in `messages.render.js` enforces:
+    - If `_typingThrottle` is null → send `typing`, set `_typingThrottle = setTimeout(..., 1500)`
+    - If `_typingThrottle` is set → skip (no send)
+    - On every keystroke: reset `_typingTimer` (1800ms debounce for `typing_stop`)
+    - When `_typingTimer` fires: send `typing_stop` + clear `_typingThrottle`
+
+13. **Throttle must be cleared in three places (permanent):**
+    - `doSendMessage()` — clears both `_typingTimer` and `_typingThrottle` before sending `typing_stop`
+    - `closeConversationUI()` — clears both timers so the previous conversation's pending events never fire after a conversation switch
+    - The `_typingTimer` callback itself (1800ms debounce) — clears `_typingThrottle` after sending `typing_stop`
+
+14. **Typing rate limit exceeded on the server side → `continue` (drop), not `close(4005)`.** Close 4005 is reserved for real protocol violations (repeated unknown event types, `active_conversation` ctrl rate limit). A typing burst from a fast typist is NOT a protocol violation and must never disconnect an authenticated socket.
+
+15. **Rate-limit-before-DB ordering is permanent for typing events.** `_ws_typing_rate_ok(auth_uid)` is always called BEFORE `_ws_conversation_exists_async()`. This ordering must never be reversed, regardless of whether the rate limit triggers a `continue` or a disconnect.
+
 ### Forbidden (permanent)
 
 ```
@@ -1134,6 +1153,10 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 ❌ Clearing conversation state manually on account switch (reload handles it)
 ❌ Redirecting to any URL other than '/login' on logout/invalid session
 ❌ Skipping the localStorage tw_user.id comparison in _isMessagesAuthValid() — it is the cross-account race guard
+❌ Sending typing events without throttle (no _typingThrottle guard in the input handler)
+❌ Closing the WS (code 4005) when _ws_typing_rate_ok() returns False — use continue instead
+❌ Reversing the rate-limit-before-DB ordering for typing events
+❌ Clearing _typingThrottle on conversation switch without also clearing _typingTimer
 ```
 
 ---

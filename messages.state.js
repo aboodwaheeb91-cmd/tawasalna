@@ -9,6 +9,7 @@ var _activeConvMeta = null; // {id, name, typeIco} — survives conv-list refres
 var _pendingStatus  = {};   // {msg_id → 'delivered'|'read'} for WS events arriving before HTTP ack
 
 var _typingTimer     = null;  // debounce: send typing_stop after idle
+var _typingThrottle  = null;  // throttle: limit typing events to ≤1 per 1500ms
 var _typingHideTimer = null;  // auto-hide typing indicator after 3s
 
 function esc(s) {

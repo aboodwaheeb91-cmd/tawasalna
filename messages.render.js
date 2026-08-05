@@ -412,8 +412,9 @@ function doSendMessage() {
   var sendBtn = document.querySelector('.send-btn');
   if (sendBtn) sendBtn.disabled = true;
 
-  // Cancel debounce; notify receiver immediately so their 2.5s delayed hide starts now
-  if (_typingTimer) { clearTimeout(_typingTimer); _typingTimer = null; }
+  // Cancel debounce + throttle; notify receiver immediately so their 2.5s delayed hide starts now
+  if (_typingTimer)    { clearTimeout(_typingTimer);    _typingTimer    = null; }
+  if (_typingThrottle) { clearTimeout(_typingThrottle); _typingThrottle = null; }
   sendTypingStop(_currentConvId);
 
   var savedText = text;
@@ -564,6 +565,9 @@ function closeConversationUI() {
     sendInactiveConversation(_currentConvId);
     hideTypingBubble(_currentConvId);
   }
+  // Clear typing timers so the old conversation's pending events don't fire
+  if (_typingTimer)    { clearTimeout(_typingTimer);    _typingTimer    = null; }
+  if (_typingThrottle) { clearTimeout(_typingThrottle); _typingThrottle = null; }
   _currentConvId  = null;
   _activeConvMeta = null;
 
@@ -680,17 +684,26 @@ document.addEventListener('DOMContentLoaded', function() {
     reloadMessagesQuiet();
   }, 10000);
 
-  // Typing indicator: debounced WS typing events
+  // Typing indicator: throttled + debounced WS typing events.
+  // Throttle sends typing at most once per 1500ms to stay well under the server
+  // rate limit (10/10s). Debounce sends typing_stop 1800ms after the last keystroke.
   var msgInput = document.getElementById('msgInput');
   if (msgInput) {
     msgInput.addEventListener('input', function() {
       autoResize(this);
       if (!_currentConvId) return;
-      if (_typingTimer) clearTimeout(_typingTimer);
-      sendTyping(_currentConvId);
+      // Reset stop-debounce on every keystroke
+      if (_typingTimer) { clearTimeout(_typingTimer); _typingTimer = null; }
+      // Throttle: send typing only if not in cooldown
+      if (!_typingThrottle) {
+        sendTyping(_currentConvId);
+        _typingThrottle = setTimeout(function() { _typingThrottle = null; }, 1500);
+      }
+      // Debounce: schedule typing_stop and reset throttle 1800ms after last keystroke
       _typingTimer = setTimeout(function() {
         sendTypingStop(_currentConvId);
-        _typingTimer = null;
+        _typingTimer    = null;
+        _typingThrottle = null;
       }, 1800);
     });
   }
