@@ -181,10 +181,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 18. Messaging / Direct Messaging
 **Purpose:** Direct messaging between users with typing indicators, delivery/read receipts, active-conversation signalling.
-**Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` (line 1346) · client in `messages.ws.js` · shared badge client in `tw_shared.js`
-**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and in use**. ⚠️ P0 Security Debt: the route currently accepts any `user_id` from the URL without JWT verification. Hardening deferred to "Step 3 — WebSocket Security Hardening" (see `messages.ws.js` header comment).
-**Details:** `ARCHITECTURE.md §47–48` · `ARCHITECTURE.md Messenger Premium UI Contract`
-**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. The security debt (unauthenticated `/ws/{user_id}`) must be resolved in a dedicated security PR — do not ship new features on top of it without fixing auth first.
+**Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` · client in `messages.ws.js` · shared badge client in `tw_shared.js`
+**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and fully hardened**. ✅ P0 Security Debt Fully Resolved (PR `security/ws-auth-hardening`). Complete auth hardening: fail-closed origin policy, `_BoundedTTLCache`, async DB (`asyncio.to_thread` / asyncpg pool), per-user connection limit (10 max → 4007), rate-limit-before-DB for typing AND active_conversation, schema validation for `type` field, dead socket cleanup via `disconnect()`, full client lifecycle with `_wsGen` + `_wsAuthTimeoutTimer` + `_wsRetries` (reset on `auth_ok`/session-change only) + `TwAuthSync` V2 integration.
+**Auth Protocol:** `_ws_validate_auth_frame()` helper — accept HTTP upgrade → origin check (fail closed) → 5s auth window (close 4002 on timeout) → validate `{type:"auth",token:"<jwt>"}` → JWT decode + `user_type` check + positive int uid → URL match (close 4003) → connection limit (close 4007) → register + send `auth_ok`. Client validates `auth_ok.user_id`.
+**Close Codes:** 4001 Unauthorized · 4002 Auth Failed · 4003 Forbidden · 4004 Bad Payload (also: non-string/empty/oversized `type` field) · 4005 Policy (rate limit or violation flood) · 4006 Origin Denied · 4007 Too Many Connections. Clients must NOT reconnect on 4001–4007.
+**TwAuthSync V2 contract:** `getSessionSnapshot()` returns `{state, isAuthenticated, userType, userId, reason}` — no `jwt` field. JWT always from `info.jwt` (callback param) or `localStorage.getItem('tw_jwt')`. Never `snapshot.jwt`.
+**Badge WS (_sessionReinitTimer):** Cancellable 300ms reinit timer stored at IIFE level; cancelled by `_clearSocket()` to prevent stale reconnect on fast logout-after-switch.
+**Rate limiters:** Typing: 10/10s (`_WS_TYPING_MAX=10`, `_WS_TYPING_WINDOW=10.0s`). Control (active_conversation): 30/10s (`_WS_CTRL_MAX=30`, `_WS_CTRL_WINDOW=10.0s`). Both: rate check BEFORE DB lookup.
+**Details:** `ARCHITECTURE.md §47` (full spec with origin policy, close codes, event matrix, bounded cache, async DB, client lifecycle)
+**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. Do not call `ws_manager.register()` before JWT verification. Do not use URL path `user_id` as identity — identity always from JWT claims. Do not set `WS_ALLOWED_ORIGINS="*"`. Do not call `_ws_conversation_exists_async` before rate limiter for typing. Do not add legacy WS send path back.
 
 ---
 

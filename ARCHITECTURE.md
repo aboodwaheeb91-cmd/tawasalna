@@ -3773,56 +3773,257 @@ API calls use: `Authorization: Bearer ${_jwt || ''}`
 
 ## [P0] 47. WebSocket Real-time Messages
 
-**Location:** `server.py` lines 810–866
+**Location:** `server.py` — `ConnectionManager` class + `websocket_endpoint`  
+**Security status:** Fully hardened — PR `security/ws-auth-hardening`
 
 ### ConnectionManager Class
 
 ```python
 class ConnectionManager:
     def __init__(self):
-        self.active: Dict[int, list] = {}  # {user_id: [ws1, ws2, ...]} — supports multi-tab
+        self.active: Dict[int, list] = {}          # {user_id: [ws1, ws2, ...]} — multi-tab
+        self.active_conversations: Dict[int, int] = {}  # {user_id: other_id}
+        self._conv_ws_owner: Dict[int, object] = {}     # tracks which WS set the conv
 
-    async def connect(self, user_id: int, ws: WebSocket)     # Accepts + registers
-    def disconnect(self, user_id: int, ws: WebSocket)         # Removes from active list
-    async def send_to_user(self, user_id: int, data: dict)    # Sends to all tabs of user
+    def register(self, user_id: int, ws: WebSocket) -> bool  # Returns False if limit exceeded
+    def disconnect(self, user_id: int, ws: WebSocket)         # Removes WS; cleans empty list
+    async def send_to_user(self, user_id: int, data: dict) -> bool  # Sends to all tabs
 ```
+
+**`register()` rules:**
+- Never call before JWT verification completes.
+- Returns `False` if user already has `_WS_MAX_CONN_PER_USER = 10` connections → caller sends close 4007.
+- Idempotent for duplicate WS objects (returns `True`, no duplicate added).
+- `disconnect()` deletes the user key when the last WS is removed (no empty-list leak).
+
+**`register()` ordering (permanent):** `ws.accept()` → origin check → JWT auth → `register()`. This ordering is never reversed.
 
 ### Endpoint
 
 - **Path:** `WS /ws/{user_id}`
-- **Auth:** None (user_id in path param serves as identifier)
+- **Auth:** First-Message JWT (`auth_ok` protocol — see below)
 - **Protocol:** Text-based JSON
+- **Transport limit:** `--ws-max-size 65536` in Procfile (uvicorn)
+
+### Origin Policy — Fail Closed
+
+```
+Production (APP_ENV=production, the default):
+  Allowed: https://tawasolna.com, https://www.tawasolna.com
+  "null" origin: always rejected (sandboxed iframe / local file)
+  No origin header: allowed (native mobile/desktop clients with valid JWT)
+  WS_ALLOWED_ORIGINS="*": RuntimeError at startup — permanently forbidden
+
+Development (APP_ENV=development):
+  Allowed: production set + localhost:8000/3000/5173 and 127.0.0.1 variants
+
+Custom override:
+  WS_ALLOWED_ORIGINS="https://app.example.com,https://other.example.com"
+  (comma-separated; "null" still rejected; empty-origin still allowed)
+```
+
+### First-Message JWT Authentication Protocol
+
+1. **Accept HTTP upgrade** — `await websocket.accept()` (no registration yet)
+2. **Origin check** — `_ws_origin_ok(websocket)` — close 4006 on failure (fail closed)
+3. **Auth window** — wait up to `_WS_AUTH_TIMEOUT = 5.0s` via `asyncio.wait_for` — close 4002 on timeout
+4. **Validate auth frame** — `_ws_validate_auth_frame(raw)` — single helper; auth frame max `_WS_AUTH_FRAME_MAX = 8192` bytes; frame must be dict with `type=="auth"` and non-empty string `token`; JWT decoded and validated inside helper; returns `(auth_uid, 0)` on success or `(-1, close_code)` on failure
+5. **Match URL** — `auth_uid` must equal URL path `user_id`; if mismatch → close 4003
+6. **Connection limit** — `ws_manager.register(auth_uid, ws)` returns False → close 4007
+7. **Confirm** — send `{"type":"auth_ok","user_id":<int>}` to client
+8. **Message loop** — only allowlisted event types are processed
+
+**`_ws_validate_auth_frame()` close codes:**
+- Frame > 8192 bytes → 4002
+- Non-JSON or non-dict → 4002
+- `type != "auth"` → 4002
+- Missing/empty token string → 4001
+- Invalid/expired JWT → 4001
+- Missing `user_id` or `user_type` claim → 4001
+- `user_type` not in `{emp, co, edu}` → 4001
+- `user_id` not a positive integer → 4001
+
+**Client must:**
+- Send `{"type":"auth","token":"<jwt>"}` as the very first message in `onopen`
+- Set a 5-second client-side auth timeout: if `auth_ok` not received, close and optionally retry
+- Validate `auth_ok.user_id` matches the expected user (defense against session confusion)
+- Not send operational events before receiving `auth_ok`
+- Stop reconnecting on close codes 4001–4007
+- Use `_wsGen` generation counter — stale closures must self-cancel
+
+### Application Close Codes
+
+| Code | Name | Trigger |
+|------|------|---------|
+| 4001 | Unauthorized | Missing/invalid/expired JWT, missing claims, invalid user_type |
+| 4002 | Auth Failed | Auth timeout; oversized/malformed auth frame; wrong frame type |
+| 4003 | Forbidden | JWT uid ≠ URL path user_id |
+| 4004 | Bad Payload | JSON parse error in message loop; frame > `_WS_MAX_PAYLOAD` |
+| 4005 | Policy Violation | Typing rate limit exceeded; `_WS_MAX_VIOLATIONS` unknown events |
+| 4006 | Origin Denied | Origin header rejected by fail-closed origin policy |
+| 4007 | Too Many Connections | User already has `_WS_MAX_CONN_PER_USER = 10` active connections |
+
+### Per-Event Authorization (Authenticated Loop)
+
+| Event type | Order | Authorization check |
+|-----------|-------|---------------------|
+| `active_conversation` | 1. validate `other_id` int > 0; 2. **`_ws_ctrl_rate_ok(auth_uid)` first**; 3. `_ws_conversation_exists_async(auth_uid, other_id)` | Ctrl rate limit (30/10s) BEFORE DB; conversation must exist |
+| `inactive_conversation` | — | Only clears state for the owner WS (no DB check needed) |
+| `typing` / `typing_stop` | 1. **`_ws_typing_rate_ok(auth_uid)` first**; 2. `_ws_conversation_exists_async(auth_uid, to_id)` | Typing rate limit (10/10s) BEFORE DB; conversation must exist |
+| Message with non-string, empty, or >80-char `type` field | — | Close 4004 immediately — validated BEFORE violation counter |
+| Any other valid string `type` | — | Violation counter incremented; close 4005 after `_WS_MAX_VIOLATIONS = 10` |
+
+**Rate-limit-before-DB ordering is permanent for both `typing` AND `active_conversation`.** Never call `_ws_conversation_exists_async` before the respective rate limiter. This ordering must never be reversed.
+
+**Ctrl rate limiter:** `_ws_ctrl_rate_ok(auth_uid)` — sliding window: 30 events / 10 seconds per `user_id` (`_WS_CTRL_MAX=30`, `_WS_CTRL_WINDOW=10.0s`). Used for `active_conversation`. Exceeded → close 4005.
+
+### Conversation Membership Cache (`_ws_conv_cache`)
+
+Class: `_BoundedTTLCache`
+- Key: `(min(a,b), max(a,b))` tuple
+- Positive TTL: 300s (5 minutes) — conversation exists
+- Negative TTL: 60s (1 minute) — conversation does not exist
+- Max size: 5000 entries; evicts oldest on overflow (LRU-ish, OrderedDict)
+- No caching on DB error — fail closed (returns `False` without caching)
+
+### Async DB Safety
+
+`_ws_conversation_exists_async(a, b)` is fully async:
+- **asyncpg pool available (`_asyncpg_pool is not None`):** uses `async with pool.acquire()` — non-blocking
+- **asyncpg unavailable (pg8000 fallback):** wraps sync pg8000 call in `asyncio.to_thread` with `release_conn()` in `finally` — no event-loop blocking, no connection leak
+
+### Rate Limiters
+
+**Typing rate limiter (`_ws_typing_rate_ok`):**
+- Sliding window: **10 events / 10 seconds** per `user_id` (`_WS_TYPING_MAX=10`, `_WS_TYPING_WINDOW=10.0s`)
+- Implementation: `_ws_typing_log: Dict[int, deque]` (module-level)
+- Exceeded → close 4005
+- Cleaned up in `_ws_cleanup_typing_log(user_id)` from the `finally` block of the endpoint
+
+**Control rate limiter (`_ws_ctrl_rate_ok`):**
+- Sliding window: **30 events / 10 seconds** per `user_id` (`_WS_CTRL_MAX=30`, `_WS_CTRL_WINDOW=10.0s`)
+- Implementation: `_ws_ctrl_log: Dict[int, deque]` (module-level)
+- Used for `active_conversation` events; exceeded → close 4005
 
 ### Message Flow
 
-**Client → Server (send):**
+**Client → Server (auth):**
 ```json
-{ "receiver_id": <int>, "content": <str> }
+{ "type": "auth", "token": "<jwt>" }
+```
+**Server → Client (confirmed):**
+```json
+{ "type": "auth_ok", "user_id": <int> }
+```
+**Client → Server (typing):**
+```json
+{ "type": "typing", "to_user_id": <int> }
+```
+**Server → Recipient (typing):**
+```json
+{ "type": "typing", "from_user_id": <int> }
 ```
 
-**Server → Receiver (receive):**
-```json
-{ "type": "message", "from": <int>, "content": <str>, "created_at": "<ISO>" }
-```
-
-**Server → Sender (confirmation):**
-```json
-{ "type": "sent", "id": <msg_id> }
-```
+Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been **removed** in `security/ws-auth-hardening`. All message sends use HTTP (`POST /messages/{user_id}`). HTTP is the only message-send transport.
 
 ### Key Implementation Details
 
 - In-memory `active` dict — NOT distributed (single Heroku dyno only)
-- Message persisted to `messages` table via `send_message()` before WS delivery
-- Dead connection cleanup: WebSocketDisconnect → `manager.disconnect()`
-- If receiver offline: message saved in DB, delivered next time they poll GET /messages
-- Multi-tab: same user_id can have multiple websockets in `active[user_id]` list
+- Message persisted to `messages` table via HTTP before WS delivery
+- **Dead socket cleanup contract:** `send_to_user()` routes failed sends through `self.disconnect(user_id, dead_ws)` — never direct list removal. This ensures `_conv_ws_owner` and `active_conversations` are cleared for dead sockets. When the last connection dies, `_ws_cleanup_typing_log(user_id)` is also called to clear rate-limit state.
+- `disconnect()` called in `finally` block of `websocket_endpoint` for normal connection lifecycle
+- If receiver offline: message saved in DB, delivered next time they poll `GET /messages`
+- Multi-tab: same `user_id` can have multiple WebSockets in `active[user_id]` (max 10)
+
+### Client Lifecycle (messages.ws.js)
+
+- `_wsGen: number` — increments on each `connectWS()` call; all closures capture `capturedGen` and self-cancel when stale
+- `_ws: WebSocket|null` — module-level reference to current active socket
+- `_wsReady: bool` — set `true` only after `auth_ok`; guards all operational sends
+- `_wsRetries: number` — retry counter; **reset rules (permanent):**
+  - Reset to `0` on successful `auth_ok` (connection authenticated)
+  - Reset to `0` on session change (new session resets the counter)
+  - **NOT reset in `onopen`** — this would allow infinite retries across failed connections
+- `_wsAuthTimeoutTimer: number|null` — cancellable handle for the 5s client-side auth timeout
+  - Set in `onopen` after auth frame is sent
+  - Cancelled on `auth_ok` success (timer clears itself to null; retries also reset here)
+  - Cancelled in `onclose` **only when `ws === _ws`** (prevents stale socket from cancelling the current connection's timer)
+  - Cancelled in session change handler (alongside reconnect and switch timers)
+- Reconnect: exponential backoff `2^n * 1s + jitter`, max 5 retries, 30s cap
+- `TwAuthSync.onSessionChange`: closes socket + advances `_wsGen` + resets `_wsRetries` on logout/account-switch
+
+**TwAuthSync V2 snapshot contract (permanent):**
+`TwAuthSync.getSessionSnapshot()` returns `{ state, isAuthenticated, userType, userId, reason }` — **no `jwt` field**. JWT is always sourced from:
+1. `info.jwt` (callback parameter) — captured synchronously before any `setTimeout` delay
+2. `localStorage.getItem('tw_jwt')` — fallback when no JWT in `info`
+
+**Never read `snapshot.jwt`** — it does not exist in V2. Any code that reads `snapshot.jwt` is a contract violation.
+
+### Badge WS Client (tw_shared.js IIFE)
+
+- Uses same generation counter (`_gen`) and per-connection `wsReady` flag
+- `auth_ok.user_id` validated against `capturedUid`
+- Close codes 4001–4007 prevent reconnect
+- `_retries: number` — IIFE-level (persists across `_initBadgeWS()` calls); reset on `auth_ok` success or new session
+- `_sessionReinitTimer: number|null` — cancellable handle for 300ms session-switch reinit; **cancelled by `_clearSocket()`** so fast logout-after-switch doesn't produce a stale reconnect
+- `_initBadgeWS(pendingJwt?)` — accepts optional JWT captured synchronously from `info.jwt`; uses V2 snapshot (no `snapshot.jwt`); JWT sourced from `pendingJwt || localStorage.getItem('tw_jwt')`
+- `TwAuthSync.onSessionChange` integration via `_clearSocket()` helper (also cancels `_sessionReinitTimer`)
+- **Same V2 snapshot contract as messages.ws.js** — no `snapshot.jwt`
+
+### Messenger Session Lifecycle (messages.ws.js + messages.api.js)
+
+**TwAuthSync.onSessionChange handler — permanent decision tree (PR `security/ws-auth-hardening`):**
+
+| Condition | Action |
+|-----------|--------|
+| `capturedJwt` is empty (logout / expired) | `_jwt = ''`, `_user = null`, `_currentConvId = null`, `window.location.replace('/login')` |
+| JWT present but `snapshot.isAuthenticated === false` | Same as above — redirect to `/login` |
+| JWT present, `newUserId !== prevUserId` (account switch) | `window.location.reload()` — clean re-init, no partial state |
+| JWT present, same userId (token refresh) | Update `_jwt`, stage `_wsPendingJwt`, schedule 500ms WS reconnect |
+
+**`capturedJwt` sourcing (permanent):**
+1. `info.jwt` — synchronously captured from the callback parameter before any `setTimeout`
+2. `localStorage.getItem('tw_jwt')` — fallback when `info.jwt` is absent or empty
+
+**Why reload on account switch:**  
+Manually clearing conversation list, message history, `_currentConvId`, `_user`, `_jwt`, and all UI state is error-prone. A full `window.location.reload()` guarantees a clean re-init from the new session's data. The page will re-read all state from `localStorage` on load.
+
+**messages.api.js session contract (permanent):**
+- `getMessagesJwt()` reads from `localStorage.getItem('tw_jwt')` at call time — never uses stale in-memory `_jwt`
+- `_isMessagesAuthValid()` is a **triple-layer guard** that blocks all API calls unless ALL of the following pass:
+  1. `_user` and `_user.id` are set in memory
+  2. `getMessagesJwt()` returns a non-empty JWT from localStorage
+  3. `localStorage.getItem('tw_user')` parses to a valid user whose `id` matches `_user.id` — **cross-account race guard**: during the window between `TwAuthSync.onSessionChange` firing and `window.location.reload()` executing, Account A cannot send HTTP requests using Account B's JWT or tw_user
+  4. When `TwAuthSync.getSessionSnapshot()` is available: `snapshot.isAuthenticated` must be `true` AND `snapshot.userId` (when present) must match `_user.id`
+- Any mismatch in any layer returns `false` and blocks the fetch permanently
+- All 6 API functions (`apiGetConversations`, `apiGetMessages`, `apiSendMessage`, `apiGetUnreadCount`, `apiLookupByTwId`, `apiGetUser`) call `_isMessagesAuthValid()` before making any `fetch()`
+- **HTTP messaging API calls require current localStorage user ID to match the in-memory Messenger user ID; mismatch blocks the request before fetch.**
+- Functions that return `null` on not-found use `Promise.resolve(null)` on auth failure; functions that reject on error use `Promise.reject('unauthenticated')`
 
 ### ممنوعات
 
 ```
+❌ لا تستدعِ ws_manager.register() قبل التحقق من JWT
+❌ لا تضع ws.accept() داخل register()
+❌ لا تستخدم user_id من URL كهوية — الهوية من JWT فقط
 ❌ لا تفترض أن الـ WS متاح على multi-dyno (in-memory فقط)
 ❌ لا تستبدل HTTP polling بـ WS وحده — WS للـ real-time، HTTP للـ history
+❌ لا تسجّل JWT token في أي print أو log
+❌ لا تنشئ مسار WebSocket ثانياً
+❌ لا تضبط WS_ALLOWED_ORIGINS="*" — RuntimeError عند بدء التشغيل
+❌ لا تستدعِ _ws_conversation_exists_async قبل rate limiter في typing/active_conversation events
+❌ لا تستخدم _ws_conversation_exists (sync) مباشرة في async endpoint — استخدم الـ async version فقط
+❌ لا تحفظ JWT في logs أو URL params
+❌ لا تقبل close codes 4001-4007 كمبرر لإعادة الاتصال في الـ client
+❌ لا تعيد تشغيل _wsRetries = 0 داخل onopen — يُعيَّن فقط عند auth_ok أو session change
+❌ لا تقرأ snapshot.jwt — لا يوجد في V2 TwAuthSync snapshot؛ JWT من info.jwt أو localStorage فقط
+❌ لا تحذف dead socket مباشرة من self.active في send_to_user — يجب المرور عبر disconnect()
+❌ لا تترك _sessionReinitTimer بدون إلغاء في _clearSocket() — يسبب reconnect stale بعد logout
+❌ لا تستخدم _jwt مباشرة في Authorization headers في messages.api.js — استخدم getMessagesJwt() فقط
+❌ لا تضيف fetch() في messages.api.js بدون guard من _isMessagesAuthValid()
+❌ لا تعمل partial account switch في messages page — الحل الوحيد هو window.location.reload()
+❌ لا تُرسل HTTP request من messages.api.js إذا كان currentStoredUser.id (localStorage) يختلف عن _user.id — cross-account guard إلزامي
+❌ لا تتجاوز مقارنة localStorage tw_user.id في _isMessagesAuthValid() — هي الحاجز الوحيد خلال نافذة account-switch race
 ```
 
 ---
@@ -3884,11 +4085,6 @@ if int(token.get("user_id") or 0) != user_id:
 - `messages.html` uses `tw_user` key in localStorage (legacy pattern — different from `tawasalna_user` used in profile)
 - `_jwt = localStorage.getItem('tw_jwt') || ''` — injected at top of script block after user session load
 
-### Security Debt (Known — Not Fixed in Step 1)
-
-- WebSocket `/ws/{user_id}` — `user_id` comes from URL path, no JWT verification on WS upgrade.
-  No change made to avoid breaking real-time delivery. Tracked for a future hardening step.
-
 ### Frontend Security Rules (messages.html — Step 1)
 
 - **`esc(s)` helper** must be called before injecting ANY user-supplied string into `innerHTML`.
@@ -3899,8 +4095,6 @@ if int(token.get("user_id") or 0) != user_id:
 - **`?with=` race condition fix** — resolve `tw_id` first, call `openConversation` (sets `_currentConvId`), then `loadConversations()`. `_activeConvMeta` preserves active item if conversation isn't in DB list yet.
 - **Mobile back button** — `toggleConvList()` toggles `.mobile-show` on `#convList`. `openConversation` removes `.mobile-show` on selection.
 - **`loadUnreadCount()` called after `openConversation`** — count refreshes when messages are marked read.
-- **WebSocket security debt** — `/ws/{user_id}` has no JWT check. Deferred to a dedicated future Step.
-
 ---
 
 ## [P0] 49. Messenger V1 — Modular Architecture
@@ -3995,7 +4189,7 @@ body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android
 
 | Ref | Debt | Severity | Status |
 |-----|------|----------|--------|
-| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical | Open |
+| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical | **Resolved (PR security/ws-auth-hardening)** |
 | P1 | `get_conversations` sorted by `other_id` not recency | High | **Fixed** (subquery wrap) |
 | P2 | `create_notification()` deep-link was `/messages` without sender tw_id | Low | **Fixed** |
 

@@ -416,20 +416,79 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 // ══ Global Real-time Badge WebSocket ══
 // Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
 // Handles badge_update events to update [data-badge="msgs"] in real time.
+// Auth protocol: sends {"type":"auth","token":"..."} as the first message;
+// only processes badge_update after server confirms with auth_ok.
 (function() {
-  function _initBadgeWS() {
-    var u = null;
-    try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!u || !u.id || !jwt) return;
+  var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
+  var _activeUid = 0;
+  var _activeSocket = null;    // current active WS reference
+  var _reconnectTimer = null;  // active reconnect timer handle
+  var _retries = 0;            // IIFE-level: persists across _initBadgeWS() calls; reset on auth_ok or new session
+  var _sessionReinitTimer = null; // cancellable handle for 300ms session-switch reinit
+
+  function _clearSocket() {
+    _gen++;
+    var sock = _activeSocket;
+    _activeSocket = null;
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+    if (_sessionReinitTimer) { clearTimeout(_sessionReinitTimer); _sessionReinitTimer = null; }
+    if (sock) { try { sock.close(); } catch(e) {} }
+  }
+
+  // pendingJwt: JWT captured synchronously from info.jwt before the async delay fires.
+  // V2 contract: getSessionSnapshot() returns {state,isAuthenticated,userType,userId,reason}
+  // — no jwt field. JWT always comes from pendingJwt or localStorage.
+  function _initBadgeWS(pendingJwt) {
+    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+        ? TwAuthSync.getSessionSnapshot() : null;
+    var uid, jwt;
+    if (snapshot) {
+      if (!snapshot.isAuthenticated) return;
+      uid = snapshot.userId;
+      jwt = pendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    } else {
+      var u = null;
+      try { u = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'); } catch(e){}
+      jwt = pendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+      if (!u || !u.id || !jwt) return;
+      uid = u.id;
+    }
+    if (!uid || !jwt) return;
+
+    _gen++;
+    _activeUid = uid;
+    var capturedGen = _gen;
+    var capturedUid = Number(uid);
 
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id);
-    var retries = 0;
+    var ws;
+    try { ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + uid); } catch(e) { return; }
+    _activeSocket = ws;
+    var wsReady = false;
 
+    ws.onopen = function() {
+      if (capturedGen !== _gen) { ws.close(); return; }
+      wsReady = false;
+      ws.send(JSON.stringify({type: 'auth', token: jwt}));
+    };
     ws.onmessage = function(e) {
+      // Stale-connection guard: superseded by newer login or _initBadgeWS call
+      if (capturedGen !== _gen || capturedUid !== _activeUid) return;
       try {
         var data = JSON.parse(e.data);
+        if (data.type === 'auth_ok') {
+          // Validate server echoed the correct user_id
+          if (Number(data.user_id) !== capturedUid) {
+            // Mismatch: advance generation to cancel stale closures, close with Forbidden
+            _gen++;
+            ws.close(4003);
+            return;
+          }
+          _retries = 0;  // reset retry counter on successful auth
+          wsReady = true;
+          return;
+        }
+        if (!wsReady) return;
         if (data.type === 'badge_update' && data.badge === 'messages') {
           var count = data.count || 0;
           document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
@@ -439,8 +498,18 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
         }
       } catch(ex) {}
     };
-    ws.onclose = function() {
-      if (retries < 5) { retries++; setTimeout(_initBadgeWS, retries * 2000); }
+    ws.onclose = function(event) {
+      wsReady = false;
+      if (ws === _activeSocket) _activeSocket = null;
+      // Auth/Policy close codes (4001-4007) — do not reconnect
+      if (event.code >= 4001 && event.code <= 4007) return;
+      // Superseded by a newer session — do not reconnect
+      if (capturedGen !== _gen) return;
+      if (_retries < 5) {
+        _retries++;
+        var delay = Math.min(30000, Math.pow(2, _retries) * 1000 + Math.floor(Math.random() * 1000));
+        _reconnectTimer = setTimeout(_initBadgeWS, delay);
+      }
     };
     ws.onerror = function() { ws.close(); };
   }
@@ -449,6 +518,22 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   window.addEventListener('load', function() {
     setTimeout(_initBadgeWS, 200);
   });
+
+  // TwAuthSync: close socket on logout or account-switch
+  if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
+    TwAuthSync.onSessionChange(function(info) {
+      _clearSocket();  // also cancels _sessionReinitTimer
+      _retries = 0;    // new session resets the retry counter
+      // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
+      if (info && info.jwt) {
+        var capturedJwt = info.jwt;  // capture before async delay
+        _sessionReinitTimer = setTimeout(function() {
+          _sessionReinitTimer = null;
+          _initBadgeWS(capturedJwt);
+        }, 300);
+      }
+    });
+  }
 })();
 
 
