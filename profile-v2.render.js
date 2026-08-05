@@ -446,6 +446,14 @@ window.renderProfile = function renderProfile(res){
   // expose viewer type for other modules (exp, edu, etc.)
   window._scViewerType = _vt;
 
+  // VM-01-BFCACHE: backend-confirmed non-owner → immediately discard private owner state.
+  // This runs whether renderProfile was called from initial load or background re-verify.
+  if(_vt !== 'owner'){
+    window._scOwnerHydrationGeneration = (window._scOwnerHydrationGeneration||0) + 1;
+    window._scOwnerProfile        = null;
+    window._scOwnerProfilePromise = null;
+  }
+
   // edit button — owner only, server-verified
   var editBtn = document.getElementById('scEditProfileBtn');
   if(editBtn) editBtn.style.display = (_vt === 'owner') ? 'flex' : 'none';
@@ -956,6 +964,7 @@ window._scOwnerHydrationGeneration = 0;
         // Public state (window._scProfile) must never contain dob/phone/email.
         // Private fields live only in window._scOwnerProfile (edit modal source).
         // Generation guard: reject result if session was revoked while request was in-flight.
+        // @vm-extract-begin: p2-hydration
         if (window._scViewerType === 'owner' && window.getOwnerProfile) {
           window._scOwnerProfile        = null;
           window._scOwnerProfilePromise = null;
@@ -977,10 +986,13 @@ window._scOwnerHydrationGeneration = 0;
               window._scOwnerProfilePromise = null;
             })
             .catch(function(){
+              // Generation guard: stale .catch() must not clear a newer hydration's data.
+              if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;
               window._scOwnerProfile        = null;
               window._scOwnerProfilePromise = null;
             });
         }
+        // @vm-extract-end: p2-hydration
       })
       .catch(function(){
         if(ld){ ld.style.display='none'; }
@@ -1490,6 +1502,7 @@ window._scOwnerHydrationGeneration = 0;
 //
 // All other cases (logout / expired / invalid / stale / account switch):
 //   → immediate owner revocation (classes + private data + generation counter).
+// @vm-extract-begin: p2-authsync
 (function(){
   if(!window.TwAuthSync) return;
   TwAuthSync.onSessionChange(function(info){
@@ -1497,21 +1510,28 @@ window._scOwnerHydrationGeneration = 0;
     var snapshot = (info && info.snapshot)
       || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
 
-    // Skip when owner is manually previewing as visitor — not a real session change
-    if(document.body.classList.contains('preview-public-user') ||
-       document.body.classList.contains('preview-guest')) return;
+    // NOTE: preview mode (preview-public-user / preview-guest) does NOT exempt from session
+    // revocation. A logout or account switch during preview must still revoke owner UI.
+    // Preview classes are cleared unconditionally in the revocation path below.
 
     // bfcache carve-out: page restored with same valid owner session.
-    // Condition: pageshow + still authenticated + userId matches this profile owner + still in owner mode.
-    // Does NOT rely on jwt presence alone (account-switch safety: a different user's JWT is still truthy).
+    // Identity-aware: must check snapshot.userId === profileId (not jwt presence alone).
+    // Account-switch safety: Account B's valid JWT must NOT carve out Account A's owner view.
     if(reason === 'pageshow' &&
        snapshot && snapshot.isAuthenticated &&
        snapshot.userId != null &&
        String(snapshot.userId) === String(window._scProfileId) &&
        window._scViewerType === 'owner') {
       // Background re-verify only — page state is still correct for this owner
-      if(window.getProfile && window._scProfileId && window.renderProfile){
-        getProfile(_scProfileId).then(window.renderProfile).catch(function(){});
+      if(window.getProfile && window._scProfileId){
+        window.getProfile(window._scProfileId)
+          .then(function(res){ if(window.renderProfile) window.renderProfile(res); })
+          .catch(function(err){
+            var _msg = (err && err.message) ? String(err.message) : '';
+            if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){
+              TwAuthSync.invalidateSession('api_401');
+            }
+          });
       }
       return;
     }
@@ -1519,6 +1539,7 @@ window._scOwnerHydrationGeneration = 0;
     // ── Immediate owner revocation ──
     // Covers: logout, expired, invalid, stale, account switch (userId ≠ profileId),
     //         and pageshow with a valid-but-different-user JWT.
+    // Also safely ends any active preview session — preview classes removed unconditionally.
 
     // Increment generation FIRST — this cancels any in-flight owner hydration Promise.
     window._scOwnerHydrationGeneration = (window._scOwnerHydrationGeneration || 0) + 1;
@@ -1527,19 +1548,28 @@ window._scOwnerHydrationGeneration = 0;
     window._scOwnerProfile        = null;
     window._scOwnerProfilePromise = null;
 
-    if(document.body.classList.contains('view-owner')){
-      document.body.classList.remove('view-owner');
-      document.body.classList.add('view-guest');
-      window._scViewerType = 'guest';
-      // Close all open edit bottom-sheets (Profile V2 uses 'open', fallback 'show')
-      document.querySelectorAll('.ep-overlay').forEach(function(ov){
-        ov.classList.remove('open', 'show');
-      });
-    }
+    // Set guest state unconditionally — covers view-owner, preview-public-user, preview-guest,
+    // and any other state the page might be in.
+    window._scViewerType = 'guest';
+    document.body.classList.remove('view-owner', 'preview-public-user', 'preview-guest');
+    document.body.classList.add('view-guest');
+
+    // Close all open edit bottom-sheets.
+    document.querySelectorAll('.ep-overlay').forEach(function(ov){
+      ov.classList.remove('open', 'show');
+    });
 
     // Background re-verify — gets authoritative viewer_type from server.
-    if(window.getProfile && window._scProfileId && window.renderProfile){
-      getProfile(_scProfileId).then(window.renderProfile).catch(function(){});
+    if(window.getProfile && window._scProfileId){
+      window.getProfile(window._scProfileId)
+        .then(function(res){ if(window.renderProfile) window.renderProfile(res); })
+        .catch(function(err){
+          var _msg = (err && err.message) ? String(err.message) : '';
+          if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){
+            TwAuthSync.invalidateSession('api_401');
+          }
+        });
     }
   });
 })();
+// @vm-extract-end: p2-authsync

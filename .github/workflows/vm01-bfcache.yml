@@ -8,6 +8,7 @@ on:
     paths:
       - 'profile-v2.render.js'
       - 'edu-profile.html'
+      - 'static/company/company.main.js'
       - 'test_vm01_bfcache_runtime.js'
       - '.github/workflows/vm01-bfcache.yml'
   pull_request:
@@ -16,6 +17,7 @@ on:
     paths:
       - 'profile-v2.render.js'
       - 'edu-profile.html'
+      - 'static/company/company.main.js'
       - 'test_vm01_bfcache_runtime.js'
 
 jobs:
@@ -53,6 +55,9 @@ jobs:
           node --check profile-v2.render.js
           node --check profile-v2.state.js
           node --check profile-v2.api.js
+
+      - name: Check company.main.js syntax
+        run: node --check static/company/company.main.js
 
       - name: Check test file syntax
         run: node --check test_vm01_bfcache_runtime.js

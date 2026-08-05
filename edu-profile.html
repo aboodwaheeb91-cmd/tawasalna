@@ -439,18 +439,41 @@ _isOwner = _user && _user.user_type==='edu' && (!_urlId || String(_user.id) === 
 // Must be called before every owner mutation (openEditModal, saveEdit, uploadCover).
 // See: docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE
 function _isCurrentEduOwner() {
-  if (!window.TwAuthSync || !TwAuthSync.getSessionSnapshot) {
-    // Fallback: check localStorage directly (no TwAuthSync loaded)
-    try {
-      var _u = JSON.parse(localStorage.getItem('tw_user') || 'null');
-      if (!_u || _u.user_type !== 'edu') return false;
-      return !_urlId || String(_u.id) === String(_urlId);
-    } catch (e) { return false; }
-  }
+  // Fail-closed: without TwAuthSync ownership cannot be confirmed — localStorage alone is not safe.
+  if (!window.TwAuthSync || !TwAuthSync.getSessionSnapshot) return false;
   var _snap = TwAuthSync.getSessionSnapshot();
   if (!_snap || !_snap.isAuthenticated || _snap.userType !== 'edu') return false;
   if (_snap.userId == null) return false;
   return !_urlId || String(_snap.userId) === String(_urlId);
+}
+
+// Unified owner/guest mode controller — single function for all owner UI transitions.
+function _applyEduOwnerMode(isOwner, snap) {
+  var ownerEl   = document.getElementById('ownerActions');
+  var visitorEl = document.getElementById('visitorActions');
+  var coverBtn  = document.getElementById('coverUploadBtn');
+  var editOv    = document.getElementById('editOverlay');
+  if (isOwner) {
+    _isOwner = true;
+    if (snap && snap.userId != null) {
+      if (!_user) _user = {};
+      _user.id = snap.userId;
+      try {
+        var _tw = JSON.parse(localStorage.getItem('tw_user') || 'null');
+        if (_tw && String(_tw.id) === String(snap.userId)) _user = _tw;
+      } catch(e) {}
+    }
+    if (ownerEl)   ownerEl.style.display   = 'flex';
+    if (visitorEl) visitorEl.style.display = 'none';
+    if (coverBtn)  coverBtn.style.display  = 'flex';
+  } else {
+    _isOwner = false;
+    _user    = null;
+    if (ownerEl)   ownerEl.style.display   = 'none';
+    if (visitorEl) visitorEl.style.display = 'flex';
+    if (coverBtn)  coverBtn.style.display  = 'none';
+    if (editOv)    editOv.classList.remove('show');
+  }
 }
 
 if(_isOwner){
@@ -524,6 +547,10 @@ function openEditModal(){
 
 function saveEdit(){
   if (!_isCurrentEduOwner()) return;
+  // Use live snapshot userId — _user.id could be stale after an account switch.
+  var _snapNow = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
+  var _liveUserId = _snapNow && _snapNow.userId != null ? String(_snapNow.userId) : null;
+  if (!_liveUserId) return;
   _data.name=document.getElementById('e-name').value.trim()||_data.name;
   _data.desc=document.getElementById('e-desc').value.trim();
   _data.type=document.getElementById('e-type')?.value||_data.type;
@@ -531,21 +558,18 @@ function saveEdit(){
   _data.web=document.getElementById('e-web')?.value||_data.web;
   updateDisplay();
   document.getElementById('editOverlay').classList.remove('show');
-  // Save to DB
-  if(_user && _user.id && _isOwner){
-    var _jwt = localStorage.getItem('tw_jwt') || '';
-    fetch('/profile/'+_user.id, {
+  // Save to DB using live userId and fresh JWT.
+  var _jwt = localStorage.getItem('tw_jwt') || '';
+  fetch('/profile/'+_liveUserId, {
+    method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+    body:JSON.stringify({full_name:_data.name, bio:_data.desc, location:_data.loc, website:_data.web})
+  }).catch(function(){});
+  if (!_user || _user.full_name !== _data.name) {
+    fetch('/auth/user/'+_liveUserId+'/name', {
       method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-      body:JSON.stringify({full_name:_data.name, bio:_data.desc, location:_data.loc, website:_data.web})
+      body:JSON.stringify({full_name:_data.name})
     }).catch(function(){});
-    if(_user.full_name !== _data.name){
-      fetch('/auth/user/'+_user.id+'/name', {
-        method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-        body:JSON.stringify({full_name:_data.name})
-      }).catch(function(){});
-      _user.full_name = _data.name;
-      localStorage.setItem('tw_user', JSON.stringify(_user));
-    }
+    if (_user) { _user.full_name = _data.name; localStorage.setItem('tw_user', JSON.stringify(_user)); }
   }
 }
 
@@ -652,6 +676,7 @@ if (window.initGlobalHeaderMenu) {
 }
 
 // ── Auth-sync: VM-01 bfcache session revalidation (edu-profile) ──
+// @vm-extract-begin: edu-authsync
 (function(){
   if (!window.TwAuthSync) return;
   TwAuthSync.onSessionChange(function(info){
@@ -659,16 +684,16 @@ if (window.initGlobalHeaderMenu) {
     var snapshot = (info && info.snapshot)
       || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
 
-    // bfcache carve-out: same valid edu owner → background-verify only
+    // bfcache carve-out: same valid edu owner, page restored from bfcache → background-verify only
     if (reason === 'pageshow' &&
         snapshot && snapshot.isAuthenticated &&
         snapshot.userType === 'edu' &&
         snapshot.userId != null &&
         (!_urlId || String(snapshot.userId) === String(_urlId)) &&
         _isOwner) {
-      var uid = _urlId || String(snapshot.userId);
-      if (uid) {
-        fetch('/profile/'+uid).then(function(r){return r.json();}).then(function(data){
+      var _uid = _urlId || String(snapshot.userId);
+      if (_uid) {
+        fetch('/profile/'+_uid).then(function(r){return r.json();}).then(function(data){
           var p = data && data.profile ? data.profile : {};
           if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
           if (p.bio){ _data.desc = p.bio; updateDisplay(); }
@@ -678,22 +703,17 @@ if (window.initGlobalHeaderMenu) {
       return;
     }
 
-    // Revoke: logout / expired / stale / account switch
-    _isOwner = false;
-    _user    = null;
-    var ownerEl   = document.getElementById('ownerActions');
-    var visitorEl = document.getElementById('visitorActions');
-    var coverBtn  = document.getElementById('coverUploadBtn');
-    var editOv    = document.getElementById('editOverlay');
-    if (ownerEl)   ownerEl.style.display   = 'none';
-    if (visitorEl) visitorEl.style.display = 'flex';
-    if (coverBtn)  coverBtn.style.display  = 'none';
-    if (editOv)    editOv.classList.remove('show');
+    // Live ownership check — determines new mode after any non-carve-out session change.
+    // _isCurrentEduOwner() is fail-closed: no TwAuthSync → false.
+    var nowOwner = _isCurrentEduOwner();
 
-    // Background re-render with public data
-    var uid2 = _urlId;
-    if (uid2) {
-      fetch('/profile/'+uid2).then(function(r){return r.json();}).then(function(data){
+    // Apply owner/guest mode unconditionally — also handles Guest→Owner on token refresh.
+    _applyEduOwnerMode(nowOwner, snapshot);
+
+    // Background re-render with public data (or owner data if now owner).
+    var _uid2 = _urlId || (snapshot && snapshot.userId != null ? String(snapshot.userId) : null);
+    if (_uid2) {
+      fetch('/profile/'+_uid2).then(function(r){return r.json();}).then(function(data){
         var p = data && data.profile ? data.profile : {};
         if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
         if (p.bio){ _data.desc = p.bio; updateDisplay(); }
@@ -702,6 +722,7 @@ if (window.initGlobalHeaderMenu) {
     }
   });
 })();
+// @vm-extract-end: edu-authsync
 </script>
 </body>
 </html>

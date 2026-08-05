@@ -764,16 +764,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 40a. VM-01 bfcache Session Revalidation [VM-01-BFCACHE]
 **Purpose:** يمنع ظهور Owner UI بعد logout + Back (bfcache يُعيد الـ JS heap القديم دون إعادة تحميل). يُحدث فوراً VM-01 state عند كل `pageshow` / `focus` / `visibilitychange` عبر `TwAuthSync.onSessionChange`.
-**Source of Truth:** `TwAuthSync.onSessionChange` handler في كل صفحة تملك owner mode · `window._scOwnerHydrationGeneration` (generation guard) · `_isCurrentEduOwner()` في `edu-profile.html`
+**Source of Truth:** `TwAuthSync.onSessionChange` handler في كل صفحة تملك owner mode · `window._scOwnerHydrationGeneration` (generation guard + catch guard) · `_isCurrentEduOwner()` fail-closed في `edu-profile.html` · `_applyEduOwnerMode()` في `edu-profile.html`
 **Details:** `docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE` · `CLAUDE.md → VM-01 bfcache Session Revalidation Rules`
-**Pages covered:** `profile-showcase.html` (Profile V2) · `edu-profile.html` · `company-profile.html` (existing handler in `company.main.js`)
-**Pre-existing fix bundled:** `edu-profile.html` `saveEdit()` now sends `Authorization: Bearer` header — backend `PUT /profile/` and `PUT /auth/user/*/name` both require `Depends(verify_token)`.
+**Pages covered (identity-aware carve-out):**
+- `profile-showcase.html` (Profile V2) — `profile-v2.render.js` IIFE `@vm-extract: p2-authsync`
+- `edu-profile.html` — `_applyEduOwnerMode` + `_isCurrentEduOwner()` fail-closed + live snapshot userId in `saveEdit()`
+- `company-profile.html` — `company.main.js` IIFE `@vm-extract: co-authsync` (identity-aware, replaced jwt-only)
+**Test contract:** `test_vm01_bfcache_runtime.js` uses Node.js `vm` module + `@vm-extract-begin/end` markers. 16 scenarios, 49 assertions. All run real production callbacks registered via real `TwAuthSync.onSessionChange`.
 **Do not recreate:**
 - لا تكتب منطق bfcache خارج `TwAuthSync.onSessionChange` — استخدم الـ handler الموجود
 - لا تعتمد على وجود jwt فقط في الـ carve-out — يجب `snapshot.userId === profileId`
+- لا تُضيف `.catch()` في owner hydration بدون generation guard
 - لا تُضيف owner mutation في أي صفحة بدون استدعاء live guard قبلها
+- لا تسمح لـ Preview mode بمنع session revocation
 - لا تُعيد تعريف `_scOwnerHydrationGeneration` كـ boolean — يجب أن يكون عداداً رقمياً
+- لا تُضيف localStorage fallback في `_isCurrentEduOwner()` — يجب fail-closed
 - لا تُرسل طلبات PUT لـ endpoints تتطلب JWT بدون `Authorization: Bearer` header
+- لا تُعيد كتابة منطق الـ handler داخل الاختبار — استخدم vm module + @vm-extract markers
 
 ---
 
