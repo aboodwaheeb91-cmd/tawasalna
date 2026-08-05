@@ -647,6 +647,103 @@ function check(name, condition, detail) {
   }
 
   // ────────────────────────────────────────────────────────────────
+  console.log('\n20 — index.auth.js login path: storage contract (T15–T16)');
+  {
+    // Load index.auth.js; strip 'use strict' so var declarations (doLogin, _submitting, …)
+    // are promoted to the current scope — same eval pattern as tw_shared.js at the top.
+    var _authSrc = fs.readFileSync('./index.auth.js', 'utf8')
+      .replace(/^['"]use strict['"];\s*\n/m, '');
+    // toast is defined in index.ui.js in the browser; provide a no-op for this isolated test
+    global.toast = function(){};
+    eval(_authSrc);
+    // doLogin, redirect, _submitting, … are now in scope
+
+    // T15: Successful login writes only tw_user + tw_jwt — all other keys preserved
+    {
+      resetAll();
+      _store['tw_cover_test'] = 'cover-url-value';
+      _store['tw_prefs']      = '{"theme":"dark"}';
+      _store['app_theme']     = 'dark';
+
+      var _me15  = { value: 'user@example.com', setAttribute: function(){} };
+      var _mp15  = { value: 'password123',      setAttribute: function(){} };
+      var _mb15  = { classList: { add: function(){}, remove: function(){} },
+                     textContent: '', disabled: false };
+      fakeDocument.getElementById = function(id) {
+        if (id === 'lEmail')   return _me15;
+        if (id === 'lPass')    return _mp15;
+        if (id === 'loginBtn') return _mb15;
+        return null;
+      };
+      fakeDocument.querySelector = function() { return null; };
+      global.fetch = function() {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: function() { return Promise.resolve({
+            user:  { id: 42, tw_id: 'U9620abc', user_type: 'emp' },
+            token: 'fresh.jwt.token',
+          }); },
+        });
+      };
+
+      await doLogin();
+
+      check('T15  login success: preserves tw_cover_test',
+        _store['tw_cover_test'] === 'cover-url-value');
+      check('T15b login success: preserves tw_prefs',
+        _store['tw_prefs'] === '{"theme":"dark"}');
+      check('T15c login success: writes tw_user + tw_jwt',
+        !!_store['tw_user'] && _store['tw_jwt'] === 'fresh.jwt.token');
+    }
+
+    // T16: Storage quota failure → tw_user + tw_jwt rolled back (neither persisted)
+    {
+      resetAll();
+      _submitting = false;   // reset double-submit guard left true by T15 success path
+      _store['tw_cover_test'] = 'cover-url-value';
+
+      var _me16  = { value: 'user@example.com', setAttribute: function(){} };
+      var _mp16  = { value: 'password123',      setAttribute: function(){} };
+      var _mb16  = { classList: { add: function(){}, remove: function(){} },
+                     textContent: '', disabled: false };
+      var _err16 = { setAttribute: function(){}, removeAttribute: function(){},
+                     querySelector: function(){ return null; } };
+      fakeDocument.getElementById = function(id) {
+        if (id === 'lEmail')       return _me16;
+        if (id === 'lPass')        return _mp16;
+        if (id === 'loginBtn')     return _mb16;
+        if (id === 'l-form-error') return _err16;
+        return null;
+      };
+      fakeDocument.querySelector = function() { return null; };
+      global.fetch = function() {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: function() { return Promise.resolve({
+            user:  { id: 42, tw_id: 'U9620abc', user_type: 'emp' },
+            token: 'fresh.jwt.token',
+          }); },
+        });
+      };
+      // Simulate storage quota exceeded
+      fakeLocalStorage.setItem = function() {
+        throw new Error('QuotaExceededError: DOM Exception 22');
+      };
+
+      await doLogin();
+
+      check('T16  storage failure: tw_user rolled back (absent)',
+        !('tw_user' in _store));
+      check('T16b storage failure: tw_jwt rolled back (absent)',
+        !('tw_jwt' in _store));
+
+      // Restore setItem for subsequent tests
+      fakeLocalStorage.setItem = function(k, v) { _store[k] = String(v); };
+      _submitting = false;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────
   console.log('\n' + '='.repeat(55));
   console.log('Tests run: ' + testsRun + '  |  Passed: ' + passed + '  |  Failed: ' + (testsRun - passed));
   if (failures.length) {

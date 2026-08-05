@@ -4,6 +4,8 @@ Static analysis + logic tests (no browser required).
 
 Run: python test_global_ui_visibility.py
 """
+import glob
+import os
 import re
 import sys
 
@@ -571,6 +573,58 @@ for _bpf in _badge_poll_files:
 check("M06 — no setInterval badge/unread polling in root or shared JS files",
       len(_setinterval_badge_violators) == 0,
       "violators: " + str(_setinterval_badge_violators) if _setinterval_badge_violators else "")
+
+# ── Repository-wide glob checks (M07–M09) ───────────────────────────────────
+# Discover all *.js files in the repo root and static/**; exclude test_* files
+# and any .min.js vendor files to avoid false positives.
+_all_js_files = (
+    [f for f in glob.glob("*.js")       if not os.path.basename(f).startswith("test_")]
+  + [f for f in glob.glob("static/**/*.js", recursive=True)
+          if not os.path.basename(f).startswith("test_")
+          and ".min." not in os.path.basename(f)]
+)
+
+# M07: No file uses Object.keys(localStorage) for session scanning
+# (test files already excluded above; the pattern is always a forbidden scan anti-pattern)
+_objkeys_violators = []
+for _jsf in _all_js_files:
+    try:
+        _jsf_code = _code_lines(read(_jsf))
+        if "Object.keys(localStorage)" in _jsf_code:
+            _objkeys_violators.append(_jsf)
+    except Exception:
+        pass
+check("M07 — no JS file uses Object.keys(localStorage) for session scan",
+      len(_objkeys_violators) == 0,
+      "violators: " + str(_objkeys_violators) if _objkeys_violators else "")
+
+# M08: No JS file uses startsWith('tw_') to scan localStorage keys
+# (M01/M02 check specific files; M08 covers the whole codebase with code-line filter)
+_sws_violators = []
+for _jsf in _all_js_files:
+    try:
+        _jsf_code = _code_lines(read(_jsf))
+        if "startsWith('tw_')" in _jsf_code or 'startsWith("tw_")' in _jsf_code:
+            _sws_violators.append(_jsf)
+    except Exception:
+        pass
+check("M08 — no JS file scans localStorage with startsWith('tw_') in code",
+      len(_sws_violators) == 0,
+      "violators: " + str(_sws_violators) if _sws_violators else "")
+
+# M09: No setInterval badge/unread polling in any static/**/*.js file
+# (M06 covers a static list; M09 covers the full static/ tree)
+_sinterval_static_violators = []
+for _jsf in glob.glob("static/**/*.js", recursive=True):
+    try:
+        _c = read(_jsf)
+        if re.search(r"setInterval\s*\([^)]*(?:badge|unread|notif|msgs)", _c, re.IGNORECASE):
+            _sinterval_static_violators.append(_jsf)
+    except Exception:
+        pass
+check("M09 — no setInterval badge/unread polling in any static/**/*.js file",
+      len(_sinterval_static_violators) == 0,
+      "violators: " + str(_sinterval_static_violators) if _sinterval_static_violators else "")
 
 
 # ═══════════════════════════════════════════════════════
