@@ -185,6 +185,13 @@ function check(name, condition, detail) {
     check('S03 — guest does NOT see settings',   items.indexOf('settings') === -1);
     check('S04 — guest does NOT see logout',     items.indexOf('logout') === -1);
     check('S05 — guest does NOT see candidates', items.indexOf('candidates') === -1);
+    // Login vs Register must navigate to different URLs (VM-10 Guest Menu contract)
+    var fullItems = _twMenuItemsForSnapshot(snap);
+    var loginItem    = fullItems.filter(function(i) { return i.key === 'login'; })[0];
+    var registerItem = fullItems.filter(function(i) { return i.key === 'register'; })[0];
+    check('S05b — register href is /login#register',        registerItem && registerItem.href === '/login#register');
+    check('S05c — login href is /login (plain)',             loginItem    && loginItem.href    === '/login');
+    check('S05d — login and register hrefs are different',  loginItem && registerItem && loginItem.href !== registerItem.href);
   }
 
   // ────────────────────────────────────────────────────────────────

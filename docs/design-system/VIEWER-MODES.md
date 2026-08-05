@@ -465,9 +465,12 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 
 الـ WS مُصمَّم لمنع إعادة الاتصال الخاطئة بعد logout/login:
 
-- `_generation` يُزاد عند كل `_twBadgeWsStop()` — يُلغي أي `onclose` معلق من الجيل السابق
-- `_activeUserId` يُتابع userId الحالي — account switch يُطلق stop+start دورة كاملة
-- `_initBadgeWS(gen)` تتحقق من `gen !== _generation` في البداية وفي `onclose`
+- `_gen` يُزاد عند كل `_clearSocket()` — يُلغي أي `onclose` معلق من الجيل السابق
+- `_activeUid` يُتابع userId الحالي — account switch يُطلق `_clearSocket()` + reinit
+- `_initBadgeWS(pendingJwt)` تتحقق من `capturedGen !== _gen` في `onopen`/`onmessage`/`onclose`
+- أول رسالة بعد الاتصال: `{"type":"auth","token":"..."}` — لا badge_update يُعالَج قبل `auth_ok`
+- codes 4001-4007: لا إعادة اتصال — شرط دائم
+- exponential backoff: `Math.min(30000, 2^_retries * 1000 + jitter)` — بحد أقصى 5 محاولات
 - **ممنوع:** استخدام `_stopped` boolean — يمنع إعادة الاتصال بعد logout+login
 
 ### [VM-10J] Global Site Header — Auto-Detection Marker
@@ -519,7 +522,7 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 ❌ إنشاء نظام visibility موازٍ خارج tw_shared.js/_twApplyDeclarativeVisibility
 ❌ startsWith('tw_') لحذف مفاتيح الجلسة — استخدم _SESSION_KEYS allowlist
 ❌ معالجة 403 كـ 401 (invalidateSession على 403)
-❌ _stopped boolean في WS lifecycle — استخدم _generation counter
+❌ _stopped boolean في WS lifecycle — استخدم _gen counter عبر _clearSocket()
 ❌ تجاوز مطابقة claims.user_id مع tw_user.id في Session Resolver
 ```
 

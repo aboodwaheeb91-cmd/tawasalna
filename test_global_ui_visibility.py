@@ -142,10 +142,10 @@ check("B23 — candidates item in policy with accountTypes",
       "'candidates'" in shared and "accountTypes: ['co']" in shared)
 check("B24 — accountTypes filter in _twMenuItemsForSnapshot",
       "item.accountTypes" in shared and "indexOf(utype)" in shared)
-check("B25 — badge WS uses generation counter (_generation)",
-      "_generation" in shared)
-check("B26 — badge WS uses _activeUserId for account-switch detection",
-      "_activeUserId" in shared)
+check("B25 — badge WS uses generation counter (_gen)",
+      "_gen" in shared)
+check("B26 — badge WS uses _activeUid for account-switch detection",
+      "_activeUid" in shared)
 check("B27 — _clearBadges includes data-ah-notif-badge selector",
       "data-ah-notif-badge" in shared)
 check("B28 — loadGlobalBadges Authorization header uses userId from snapshot",

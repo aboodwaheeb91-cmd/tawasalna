@@ -15,12 +15,15 @@
   }
 
   function doLogout() {
-    try {
-      Object.keys(localStorage)
-        .filter(function (k) { return k.startsWith('tw_'); })
-        .forEach(function (k) { localStorage.removeItem(k); });
-    } catch (e) {}
-    window.location.href = '/login';
+    // Delegate to central twLogout() in tw_shared.js (VM-10 contract).
+    // Fallback: direct invalidation via TwAuthSync.
+    if (typeof window.twLogout === 'function') {
+      window.twLogout();
+    } else if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+      TwAuthSync.invalidateSession('logout', { redirect: '/login' });
+    } else {
+      location.replace('/login');
+    }
   }
 
   // ── Dropdown menu ──────────────────────────────────────────────
