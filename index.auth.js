@@ -32,6 +32,20 @@ function redirect(u){
   } catch(e){}
 }());
 
+// ── bfcache session revalidation ─────────────────────────────────────────────
+// The on-load IIFE above runs only once on initial page load and is NOT re-run
+// on bfcache restore (pageshow with e.persisted=true). This listener closes that
+// gap: when the browser restores the login page from bfcache, if the user is
+// still authenticated they are redirected away immediately.
+// This is NOT a second on-load check — pageshow/bfcache is a distinct event.
+window.addEventListener('pageshow', function(ev) {
+  if (!ev.persisted) return;
+  try {
+    var _cached = JSON.parse(localStorage.getItem('tw_user'));
+    if (_cached && _cached.id) redirect(_cached);
+  } catch(e) {}
+});
+
 // ── DS-VAL helpers (login form — not used outside login) ─────────────────────
 var _submitting       = false;
 var _lSubmitAttempted = false;  // arms Required re-show after first submit
