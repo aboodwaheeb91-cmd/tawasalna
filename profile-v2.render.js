@@ -929,6 +929,13 @@ window.renderProfile = function renderProfile(res){
   }
 }; // end renderProfile
 
+// ── Owner hydration generation counter (VM-01-BFCACHE) ──
+// Incremented on every session revoke / account switch via the auth-sync handler.
+// Owner hydration Promises capture this value at start; on resolve they re-check
+// to ensure the session was not revoked while the request was in-flight.
+// See: docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE
+window._scOwnerHydrationGeneration = 0;
+
 // ── Initial load ──
 (function(){
   if(!_scProfileId){
@@ -948,15 +955,29 @@ window.renderProfile = function renderProfile(res){
         // Owner-only hydration: start loading /full AFTER renderProfile confirms viewer_type.
         // Public state (window._scProfile) must never contain dob/phone/email.
         // Private fields live only in window._scOwnerProfile (edit modal source).
+        // Generation guard: reject result if session was revoked while request was in-flight.
         if (window._scViewerType === 'owner' && window.getOwnerProfile) {
-          window._scOwnerProfile = null;
+          window._scOwnerProfile        = null;
+          window._scOwnerProfilePromise = null;
+          var _capturedHydGen = ++window._scOwnerHydrationGeneration;
           window._scOwnerProfilePromise = window.getOwnerProfile(_scProfileId)
             .then(function(ownerRes){
-              window._scOwnerProfile = (ownerRes && ownerRes.profile) ? ownerRes.profile : null;
+              // Guard 1: generation changed → revocation happened mid-flight
+              if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;
+              // Guard 2: viewer type changed (e.g. another callback ran synchronously)
+              if (window._scViewerType !== 'owner') return;
+              // Guard 3: TwAuthSync snapshot must still be authenticated
+              var _snap = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
+              if (_snap && !_snap.isAuthenticated) return;
+              // Guard 4: current user must still match the profile owner
+              if (_snap && _snap.userId != null && String(_snap.userId) !== String(window._scProfileId)) return;
+              // Guard 5: JWT still present in localStorage
+              if (!window._currentJwt || !_currentJwt()) return;
+              window._scOwnerProfile        = (ownerRes && ownerRes.profile) ? ownerRes.profile : null;
               window._scOwnerProfilePromise = null;
             })
             .catch(function(){
-              window._scOwnerProfile = null;
+              window._scOwnerProfile        = null;
               window._scOwnerProfilePromise = null;
             });
         }
@@ -1458,29 +1479,65 @@ window.renderProfile = function renderProfile(res){
   });
 })();
 
-// ── Auth-sync: cross-tab session invalidation ──
-// Wires TwAuthSync (static/shared/auth-sync.js) into Profile V2.
-// On JWT change: immediately strips owner mode, closes open edit sheets,
-// then background-refetches to get authoritative viewer_type from server.
+// ── Auth-sync: VM-01 bfcache session revalidation ──
+// Implements VM-01-BFCACHE contract — see docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE.
+//
+// Fires on: localStorage jwt/user change, bfcache pageshow, visibilitychange, focus.
+//
+// bfcache carve-out (valid same-owner pageshow):
+//   reason === 'pageshow' + isAuthenticated + userId matches profile owner + still view-owner
+//   → background-verify only; no strip; no flicker.
+//
+// All other cases (logout / expired / invalid / stale / account switch):
+//   → immediate owner revocation (classes + private data + generation counter).
 (function(){
   if(!window.TwAuthSync) return;
-  TwAuthSync.onSessionChange(function(){
+  TwAuthSync.onSessionChange(function(info){
+    var reason   = info && info.reason;
+    var snapshot = (info && info.snapshot)
+      || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
+
     // Skip when owner is manually previewing as visitor — not a real session change
     if(document.body.classList.contains('preview-public-user') ||
        document.body.classList.contains('preview-guest')) return;
 
-    // Immediately revoke owner UI
+    // bfcache carve-out: page restored with same valid owner session.
+    // Condition: pageshow + still authenticated + userId matches this profile owner + still in owner mode.
+    // Does NOT rely on jwt presence alone (account-switch safety: a different user's JWT is still truthy).
+    if(reason === 'pageshow' &&
+       snapshot && snapshot.isAuthenticated &&
+       snapshot.userId != null &&
+       String(snapshot.userId) === String(window._scProfileId) &&
+       window._scViewerType === 'owner') {
+      // Background re-verify only — page state is still correct for this owner
+      if(window.getProfile && window._scProfileId && window.renderProfile){
+        getProfile(_scProfileId).then(window.renderProfile).catch(function(){});
+      }
+      return;
+    }
+
+    // ── Immediate owner revocation ──
+    // Covers: logout, expired, invalid, stale, account switch (userId ≠ profileId),
+    //         and pageshow with a valid-but-different-user JWT.
+
+    // Increment generation FIRST — this cancels any in-flight owner hydration Promise.
+    window._scOwnerHydrationGeneration = (window._scOwnerHydrationGeneration || 0) + 1;
+
+    // Clear private owner data synchronously before any async work.
+    window._scOwnerProfile        = null;
+    window._scOwnerProfilePromise = null;
+
     if(document.body.classList.contains('view-owner')){
       document.body.classList.remove('view-owner');
       document.body.classList.add('view-guest');
       window._scViewerType = 'guest';
-      // Close any open edit bottom-sheets (Profile V2 uses 'open', fallback 'show')
+      // Close all open edit bottom-sheets (Profile V2 uses 'open', fallback 'show')
       document.querySelectorAll('.ep-overlay').forEach(function(ov){
         ov.classList.remove('open', 'show');
       });
     }
 
-    // Background re-verify — gets fresh viewer_type from server
+    // Background re-verify — gets authoritative viewer_type from server.
     if(window.getProfile && window._scProfileId && window.renderProfile){
       getProfile(_scProfileId).then(window.renderProfile).catch(function(){});
     }

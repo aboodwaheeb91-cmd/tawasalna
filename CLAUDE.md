@@ -1141,6 +1141,39 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 
 ---
 
+## VM-01 bfcache Session Revalidation Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE`.
+
+1. **`TwAuthSync.onSessionChange` is the only approved mechanism** for bfcache owner-mode revocation. Do NOT poll `localStorage` on `pageshow`, do NOT add a second listener, do NOT use `addEventListener('pageshow', ...)` directly.
+
+2. **bfcache carve-out requires `snapshot.userId === profileId`**, not just JWT presence. The old company.main.js pattern (`reason==='pageshow' && jwt`) is insufficient — it does not guard against the account-switch gap (Account B's valid JWT still shows Account A's Owner UI).
+
+3. **`window._scOwnerHydrationGeneration` is a numeric counter, not a boolean.** It is incremented by `renderProfile` (on each new hydration) AND by the session revoke handler. Every `.then()` callback captures `var _capturedHydGen = ++window._scOwnerHydrationGeneration` at hydration start and guards `if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;` before applying results.
+
+4. **`_isCurrentEduOwner()` must be called before every owner mutation in `edu-profile.html`.** Covered operations: `openEditModal()`, `saveEdit()`, `uploadCover()`. Any new owner-only function added to `edu-profile.html` must call this guard first.
+
+5. **`edu-profile.html` `saveEdit()` must send `Authorization: Bearer` header** to both `PUT /profile/` and `PUT /auth/user/*/name`. These endpoints use `Depends(verify_token)`. Sending without Authorization silently fails server-side.
+
+6. **Revocation is immediate.** On any non-carve-out session change: increment `_scOwnerHydrationGeneration`, clear `_scOwnerProfile`/`_scOwnerProfilePromise`, remove `view-owner` class, add `view-guest`, set `_scViewerType = 'guest'`. Do NOT defer revocation to after the background fetch.
+
+7. **Generation guard has five independent checks inside the hydration `.then()`** (see `VIEWER-MODES.md §VM-01-BFCACHE` for the full list). Do not remove any guard without an explicit architectural PR.
+
+### Forbidden (VM-01-BFCACHE — permanent)
+
+```
+❌ bfcache carve-out that checks jwt presence only (must also check snapshot.userId === profileId)
+❌ _scOwnerHydrationGeneration redefined as boolean
+❌ New owner mutation in edu-profile.html without _isCurrentEduOwner() guard
+❌ PUT /profile/ or PUT /auth/user/*/name in edu-profile.html without Authorization header
+❌ Parallel TwAuthSync.onSessionChange registration for the same page
+❌ Deferring owner-mode revocation until after background fetch completes
+❌ Reading snapshot.jwt (V2 TwAuthSync snapshot has no jwt field — use localStorage.getItem('tw_jwt'))
+```
+
+---
+
 ## Messenger Session Lifecycle Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.

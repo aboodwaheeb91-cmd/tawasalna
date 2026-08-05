@@ -762,6 +762,21 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 40a. VM-01 bfcache Session Revalidation [VM-01-BFCACHE]
+**Purpose:** يمنع ظهور Owner UI بعد logout + Back (bfcache يُعيد الـ JS heap القديم دون إعادة تحميل). يُحدث فوراً VM-01 state عند كل `pageshow` / `focus` / `visibilitychange` عبر `TwAuthSync.onSessionChange`.
+**Source of Truth:** `TwAuthSync.onSessionChange` handler في كل صفحة تملك owner mode · `window._scOwnerHydrationGeneration` (generation guard) · `_isCurrentEduOwner()` في `edu-profile.html`
+**Details:** `docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE` · `CLAUDE.md → VM-01 bfcache Session Revalidation Rules`
+**Pages covered:** `profile-showcase.html` (Profile V2) · `edu-profile.html` · `company-profile.html` (existing handler in `company.main.js`)
+**Pre-existing fix bundled:** `edu-profile.html` `saveEdit()` now sends `Authorization: Bearer` header — backend `PUT /profile/` and `PUT /auth/user/*/name` both require `Depends(verify_token)`.
+**Do not recreate:**
+- لا تكتب منطق bfcache خارج `TwAuthSync.onSessionChange` — استخدم الـ handler الموجود
+- لا تعتمد على وجود jwt فقط في الـ carve-out — يجب `snapshot.userId === profileId`
+- لا تُضيف owner mutation في أي صفحة بدون استدعاء live guard قبلها
+- لا تُعيد تعريف `_scOwnerHydrationGeneration` كـ boolean — يجب أن يكون عداداً رقمياً
+- لا تُرسل طلبات PUT لـ endpoints تتطلب JWT بدون `Authorization: Bearer` header
+
+---
+
 ### 41. Navigation System V1 [DS-NAV]
 **Purpose:** الـ contract المعماري الرسمي لسلوك التنقل في المنصة. يُوثِّق Route & URL Contract، Layer Stack (LIFO)، Unified Back Contract (5 خطوات بالترتيب)، Safe Fallback (Context-aware)، Return Destination (`?next=` للـ Auth فقط)، Deep Link Safety، وScroll Restoration.
 **Source of Truth:** `docs/design-system/NAVIGATION.md` · `docs/DESIGN_SYSTEM.md` (فهرس النظام)

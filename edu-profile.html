@@ -434,6 +434,25 @@ var _urlId = (window._eduProfileIdFromRoute != null)
 // Determine ownership: must be edu type AND visiting own profile (no id → own, or id matches session)
 _isOwner = _user && _user.user_type==='edu' && (!_urlId || String(_user.id) === _urlId);
 
+// ── VM-01-BFCACHE: live owner guard ──
+// Reads TwAuthSync snapshot at call-time — never relies on stale closure variables.
+// Must be called before every owner mutation (openEditModal, saveEdit, uploadCover).
+// See: docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE
+function _isCurrentEduOwner() {
+  if (!window.TwAuthSync || !TwAuthSync.getSessionSnapshot) {
+    // Fallback: check localStorage directly (no TwAuthSync loaded)
+    try {
+      var _u = JSON.parse(localStorage.getItem('tw_user') || 'null');
+      if (!_u || _u.user_type !== 'edu') return false;
+      return !_urlId || String(_u.id) === String(_urlId);
+    } catch (e) { return false; }
+  }
+  var _snap = TwAuthSync.getSessionSnapshot();
+  if (!_snap || !_snap.isAuthenticated || _snap.userType !== 'edu') return false;
+  if (_snap.userId == null) return false;
+  return !_urlId || String(_snap.userId) === String(_urlId);
+}
+
 if(_isOwner){
   document.getElementById('ownerActions').style.display='flex';
   document.getElementById('visitorActions').style.display='none';
@@ -493,6 +512,7 @@ function toggleFollow(){
 }
 
 function openEditModal(){
+  if (!_isCurrentEduOwner()) return;
   document.getElementById('e-name').value=_data.name;
   document.getElementById('e-desc').value=_data.desc;
   document.getElementById('e-loc').value=_data.loc;
@@ -503,6 +523,7 @@ function openEditModal(){
 }
 
 function saveEdit(){
+  if (!_isCurrentEduOwner()) return;
   _data.name=document.getElementById('e-name').value.trim()||_data.name;
   _data.desc=document.getElementById('e-desc').value.trim();
   _data.type=document.getElementById('e-type')?.value||_data.type;
@@ -512,13 +533,14 @@ function saveEdit(){
   document.getElementById('editOverlay').classList.remove('show');
   // Save to DB
   if(_user && _user.id && _isOwner){
+    var _jwt = localStorage.getItem('tw_jwt') || '';
     fetch('/profile/'+_user.id, {
-      method:'PUT', headers:{'Content-Type':'application/json'},
+      method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
       body:JSON.stringify({full_name:_data.name, bio:_data.desc, location:_data.loc, website:_data.web})
     }).catch(function(){});
     if(_user.full_name !== _data.name){
       fetch('/auth/user/'+_user.id+'/name', {
-        method:'PUT', headers:{'Content-Type':'application/json'},
+        method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
         body:JSON.stringify({full_name:_data.name})
       }).catch(function(){});
       _user.full_name = _data.name;
@@ -556,6 +578,7 @@ function setCover(src){
 }
 function uploadCover(input){
   if(!input.files[0])return;
+  if (!_isCurrentEduOwner()) { input.value=''; return; }
   const reader=new FileReader();
   reader.onload=e=>{
     setCover(e.target.result);
@@ -627,6 +650,58 @@ document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0
 if (window.initGlobalHeaderMenu) {
   initGlobalHeaderMenu('epMenuBtn', 'epMenuDropdown');
 }
+
+// ── Auth-sync: VM-01 bfcache session revalidation (edu-profile) ──
+(function(){
+  if (!window.TwAuthSync) return;
+  TwAuthSync.onSessionChange(function(info){
+    var reason   = info && info.reason;
+    var snapshot = (info && info.snapshot)
+      || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
+
+    // bfcache carve-out: same valid edu owner → background-verify only
+    if (reason === 'pageshow' &&
+        snapshot && snapshot.isAuthenticated &&
+        snapshot.userType === 'edu' &&
+        snapshot.userId != null &&
+        (!_urlId || String(snapshot.userId) === String(_urlId)) &&
+        _isOwner) {
+      var uid = _urlId || String(snapshot.userId);
+      if (uid) {
+        fetch('/profile/'+uid).then(function(r){return r.json();}).then(function(data){
+          var p = data && data.profile ? data.profile : {};
+          if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
+          if (p.bio){ _data.desc = p.bio; updateDisplay(); }
+          if (p.location){ _data.loc = p.location; updateDisplay(); }
+        }).catch(function(){});
+      }
+      return;
+    }
+
+    // Revoke: logout / expired / stale / account switch
+    _isOwner = false;
+    _user    = null;
+    var ownerEl   = document.getElementById('ownerActions');
+    var visitorEl = document.getElementById('visitorActions');
+    var coverBtn  = document.getElementById('coverUploadBtn');
+    var editOv    = document.getElementById('editOverlay');
+    if (ownerEl)   ownerEl.style.display   = 'none';
+    if (visitorEl) visitorEl.style.display = 'flex';
+    if (coverBtn)  coverBtn.style.display  = 'none';
+    if (editOv)    editOv.classList.remove('show');
+
+    // Background re-render with public data
+    var uid2 = _urlId;
+    if (uid2) {
+      fetch('/profile/'+uid2).then(function(r){return r.json();}).then(function(data){
+        var p = data && data.profile ? data.profile : {};
+        if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
+        if (p.bio){ _data.desc = p.bio; updateDisplay(); }
+        if (p.location){ _data.loc = p.location; updateDisplay(); }
+      }).catch(function(){});
+    }
+  });
+})();
 </script>
 </body>
 </html>
