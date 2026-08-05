@@ -327,7 +327,8 @@ function check(name, condition, detail) {
     var msgsEl = makeFakeEl({ 'data-badge': 'msgs' });
     msgsEl.textContent = '3';
     msgsEl.style.display = 'inline-block';
-    _queryRegistry['[data-badge="msgs"],[data-badge="notif"]'] = [notifEl, msgsEl];
+    _queryRegistry['[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]'] = [notifEl, msgsEl];
+    _queryRegistry['[data-badge="notif"],[data-ah-notif-badge]'] = [notifEl];
     _queryRegistry['[data-badge="notif"]'] = [notifEl];
     _queryRegistry['[data-badge="msgs"]']  = [msgsEl];
 
@@ -364,7 +365,8 @@ function check(name, condition, detail) {
     var notifEl = makeFakeEl({ 'data-badge': 'notif' });
     notifEl.textContent = '';
     notifEl.style.display = 'none';
-    _queryRegistry['[data-badge="msgs"],[data-badge="notif"]'] = [notifEl];
+    _queryRegistry['[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]'] = [notifEl];
+    _queryRegistry['[data-badge="notif"],[data-ah-notif-badge]'] = [notifEl];
     _queryRegistry['[data-badge="notif"]'] = [notifEl];
     _queryRegistry['[data-badge="msgs"]']  = [];
 
@@ -439,6 +441,209 @@ function check(name, condition, detail) {
     check('S30 — TwAuthSync path calls invalidateSession', _invalidateCalls.length > 0);
     check('S31 — reason is logout',  _invalidateCalls[0] && _invalidateCalls[0].reason === 'logout');
     check('S32 — redirect to /login', fakeWindow.location.href === '/login');
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n14 — company.main.js static checks (T01–T02)');
+  {
+    var coMainCode = fs.readFileSync('./static/company/company.main.js', 'utf8');
+
+    check('T01 — company.main.js no dangling window.toggleMenu export',
+      !/window\.toggleMenu\s*=\s*toggleMenu/.test(coMainCode));
+    check('T02 — company.main.js retains doLogout + initGlobalHeaderMenu calls',
+      coMainCode.indexOf('doLogout') !== -1 && coMainCode.indexOf('initGlobalHeaderMenu') !== -1);
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n15 — _bindBadgeAuthSync lifecycle (T03–T04)');
+  // NOTE: _badgeAuthSyncBound persists across tests (IIFE private).
+  // T03 must run before any other test that fires window.load with TwAuthSync set.
+  {
+    var t03HandlerCount = 0;
+    setTwAuthSync({
+      getSessionSnapshot: function() {
+        return { state: 'guest', isAuthenticated: false, userType: null, userId: null };
+      },
+      onSessionChange: function(fn) { t03HandlerCount++; },
+      invalidateSession: function() {},
+    });
+
+    // Fire window.load listeners — triggers _bindBadgeAuthSync() retry inside the IIFE
+    var loadFns = _windowListeners['load'] || [];
+    loadFns.forEach(function(fn) { try { fn(); } catch(e){} });
+
+    check('T03 — window.load fires _bindBadgeAuthSync, registers onSessionChange',
+      t03HandlerCount >= 1);
+
+    // T04: fire load listeners AGAIN — _badgeAuthSyncBound=true → no double registration
+    var prevCount = t03HandlerCount;
+    loadFns.forEach(function(fn) { try { fn(); } catch(e){} });
+    check('T04 — _bindBadgeAuthSync idempotent (double window.load does not register twice)',
+      t03HandlerCount === prevCount);
+
+    resetAll();
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n16 — Badge WS exposed globals exist (T05–T06)');
+  {
+    check('T05 — window._twBadgeWsStop is a callable global',
+      typeof fakeWindow._twBadgeWsStop === 'function');
+    check('T06 — window._twBadgeWsStart is a callable global',
+      typeof fakeWindow._twBadgeWsStart === 'function');
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n17 — data-ah-notif-badge receives count + zero hides badge (T07–T09)');
+  resetAll();
+  {
+    // T07: Legacy data-ah-notif-badge element receives notification count
+    var legacyBadge = makeFakeEl({ 'data-ah-notif-badge': '' });
+    legacyBadge.textContent = '';
+    legacyBadge.style.display = 'none';
+    _queryRegistry['[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]'] = [legacyBadge];
+    _queryRegistry['[data-badge="notif"],[data-ah-notif-badge]'] = [legacyBadge];
+    _queryRegistry['[data-badge="notif"]'] = [];
+    _queryRegistry['[data-badge="msgs"]']  = [];
+
+    setTwAuthSync(makeFakeTwAuthSync(
+      { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 5 }
+    ));
+    _store['tw_jwt'] = makeValidJwt(5, 'emp');
+
+    global.fetch = function(url) {
+      if (url.indexOf('/notifications/') !== -1)
+        return Promise.resolve({ status: 200, ok: true,
+          json: function() { return Promise.resolve({ unread: 4 }); } });
+      return Promise.resolve({ status: 200, ok: true,
+        json: function() { return Promise.resolve({ count: 0 }); } });
+    };
+
+    loadGlobalBadges();
+    await flushAll();
+
+    check('T07 — data-ah-notif-badge element receives notification count',
+      legacyBadge.textContent === '4' && legacyBadge.style.display === 'inline-block');
+  }
+
+  // T08: 401 from notif fetch bumps _badgeGeneration → sibling msgs write blocked
+  resetAll();
+  {
+    var msgsElT08 = makeFakeEl({ 'data-badge': 'msgs' });
+    msgsElT08.textContent = '';
+    msgsElT08.style.display = 'none';
+    _queryRegistry['[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]'] = [msgsElT08];
+    _queryRegistry['[data-badge="notif"],[data-ah-notif-badge]'] = [];
+    _queryRegistry['[data-badge="notif"]'] = [];
+    _queryRegistry['[data-badge="msgs"]']  = [msgsElT08];
+
+    setTwAuthSync(makeFakeTwAuthSync(
+      { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 5 }
+    ));
+    _store['tw_jwt'] = makeValidJwt(5, 'emp');
+
+    // Notif returns 401 → _on401() bumps _badgeGeneration
+    // Msgs returns 200 with count=7 → _guardOk() fails → NOT written
+    global.fetch = function(url) {
+      if (url.indexOf('/notifications/') !== -1)
+        return Promise.resolve({ status: 401, ok: false,
+          json: function() { return Promise.resolve({}); } });
+      return new Promise(function(resolve) {
+        // Msgs resolves after notif 401 is processed
+        resolve({ status: 200, ok: true,
+          json: function() { return Promise.resolve({ count: 7 }); } });
+      });
+    };
+
+    loadGlobalBadges();
+    await flushAll();
+
+    check('T08 — 401 from notif fetch (_on401) prevents sibling msgs from writing DOM',
+      msgsElT08.textContent !== '7');
+  }
+
+  // T09: Zero count → badge stays hidden (display: none)
+  resetAll();
+  {
+    var zeroNotifEl = makeFakeEl({ 'data-badge': 'notif' });
+    zeroNotifEl.textContent = '9';  // stale value
+    zeroNotifEl.style.display = 'inline-block';
+    _queryRegistry['[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]'] = [zeroNotifEl];
+    _queryRegistry['[data-badge="notif"],[data-ah-notif-badge]'] = [zeroNotifEl];
+    _queryRegistry['[data-badge="notif"]'] = [zeroNotifEl];
+    _queryRegistry['[data-badge="msgs"]']  = [];
+
+    setTwAuthSync(makeFakeTwAuthSync(
+      { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 5 }
+    ));
+    _store['tw_jwt'] = makeValidJwt(5, 'emp');
+
+    global.fetch = function(url) {
+      if (url.indexOf('/notifications/') !== -1)
+        return Promise.resolve({ status: 200, ok: true,
+          json: function() { return Promise.resolve({ unread: 0 }); } });
+      return Promise.resolve({ status: 200, ok: true,
+        json: function() { return Promise.resolve({ count: 0 }); } });
+    };
+
+    loadGlobalBadges();
+    await flushAll();
+
+    check('T09 — zero unread count → notif badge hidden (display: none)',
+      zeroNotifEl.style.display === 'none');
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n18 — File content guards: allowlist, no startsWith (T10–T13)');
+  {
+    var indexAuthCode = fs.readFileSync('./index.auth.js', 'utf8');
+    var appHeaderCode = fs.readFileSync('./static/app-header.js', 'utf8');
+
+    // Strip pure comment lines (those whose first non-space chars are //)
+    // so that warning comments like "never startsWith('tw_')" don't false-positive
+    function codeOnly(src) {
+      return src.split('\n').filter(function(line) {
+        return !/^\s*\/\//.test(line);
+      }).join('\n');
+    }
+    var indexAuthCodeOnly = codeOnly(indexAuthCode);
+    var appHeaderCodeOnly = codeOnly(appHeaderCode);
+
+    // T10: index.auth.js removes ONLY tw_jwt + tw_user (no startsWith scan in code)
+    check('T10 — index.auth.js clears only tw_jwt + tw_user (no startsWith scan)',
+      indexAuthCodeOnly.indexOf("startsWith('tw_')") === -1 &&
+      indexAuthCodeOnly.indexOf('startsWith("tw_")') === -1 &&
+      indexAuthCode.indexOf("removeItem('tw_jwt')") !== -1 &&
+      indexAuthCode.indexOf("removeItem('tw_user')") !== -1);
+
+    // T11: No startsWith('tw_') in code lines of either file
+    check('T11a — index.auth.js: no startsWith(tw_) in code',
+      indexAuthCodeOnly.indexOf("startsWith('tw_')") === -1 &&
+      indexAuthCodeOnly.indexOf('startsWith("tw_")') === -1);
+    check('T11b — app-header.js: no startsWith(tw_) in code',
+      appHeaderCodeOnly.indexOf("startsWith('tw_')") === -1 &&
+      appHeaderCodeOnly.indexOf('startsWith("tw_")') === -1);
+
+    // T12: app-header.js fail-closed removes both session keys
+    check('T12 — app-header.js fail-closed removes tw_jwt',
+      appHeaderCode.indexOf("removeItem('tw_jwt')") !== -1 ||
+      appHeaderCode.indexOf('removeItem("tw_jwt")') !== -1);
+
+    // T13: redirect in app-header fallback comes AFTER key removal (order in source)
+    var ahFallback = appHeaderCode.split('Last-resort fallback')[1] || '';
+    var ahRemoveIdx   = ahFallback.indexOf("removeItem('tw_jwt')");
+    var ahRedirectIdx = ahFallback.indexOf("location.replace('/login')");
+    check('T13 — app-header.js fallback redirects after key removal',
+      ahRemoveIdx !== -1 && ahRedirectIdx !== -1 && ahRemoveIdx < ahRedirectIdx);
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  console.log('\n19 — #533 / #534 test coverage files exist (T14)');
+  {
+    var wsTestExists = fs.existsSync('./test_ws_security.py') ||
+                       fs.existsSync('./test_ws_behavioral.py');
+    check('T14 — WS security/behavioral test files present (#533/#534)',
+      wsTestExists);
   }
 
   // ────────────────────────────────────────────────────────────────

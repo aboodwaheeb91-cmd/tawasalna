@@ -208,10 +208,11 @@ function safeText(el, text){
 }
 
 // ══ Global Badge Loader ══
-// Populates all elements with data-badge="msgs" and data-badge="notif".
+// Populates all elements with data-badge="msgs", data-badge="notif", data-ah-notif-badge.
 // Call once after page init from any authenticated page.
 // Requires TwAuthSync (VM-10A contract) — no raw localStorage fallback.
-// 401 → session invalid (invalidateSession). 403/5xx/network → preserve session.
+// 401 → session invalid (invalidateSession) + cancel sibling request.
+// 403/5xx/network → preserve session.
 // _badgeGeneration: prevents stale HTTP responses from a prior account overwriting
 // the current account's badge counts after a cross-tab or within-tab account switch.
 var _badgeGeneration = 0;
@@ -226,28 +227,46 @@ function loadGlobalBadges() {
   if (!userId || !jwt) return;
 
   // Clear badges before fetching — prevents stale counts from previous account
-  document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"]').forEach(function(el) {
+  // Includes [data-ah-notif-badge] (legacy selector used by some pages)
+  document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
     el.textContent = '';
     el.style.display = 'none';
   });
 
-  var gen = ++_badgeGeneration;  // capture generation — callbacks bail if account has changed
+  var gen            = ++_badgeGeneration;   // capture generation
+  var capturedUserId = Number(userId);       // capture userId for account-switch guard
+
+  // Triple guard: generation, userId, and still authenticated.
+  // Generation alone can't detect an account switch that happened to reuse the same
+  // _badgeGeneration slot (e.g. rapid logout+login).
+  function _guardOk() {
+    if (gen !== _badgeGeneration) return false;
+    if (!window.TwAuthSync) return false;
+    var s = TwAuthSync.getSessionSnapshot();
+    return s.isAuthenticated && Number(s.userId) === capturedUserId;
+  }
+
+  // On 401: bump _badgeGeneration to cancel any other in-flight request from this batch,
+  // then invalidate the session via TwAuthSync.
+  function _on401() {
+    _badgeGeneration++;   // makes _guardOk() false for the sibling fetch as well
+    if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+      TwAuthSync.invalidateSession('api_401');
+    }
+  }
 
   fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
     .then(function(r) {
-      if (r.status === 401) {
-        // Token rejected by server → session is invalid → clear it
-        TwAuthSync.invalidateSession('api_401');
-        return null;
-      }
+      if (r.status === 401) { _on401(); return null; }
       // 403 = authenticated but not authorised — preserve session
       // 5xx / network error — preserve session (handled by .catch)
       return r.ok ? r.json() : null;
     })
     .then(function(d) {
-      if (!d || gen !== _badgeGeneration) return;  // null result or stale generation
+      if (!d || !_guardOk()) return;
       var count = d.unread || 0;
-      document.querySelectorAll('[data-badge="notif"]').forEach(function(el) {
+      // Write to both selectors (data-badge="notif" and legacy data-ah-notif-badge)
+      document.querySelectorAll('[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
         el.textContent = count > 9 ? '9+' : String(count);
         el.style.display = count > 0 ? 'inline-block' : 'none';
       });
@@ -255,16 +274,12 @@ function loadGlobalBadges() {
 
   fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
     .then(function(r) {
-      if (r.status === 401) {
-        // Token rejected by server → session is invalid → clear it
-        TwAuthSync.invalidateSession('api_401');
-        return null;
-      }
+      if (r.status === 401) { _on401(); return null; }
       // 403 = authenticated but not authorised — preserve session
       return r.ok ? r.json() : null;
     })
     .then(function(d) {
-      if (!d || gen !== _badgeGeneration) return;  // null result or stale generation
+      if (!d || !_guardOk()) return;
       var count = d.count || 0;
       document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
         el.textContent = count > 9 ? '9+' : String(count);
@@ -659,8 +674,8 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   }
 
   function _twBadgeWsStop() {
-    _clearSocket();
-    _badgeGeneration++;    // invalidates in-flight HTTP badge requests from prior account
+    _clearSocket();          // _gen++, cancel timers, close socket
+    _badgeGeneration++;      // invalidates in-flight HTTP badge requests from prior account
     _retries = 0;
     _clearBadges();
   }
@@ -670,26 +685,40 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     _initBadgeWS();
   }
 
-  // Run after load so localStorage is populated by page auth guards
-  window.addEventListener('load', function() {
-    setTimeout(_initBadgeWS, 200);
-  });
-
-  // TwAuthSync: close socket on logout or account-switch
-  if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
+  // _bindBadgeAuthSync: idempotent registration of TwAuthSync.onSessionChange listener.
+  // Called at IIFE run time AND again at window.load so it succeeds regardless of
+  // whether auth-sync.js loads before or after tw_shared.js.
+  var _badgeAuthSyncBound = false;
+  function _bindBadgeAuthSync() {
+    if (_badgeAuthSyncBound) return;
+    if (typeof TwAuthSync === 'undefined' || typeof TwAuthSync.onSessionChange !== 'function') return;
+    _badgeAuthSyncBound = true;
     TwAuthSync.onSessionChange(function(info) {
-      _clearSocket();  // also cancels _sessionReinitTimer
-      _retries = 0;    // new session resets the retry counter
-      // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
-      if (info && info.jwt) {
-        var capturedJwt = info.jwt;  // capture before async delay
-        _sessionReinitTimer = setTimeout(function() {
-          _sessionReinitTimer = null;
-          _initBadgeWS(capturedJwt);
-        }, 300);
-      }
+      // Full unified stop path on every session change:
+      // close socket + cancel timers (_gen++) + cancel in-flight HTTP + clear DOM
+      _twBadgeWsStop();
+      // Only restart when a new JWT is present (authenticated account switch or token refresh).
+      // guest / expired / invalid / stale → stay stopped, no new socket, no badge fetch.
+      var capturedJwt = (info && info.jwt) ? info.jwt : null;
+      if (!capturedJwt) return;
+      _sessionReinitTimer = setTimeout(function() {
+        _sessionReinitTimer = null;
+        // loadGlobalBadges is defined at module scope (outside this IIFE)
+        if (typeof loadGlobalBadges === 'function') loadGlobalBadges();
+        _initBadgeWS(capturedJwt);
+      }, 300);
     });
   }
+
+  // Try to bind now (succeeds when tw_shared.js loads after auth-sync.js)
+  _bindBadgeAuthSync();
+
+  // Run after load so localStorage is populated by page auth guards.
+  // Also retries _bindBadgeAuthSync in case auth-sync.js loaded after tw_shared.js.
+  window.addEventListener('load', function() {
+    _bindBadgeAuthSync();  // idempotent — no-op if already bound
+    setTimeout(_initBadgeWS, 200);
+  });
 
   window._twBadgeWsStop  = _twBadgeWsStop;
   window._twBadgeWsStart = _twBadgeWsStart;

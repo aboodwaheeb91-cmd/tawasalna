@@ -165,6 +165,24 @@ check("B33 — badges cleared at start of loadGlobalBadges (before fetch)",
       'style.display = \'none\'' in shared.split("function loadGlobalBadges")[1].split("fetch(")[0]
       or 'style.display="none"' in shared.split("function loadGlobalBadges")[1].split("fetch(")[0]
       or "el.style.display = 'none'" in shared.split("var gen = ")[0].split("loadGlobalBadges")[-1])
+_lgb_body = shared.split("function loadGlobalBadges")[1].split("\n\nfunction ")[0] if "function loadGlobalBadges" in shared else ""
+check("B34 — loadGlobalBadges writes to data-ah-notif-badge selector",
+      'data-ah-notif-badge' in _lgb_body)
+check("B35 — loadGlobalBadges has userId capture guard (capturedUserId)",
+      'capturedUserId' in _lgb_body or '_guardOk' in _lgb_body)
+check("B36 — _bindBadgeAuthSync defined in tw_shared.js",
+      "_bindBadgeAuthSync" in shared)
+check("B37 — _bindBadgeAuthSync is idempotent (_badgeAuthSyncBound guard)",
+      "_badgeAuthSyncBound" in shared)
+check("B38 — register menu item href is /login#register",
+      "'/login#register'" in shared or '"/login#register"' in shared)
+check("B39 — _on401 bumps _badgeGeneration (cancel sibling fetch on 401)",
+      "_on401" in shared and "_badgeGeneration++" in _lgb_body)
+check("B40 — window.load retries _bindBadgeAuthSync",
+      # The LAST window.load listener (inside the Badge WS IIFE) must call _bindBadgeAuthSync.
+      # Use [-1]: split gives N+1 parts; [-1] is the content AFTER the last occurrence.
+      len(shared.split("window.addEventListener('load'")) > 1
+      and "_bindBadgeAuthSync" in shared.split("window.addEventListener('load'")[-1])
 
 
 # ═══════════════════════════════════════════════════════
@@ -481,6 +499,78 @@ for f in html_files:
 check("I04 — all pages with .sc-menu-dropdown load auth-sync.js (auto-detected)",
       len(_sc_dropdown_missing_sync) == 0,
       "missing auth-sync.js: " + str(_sc_dropdown_missing_sync) if _sc_dropdown_missing_sync else "")
+
+
+# ═══════════════════════════════════════════════════════
+# M — Repository-wide runtime-code guards
+# ═══════════════════════════════════════════════════════
+print("\nM — Repository-wide runtime-code guards")
+
+index_auth = read("index.auth.js")
+app_header = read("static/app-header.js")
+
+def _code_lines(src):
+    """Strip pure comment lines (lines whose first non-space chars are //)."""
+    return '\n'.join(
+        line for line in src.splitlines()
+        if not re.match(r'^\s*//', line)
+    )
+
+_index_auth_code = _code_lines(index_auth)
+_app_header_code = _code_lines(app_header)
+
+# M01: index.auth.js must not scan localStorage with startsWith('tw_') in actual code
+# (comments that warn against this pattern are allowed)
+check("M01 — index.auth.js has no startsWith('tw_') in code (not comments)",
+      "startsWith('tw_')" not in _index_auth_code
+      and 'startsWith("tw_")' not in _index_auth_code)
+
+# M02: app-header.js must not scan localStorage with startsWith('tw_') in actual code
+check("M02 — app-header.js has no startsWith('tw_') in code (not comments)",
+      "startsWith('tw_')" not in _app_header_code
+      and 'startsWith("tw_")' not in _app_header_code)
+
+# M03: company.main.js no dangling window.toggleMenu export (uses main read in F section)
+check("M03 — company.main.js no dangling window.toggleMenu export",
+      "window.toggleMenu = toggleMenu" not in main)
+
+# M04: app-header.js fail-closed removes session keys before redirect
+check("M04 — app-header.js fail-closed removes tw_jwt before redirect",
+      "removeItem('tw_jwt')" in app_header or 'removeItem("tw_jwt")' in app_header)
+
+# M04b: redirect is ordered AFTER the key removals
+_ah_fallback   = app_header.split("Last-resort fallback")[1] if "Last-resort fallback" in app_header else app_header
+_ah_remove_idx  = _ah_fallback.find("removeItem('tw_jwt')")
+_ah_redirect_idx = _ah_fallback.find("location.replace('/login')")
+check("M04b — app-header.js redirect follows key removal (code order)",
+      _ah_remove_idx != -1 and _ah_redirect_idx != -1 and _ah_remove_idx < _ah_redirect_idx)
+
+# M05: loadGlobalBadges writes to data-ah-notif-badge in the notif UPDATE path
+# (B34 checks presence in the body; M05 checks it's specifically in the write path after fetch)
+_lgb_after_notif_fetch = ""
+if "function loadGlobalBadges" in shared:
+    _lgb_full = shared.split("function loadGlobalBadges")[1].split("\n\nfunction ")[0]
+    # The write path is after the first fetch call
+    _lgb_after_notif_fetch = _lgb_full.split(".then(function(d)")[1] if ".then(function(d)" in _lgb_full else ""
+check("M05 — loadGlobalBadges writes data-ah-notif-badge in notif update path (not just clear)",
+      'data-ah-notif-badge' in _lgb_after_notif_fetch)
+
+# M06: No setInterval badge/unread polling in any root or key shared JS files
+_badge_poll_files = [
+    "tw_shared.js", "index.auth.js", "index.ui.js",
+    "static/app-header.js", "static/home/home.header.js",
+]
+_setinterval_badge_violators = []
+for _bpf in _badge_poll_files:
+    try:
+        _bpf_content = read(_bpf)
+        if re.search(r"setInterval\s*\([^)]*(?:badge|unread|notif|msgs)", _bpf_content, re.IGNORECASE):
+            _setinterval_badge_violators.append(_bpf)
+    except Exception:
+        pass
+check("M06 — no setInterval badge/unread polling in root or shared JS files",
+      len(_setinterval_badge_violators) == 0,
+      "violators: " + str(_setinterval_badge_violators) if _setinterval_badge_violators else "")
 
 
 # ═══════════════════════════════════════════════════════

@@ -42,12 +42,17 @@ function initAppHeader(user) {
     av.style.display = '';
   });
 
-  /* Logout — delegate to central twLogout() in tw_shared.js */
+  /* Logout — fail-closed: clean session before redirect regardless of which path runs */
   document.querySelectorAll('[data-ah-logout]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       if (typeof window.twLogout === 'function') {
         window.twLogout();
+      } else if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+        TwAuthSync.invalidateSession('logout', { redirect: '/login' });
       } else {
+        // Last-resort fallback: allowlist only — never startsWith('tw_')
+        try { localStorage.removeItem('tw_jwt');  } catch(e){}
+        try { localStorage.removeItem('tw_user'); } catch(e){}
         location.replace('/login');
       }
     });

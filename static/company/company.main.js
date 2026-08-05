@@ -2008,7 +2008,7 @@
   // ── Expose ─────────────────────────────────────────────────────
   window.switchTab                = switchTab;
   window.doLogout                 = doLogout;
-  window.toggleMenu               = toggleMenu;
+  // toggleMenu removed — menu lifecycle handled by initGlobalHeaderMenu (VM-10)
   window.toggleFollow             = toggleFollow;
   window.openContact              = openContact;
   window.closeContact             = closeContact;
