@@ -688,12 +688,18 @@ Before → Click → Loading → Result → Back → Refresh
 
 ```
 ✓ كل زر مرتبط بصلاحية يجب توثيق البنود السبعة قبل التنفيذ
-✓ Hidden هو قرار UX/Visibility فقط — سواء كان غياباً من DOM أو display:none،
-  كلاهما ليس حماية أمنية. الحماية الفعلية دائماً في Backend endpoint بصرف النظر عن DOM state
+✓ Hidden هو قرار UX/Visibility فقط — سواء كان غياباً من DOM أو display:none أو hidden attribute،
+  كلها ليست حماية أمنية. الحماية الفعلية دائماً في Backend endpoint بصرف النظر عن DOM state
 ✓ Disabled يُعني حالة وظيفية، لا صلاحية — أوضح للمستخدم لماذا
 ✓ الـ Backend endpoint مُؤمَّن دائماً بصرف النظر عن الـ UI
 ✓ مصدر الصلاحية دائماً server-side — Visibility Source مجرد UX
 ```
+
+**VM-10 Extension (اعتباراً من 2026-08-03):**
+
+`BTN-17` يُطبَّق على `<button>` AND `<a>` AND قائمة dropdown items AND header icons.
+إخفاء رابط أو أيقونة بـ `data-tw-session="authenticated" hidden` هو UX فقط — ليس أمانًا.
+نظام الرؤية التصريحي (`_twApplyDeclarativeVisibility`) يُعالج هذه الحالة تلقائياً.
 
 ```
 ❌ استخدام Disabled بدلاً من Hidden عند اختلاف Viewer Mode
@@ -701,6 +707,7 @@ Before → Click → Loading → Result → Back → Refresh
 ❌ إرسال بيانات خاصة من الـ backend دون تحقق من الصلاحية
 ❌ نقل منطق الصلاحية من backend إلى frontend
 ❌ تنفيذ زر صلاحياته غير موثَّقة في البنود السبعة
+❌ تكرار session check داخل صفحة بدلاً من استخدام data-tw-session + initGlobalHeaderMenu
 ```
 
 ---
@@ -756,4 +763,4 @@ Before → Click → Loading → Result → Back → Refresh
 
 ---
 
-*آخر تحديث: 2026-07-26 — BTN-18 Loading Indicator Alignment Contract (fix/spinner-centering: margin-based centering, no transform conflict) — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md)*
+*آخر تحديث: 2026-07-26 — BTN-18 Loading Indicator Alignment Contract (fix/spinner-centering: margin-based centering, no transform conflict) — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md) · BTN-17 VM-10 Extension (2026-08-03): applies to links + dropdown items + header icons, not just buttons.*

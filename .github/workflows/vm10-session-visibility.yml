@@ -1,0 +1,88 @@
+name: VM-10 Global Session UI Visibility
+
+on:
+  push:
+    paths:
+      - 'tw_shared.js'
+      - 'static/shared/auth-sync.js'
+      - 'static/app-header.js'
+      - 'static/company/company.main.js'
+      - 'static/home/home.header.js'
+      - 'company-profile.html'
+      - 'home-v2.html'
+      - 'messages.html'
+      - 'notifications.html'
+      - 'profile-showcase.html'
+      - 'edu-profile.html'
+      - 'index.auth.js'
+      - 'index.ui.js'
+      - 'test_global_ui_visibility.py'
+      - 'test_auth_sync_runtime.js'
+      - 'test_tw_shared_runtime.js'
+      - '.github/workflows/vm10-session-visibility.yml'
+  pull_request:
+    paths:
+      - 'tw_shared.js'
+      - 'static/shared/auth-sync.js'
+      - 'static/app-header.js'
+      - 'static/company/company.main.js'
+      - 'static/home/home.header.js'
+      - 'company-profile.html'
+      - 'home-v2.html'
+      - 'messages.html'
+      - 'notifications.html'
+      - 'profile-showcase.html'
+      - 'edu-profile.html'
+      - 'index.auth.js'
+      - 'index.ui.js'
+      - 'test_global_ui_visibility.py'
+      - 'test_auth_sync_runtime.js'
+      - 'test_tw_shared_runtime.js'
+      - '.github/workflows/vm10-session-visibility.yml'
+
+jobs:
+  vm10:
+    name: VM-10 Session Visibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check — tw_shared.js
+        run: node --check tw_shared.js
+
+      - name: Syntax check — auth-sync.js
+        run: node --check static/shared/auth-sync.js
+
+      - name: Syntax check — app-header.js
+        run: node --check static/app-header.js
+
+      - name: Syntax check — company.main.js
+        run: node --check static/company/company.main.js
+
+      - name: Syntax check — home.header.js
+        run: node --check static/home/home.header.js
+
+      - name: Syntax check — index.auth.js
+        run: node --check index.auth.js
+
+      - name: Syntax check — index.ui.js
+        run: node --check index.ui.js
+
+      - name: A — Static verification (pages + sources)
+        run: python test_global_ui_visibility.py
+
+      - name: B — TwAuthSync V2 runtime correctness
+        run: node test_auth_sync_runtime.js
+
+      - name: C — tw_shared.js runtime correctness
+        run: node test_tw_shared_runtime.js

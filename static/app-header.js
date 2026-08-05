@@ -1,22 +1,18 @@
-/* app-header.js — Shared App Header initializer
+/* app-header.js — Shared App Header layout helper (VM-10 compliant)
  *
- * Call initAppHeader(user) once after the auth guard has verified the user.
- * `user` is the object from localStorage tw_user.
+ * Layout-only: populates avatar initials/image and wires logout buttons to the
+ * central twLogout() defined in tw_shared.js. No polling, no setInterval,
+ * no independent session resolution, no parallel WS.
  *
- * Targets elements by data attributes — no IDs assumed:
- *   [data-ah-av]           Avatar circle: sets initials + href (if <a>)
- *   [data-ah-logout]       Logout button: clears tw_* localStorage keys → /login
- *   [data-ah-notif-badge]  Notification unread count badge span
+ * Targets elements by data attributes:
+ *   [data-ah-av]       Avatar circle: sets initials + href (if <a>)
+ *   [data-ah-logout]   Logout button: delegates to window.twLogout()
  *
- * Bell, message, and home navigation are plain <a href> links in the HTML —
- * they need no JS binding for navigation.
+ * Badge and notification counts are handled by loadGlobalBadges() + Badge WS
+ * in tw_shared.js — app-header.js does not touch [data-ah-notif-badge].
  *
- * Pages that load this script but do NOT call initAppHeader() explicitly
- * are handled by the DOMContentLoaded auto-init below — they only need
- * [data-ah-notif-badge] in the DOM and tw_user / tw_jwt in localStorage.
+ * Bell, message, and home navigation are plain <a href> links in the HTML.
  */
-
-var _ahPollStarted = false; /* guard: prevent double setInterval */
 
 function initAppHeader(user) {
   if (!user) return;
@@ -43,68 +39,22 @@ function initAppHeader(user) {
       }
     }
     av.title = user.full_name || '';
-    av.style.display = '';  /* un-hide: only reaches here when user is authenticated */
+    av.style.display = '';
   });
 
-  /* Logout */
+  /* Logout — fail-closed: clean session before redirect regardless of which path runs */
   document.querySelectorAll('[data-ah-logout]').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      try {
-        Object.keys(localStorage)
-          .filter(function(k) { return k.startsWith('tw_'); })
-          .forEach(function(k) { localStorage.removeItem(k); });
-      } catch (e) {}
-      location.replace('/login');
+      if (typeof window.twLogout === 'function') {
+        window.twLogout();
+      } else if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+        TwAuthSync.invalidateSession('logout', { redirect: '/login' });
+      } else {
+        // Last-resort fallback: allowlist only — never startsWith('tw_')
+        try { localStorage.removeItem('tw_jwt');  } catch(e){}
+        try { localStorage.removeItem('tw_user'); } catch(e){}
+        location.replace('/login');
+      }
     });
   });
-
-  /* Phase 10: Unread notification badge */
-  _pollUnreadBadge(user);
 }
-
-function _pollUnreadBadge(user) {
-  if (_ahPollStarted) return;
-  var jwt = localStorage.getItem('tw_jwt') || '';
-  if (!jwt || !user || !user.id) return;
-  var badge = document.querySelector('[data-ah-notif-badge]');
-  if (!badge) return;
-
-  _ahPollStarted = true;
-  var uid = user.id;
-  var bellWrap = badge.parentElement; /* wrapper that holds bell icon + badge */
-
-  function _fetchCount() {
-    fetch('/notifications/' + uid + '/unread-count', {
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(d) {
-      if (!d || !d.ok) return;
-      var count = (d.data && d.data.count) || 0;
-      if (count > 0) {
-        badge.textContent = count > 99 ? '99+' : String(count);
-        badge.style.display = 'inline-flex';
-        if (bellWrap) bellWrap.classList.add('ah-bell--active');
-      } else {
-        badge.textContent = '';
-        badge.style.display = 'none';
-        if (bellWrap) bellWrap.classList.remove('ah-bell--active');
-      }
-    })
-    .catch(function() {});
-  }
-
-  _fetchCount();
-  setInterval(_fetchCount, 60000);
-}
-
-/* Auto-init: pages that load app-header.js without calling initAppHeader() explicitly.
-   Reads tw_user from localStorage. Only activates when [data-ah-notif-badge] is in the DOM. */
-document.addEventListener('DOMContentLoaded', function() {
-  if (_ahPollStarted) return;
-  if (!document.querySelector('[data-ah-notif-badge]')) return;
-  try {
-    var u = JSON.parse(localStorage.getItem('tw_user') || 'null');
-    if (u && u.id) _pollUnreadBadge(u);
-  } catch (e) {}
-});

@@ -346,7 +346,192 @@ companyState.permissions.isOwner = true | false
 
 ---
 
+## [VM-10] Global Session UI Visibility System
+
+> **الفرق الجوهري بين VM-10 و VM-01–VM-09:**
+> VM-01–VM-09 تُعالج صلاحيات الموارد (Resource Permissions) — من يملك/يعدّل/يرى مورداً محدداً.
+> VM-10 يُعالج حالة جلسة المستخدم عالمياً — هل هو مسجّل دخوله أم لا — وينعكس على الهيدر والقوائم فقط.
+> الفصل بينهما إلزامي. لا يجوز لـ VM-10 قراءة `viewer_type` أو `isOwner`.
+
+### [VM-10A] Session States (حالات الجلسة)
+
+`TwAuthSync.getSessionSnapshot()` يُعيد كائناً بـ 5 حقول:
+
+| الحالة | الوصف | `isAuthenticated` |
+|--------|-------|-------------------|
+| `guest` | لا يوجد JWT ولا `tw_user` في localStorage | `false` |
+| `authenticated` | JWT صالح + user object + IDs متطابقة | `true` |
+| `expired` | JWT منتهي الصلاحية (`claims.exp <= now`) | `false` |
+| `invalid` | JWT موجود لكن malformed أو يفتقد `user_id`/`user_type`/`exp` | `false` |
+| `stale` | JWT صالح لكن `tw_user` غائب أو ID/type يختلف؛ أو `tw_user` موجود بلا JWT | `false` |
+
+**قواعد `_resolveSession()` بالترتيب (VM-10A — 11 خطوة):**
+1. لا `tw_jwt` ولا `tw_user` → `guest` (reason: `no_jwt`)
+2. `tw_user` موجود لكن لا `tw_jwt` → `stale` (reason: `no_jwt_with_user`)
+3. JWT موجود لكن غير قابل للـ parse → `invalid` (reason: `malformed_jwt`)
+4. `claims.user_id` غائب أو null → `invalid` (reason: `missing_user_id`)
+5. `claims.user_type` غائب أو null → `invalid` (reason: `missing_user_type`)
+6. `typeof claims.exp !== 'number'` أو `!isFinite(claims.exp)` → `invalid` (reason: `missing_exp`)
+7. `claims.exp <= now` → `expired` (reason: `jwt_expired`) — `<=` يلتقط القيمة المساوية لـ now بالضبط
+8. `tw_user` غائب أو بلا `.id` → `stale` (reason: `no_user_object`)
+9. `String(claims.user_id) !== String(user.id)` → `stale` (reason: `user_id_mismatch`)
+10. `claims.user_type !== user.user_type` → `stale` (reason: `user_type_mismatch`)
+11. كل الشروط تجتازت → `authenticated` (reason: `ok`)
+
+**Session Fingerprint:** `_check()` تتابع `_prevJwt` + `_prevUserStr`. أي تغيير في `tw_user` (حتى مع نفس JWT) يُطلق callbacks — يحمي من account switch داخل نفس التاب.
+
+**Expiry Timer:** `_scheduleExpiryTimer()` تستخدم `setTimeout` مرة واحدة، مُحدودة بـ `_MAX_TIMEOUT_MS = 0x7FFFFFFF`. عند تجديد JWT أثناء النوم تُعيد الجدولة بدلاً من الانتهاء.
+
+### [VM-10B] Global Header Menu Policy
+
+مصدر الحقيقة: `_TW_HEADER_MENU_POLICY` في `tw_shared.js`
+
+كل بند له `show: 'auth' | 'guest' | 'all'` و`accountTypes?: string[]` اختياري:
+
+| البند | show | accountTypes | يظهر لـ |
+|-------|------|-------------|---------|
+| الإعدادات | `auth` | — | جميع مسجّلي الدخول |
+| بحث عن موظفين | `auth` | `['co']` | شركات فقط |
+| تواصل معنا | `all` | — | الجميع (disabled) |
+| الإبلاغ عن مشكلة | `all` | — | الجميع (disabled) |
+| اقترح ميزة | `all` | — | الجميع (disabled) |
+| تسجيل الخروج | `auth` | — | جميع مسجّلي الدخول |
+| تسجيل الدخول | `guest` | — | زوار غير مسجّلين |
+| إنشاء حساب | `guest` | — | زوار غير مسجّلين |
+
+`_twMenuItemsForSnapshot(snapshot)` تُطبّق فلتر `show` ثم `accountTypes` (إذا محدد).
+
+**ممنوع:** إضافة بند بدون تعريف `show` صريح في `_TW_HEADER_MENU_POLICY`.
+
+### [VM-10C] Idempotent Header Renderer
+
+`initGlobalHeaderMenu(btnId, ddId, dynId)` في `tw_shared.js`:
+- Idempotent — استدعاء ثانٍ بنفس `btnId` يُتجاهَل صامتاً
+- يُسجِّل listener واحداً على TwAuthSync للصفحة كلها (عبر `_ghListenerRegistered`)
+- يُعيد عرض القائمة تلقائياً عند كل تغيير في الجلسة
+- يستدعي `_twApplyDeclarativeVisibility()` مباشرةً في أول استدعاء
+
+### [VM-10D] Declarative Session Visibility
+
+`data-tw-session="authenticated|guest|all"` على أي element في HTML:
+- `authenticated` + `hidden` → مخفي بالافتراضي، يظهر فقط لمسجّلي الدخول
+- `guest` → يظهر فقط للزوار
+- `all` → يظهر للجميع دائماً
+- خاصية `data-tw-account-types="co,emp"` تضيّق الظهور لأنواع حسابات محددة
+
+`_twApplyDeclarativeVisibility()` هي الدالة الوحيدة المسؤولة عن معالجة هذه الخاصية.
+
+**استخدام على صفحات عامة (بدون Auth Guard):**
+```html
+<a href="/messages" data-tw-session="authenticated" hidden>...</a>
+```
+
+### [VM-10E] Preview Boundary
+
+Preview modes (VM-03: `preview-public-user`, `preview-guest`) لا تُغيّر حالة الجلسة العامة.
+- `_twApplyDeclarativeVisibility()` تعتمد على `TwAuthSync.getSessionSnapshot()` فقط
+- لا تقرأ body classes ولا window._scViewerType
+- Preview يُغيّر Resource Viewer Mode (VM-01) — لا يُغيّر Global Session State (VM-10A)
+
+**النتيجة:** زر تسجيل الخروج يبقى ظاهراً أثناء المعاينة لأن المالك ما زال مسجّل الدخول.
+
+### [VM-10F] Security Boundary
+
+```
+VM-10 = UX فقط — ليس ضماناً أمنياً.
+إخفاء زر الإعدادات للزوار لا يمنعهم من الوصول لـ /settings.
+كل endpoint يتحقق من JWT server-side مستقلاً.
+```
+
+### [VM-10G] Session Storage Cleanup Contract
+
+`invalidateSession()` تحذف مفاتيح محددة فقط (allowlist) — ليس كل مفاتيح `tw_`:
+
+```javascript
+var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
+```
+
+**ممنوع:** `startsWith('tw_')` لحذف مفاتيح الجلسة — يمكن أن يحذف تفضيلات المستخدم (`tw_cover_edu_*` إلخ).
+
+### [VM-10H] HTTP 401 vs 403 Contract
+
+في `loadGlobalBadges()`:
+- `401` → token منتهي أو غير صالح → `TwAuthSync.invalidateSession('api_401')` **فقط**
+- `403` → مصادق لكن ممنوع من هذا المورد → الجلسة محفوظة، لا invalidate
+
+**ممنوع:** `r.status === 401 || r.status === 403` — الجمع يُلغي جلسات صالحة عند خطأ Authorization.
+
+### [VM-10I] Badge WebSocket Generation Lifecycle
+
+الـ WS مُصمَّم لمنع إعادة الاتصال الخاطئة بعد logout/login:
+
+- `_gen` يُزاد عند كل `_clearSocket()` — يُلغي أي `onclose` معلق من الجيل السابق
+- `_activeUid` يُتابع userId الحالي — account switch يُطلق `_clearSocket()` + reinit
+- `_initBadgeWS(pendingJwt)` تتحقق من `capturedGen !== _gen` في `onopen`/`onmessage`/`onclose`
+- أول رسالة بعد الاتصال: `{"type":"auth","token":"..."}` — لا badge_update يُعالَج قبل `auth_ok`
+- codes 4001-4007: لا إعادة اتصال — شرط دائم
+- exponential backoff: `Math.min(30000, 2^_retries * 1000 + jitter)` — بحد أقصى 5 محاولات
+- **ممنوع:** استخدام `_stopped` boolean — يمنع إعادة الاتصال بعد logout+login
+
+### [VM-10J] Global Site Header — Auto-Detection Marker
+
+**التعريف:** أي صفحة تحتوي على `.sc-menu-dropdown` تُعتبر تلقائياً ضمن نطاق VM-10.
+
+هذا هو المؤشر الرسمي للكشف التلقائي عن الصفحات المعتمِدة للـ Global Site Header:
+
+```
+المؤشر:  class="sc-menu-dropdown"
+الوجود:  أي صفحة HTML تحمل هذه الـ class
+الالتزام: يجب أن تحمل auth-sync.js وأن تستدعي initGlobalHeaderMenu
+```
+
+**الصفحات المعتمِدة (جميعها تحمل `.sc-menu-dropdown`):**
+
+| الصفحة | حالة الاعتماد | الـ IDs |
+|--------|--------------|---------|
+| `profile-showcase.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` / `scMenuDynamic` |
+| `company-profile.html` | ✅ مكتمل | `coMenuBtn` / `coMenuDropdown` / `coMenuDynamic` |
+| `notifications.html` | ✅ مكتمل | `ntMenuBtn` / `ntMenuDropdown` / `ntMenuDynamic` |
+| `messages.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` |
+| `home-v2.html` | ✅ مكتمل | `hwMenuBtn` / `hwMenuDropdown` |
+| `edu-profile.html` | ✅ مكتمل | `epMenuBtn` / `epMenuDropdown` |
+
+**قاعدة الاعتماد (إلزامية لأي صفحة جديدة تحمل `.sc-menu-dropdown`):**
+1. تحميل `/tw_shared.js` قبل ملفات الصفحة
+2. تحميل `/static/shared/auth-sync.js` بعد `tw_shared.js`
+3. استدعاء `initGlobalHeaderMenu(btnId, ddId)` أو `initGlobalHeaderMenu(btnId, ddId, dynId)` عند التهيئة
+4. إضافة `data-tw-session="authenticated" hidden` على أيقونات الهيدر الخاصة بالمسجّلين
+5. إفراغ محتوى الـ dropdown الثابت — `initGlobalHeaderMenu` يملأه ديناميكياً
+
+**ممنوع:**
+```
+❌ صفحة تحمل .sc-menu-dropdown بدون auth-sync.js
+❌ منطق toggle محلي للـ dropdown موازٍ لـ initGlobalHeaderMenu
+❌ startsWith('tw_') في أي logout handler على صفحة VM-10
+❌ static Settings/Logout buttons داخل .sc-menu-dropdown
+```
+
+### Forbidden (VM-10)
+
+```
+❌ إضافة بند لـ _TW_HEADER_MENU_POLICY بدون show صريح
+❌ قراءة viewer_type أو isOwner في _twApplyDeclarativeVisibility
+❌ اعتبار data-tw-session حماية أمنية
+❌ إضافة منطق session check مكرر داخل صفحة جديدة بدلاً من initGlobalHeaderMenu
+❌ Preview body class تُؤثر على Global Session menu
+❌ إنشاء نظام visibility موازٍ خارج tw_shared.js/_twApplyDeclarativeVisibility
+❌ startsWith('tw_') لحذف مفاتيح الجلسة — استخدم _SESSION_KEYS allowlist
+❌ معالجة 403 كـ 401 (invalidateSession على 403)
+❌ _stopped boolean في WS lifecycle — استخدم _gen counter عبر _clearSocket()
+❌ تجاوز مطابقة claims.user_id مع tw_user.id في Session Resolver
+```
+
+---
+
 *آخر تحديث: 2026-07-18 — V1: Viewer Modes & Permissions System foundation.
 يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
 موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
-rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).*
+rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
+rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).
+rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).
+rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).*

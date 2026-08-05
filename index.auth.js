@@ -157,11 +157,11 @@ async function doLogin(){
       return;
     }
 
-    // Atomic session write — rollback both keys on any storage failure
+    // Atomic session write — clear only official session keys (allowlist), never startsWith('tw_')
+    // which would destroy user preferences (tw_cover_*, tw_prefs, theme, etc.)
     try {
-      Object.keys(localStorage)
-        .filter(function(k){ return k.startsWith('tw_'); })
-        .forEach(function(k){ localStorage.removeItem(k); });
+      try { localStorage.removeItem('tw_user'); } catch(e){}
+      try { localStorage.removeItem('tw_jwt');  } catch(e){}
       localStorage.setItem('tw_user', JSON.stringify(data.user));
       localStorage.setItem('tw_jwt', data.token);
     } catch(storageErr){

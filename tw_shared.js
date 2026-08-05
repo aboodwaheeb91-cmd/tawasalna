@@ -208,36 +208,84 @@ function safeText(el, text){
 }
 
 // ══ Global Badge Loader ══
-// Populates all elements with data-badge="msgs" and data-badge="notif".
+// Populates all elements with data-badge="msgs", data-badge="notif", data-ah-notif-badge.
 // Call once after page init from any authenticated page.
+// Requires TwAuthSync (VM-10A contract) — no raw localStorage fallback.
+// 401 → session invalid (invalidateSession) + cancel sibling request.
+// 403/5xx/network → preserve session.
+// _badgeGeneration: prevents stale HTTP responses from a prior account overwriting
+// the current account's badge counts after a cross-tab or within-tab account switch.
+var _badgeGeneration = 0;
+
 function loadGlobalBadges() {
-  try {
-    var u   = JSON.parse(localStorage.getItem('tw_user') || 'null');
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!u || !u.id || !jwt) return;
+  // TwAuthSync is mandatory — never fall back to raw localStorage
+  if (!window.TwAuthSync) return;
+  var snap = TwAuthSync.getSessionSnapshot();
+  if (!snap.isAuthenticated) return;
+  var userId = snap.userId;
+  var jwt    = localStorage.getItem('tw_jwt') || '';
+  if (!userId || !jwt) return;
 
-    fetch('/notifications/' + u.id)
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d) return;
-        var count = d.unread || 0;
-        document.querySelectorAll('[data-badge="notif"]').forEach(function(el) {
-          el.textContent = count > 9 ? '9+' : String(count);
-          el.style.display = count > 0 ? 'inline-block' : 'none';
-        });
-      }).catch(function() {});
+  // Clear badges before fetching — prevents stale counts from previous account
+  // Includes [data-ah-notif-badge] (legacy selector used by some pages)
+  document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
+    el.textContent = '';
+    el.style.display = 'none';
+  });
 
-    fetch('/messages/unread/' + u.id, { headers: { 'Authorization': 'Bearer ' + jwt } })
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(d) {
-        if (!d) return;
-        var count = d.count || 0;
-        document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
-          el.textContent = count > 9 ? '9+' : String(count);
-          el.style.display = count > 0 ? 'inline-block' : 'none';
-        });
-      }).catch(function() {});
-  } catch(e) {}
+  var gen            = ++_badgeGeneration;   // capture generation
+  var capturedUserId = Number(userId);       // capture userId for account-switch guard
+
+  // Triple guard: generation, userId, and still authenticated.
+  // Generation alone can't detect an account switch that happened to reuse the same
+  // _badgeGeneration slot (e.g. rapid logout+login).
+  function _guardOk() {
+    if (gen !== _badgeGeneration) return false;
+    if (!window.TwAuthSync) return false;
+    var s = TwAuthSync.getSessionSnapshot();
+    return s.isAuthenticated && Number(s.userId) === capturedUserId;
+  }
+
+  // On 401: bump _badgeGeneration to cancel any other in-flight request from this batch,
+  // then invalidate the session via TwAuthSync.
+  function _on401() {
+    _badgeGeneration++;   // makes _guardOk() false for the sibling fetch as well
+    if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+      TwAuthSync.invalidateSession('api_401');
+    }
+  }
+
+  fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    .then(function(r) {
+      if (r.status === 401) { _on401(); return null; }
+      // 403 = authenticated but not authorised — preserve session
+      // 5xx / network error — preserve session (handled by .catch)
+      return r.ok ? r.json() : null;
+    })
+    .then(function(d) {
+      if (!d || !_guardOk()) return;
+      var count = d.unread || 0;
+      // Write to both selectors (data-badge="notif" and legacy data-ah-notif-badge)
+      document.querySelectorAll('[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = count > 0 ? 'inline-block' : 'none';
+      });
+    }).catch(function() {});
+
+  fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
+    .then(function(r) {
+      if (r.status === 401) { _on401(); return null; }
+      // 403 = authenticated but not authorised — preserve session
+      return r.ok ? r.json() : null;
+    })
+    .then(function(d) {
+      if (!d || !_guardOk()) return;
+      var count = d.count || 0;
+      document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = count > 0 ? 'inline-block' : 'none';
+      });
+    }).catch(function() {});
 }
 
 // ══ Logo from Admin ══
@@ -291,12 +339,18 @@ function twHomeHref(u) {
 }
 
 function twLogout() {
-  try {
-    Object.keys(localStorage)
-      .filter(function(k){ return k.startsWith('tw_'); })
-      .forEach(function(k){ localStorage.removeItem(k); });
-  } catch(e){}
-  window.location.href = '/login';
+  if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+    TwAuthSync.invalidateSession('logout', { redirect: '/login' });
+  } else {
+    // Allowlist only — never startsWith('tw_') which would delete user preferences
+    var _LOGOUT_KEYS = ['tw_jwt', 'tw_user'];
+    try {
+      for (var _li = 0; _li < _LOGOUT_KEYS.length; _li++) {
+        localStorage.removeItem(_LOGOUT_KEYS[_li]);
+      }
+    } catch(e){}
+    window.location.href = '/login';
+  }
 }
 
 function twOwnProfileUrl() {
@@ -328,23 +382,60 @@ function twShareProfile() {
   }
 }
 
-// Secondary-tools menu items — NO navigation items (home/profile/messages/
-// notifications are already in the header and must not be duplicated here).
-// Items with `disabled:true` are shown greyed with a "قريباً" tag — they
-// have no route yet and must NOT appear as functional links.
+// ── Central Header Menu Policy Registry (VM-10B) ──────────────────
+// Single source of truth for all header menu items.
+// show: 'all' | 'auth' | 'guest'
+// accountTypes: optional string[] — if set, item only shows for those user types.
+// Items with show:'auth' appear only when session is authenticated.
+// Items with show:'guest' appear only when session is guest/expired/invalid.
+// Items with disabled:true are shown greyed with "قريباً" — no route yet.
+var _TW_HEADER_MENU_POLICY = [
+  { key: 'settings', label: 'الإعدادات', href: '/settings', show: 'auth',
+    icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+  { key: 'candidates', label: 'بحث عن موظفين', href: '/company', show: 'auth',
+    accountTypes: ['co'],
+    icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' },
+  { key: 'contact', label: 'تواصل معنا', disabled: true, show: 'all',
+    icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
+  { key: 'report', label: 'الإبلاغ عن مشكلة', disabled: true, show: 'all',
+    icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
+  { key: 'suggest', label: 'اقترح ميزة', disabled: true, show: 'all',
+    icon: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
+  { key: 'logout', label: 'تسجيل الخروج', action: 'twLogout', danger: true, show: 'auth',
+    icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>' },
+  { key: 'login', label: 'تسجيل الدخول', href: '/login', show: 'guest',
+    icon: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>' },
+  { key: 'register', label: 'إنشاء حساب', href: '/login#register', show: 'guest',
+    icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>' },
+];
+
+// Filter policy items for a given session snapshot (VM-10B)
+// Applies both show: and accountTypes: filters.
+function _twMenuItemsForSnapshot(snapshot) {
+  var auth  = snapshot && snapshot.isAuthenticated;
+  var utype = snapshot && snapshot.userType;
+  return _TW_HEADER_MENU_POLICY.filter(function (item) {
+    if (item.show === 'all')   return true;
+    if (item.show === 'auth') {
+      if (!auth) return false;
+      // accountTypes filter: if specified, only show for those user types
+      if (item.accountTypes) {
+        return item.accountTypes.indexOf(utype) !== -1;
+      }
+      return true;
+    }
+    if (item.show === 'guest') return !auth;
+    return true;
+  });
+}
+
+// Secondary-tools menu items — delegates to policy for current session state.
+// Legacy callers that use _twHeaderMenuItems() still work.
 function _twHeaderMenuItems() {
-  return [
-    { key: 'settings', label: 'الإعدادات', href: '/settings',
-      icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
-    { key: 'contact', label: 'تواصل معنا', disabled: true,
-      icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
-    { key: 'report', label: 'الإبلاغ عن مشكلة', disabled: true,
-      icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
-    { key: 'suggest', label: 'اقترح ميزة', disabled: true,
-      icon: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
-    { key: 'logout', label: 'تسجيل الخروج', action: 'twLogout', danger: true,
-      icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>' }
-  ];
+  var snapshot = window.TwAuthSync
+    ? TwAuthSync.getSessionSnapshot()
+    : { state: 'guest', isAuthenticated: false };
+  return _twMenuItemsForSnapshot(snapshot);
 }
 
 function _twHeaderMenuItemHtml(item) {
@@ -362,55 +453,114 @@ function _twHeaderMenuItemHtml(item) {
   return '<a class="' + cls + '" href="' + item.href + '" data-key="' + item.key + '">' + svg + sanitize(item.label) + '</a>';
 }
 
+// ── Declarative Session Visibility (VM-10D) ──────────────────────
+// Processes all elements with data-tw-session="authenticated|guest|all"
+// and sets/clears the `hidden` attribute based on current session state.
+// Called once on initGlobalHeaderMenu() and on every session change.
+function _twApplyDeclarativeVisibility() {
+  var snapshot = window.TwAuthSync
+    ? TwAuthSync.getSessionSnapshot()
+    : { state: 'guest', isAuthenticated: false, userType: null };
+  var auth = snapshot.isAuthenticated;
+  var utype = snapshot.userType;
+  document.querySelectorAll('[data-tw-session]').forEach(function (el) {
+    var req   = el.getAttribute('data-tw-session');
+    var types = el.getAttribute('data-tw-account-types');
+    var show  = false;
+    if      (req === 'all')           show = true;
+    else if (req === 'authenticated') {
+      show = auth;
+      if (show && types) {
+        var arr = types.split(',').map(function (t) { return t.trim(); });
+        show = arr.indexOf(utype) !== -1;
+      }
+    }
+    else if (req === 'guest')         show = !auth;
+    el.hidden = !show;
+  });
+}
+
+// ── Idempotent Global Header Menu (VM-10C) ────────────────────────
 // Wires button#btnId (toggle) + #ddId (.sc-menu-dropdown, must already be
-// inside a `.sc-menu-wrap` ancestor for outside-click + positioning to
-// work) for one page.
-// `dynId` (optional): id of the inner container to render dynamic items
-// into. When omitted the items are rendered directly into #ddId. Use when
-// the dropdown also contains a static section above the dynamic items —
-// e.g. profile-showcase.html puts the eye-preview rows as a static first
-// child of the dropdown so their directly-bound event listeners survive
-// across re-renders; tw_shared.js only regenerates the sibling #scMenuDynamic
-// container below them.
+// inside a `.sc-menu-wrap` ancestor for outside-click + positioning).
+// Idempotent: a second call for the same btnId is silently ignored.
+// `dynId` (optional): inner container for dynamic items — use when the
+// dropdown has a static section above (e.g. the eye-preview block in
+// profile-showcase.html); tw_shared.js only regenerates the sibling container.
+// Auto-rerenders on session change via a single global TwAuthSync listener.
+var _ghInstances = [];
+var _ghListenerRegistered = false;
+
 function initGlobalHeaderMenu(btnId, ddId, dynId) {
-  var btn  = document.getElementById(btnId);
-  var dd   = document.getElementById(ddId);
-  var dyn  = dynId ? (document.getElementById(dynId) || dd) : dd;
+  // Idempotency guard — one wiring per button
+  for (var i = 0; i < _ghInstances.length; i++) {
+    if (_ghInstances[i].btnId === btnId) return;
+  }
+
+  var btn = document.getElementById(btnId);
+  var dd  = document.getElementById(ddId);
   if (!btn || !dd) return;
+
+  var instance = { btnId: btnId, ddId: ddId, dynId: dynId || null };
+  _ghInstances.push(instance);
+
+  var dyn  = dynId ? (document.getElementById(dynId) || dd) : dd;
   var wrap = dd.closest('.sc-menu-wrap') || dd.parentElement;
 
-  function render() {
-    dyn.innerHTML = _twHeaderMenuItems().map(_twHeaderMenuItemHtml).join('');
+  function _renderInstance(inst) {
+    var dynEl = inst.dynId
+      ? (document.getElementById(inst.dynId) || document.getElementById(inst.ddId))
+      : document.getElementById(inst.ddId);
+    if (!dynEl) return;
+    var snapshot = window.TwAuthSync
+      ? TwAuthSync.getSessionSnapshot()
+      : { state: 'guest', isAuthenticated: false };
+    dynEl.innerHTML = _twMenuItemsForSnapshot(snapshot).map(_twHeaderMenuItemHtml).join('');
   }
+
+  function render() { _renderInstance(instance); }
+
   function close() {
     dd.classList.remove('open');
-    // Also collapse the eye submenu (if any) so it always resets on next open
     var em = document.getElementById('scEyeMenu');
     if (em) em.classList.remove('open');
   }
 
-  btn.addEventListener('click', function(e) {
+  btn.addEventListener('click', function (e) {
     e.stopPropagation();
     if (!dd.classList.contains('open')) render();
     dd.classList.toggle('open');
   });
-  document.addEventListener('click', function(e) {
+  document.addEventListener('click', function (e) {
     if (wrap && !wrap.contains(e.target)) close();
   });
-  dd.addEventListener('click', function(e) {
+  dd.addEventListener('click', function (e) {
     var actionEl = e.target.closest('[data-menu-action]');
     if (actionEl) {
       var fn = window[actionEl.getAttribute('data-menu-action')];
       if (typeof fn === 'function') fn();
     }
-    // Let the host page run cleanup (e.g. messages.html marking the open
-    // conversation inactive over the existing WS) before a menu link navigates away.
+    // Allow host page to run cleanup before navigation (e.g. messages.html)
     var link = e.target.closest('a.sc-menu-item');
     if (link && typeof window.twBeforeHeaderNav === 'function') {
       window.twBeforeHeaderNav(link.getAttribute('data-key'));
     }
     if (e.target.closest('a.sc-menu-item, button.sc-menu-item')) close();
   });
+
+  // Register one global TwAuthSync listener for ALL instances (once per page)
+  if (!_ghListenerRegistered && window.TwAuthSync) {
+    _ghListenerRegistered = true;
+    TwAuthSync.onSessionChange(function () {
+      for (var j = 0; j < _ghInstances.length; j++) {
+        _renderInstance(_ghInstances[j]);
+      }
+      _twApplyDeclarativeVisibility();
+    });
+  }
+
+  // Apply declarative visibility and pre-render on first call
+  _twApplyDeclarativeVisibility();
 }
 
 // ══ Global Real-time Badge WebSocket ══
@@ -418,6 +568,7 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 // Handles badge_update events to update [data-badge="msgs"] in real time.
 // Auth protocol: sends {"type":"auth","token":"..."} as the first message;
 // only processes badge_update after server confirms with auth_ok.
+// Exposed: window._twBadgeWsStop(), window._twBadgeWsStart()
 (function() {
   var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
   var _activeUid = 0;
@@ -433,6 +584,14 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
     if (_sessionReinitTimer) { clearTimeout(_sessionReinitTimer); _sessionReinitTimer = null; }
     if (sock) { try { sock.close(); } catch(e) {} }
+  }
+
+  // Clear all badge elements including data-ah-notif-badge (legacy selector)
+  function _clearBadges() {
+    document.querySelectorAll('[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
+      el.textContent = '';
+      el.style.display = 'none';
+    });
   }
 
   // pendingJwt: JWT captured synchronously from info.jwt before the async delay fires.
@@ -514,26 +673,55 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     ws.onerror = function() { ws.close(); };
   }
 
-  // Run after load so localStorage is populated by page auth guards
+  function _twBadgeWsStop() {
+    _clearSocket();          // _gen++, cancel timers, close socket
+    _badgeGeneration++;      // invalidates in-flight HTTP badge requests from prior account
+    _retries = 0;
+    _clearBadges();
+  }
+
+  function _twBadgeWsStart() {
+    _retries = 0;
+    _initBadgeWS();
+  }
+
+  // _bindBadgeAuthSync: idempotent registration of TwAuthSync.onSessionChange listener.
+  // Called at IIFE run time AND again at window.load so it succeeds regardless of
+  // whether auth-sync.js loads before or after tw_shared.js.
+  var _badgeAuthSyncBound = false;
+  function _bindBadgeAuthSync() {
+    if (_badgeAuthSyncBound) return;
+    if (typeof TwAuthSync === 'undefined' || typeof TwAuthSync.onSessionChange !== 'function') return;
+    _badgeAuthSyncBound = true;
+    TwAuthSync.onSessionChange(function(info) {
+      // Full unified stop path on every session change:
+      // close socket + cancel timers (_gen++) + cancel in-flight HTTP + clear DOM
+      _twBadgeWsStop();
+      // Only restart when a new JWT is present (authenticated account switch or token refresh).
+      // guest / expired / invalid / stale → stay stopped, no new socket, no badge fetch.
+      var capturedJwt = (info && info.jwt) ? info.jwt : null;
+      if (!capturedJwt) return;
+      _sessionReinitTimer = setTimeout(function() {
+        _sessionReinitTimer = null;
+        // loadGlobalBadges is defined at module scope (outside this IIFE)
+        if (typeof loadGlobalBadges === 'function') loadGlobalBadges();
+        _initBadgeWS(capturedJwt);
+      }, 300);
+    });
+  }
+
+  // Try to bind now (succeeds when tw_shared.js loads after auth-sync.js)
+  _bindBadgeAuthSync();
+
+  // Run after load so localStorage is populated by page auth guards.
+  // Also retries _bindBadgeAuthSync in case auth-sync.js loaded after tw_shared.js.
   window.addEventListener('load', function() {
+    _bindBadgeAuthSync();  // idempotent — no-op if already bound
     setTimeout(_initBadgeWS, 200);
   });
 
-  // TwAuthSync: close socket on logout or account-switch
-  if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
-    TwAuthSync.onSessionChange(function(info) {
-      _clearSocket();  // also cancels _sessionReinitTimer
-      _retries = 0;    // new session resets the retry counter
-      // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
-      if (info && info.jwt) {
-        var capturedJwt = info.jwt;  // capture before async delay
-        _sessionReinitTimer = setTimeout(function() {
-          _sessionReinitTimer = null;
-          _initBadgeWS(capturedJwt);
-        }, 300);
-      }
-    });
-  }
+  window._twBadgeWsStop  = _twBadgeWsStop;
+  window._twBadgeWsStart = _twBadgeWsStart;
 })();
 
 

@@ -15,32 +15,20 @@
   }
 
   function doLogout() {
-    try {
-      Object.keys(localStorage)
-        .filter(function (k) { return k.startsWith('tw_'); })
-        .forEach(function (k) { localStorage.removeItem(k); });
-    } catch (e) {}
-    window.location.href = '/login';
+    // Delegate to central twLogout() in tw_shared.js (VM-10 contract).
+    // Fallback: direct invalidation via TwAuthSync.
+    if (typeof window.twLogout === 'function') {
+      window.twLogout();
+    } else if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+      TwAuthSync.invalidateSession('logout', { redirect: '/login' });
+    } else {
+      location.replace('/login');
+    }
   }
 
   // ── Dropdown menu ──────────────────────────────────────────────
-  var _menuOpen      = false;
+  // Menu toggle is handled by initGlobalHeaderMenu() in tw_shared.js (VM-10).
   var _branchesLoaded = false; // true only after GET /company/branches succeeds
-  function toggleMenu(e) {
-    e.stopPropagation();
-    var m = document.getElementById('coMenuDropdown');
-    if (!m) return;
-    _menuOpen = !_menuOpen;
-    m.classList.toggle('open', _menuOpen);
-  }
-  document.addEventListener('click', function (e) {
-    var wrap = document.getElementById('coMenuWrap');
-    var m    = document.getElementById('coMenuDropdown');
-    if (_menuOpen && m && wrap && !wrap.contains(e.target)) {
-      _menuOpen = false;
-      m.classList.remove('open');
-    }
-  });
 
   // ── Shared: resolve numeric company id (works on /u/C0... and ?id= routes) ─
   function _resolveCoId() {
@@ -2020,7 +2008,7 @@
   // ── Expose ─────────────────────────────────────────────────────
   window.switchTab                = switchTab;
   window.doLogout                 = doLogout;
-  window.toggleMenu               = toggleMenu;
+  // toggleMenu removed — menu lifecycle handled by initGlobalHeaderMenu (VM-10)
   window.toggleFollow             = toggleFollow;
   window.openContact              = openContact;
   window.closeContact             = closeContact;
@@ -2060,9 +2048,8 @@
     var editInfoBtn   = q('editInfoBtn');   if (editInfoBtn)   editInfoBtn.addEventListener('click', openEditModal);
     var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
-    // Shared header — menu + logout
-    var coMenuBtn   = q('coMenuBtn');   if (coMenuBtn)   coMenuBtn.addEventListener('click', toggleMenu);
-    var coLogoutBtn = q('coLogoutBtn'); if (coLogoutBtn) coLogoutBtn.addEventListener('click', doLogout);
+    // Shared header — session-aware menu via initGlobalHeaderMenu (VM-10)
+    if (window.initGlobalHeaderMenu) initGlobalHeaderMenu('coMenuBtn', 'coMenuDropdown', 'coMenuDynamic');
 
     // Cover photo upload → crop overlay → upload
     var coverFileInput = q('coverFileInput');

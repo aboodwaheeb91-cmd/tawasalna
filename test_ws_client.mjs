@@ -568,7 +568,9 @@ function firePendingTimer() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Badge WS runtime tests (T24–T30)
-// Loads only the Badge WS IIFE from tw_shared.js in a minimal context
+// Loads tw_shared.js from the Badge Loader section onward (_badgeGeneration +
+// loadGlobalBadges + IIFE) so the IIFE's _twBadgeWsStop()/_badgeGeneration++
+// reference resolves to the module-scope var, not a missing symbol.
 // ─────────────────────────────────────────────────────────────────────────────
 
 console.log('\n── Badge WS runtime tests (tw_shared.js) ────────────────────────────────');
@@ -611,13 +613,19 @@ function makeBadgeContext(opts = {}) {
       const t = scheduledTimers.find(t => t.id === id);
       if (t) t.cancelled = true;
     },
+    // fetch: no-op mock — loadGlobalBadges returns early (window.TwAuthSync absent on ctx.window)
+    // but we provide it to prevent ReferenceError if any code path reaches it.
+    fetch: () => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) }),
     JSON,
     Math,
   };
 
-  // Extract only the Badge WS IIFE from tw_shared.js
+  // Load tw_shared.js from the Badge Loader section (_badgeGeneration + loadGlobalBadges)
+  // through the end of the file, which includes the Badge WS IIFE.
+  // The IIFE's _twBadgeWsStop() does `_badgeGeneration++` — this var is defined just
+  // above loadGlobalBadges and must be included for the IIFE to run without ReferenceError.
   const full = readFileSync('tw_shared.js', 'utf8');
-  const marker = '// ══ Global Real-time Badge WebSocket ══';
+  const marker = '// ══ Global Badge Loader ══';
   const start = full.indexOf(marker);
   const iifeSrc = start !== -1 ? full.slice(start) : full;
 

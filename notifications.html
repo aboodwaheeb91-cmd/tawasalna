@@ -419,19 +419,8 @@ body {
         <i data-lucide="menu" class="ico"></i>
       </button>
       <div class="sc-menu-dropdown" id="ntMenuDropdown">
-        <a href="/home" class="sc-menu-item">
-          <i data-lucide="home" class="ico-sm"></i> الرئيسية
-        </a>
-        <a href="/messages" class="sc-menu-item">
-          <i data-lucide="message-circle" class="ico-sm"></i> الرسائل
-        </a>
-        <a href="/settings" class="sc-menu-item">
-          <i data-lucide="settings" class="ico-sm"></i> الإعدادات
-        </a>
-        <div class="sc-menu-sep"></div>
-        <button class="sc-menu-item danger" data-ah-logout>
-          <i data-lucide="log-out" class="ico-sm"></i> تسجيل الخروج
-        </button>
+        <!-- Dynamic session-aware items rendered by initGlobalHeaderMenu() -->
+        <div id="ntMenuDynamic"></div>
       </div>
     </div>
   </div>
@@ -571,6 +560,7 @@ body {
 <!-- Lucide icons (local vendor — no CDN) -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/auth-sync.js"></script>
 <script>
 /* ── Auth guard ── */
 var _user = null;
@@ -580,30 +570,8 @@ if (!_user || !_user.id) { window.location.href = '/login'; }
 /* ── Init lucide icons for header ── */
 if (window.lucide) lucide.createIcons();
 
-/* ── Menu toggle (same pattern as company-profile.html) ── */
-(function(){
-  var btn = document.getElementById('ntMenuBtn');
-  var dd  = document.getElementById('ntMenuDropdown');
-  if (!btn || !dd) return;
-  btn.addEventListener('click', function(e){
-    e.stopPropagation();
-    dd.classList.toggle('open');
-  });
-  document.addEventListener('click', function(){
-    dd.classList.remove('open');
-  });
-})();
-
-/* ── Logout (data-ah-logout, same pattern as app-header.js) ── */
-document.querySelectorAll('[data-ah-logout]').forEach(function(b){
-  b.addEventListener('click', function(){
-    try {
-      Object.keys(localStorage).filter(function(k){ return k.startsWith('tw_'); })
-        .forEach(function(k){ localStorage.removeItem(k); });
-    } catch(e) {}
-    location.replace('/login');
-  });
-});
+/* ── Menu (session-aware via shared system — VM-10) ── */
+if (window.initGlobalHeaderMenu) initGlobalHeaderMenu('ntMenuBtn', 'ntMenuDropdown', 'ntMenuDynamic');
 
 /* ── Dynamic profile link in bottom nav ── */
 (function(){

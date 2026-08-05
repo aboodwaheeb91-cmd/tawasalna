@@ -325,4 +325,5 @@ if(window.lucide && lucide.createIcons) lucide.createIcons();
   if(hash === '#register-emp')      { showRegister(); selectType('emp'); }
   else if(hash === '#register-co')  { showRegister(); selectType('co');  }
   else if(hash === '#register-edu') { showRegister(); selectType('edu'); }
+  else if(hash === '#register')     { showRegister(); }
 }());

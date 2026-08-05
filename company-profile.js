@@ -20,10 +20,12 @@ function switchTab(name, el) {
 }
 
 function doLogout() {
+  // Allowlist only — never startsWith('tw_') which would destroy user preferences
+  var _LOGOUT_KEYS = ['tw_jwt', 'tw_user'];
   try {
-    Object.keys(localStorage)
-      .filter(function(k){ return k.startsWith('tw_'); })
-      .forEach(function(k){ localStorage.removeItem(k); });
+    for (var _i = 0; _i < _LOGOUT_KEYS.length; _i++) {
+      localStorage.removeItem(_LOGOUT_KEYS[_i]);
+    }
   } catch(e){}
   window.location.href = '/login';
 }

@@ -47,11 +47,11 @@
     <img src="/static/33333.svg" alt="تواصلنا">
   </div>
   <div class="sc-head-icons">
-    <a href="/notifications" class="sc-hicon sc-hicon-bare sc-notif-wrap" title="الإشعارات" aria-label="الإشعارات">
+    <a href="/notifications" class="sc-hicon sc-hicon-bare sc-notif-wrap" title="الإشعارات" aria-label="الإشعارات" data-tw-session="authenticated" hidden>
       <i data-lucide="bell" class="ico"></i>
       <span data-ah-notif-badge></span>
     </a>
-    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل">
+    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل" data-tw-session="authenticated" hidden>
       <i data-lucide="message-circle-more" class="ico"></i>
     </a>
     <div class="sc-menu-wrap" id="coMenuWrap">
@@ -59,25 +59,13 @@
         <i data-lucide="menu" class="ico"></i>
       </button>
       <div class="sc-menu-dropdown" id="coMenuDropdown">
-        <a href="/company" class="sc-menu-item">
-          <i data-lucide="search" class="ico-sm"></i> بحث عن موظفين
-        </a>
-        <a href="/messages" class="sc-menu-item">
-          <i data-lucide="message-circle" class="ico-sm"></i> الرسائل
-        </a>
-        <a href="/notifications" class="sc-menu-item">
-          <i data-lucide="bell" class="ico-sm"></i> الإشعارات
-        </a>
-        <a href="/settings" class="sc-menu-item">
-          <i data-lucide="settings" class="ico-sm"></i> الإعدادات
-        </a>
+        <!-- Owner-only static section — direct event listeners survive re-renders -->
         <button type="button" class="sc-menu-item owner-only" id="editInfoBtn">
           <i data-lucide="pencil" class="ico-sm"></i> تعديل معلومات الشركة
         </button>
-        <div class="sc-menu-sep"></div>
-        <button class="sc-menu-item danger" id="coLogoutBtn">
-          <i data-lucide="log-out" class="ico-sm"></i> تسجيل الخروج
-        </button>
+        <div class="sc-menu-sep owner-only" id="coMenuOwnerSep"></div>
+        <!-- Dynamic session-aware items rendered by initGlobalHeaderMenu() -->
+        <div id="coMenuDynamic"></div>
       </div>
     </div>
   </div>
