@@ -3760,6 +3760,7 @@
   // Row 1: per-job candidate classification (company_candidate_job_refs.candidate_status)
   // Row 2: apply_date — shown only when the candidate actually applied (not null)
   // Row 3 (pipeline only): ملاحظات الوظيفة + تحديد موعد / فتح الموعد buttons
+  // @vm-extract-begin: co-job-chip-pop
   function _showJobChipPop(chip) {
     var title         = chip.getAttribute('data-title') || '';
     var applyDate     = chip.getAttribute('data-apply-date') || '';
@@ -3899,6 +3900,7 @@
     window.removeEventListener('resize', _closeJobPop);
     _jobPopTarget = null;
   }
+  // @vm-extract-end: co-job-chip-pop
 
   // Unified helper: syncs all job-link UI on a card from a canonical links array.
   // Responsibilities:
