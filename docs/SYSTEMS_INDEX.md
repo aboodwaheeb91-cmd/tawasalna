@@ -446,7 +446,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Single shared HTTP helper for all `POST /upload/image` calls. Eliminates duplicate fetch logic across company and employee profile pages.
 **Source of Truth:** `static/shared/tw-upload.js` · `TW.uploadImage({ kind, dataUrl, jwt })` · `TW.uploadErrorText(res, fallback)` · returns `Promise<{ ok: boolean, data: object }>` · server: `server.py → _UPLOAD_KINDS` / `_validate_image_data_url()` / `_store_image()`
 **Upload security (PR-7a):** client sends `kind` only (`employee-avatar` · `employee-cover` · `company-logo` · `company-cover` · `kyc-id-front` · `kyc-selfie`); server maps kind → bucket (`avatars` for avatar/cover/logo kinds · private `kyc-docs` for KYC → response `{path}` = `kyc-docs/{name}`, never a public URL), generates `{user_id}_{kind}_{random}.{ext}`, takes user_id from the JWT only. JPEG/PNG/WebP only with magic-byte match (no SVG); data URL ≤ 7MB text / ≤ 5MB decoded (413); bad base64 / unknown kind / mime mismatch → 400; storage failure → 502, missing keys → 503 — never a data URL fallback (dev only with `TW_DEV_UPLOAD=1`). `POST /admin/logo` uses the same validation (slots `logo_wide` / `logo_tall`). **Saving an image URL** (`PUT /profile` avatar_url/cover_url · `PUT /company/profile` + `PUT /company/cover` cover_url · `POST /kyc/docs`) goes through `_validate_stored_image_url(url, kind, uid, current)`: empty = clear, unchanged current value = allowed, else must be `{SUPABASE_URL}/storage/v1/object/public/{bucket}/{uid}_{kind}_{12hex}.{jpg|png|webp}` (KYC: the private path `kyc-docs/{uid}_{kind}_{12hex}.{ext}`); `data:` only with `TW_DEV_UPLOAD=1`; otherwise 400.
-**Details:** `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)` · test `test_upload_security.py`
+**Error classes:** `TW.uploadImage` never rejects → `{ok, status, data, errorType: null|network|non_json|server}`; `TW.uploadResult(r)` (save step) · `TW.uploadError(res, fallback, stage)` · `TW.uploadFailureMessage(e, fallback)` (session / network / server text / `(رمز status)`); server base URL only via `_supabase_base_url()`.
+**Details:** `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)` · tests `test_upload_security.py` · `test_upload_client_runtime.js`
 **Do not recreate:** Do not write a new `fetch('/upload/image', ...)` call in any page module. Do not add per-page upload client functions. Load order: `tw-upload.js` must appear before any module that calls `TW.uploadImage` in the HTML file. Pages currently using it: `profile-showcase.html` (via `profile-v2.api.js`) · `company-profile.html` (via `company.main.js`) · `settings.html` (KYC). Do not send `bucket` / `filename` / `user_id` — the server ignores them. On `!ok` never save the data URL.
 
 ---
@@ -1048,4 +1049,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — PR-7a (upload security) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — fix/upload-error-classes · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

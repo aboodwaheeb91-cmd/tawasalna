@@ -101,14 +101,12 @@
       .then(function(res){
         if(!res.ok || !res.data || !res.data.url){
           // PR-7a: never save the data URL — surface the upload error
-          var err = new Error('upload failed');
-          err.userMsg = TW.uploadErrorText(res, 'حدث خطأ أثناء رفع الكفر');
-          throw err;
+          throw TW.uploadError(res, 'حدث خطأ أثناء رفع الكفر', 'upload_failed');
         }
         var coverUrl = res.data.url;
         return updateProfile(uid, { cover_url: coverUrl })
           .then(function(ur){
-            if(!ur.ok) throw new Error('profile update failed');
+            if(!ur.ok) throw TW.uploadError(ur, 'تعذّر حفظ الكفر في الملف الشخصي', 'save_failed');
             return coverUrl;
           });
       })
@@ -129,7 +127,7 @@
         }
       })
       .catch(function(e){
-        toast((e && e.userMsg) || 'حدث خطأ أثناء رفع الكفر');
+        toast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الكفر'));
       })
       .finally(function(){
         saveBtn.disabled = false;

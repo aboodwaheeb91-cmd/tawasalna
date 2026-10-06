@@ -659,15 +659,16 @@ function kycSubmitDocs(btn){
     // kyc-docs is private → the server returns the object path (data.path), never a public URL
     var bad=results.filter(function(r){return r&&(!r.ok||!r.data||!r.data.path);})[0];
     if(bad){
-      var err=new Error('upload failed');
-      err.userMsg=TW.uploadErrorText(bad,'تعذّر رفع المستندات، حاول مرة أخرى');
-      throw err;
+      throw TW.uploadError(bad,'تعذّر رفع المستندات، حاول مرة أخرى','upload_failed');
     }
     var idUrl=results[0].data.path;
     var selfieUrl=results[1]?results[1].data.path:null;
     return fetch('/kyc/docs',{method:'POST',headers:_kycAuthHdr(),
       body:JSON.stringify({id_front_url:idUrl,selfie_url:selfieUrl})
-    }).then(function(r){return r.json();});
+    }).then(TW.uploadResult).then(function(r){
+      if(!r.ok) throw TW.uploadError(r,'تعذّر حفظ المستندات، حاول مرة أخرى','save_failed');
+      return r.data;
+    });
   }).then(function(data){
     setBtnLoad(btn,false);
     if(data.status==='success'){
@@ -677,7 +678,7 @@ function kycSubmitDocs(btn){
     }
   }).catch(function(e){
     setBtnLoad(btn,false);
-    showToast((e&&e.userMsg)||'خطأ في الإرسال','error');
+    showToast(TW.uploadFailureMessage(e,'خطأ في الإرسال'),'error');
   });
 }
 
