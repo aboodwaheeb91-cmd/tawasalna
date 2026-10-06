@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR-7c — 2026-10-06 — KYC docs للأدمن (signed URL) + ترحيل صور `data:` القديمة
+
+- (أ) `GET /admin/kyc/{submission_id}/docs` (`check_admin`): روابط Supabase مؤقتة (300s) للهوية والسيلفي، بس لمسار `kyc-docs/{user_id الطلب}_{kind}_{12hex}.{ext}`؛ غير هيك `null` + سبب. `Cache-Control: no-store`، الرابط ممنوع بالـ log. `GET /admin/kyc` ما عاد يرجّع `id_front_url` / `selfie_url`. `admin.html`: زر "عرض المستندات" → modal بالصورتين + قبول/رفض.
+- (ب) `POST /admin/maintenance/migrate-data-images?dry_run=1`: ترحيل `data:` من `profiles.avatar_url` / `cover_url` · `company_profiles.cover_url` · `kyc_submissions` · `site_settings` logos إلى Storage بنفس قواعد PR-7a؛ UPDATE مشروط بالقيمة القديمة؛ غير الصالح بينترك ويتذكر؛ idempotent. `admin.html`: قسم صيانة (فحص + ترحيل بتأكيد).
+- توثيق: SYSTEMS_INDEX §23 + §29a · `docs/rules/upload.md` (بنود 8–9) · `ARCHITECTURE.md` (Admin Endpoints · KYC · Image Upload Security Contract) · `docs/FUTURE_ROADMAP.md` (شيل P0 KYC + بند تنظيف ملفات Storage اليتيمة). اختبار: `test_kyc_docs_migration.py`.
+
 ## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
 
 - السيرفر: `kind` → bucket map ثابت (`_UPLOAD_KINDS`)، اسم ملف يولّده السيرفر، user_id من الـ JWT فقط، JPEG/PNG/WebP + فحص magic bytes (لا SVG)، حدود حجم 7MB نص / 5MB، لا fallback لـ data URL بالإنتاج (502/503؛ dev فقط بـ `TW_DEV_UPLOAD=1`). `/admin/logo` نفس الفحص.

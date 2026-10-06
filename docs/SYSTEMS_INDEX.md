@@ -387,7 +387,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Users submit documents for credential verification; admin approves/rejects; verified badge shown on profile.
 **Source of Truth:** `verify_requests` table (status: pending/approved/rejected) · `profiles.is_verified`
 **Details:** `ARCHITECTURE.md §52` · `docs/rules/project-reference.md → Key Workflows → Credential Verification Flow`
-**Do not recreate:** Admin approval endpoint is `PUT /admin/verify/{req_id}`. Do not auto-approve without admin review.
+**Admin document viewing (PR-7c):** `GET /admin/kyc/{submission_id}/docs` (`check_admin`) → short-lived (300s) Supabase signed URLs for ID + selfie, `Cache-Control: no-store`; only paths exactly `kyc-docs/{user_id of the submission}_{kind}_{12hex}.{ext}` are signed, anything else → `url: null` + `reason`. `GET /admin/kyc` never returns `id_front_url` / `selfie_url`. `admin.html` → "عرض المستندات" modal before approve/reject. Spec: `ARCHITECTURE.md → Image Upload Security Contract`.
+**Do not recreate:** Admin approval endpoint is `PUT /admin/verify/{req_id}`. Do not auto-approve without admin review. Do not expose KYC paths in list endpoints, log a signed URL, or make `kyc-docs` public.
 
 ---
 
@@ -446,7 +447,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Single shared HTTP helper for all `POST /upload/image` calls. Eliminates duplicate fetch logic across company and employee profile pages.
 **Source of Truth:** `static/shared/tw-upload.js` · `TW.uploadImage({ kind, dataUrl, jwt })` · `TW.uploadErrorText(res, fallback)` · returns `Promise<{ ok: boolean, data: object }>` · server: `server.py → _UPLOAD_KINDS` / `_validate_image_data_url()` / `_store_image()`
 **Upload security (PR-7a):** client sends `kind` only (`employee-avatar` · `employee-cover` · `company-logo` · `company-cover` · `kyc-id-front` · `kyc-selfie`); server maps kind → bucket (`avatars` for avatar/cover/logo kinds · private `kyc-docs` for KYC → response `{path}` = `kyc-docs/{name}`, never a public URL), generates `{user_id}_{kind}_{random}.{ext}`, takes user_id from the JWT only. JPEG/PNG/WebP only with magic-byte match (no SVG); data URL ≤ 7MB text / ≤ 5MB decoded (413); bad base64 / unknown kind / mime mismatch → 400; storage failure → 502, missing keys → 503 — never a data URL fallback (dev only with `TW_DEV_UPLOAD=1`). `POST /admin/logo` uses the same validation (slots `logo_wide` / `logo_tall`). **Saving an image URL** (`PUT /profile` avatar_url/cover_url · `PUT /company/profile` + `PUT /company/cover` cover_url · `POST /kyc/docs`) goes through `_validate_stored_image_url(url, kind, uid, current)`: empty = clear, unchanged current value = allowed, else must be `{SUPABASE_URL}/storage/v1/object/public/{bucket}/{uid}_{kind}_{12hex}.{jpg|png|webp}` (KYC: the private path `kyc-docs/{uid}_{kind}_{12hex}.{ext}`); `data:` only with `TW_DEV_UPLOAD=1`; otherwise 400.
-**Details:** `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)` · test `test_upload_security.py`
+**Legacy `data:` migration (PR-7c):** `POST /admin/maintenance/migrate-data-images?dry_run=1` (`check_admin`, default dry run) moves base64 images in `profiles.avatar_url` / `profiles.cover_url` / `company_profiles.cover_url` / `kyc_submissions` / `site_settings` logos to Storage with the same helpers; conditional `UPDATE … WHERE col = old`; invalid values left + reported; idempotent; counts only in the response. KYC admin viewing → §23.
+**Details:** `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)` · tests `test_upload_security.py` · `test_kyc_docs_migration.py`
 **Do not recreate:** Do not write a new `fetch('/upload/image', ...)` call in any page module. Do not add per-page upload client functions. Load order: `tw-upload.js` must appear before any module that calls `TW.uploadImage` in the HTML file. Pages currently using it: `profile-showcase.html` (via `profile-v2.api.js`) · `company-profile.html` (via `company.main.js`) · `settings.html` (KYC). Do not send `bucket` / `filename` / `user_id` — the server ignores them. On `!ok` never save the data URL.
 
 ---
@@ -1048,4 +1050,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — PR-7a (upload security) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — PR-7c (KYC docs + data: migration) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

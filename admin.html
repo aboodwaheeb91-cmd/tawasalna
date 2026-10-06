@@ -199,6 +199,16 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
       <button onclick="uploadLogo(this)" style="width:100%;padding:7px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.72rem;font-weight:700;cursor:pointer">⬆️ رفع الشعار</button>
     </div>
 
+    <!-- ═══ القسم 4: صيانة — ترحيل صور data: القديمة (PR-7c) ═══ -->
+    <div class="logo-card" style="margin-bottom:10px">
+      <div class="sec-hdr" style="margin-bottom:6px">🧹 صيانة — صور قديمة داخل قاعدة البيانات</div>
+      <div style="display:flex;gap:6px">
+        <button class="ab" style="flex:1" onclick="scanDataImages(this)">🔍 فحص</button>
+        <button class="ab" style="flex:1;color:#f59e0b" onclick="openMigrateConfirm()">⬆️ ترحيل</button>
+      </div>
+      <div id="migReport" style="margin-top:8px;font-size:.7rem;color:var(--t2)"></div>
+    </div>
+
     <!-- ═══ التبويبات ═══ -->
     <!-- ── Navigation Tabs ── -->
 <div class="tabs" style="grid-template-columns:repeat(6,1fr)">
@@ -281,6 +291,31 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <div style="display:flex;gap:8px">
       <button class="mbtn mbtn-ok" onclick="sendMsg()">إرسال</button>
       <button class="mbtn mbtn-no" onclick="closeMsgModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- KYC DOCS MODAL (PR-7c) — signed URLs only, never cached -->
+<div class="modal-ov" id="kycDocsModal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">🪪 مستندات التحقق</div>
+    <div id="kycDocsBody" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="mbtn mbtn-ok" id="kycDocsApprove">✅ قبول</button>
+      <button class="mbtn" style="background:rgba(239,68,68,.12);color:#f87171" id="kycDocsReject">❌ رفض</button>
+      <button class="mbtn mbtn-no" onclick="closeKYCDocs()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- MIGRATE CONFIRM MODAL (PR-7c) -->
+<div class="modal-ov" id="migConfirmModal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">⬆️ ترحيل الصور إلى التخزين</div>
+    <div style="font-size:.75rem;color:var(--t2);margin-bottom:12px">سيتم رفع صور data: المخزّنة داخل قاعدة البيانات إلى التخزين واستبدالها بروابط. القيم غير الصالحة تبقى كما هي. متابعة؟</div>
+    <div style="display:flex;gap:8px">
+      <button class="mbtn mbtn-ok" onclick="runMigrateDataImages(this)">ترحيل</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('migConfirmModal').style.display='none'">إلغاء</button>
     </div>
   </div>
 </div>
@@ -488,6 +523,7 @@ function renderVerify(list){
         '<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+twEscHtml(k.full_name)+'</div>'+
         '<div style="font-size:.68rem;color:var(--t3)">'+twEscHtml(k.email)+'</div></div>'+
         '<div style="display:flex;gap:5px">'+
+        '<button class="ab" style="font-size:.68rem" onclick="openKYCDocs('+Number(k.id)+','+Number(k.user_id)+')">🪪 عرض المستندات</button>'+
         '<button class="ab" style="background:rgba(0,200,150,.1);color:#00c896;font-size:.68rem" onclick="approveKYC('+k.user_id+')">✅ قبول</button>'+
         '<button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;font-size:.68rem" onclick="rejectKYC('+k.user_id+')">❌ رفض</button>'+
         '</div></div>'
@@ -556,6 +592,7 @@ function renderKYC(list){
       <div><div class="u-nm">${twEscHtml(k.full_name)||'—'}</div><div class="u-em">${twEscHtml(k.email)||'—'} · ${twEscHtml(k.step)||'—'}</div></div>
       <span class="statu ${k.step==='review'?'pending':'active'}">${k.step==='review'?'قيد المراجعة':k.step==='approved'?'موافق':'رفض'}</span>
       <div style="display:flex;gap:5px">
+        <button class="ab" onclick="openKYCDocs(${Number(k.id)},${Number(k.user_id)})">🪪 عرض المستندات</button>
         <button class="ab" style="color:#00c896" onclick="approveKYC(${k.user_id})">✅</button>
         <button class="ab" style="color:#f87171" onclick="rejectKYC(${k.user_id})">❌</button>
       </div>
@@ -699,6 +736,72 @@ async function rejectKYC(userId){
     showToast('تم رفض KYC');
     loadKYC();
   }catch(e){showToast('خطأ','error');}
+}
+
+// ── KYC documents (PR-7c) — GET /admin/kyc/{id}/docs → short-lived signed URLs ──
+var _kycDocReasons={missing:'لا يوجد مستند',legacy_data_url:'قيمة قديمة (data:)',legacy_url:'رابط قديم',
+  invalid_path:'مسار غير صالح',sign_failed:'تعذّر إنشاء رابط مؤقت',storage_unavailable:'التخزين غير مُعد'};
+function _kycDocCell(title,doc,prefix){
+  var url=doc&&doc.url;
+  var ok=typeof url==='string'&&/^https:\/\//.test(prefix)&&url.indexOf(prefix)===0;
+  var inner=ok
+    ? '<a href="'+twEscAttr(url)+'" target="_blank" rel="noopener noreferrer"><img src="'+twEscAttr(url)+'" referrerpolicy="no-referrer" alt="'+twEscAttr(title)+'" style="width:100%;max-height:220px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,.04)"></a>'
+    : '<div class="tw-empty" style="padding:20px 6px"><div class="tw-empty-title">'+twEscHtml(_kycDocReasons[doc&&doc.reason]||'غير متاح')+'</div></div>';
+  return '<div><div style="font-size:.7rem;color:var(--t3);margin-bottom:4px">'+twEscHtml(title)+'</div>'+inner+'</div>';
+}
+async function openKYCDocs(subId,userId){
+  var body=document.getElementById('kycDocsBody');
+  body.innerHTML='<div class="tw-empty" style="grid-column:1/-1"><div class="tw-empty-title">جاري التحميل...</div></div>';
+  document.getElementById('kycDocsApprove').onclick=function(){closeKYCDocs();approveKYC(userId);};
+  document.getElementById('kycDocsReject').onclick=function(){closeKYCDocs();rejectKYC(userId);};
+  document.getElementById('kycDocsModal').style.display='flex';
+  try{
+    var r=await fetch('/admin/kyc/'+Number(subId)+'/docs',{headers:adminHeaders(),cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    var prefix=(d.storage_base||'')+'/storage/v1/object/sign/kyc-docs/';
+    var docs=d.docs||{};
+    body.innerHTML=_kycDocCell('الهوية',docs.id_front,prefix)+_kycDocCell('صورة شخصية',docs.selfie,prefix);
+  }catch(e){
+    body.innerHTML='<div class="tw-empty" style="grid-column:1/-1"><div class="tw-empty-title">تعذّر تحميل المستندات</div></div>';
+  }
+}
+function closeKYCDocs(){
+  document.getElementById('kycDocsModal').style.display='none';
+  document.getElementById('kycDocsBody').innerHTML='';
+}
+
+// ── Maintenance: migrate legacy data: images (PR-7c) ──
+var _migCols={'profiles.avatar_url':'صورة الحساب / الشعار','profiles.cover_url':'غلاف الموظف',
+  'company_profiles.cover_url':'غلاف الشركة','kyc_submissions.id_front_url':'KYC هوية',
+  'kyc_submissions.selfie_url':'KYC سيلفي','site_settings.logo':'شعار الموقع'};
+function _renderMigReport(d){
+  var rep=(d&&d.report)||{};
+  var rows=Object.keys(rep).map(function(c){
+    var v=rep[c]||{}, reasons=v.reasons||{};
+    var rs=Object.keys(reasons).map(function(k){return twEscHtml(k)+': '+Number(reasons[k]);}).join(' · ');
+    return '<div>'+twEscHtml(_migCols[c]||c)+' — موجود '+Number(v.found||0)+
+      ' · '+(d.dry_run?('قابل للترحيل '+Number(v.would_migrate||0)):('تم ترحيله '+Number(v.migrated||0)))+
+      ' · متروك '+Number(v.skipped||0)+(rs?' ('+rs+')':'')+'</div>';
+  }).join('');
+  document.getElementById('migReport').innerHTML=(d.dry_run?'<div style="color:var(--t3)">فحص فقط — لم يتم أي تعديل</div>':'')+rows;
+}
+async function _callMigrate(dry,btn){
+  if(btn) btn.disabled=true;
+  try{
+    var r=await fetch('/admin/maintenance/migrate-data-images?dry_run='+(dry?1:0),{method:'POST',headers:adminHeaders()});
+    var d=await r.json().catch(function(){return {};});
+    if(!r.ok) throw new Error((typeof d.error==='string'&&d.error)||'HTTP '+r.status);
+    _renderMigReport(d);
+    showToast(dry?'تم الفحص':'تم الترحيل ✅');
+  }catch(e){showToast(e.message||'خطأ','error');}
+  finally{ if(btn) btn.disabled=false; }
+}
+function scanDataImages(btn){ _callMigrate(true,btn); }
+function openMigrateConfirm(){ document.getElementById('migConfirmModal').style.display='flex'; }
+function runMigrateDataImages(btn){
+  document.getElementById('migConfirmModal').style.display='none';
+  _callMigrate(false,null);
 }
 
 async function sendMsg(){

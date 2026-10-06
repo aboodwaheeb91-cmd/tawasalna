@@ -4799,7 +4799,8 @@ CREATE TABLE verify_requests (
 | POST | `/kyc/phone/verify` | JWT | يتحقق من الـ OTP |
 | POST | `/kyc/docs` | JWT | رفع صور الهوية |
 | POST | `/verify-request` | JWT | طلب توثيق بيانة فردية |
-| GET | `/admin/kyc` | Admin | قائمة كل الطلبات |
+| GET | `/admin/kyc` | Admin | قائمة كل الطلبات — بدون `id_front_url` / `selfie_url` (PR-7c) |
+| GET | `/admin/kyc/{submission_id}/docs` | Admin | روابط مؤقتة (signed URL، 300s) للهوية والسيلفي — PR-7c → Image Upload Security Contract |
 | PUT | `/admin/kyc/{user_id}/approve` | Admin | موافقة + تفعيل الشارة |
 | PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب |
 | GET | `/admin/verify-requests` | Admin | طلبات التوثيق الفردية |
@@ -6240,7 +6241,9 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | POST | `/admin/message` | `admin_send_message` | Send message to user |
 | GET | `/admin/verify-requests` | `admin_verify_requests` | List verification requests |
 | PUT | `/admin/verify/{req_id}` | `admin_update_verify` | Approve / reject verification |
-| GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions |
+| GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions — never `id_front_url` / `selfie_url` (PR-7c) |
+| GET | `/admin/kyc/{submission_id}/docs` | `admin_kyc_docs` | Short-lived Supabase signed URLs for the submission's ID + selfie (PR-7c); `Cache-Control: no-store` |
+| POST | `/admin/maintenance/migrate-data-images?dry_run=1` | `admin_migrate_data_images` | Move legacy `data:` images to Storage (PR-7c); `dry_run=1` default = count only |
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
 | PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
 | GET | `/admin/jobs` | `admin_list_jobs` | List jobs |
@@ -6286,9 +6289,11 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | الحجم | طول الـ data URL > 7MB → **413** قبل الـ decode · بعد الـ decode > 5MB → **413** · base64 غير صالح (`validate=True`) → **400**. |
 | فشل التخزين | Supabase رجّع غير 200/201 أو exception → **502** برسالة عامة؛ مفاتيح Supabase ناقصة → **503**. التفاصيل بالـ log فقط (ممنوع `str(e)` بالـ response). **ممنوع أي fallback لـ data URL بالإنتاج.** |
 | وضع التطوير | فقط `TW_DEV_UPLOAD=1` **و** مفاتيح Supabase ناقصة → يرجّع الـ data URL مع `dev_mode: true`. غياب المفاتيح وحده ≠ وضع تطوير. |
-| bucket خاص (KYC) | `kyc-docs` خاص: الرد `{status, path}` بدل `url`، والمحفوظ بالداتا هو مسار الكائن `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بس — ممنوع رابط `/object/public/` لـ KYC (ما بيشتغل). عرض الأدمن برابط مؤقت (signed URL) = `docs/FUTURE_ROADMAP.md` P0. |
+| bucket خاص (KYC) | `kyc-docs` خاص: الرد `{status, path}` بدل `url`، والمحفوظ بالداتا هو مسار الكائن `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بس — ممنوع رابط `/object/public/` لـ KYC (ما بيشتغل). عرض الأدمن برابط مؤقت → صف "عرض مستندات KYC" تحت. |
 | حفظ الرابط | كل endpoint بيحفظ رابط صورة بيمرّ بـ `_validate_stored_image_url(url, kind, uid, current)`: فاضي/`null` = حذف (مسموح) · نفس القيمة المحفوظة حالياً = مسموح (صور قديمة) · غير هيك لازم يكون بالضبط `{SUPABASE_URL}/storage/v1/object/public/{bucket الـ kind}/{uid}_{kind}_{12 hex}.{jpg\|png\|webp}` (بدون `../` أو query)؛ لـ KYC المسار الخاص `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بدل الرابط العام · `data:` مرفوض إلا بـ `TW_DEV_UPLOAD=1` · غير هيك **400**. المستعملين: `PUT /profile/{id}` (`avatar_url` = `employee-avatar`، أو `company-logo` لحساب `co` · `cover_url` = `employee-cover`) · `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`) · `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). |
 | الواجهة | `TW.uploadImage({ kind, dataUrl, jwt })`؛ عند `!ok` المستدعي يعرض `TW.uploadErrorText(res, fallback)` عبر toast الصفحة ولا يحفظ الـ data URL أبداً. |
+| عرض مستندات KYC (PR-7c) | `GET /admin/kyc/{submission_id}/docs` (`check_admin`) → `{docs:{id_front,selfie:{url,reason}}, storage_base, expires_in:300}` + `Cache-Control: no-store`. بيوقّع (`POST {SUPABASE_URL}/storage/v1/object/sign/kyc-docs/{name}`, `expiresIn` 300) بس المسار اللي بيطابق بالضبط `kyc-docs/{user_id الطلب}_{kind}_{12 hex}.{ext}`؛ غير هيك `url: null` + `reason` (`missing` · `legacy_data_url` · `legacy_url` · `invalid_path` · `sign_failed` · `storage_unavailable`). الـ signed URL ممنوع بالـ log. `GET /admin/kyc` ما بيرجّع `id_front_url` / `selfie_url`. `admin.html`: زر "عرض المستندات" → modal بالصورتين قبل القبول/الرفض؛ الرابط لازم يبدأ بـ `{storage_base}/storage/v1/object/sign/kyc-docs/` قبل `src` + `twEscAttr`. الـ SW ما بيخزّنها (cross-origin خارج الـ allowlist). |
+| ترحيل `data:` القديمة (PR-7c) | `POST /admin/maintenance/migrate-data-images?dry_run=1` (`check_admin`؛ الافتراضي dry run = عدّ فقط بدون رفع أو كتابة). الأعمدة: `profiles.avatar_url` (`co` → `company-logo`، غيره `employee-avatar`) · `profiles.cover_url` (`employee-cover`) · `company_profiles.cover_url` (`company-cover`) · `kyc_submissions.id_front_url` / `selfie_url` (`kyc-*` → مسار خاص) · `site_settings` `logo_wide` / `logo_tall` (bucket `site`). لكل قيمة: `_validate_image_data_url` → `_store_image` (نفس أسماء PR-7a) → `UPDATE … WHERE العمود = القيمة القديمة RETURNING 1` (تغيّرت بالنص → `changed_concurrently`، ما بنكتب فوقها). غير صالح → يبقى كما هو (`invalid_image` / `too_large`). فشل الرفع → `storage_failed`. idempotent. الرد: `{dry_run, report:{<عمود>:{found, would_migrate, migrated, skipped, reasons}}}` — بدون محتوى أو روابط. التنفيذ الفعلي بدون مفاتيح Supabase → 503. `admin.html`: قسم صيانة (فحص + ترحيل بتأكيد modal). |
 
 ```
 ❌ bucket أو filename أو user_id من العميل
@@ -6296,8 +6301,10 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 ❌ رجوع data URL كـ "success" عند فشل التخزين (إنتاج)
 ❌ endpoint جديد بيحفظ رابط صورة بدون `_validate_stored_image_url`
 ❌ str(e) أو رد Supabase بالـ response
+❌ signed URL بالـ log أو بـ GET /admin/kyc · رابط KYC عام
+❌ UPDATE ترحيل بدون شرط القيمة القديمة
 ```
-Test: `python -m pytest test_upload_security.py -q`.
+Test: `python -m pytest test_upload_security.py -q` · `python -m pytest test_kyc_docs_migration.py -q` (PR-7c).
 
 ### Safe Rendering (PR security/admin-safe-rendering — §54)
 
