@@ -734,8 +734,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
 | `/settings` | `settings.html` | All |
+| `/appointments` | `appointments.html` | All |
+| `/appointment-room` | `appointment-room.html` | All |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | admin |
-| `/admin` | `admin-view.html` | admin |
+| `/admin-view?id=` · `/admin-view.html?id=` | `admin-view.html` (no admin session → "افتح لوحة الإدارة" message, back = `history.back()`; never a hard-coded slug) | admin |
+
+> Missing page file → `read_html()` raises **404** (never 200 with an error body). No served HTML/JS/CSS contains the admin slug (`tw-ctrl-…`, only the fixed `/tw-ctrl-login` endpoint); no page loads scripts from a CDN — Lucide is `/static/vendor/lucide/lucide.min.js` everywhere. Test: `python test_page_shell_security.py`.
 
 ---
 
@@ -1056,7 +1060,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 54. Safe Rendering / Output Escaping
 **Purpose:** Shared HTML escaping helpers to prevent stored XSS across all pages.
 **Source of Truth:** `tw_shared.js` → `twEscAttr(v)` (canonical implementation) · `twEscHtml(v)` (alias for `twEscAttr`). Both exposed on `window.` — the old `sanitize()` alias was deleted (PR-4); do not re-add it.
-**Image URL (PR-7b):** `twSafeImageUrl(url)` is the only image-URL check (`https://` or `/`-relative — not `//`, not `/\`; javascript: / data: / vbscript: / http: → `''`) · `twCssUrl(url)` for `background-image` (validated + CSS-escaped). Fixed in `profile-v2`: `.sc-avatar`, followers modal `.sc-fl-avatar` + href, employee cover. **Known debt:** 8 local escaping functions on image paths (messages / company / profile-v2) → DS-IMAGE phase C (§57).
+**Image URL (PR-7b):** `twSafeImageUrl(url)` is the only image-URL check (`https://` or `/`-relative — not `//`, not `/\`; javascript: / data: / vbscript: / http: → `''`) · `twCssUrl(url)` for `background-image` (validated + CSS-escaped). Fixed in `profile-v2`: `.sc-avatar`, followers modal `.sc-fl-avatar` + href, employee cover. `static/app-header.js` avatar (`img.src = twSafeImageUrl(...)`, link `twAccountHref`; page without `tw_shared.js` → initials + `/login`, no local copies). **Known debt:** 8 local escaping functions on image paths (messages / company / profile-v2) → DS-IMAGE phase C (§57).
 **Details:** `ARCHITECTURE.md → Safe Rendering (§54)` · `CLAUDE.md → Safe Rendering / Output Escaping Rules` · `docs/design-system/IMAGE-SYSTEM.md` IMG-08
 **Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. Image URLs go through `twSafeImageUrl` (not a new inline regex; the legacy `/^(https?:\/\/|\/(?!\/))/` in admin pages is not to be copied). `sanitize` is deprecated; do not use in new code.
 
@@ -1072,4 +1076,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — PR-7b (DS-IMAGE) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — fix/page-shell-security · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

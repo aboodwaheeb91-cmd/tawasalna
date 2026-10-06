@@ -19,10 +19,16 @@ function initAppHeader(user) {
   var initial = (user.full_name || user.name || '?').charAt(0).toUpperCase();
 
   /* Avatar — show only for authenticated users; hidden by default in HTML */
+  /* twSafeImageUrl / twAccountHref come from tw_shared.js (§54 / Auth Gateway rule 3) —
+     never copied here. Called at init time, so load order vs tw_shared.js does not matter.
+     Page without tw_shared.js (job-detail: no [data-ah-av] in its HTML) → fail-closed:
+     no image (initials), account link → /login (the gateway resolves an active session). */
+  var safeAvatar = (typeof twSafeImageUrl === 'function') ? twSafeImageUrl(user.avatar_url) : '';
+  var accountHref = (typeof twAccountHref === 'function') ? twAccountHref(user) : '/login';
   document.querySelectorAll('[data-ah-av]').forEach(function(av) {
-    if (user.avatar_url) {
+    if (safeAvatar) {
       var img = document.createElement('img');
-      img.src = user.avatar_url;
+      img.src = safeAvatar;
       img.alt = '';
       av.textContent = '';
       av.appendChild(img);
@@ -30,13 +36,7 @@ function initAppHeader(user) {
       av.textContent = initial;
     }
     if (av.tagName === 'A') {
-      if (user.user_type === 'emp') {
-        av.href = user.tw_id ? '/u/' + user.tw_id : '/profile';
-      } else if (user.user_type === 'co') {
-        av.href = user.tw_id ? '/u/' + user.tw_id : '/company-profile';
-      } else if (user.user_type === 'edu') {
-        av.href = '/edu-profile';
-      }
+      av.href = accountHref;
     }
     av.title = user.full_name || '';
     av.style.display = '';

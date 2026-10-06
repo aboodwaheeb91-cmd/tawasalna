@@ -11,6 +11,16 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## fix/page-shell-security — 2026-10-06 — Page Shell أمني قبل PR-8/B
+
+- `admin-view.html`: شيل HTML محشور جوّا `<!DOCTYPE` (كان بيحط الصفحة بـ quirks mode — قسمين ميتين ما بينادوا) · شيل slug الأدمن المكتوب بالكود (`/tw-ctrl-…`) والـ redirect لـ `admin.html` المحذوف → رسالة "افتح لوحة الإدارة" + `history.back()`. (الـ slug القديم موجود بتاريخ git — انغيّر بالإنتاج.)
+- `index.html` + `profile-showcase.html`: Lucide من unpkg → `/static/vendor/lucide/lucide.min.js`.
+- `static/app-header.js`: `img.src` → `twSafeImageUrl` (§54) · الرابط → `twAccountHref` (بدل `/profile` · `/company-profile` · `/edu-profile`) · بدون `tw_shared.js` (job-detail) → حرف أول + `/login`.
+- `server.py read_html`: ملف ناقص → 404 بدل 200 + "الصفحة غير موجودة: {name}".
+- SYSTEMS_INDEX §H (`/admin` → `/admin-view` + صفحات المواعيد) · §54 · ARCHITECTURE Safe Rendering.
+- تغيير سلوك: admin-view بدون جلسة أدمن ما عاد يحوّل — بيعرض رسالة. صفحة ناقصة = 404 JSON. رابط أفاتار الهيدر مش https / `/` → حرف أول.
+- اختبار: `python test_page_shell_security.py` (جديد، 7).
+
 ## PR-7b — 2026-10-06 — إصلاح §54 بعرض الصور + تأسيس DS-IMAGE (F38)
 
 - (أ) أمني — السبب الجذري: `profile-v2` بيحط روابط الصور بـ `esc()` المحلي (escaping HTML، ما بيهرّب `"` ومش تحقق رابط): `.sc-avatar` (`img.src = esc(url)`) · مودال المتابعين `.sc-fl-avatar` + href `/u/{tw_id}` (innerHTML — كسر attribute ممكن) · غلاف الموظف (`'url(' + esc(url) + ')'` — بدون تحقق ولا تهريب CSS؛ وبعد الرفع بدون أي escaping). الإصلاح: `twSafeImageUrl` (https أو `/` نسبي فقط) + `twCssUrl` بـ `tw_shared.js`؛ الأماكن الأربعة صارت عليهم (+ `twEscAttr`). الـ 8 دوال المحلية = دين معروف (IMG-12).
