@@ -3772,8 +3772,8 @@ check(
     and "[data-badge=\"notif\"],[data-ah-notif-badge]').forEach(function(el) {" in _lgb_badge
 )
 check(
-    "154f. app-header.css has .ah-bell--active glow styling for bell icon",
-    'ah-bell--active' in _ah_css and '.ico' in _ah_css[_ah_css.find('ah-bell--active'):_ah_css.find('ah-bell--active') + 100]
+    "154f. dead .ah-bell--active removed from app-header.css (no JS adds it since VM-10 #532)",
+    'ah-bell--active' not in _ah_css
 )
 check(
     "154g. company-profile.html bell has data-ah-notif-badge element",
@@ -3863,11 +3863,11 @@ check(
 )
 check(
     "155j. loadGlobalBadges sets badge textContent from API data — not innerHTML",
-    "el.textContent = count > 9 ? '9+' : String(count);" in _lgb_badge and 'innerHTML' not in _lgb_badge
+    "el.textContent = twNotifBadgeLabel(count);" in _lgb_badge and 'innerHTML' not in _lgb_badge
 )
 check(
-    "155k. loadGlobalBadges caps the count label ('9+')",
-    "count > 9 ? '9+'" in _lgb_badge
+    "155k. notifications badge capped at '99+' via the single helper twNotifBadgeLabel",
+    "function twNotifBadgeLabel(count)" in _tws_badge and "n > 99 ? '99+'" in _tws_badge
 )
 check(
     "155l. loadGlobalBadges reads the count from the API response (d.unread) — not localStorage",
@@ -9067,15 +9067,21 @@ check("185-08. per_job_accepted is conditional on job_id filter param",
 # 185-09: _savedCardHTML shows co-cand-job-chips instead of raw job-ref ID
 _scard185 = (_main185.split('function _savedCardHTML')[1].split('// Wire textarea')[0]
              if 'function _savedCardHTML' in _main185 else '')
+# Chip markup lives in the shared builders (_buildChip / _jobChipSectionsHTML) used by both
+# _savedCardHTML and _renderCandidateJobLinksUI — candidate-job-status-picker PR.
+_chipsec185 = (_main185.split('function _buildChip(')[1].split('function _jobStatusSectionHTML(')[0]
+               if 'function _buildChip(' in _main185 else '')
 check("185-09. _savedCardHTML shows co-cand-job-chips not raw job_id",
-      'co-cand-job-chips' in _scard185
-      and 'co-cand-job-chip' in _scard185
-      and 'مرتبط بوظيفة #' not in _scard185)
+      '_jobChipSectionsHTML(jobLinks)' in _scard185
+      and 'co-cand-job-chips' in _chipsec185
+      and 'co-cand-job-chip' in _chipsec185
+      and 'مرتبط بوظيفة #' not in _scard185 + _chipsec185)
 
 # 185-10: _savedCardHTML uses item.job_titles array
 check("185-10. _savedCardHTML sources job chips from item.job_links (refs) — PR #481",
       'Array.isArray(item.job_links) ? item.job_links : []' in _scard185
-      and 'co-cand-job-chip' in _scard185)
+      and '_jobChipSectionsHTML(jobLinks)' in _scard185
+      and 'co-cand-job-chip' in _chipsec185)
 
 # 185-11: _renderApplicants builds savedCtx for other_job_titles
 _rappl185 = (_main185.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0]
@@ -9600,6 +9606,11 @@ _card_html484 = (
     _cand_iife484.split('function _savedCardHTML(')[1].split('\n  function ')[0]
     if 'function _savedCardHTML(' in _cand_iife484 else ''
 )
+# Chip builders shared by _savedCardHTML + _renderCandidateJobLinksUI (candidate-job-status-picker PR)
+_chip_html484 = (
+    _cand_iife484.split('function _buildChip(')[1].split('function _jobStatusSectionHTML(')[0]
+    if 'function _buildChip(' in _cand_iife484 else ''
+)
 
 # Extract _onSavedClick body
 _on_click484 = (
@@ -9632,14 +9643,14 @@ check("484-04. popover no longer reads card data-status; per-job status from chi
 
 # 484-05: +N is a <button class="co-cand-chip-more-btn"> — not a <span>
 check("484-05. +N more button is a <button class=co-cand-chip-more-btn> not a <span>",
-      'co-cand-chip-more-btn' in _card_html484
-      and '<button class="co-cand-chip-more-btn"' in _card_html484
-      and 'co-cand-job-chip--more' not in _card_html484)
+      '_jobChipSectionsHTML(' in _card_html484
+      and '<button class="co-cand-chip-more-btn"' in _chip_html484
+      and 'co-cand-job-chip--more' not in _chip_html484)
 
 # 484-06: clicking +N removes co-cand-job-chip--hidden class from hidden chips; _savedCardHTML
 #         adds co-cand-job-chip--hidden to chips at index >= 3
 check("484-06. hidden chips use co-cand-job-chip--hidden; _onSavedClick reveals them via classList.remove",
-      'co-cand-job-chip--hidden' in _card_html484
+      'co-cand-job-chip--hidden' in _chip_html484
       and "classList.remove('co-cand-job-chip--hidden')" in _on_click484
       and "co-cand-chip-more-btn" in _on_click484)
 
@@ -10119,8 +10130,9 @@ check("488-06. finally removes data-job-status-saving and re-enables all co-dp-b
 check("488-07. _renderCandidateJobLinksUI reads data-job-status-saving and builds locked pickers when locked",
       "data-job-status-saving" in _render488
       and 'isLocked' in _render488
-      and 'locked: isLocked' in _render488
-      and 'co-cand-job-status-dp' in _render488)
+      and '_jobStatusSectionHTML(cidStr, links, { locked: isLocked })' in _render488
+      and "_dpHTML('co-cand-job-status-dp'" in _main488
+      and 'locked: !!(meta && meta.locked)' in _main488)
 
 # 488-08: catch block also re-renders from data-job-links (not sel)
 check("488-08. catch block re-renders from card data-job-links — handles detached sel safely",
@@ -10252,9 +10264,9 @@ check("489-06. Failure path re-renders from data-job-links without mutating it",
 
 # 489-07: new job link gets a picker immediately (renderCandidateJobLinksUI builds pickers)
 check("489-07. _renderCandidateJobLinksUI builds co-cand-job-status-dp pickers for new job links",
-      'co-cand-job-status-dp' in _render489
-      and '_dpHTML' in _render489
-      and 'jsOpts2' in _render489)
+      '_jobStatusSectionHTML(' in _render489
+      and "_dpHTML('co-cand-job-status-dp'" in _main489
+      and 'jsOpts' in _main489)
 
 # 489-08: SYSTEMS_INDEX §20c describes card-level lock + rollback from data-job-links + no native select
 check("489-08. SYSTEMS_INDEX §20c documents card-level lock, data-job-links rollback, no native select",

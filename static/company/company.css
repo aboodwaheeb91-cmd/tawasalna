@@ -2498,7 +2498,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cjp-no-app { color:var(--t3,#6b7686); font-style:italic; }
 .co-cjp-cand-job-st { color:#60a5fa; }
 
-/* Per-job candidate status section in manage panel */
+/* Per-job candidate status section on the saved card (§20c — _jobStatusSectionHTML) */
 .co-cand-job-status-list {
   display:flex; flex-direction:column; gap:6px; margin-bottom:10px;
 }
@@ -2512,7 +2512,10 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   text-overflow:ellipsis; max-width:55%;
 }
 /* Per-job status custom picker — compact variant inside .co-cand-job-status-row */
-.co-cand-manage-panel .co-cand-job-status-dp { min-width:0; width:auto; max-width:44%; }
+.co-cand-job-status-row .co-cand-job-status-dp { min-width:0; width:auto; max-width:44%; flex-shrink:0; border-radius:8px; }
+/* Status palette: the wrap carries .co-cand-status--* (same colors as chips/badges); the
+   translucent .co-dp-btn shows the tint and inherits the color. No class = غير مصنّف (neutral). */
+.co-cand-job-status-dp[class*="co-cand-status--"] .co-dp-btn { color:inherit; font-weight:700; }
 .co-cand-job-status-dp .co-dp-btn { padding:3px 8px; font-size:.72rem; }
 .co-cand-job-status-dp .co-dp-val { font-size:.72rem; }
 .co-cand-job-status-dp .co-dp-list { font-size:.72rem; min-width:130px; }
