@@ -4,6 +4,10 @@ test_post_comments.py — Post Comments System (§22c)
 """
 import sys, os, re, ast
 sys.path.insert(0, os.path.dirname(__file__))
+# Behavioral sections import server.py and sign JWTs with server.JWT_SECRET; _jwt_decode
+# rejects a secret shorter than 32 chars. Test-only default — a real env value wins.
+if len(os.environ.get("JWT_SECRET", "").strip()) < 32:
+    os.environ["JWT_SECRET"] = "test-only-jwt-secret-not-for-production-0123456789"
 
 PASS = "✅ PASS"
 FAIL = "❌ FAIL"
@@ -1319,15 +1323,16 @@ check(
 
 # uploadLogo HTTP failure behavior: must throw, not fall back to dataUrl
 # The broken pattern would be: (res.ok && res.data && res.data.url) ? ... : dataUrl
-# The correct pattern: if (!res.ok) throw, then (res.data && res.data.url) ? ... : dataUrl
+# Current pattern (PR-7a, #549): any failure (!res.ok / no url) throws — the data URL is never saved
 check(
     "115h. company uploadLogo throws on HTTP failure — broken fallback pattern absent",
     "(res.ok && res.data && res.data.url) ? res.data.url : dataUrl" not in co_main_src
 )
 check(
-    "115i. company uploadLogo throws on !res.ok before dataUrl fallback",
-    "if (!res.ok) throw new Error('upload_fail')" in co_main_src and
-    "(res.data && res.data.url) ? res.data.url : dataUrl" in co_main_src
+    "115i. company uploadLogo throws on a failed upload — no dataUrl fallback (PR-7a)",
+    "if (!res.ok || !res.data || !res.data.url) {" in co_main_src and
+    "throw TW.uploadError(res, " in co_main_src and
+    "res.data.url : dataUrl" not in co_main_src
 )
 
 # No direct fetch('/upload/image') in any JS file outside tw-upload.js
@@ -3326,6 +3331,10 @@ _ahcss149 = open("static/app-header.css").read()
 _nplan149 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §149: Notifications Phase 10 — Unread Badge in App Header ──")
+_tws_badge = open("tw_shared.js", encoding="utf-8").read()
+# VM-10 (PR #532): app-header.js is layout-only; the badge lives in loadGlobalBadges() (tw_shared.js)
+_lgb_badge = (_tws_badge.split("function loadGlobalBadges() {")[1].split("\n}\n")[0]
+              if "function loadGlobalBadges() {" in _tws_badge else "")
 check(
     "149a. GET /notifications/{user_id}/unread-count endpoint exists in server.py",
     "def notifications_unread_count(user_id: int, token=Depends(verify_token))" in _srv149
@@ -3340,27 +3349,24 @@ check(
     '"ok": True' in _srv149 and '"data": {"count":' in _srv149
 )
 check(
-    "149d. _pollUnreadBadge function exists in app-header.js",
-    "function _pollUnreadBadge(user)" in _ahjs149
+    "149d. badge moved to loadGlobalBadges (tw_shared.js) — _pollUnreadBadge gone from app-header.js (VM-10)",
+    "_pollUnreadBadge" not in _ahjs149 and "[data-ah-notif-badge]" in _lgb_badge
 )
 check(
-    "149e. _pollUnreadBadge uses Authorization Bearer JWT (no X-User-Id)",
-    "'Authorization': 'Bearer ' + jwt" in _ahjs149 or
-    '"Authorization": "Bearer "' in _ahjs149
+    "149e. loadGlobalBadges uses Authorization Bearer JWT (no X-User-Id)",
+    "{ headers: { 'Authorization': 'Bearer ' + jwt } }" in _lgb_badge and "X-User-Id" not in _lgb_badge
 )
 check(
-    "149f. polling interval is 60000ms (60 seconds minimum)",
-    "setInterval(_fetchCount, 60000)" in _ahjs149
+    "149f. no badge polling — no setInterval in app-header.js or loadGlobalBadges (VM-10: Badge WS)",
+    "setInterval(" not in _ahjs149 and "setInterval(" not in _lgb_badge
 )
 check(
     "149g. badge hidden when count == 0",
-    "style.display = 'none'" in _ahjs149 or "style.display='none'" in _ahjs149
+    "el.style.display = count > 0 ? 'inline-block' : 'none';" in _lgb_badge
 )
 check(
     "149h. count is NOT stored in localStorage (only JWT is read from it)",
-    "localStorage.setItem" not in _ahjs149[_ahjs149.find("function _pollUnreadBadge"):
-                                            _ahjs149.find("function _pollUnreadBadge") + 800]
-    if "function _pollUnreadBadge" in _ahjs149 else False
+    "localStorage.setItem" not in _lgb_badge and "localStorage.getItem('tw_jwt')" in _lgb_badge
 )
 check(
     "149i. badge CSS in app-header.css ([data-ah-notif-badge] rule present)",
@@ -3743,27 +3749,27 @@ _sc_html = open('profile-showcase.html', encoding='utf-8').read() if _os154.path
 _auth154 = open('auth.py', encoding='utf-8').read()               if _os154.path.exists('auth.py')               else ''
 
 check(
-    "154a. app-header.js loads and polls /notifications/{uid}/unread-count with Bearer JWT",
-    'unread-count' in _ah_js and
-    ("'Authorization': 'Bearer ' + jwt" in _ah_js or '"Authorization": "Bearer "' in _ah_js or
-     "'Bearer ' +" in _ah_js)
+    "154a. unread count fetched by loadGlobalBadges with Bearer JWT — app-header.js does no fetch (VM-10)",
+    "fetch('/notifications/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })" in _lgb_badge
+    and 'fetch(' not in _ah_js
 )
 check(
-    "154b. app-header.js has DOMContentLoaded auto-init — pages without initAppHeader call work",
-    'DOMContentLoaded' in _ah_js and '_pollUnreadBadge' in _ah_js and
-    'tw_user' in _ah_js
+    "154b. badge start is page-independent — tw_shared.js starts the Badge WS on window load",
+    "window.addEventListener('load', function() {" in _tws_badge
+    and "setTimeout(_initBadgeWS, 200);" in _tws_badge and '_pollUnreadBadge' not in _ah_js
 )
 check(
-    "154c. app-header.js has guard against double setInterval (_ahPollStarted or similar)",
-    '_ahPollStarted' in _ah_js or '_pollStarted' in _ah_js
+    "154c. no double start — idempotent _badgeAuthSyncBound guard, no setInterval in app-header.js",
+    "if (_badgeAuthSyncBound) return;" in _tws_badge and 'setInterval(' not in _ah_js
 )
 check(
-    "154d. app-header.js adds ah-bell--active class when unread count > 0",
-    'ah-bell--active' in _ah_js and 'classList.add' in _ah_js
+    "154d. app-header.js does not toggle ah-bell--active (VM-10 layout-only)",
+    'ah-bell--active' not in _ah_js and 'classList.add' not in _ah_js
 )
 check(
-    "154e. app-header.js removes ah-bell--active class when unread count = 0",
-    'ah-bell--active' in _ah_js and 'classList.remove' in _ah_js
+    "154e. app-header.js does not touch [data-ah-notif-badge] — loadGlobalBadges clears it first",
+    "querySelectorAll('[data-ah-notif-badge]')" not in _ah_js
+    and "[data-badge=\"notif\"],[data-ah-notif-badge]').forEach(function(el) {" in _lgb_badge
 )
 check(
     "154f. app-header.css has .ah-bell--active glow styling for bell icon",
@@ -3818,13 +3824,12 @@ _ah_js155  = open('static/app-header.js',  encoding='utf-8').read() if _os155.pa
 _ah_css155 = open('static/app-header.css', encoding='utf-8').read() if _os155.path.exists('static/app-header.css') else ''
 
 check(
-    "155a. app-header.js sets badge.style.display = 'inline-flex' (not empty string) to show badge",
-    "badge.style.display = 'inline-flex'" in _ah_js155 or
-    'badge.style.display="inline-flex"' in _ah_js155
+    "155a. loadGlobalBadges shows the badge with an explicit display value (not empty string)",
+    "count > 0 ? 'inline-block' : 'none'" in _lgb_badge and "style.display = ''" not in _lgb_badge
 )
 check(
-    "155b. app-header.js sets badge.style.display = 'none' to hide badge at count 0",
-    "badge.style.display = 'none'" in _ah_js155
+    "155b. loadGlobalBadges hides the badge (display 'none') before each fetch and at count 0",
+    "el.style.display = 'none';" in _lgb_badge
 )
 check(
     "155c. app-header.css [data-ah-notif-badge] uses physical 'right' — not inset-inline-end",
@@ -3857,17 +3862,16 @@ check(
     'display: none' in _ah_css155 and 'data-ah-notif-badge' in _ah_css155
 )
 check(
-    "155j. app-header.js sets badge textContent from API data — not innerHTML",
-    'badge.textContent' in _ah_js155 and 'badge.innerHTML' not in _ah_js155
+    "155j. loadGlobalBadges sets badge textContent from API data — not innerHTML",
+    "el.textContent = count > 9 ? '9+' : String(count);" in _lgb_badge and 'innerHTML' not in _lgb_badge
 )
 check(
-    "155k. app-header.js uses '99+' cap for counts above 99",
-    "'99+'" in _ah_js155 or '"99+"' in _ah_js155
+    "155k. loadGlobalBadges caps the count label ('9+')",
+    "count > 9 ? '9+'" in _lgb_badge
 )
 check(
-    "155l. app-header.js reads count from API response d.data.count — not localStorage",
-    'd.data' in _ah_js155 and 'localStorage' not in _ah_js155[_ah_js155.find('_fetchCount'):_ah_js155.find('_fetchCount') + 400]
-    if '_fetchCount' in _ah_js155 else 'd.data' in _ah_js155
+    "155l. loadGlobalBadges reads the count from the API response (d.unread) — not localStorage",
+    "var count = d.unread || 0;" in _lgb_badge and "localStorage.getItem('tw_unread" not in _lgb_badge
 )
 check(
     "155m. No X-User-Id header in app-header.js",
@@ -3884,10 +3888,9 @@ check(
     'inset-block-start' not in _ah_css155
 )
 check(
-    "155p. app-header.js badge poll uses Authorization Bearer JWT — no anonymous fetch",
-    "'Authorization': 'Bearer ' + jwt" in _ah_js155 or
-    '"Authorization": "Bearer "' in _ah_js155 or
-    "'Bearer '" in _ah_js155
+    "155p. badge fetch uses Authorization Bearer JWT — no anonymous fetch (loadGlobalBadges)",
+    _lgb_badge.count("{ headers: { 'Authorization': 'Bearer ' + jwt } }") == 2
+    and "if (!userId || !jwt) return;" in _lgb_badge
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -6969,24 +6972,28 @@ check(
     'applicant_id' not in _appt_create_cls
 )
 check(
-    "171-77. server.py: AppointmentCreateInput does NOT accept job_id",
-    'job_id' not in _appt_create_cls
+    "171-77. server.py: AppointmentCreateInput job_id only as Path B (with candidate_id) — PR-5 §69",
+    'job_id: Optional[int] = None' in _appt_create_cls
+    and 'candidate_id: Optional[int] = None' in _appt_create_cls
+    and '"code": "ambiguous_appointment_context"' in _server171
 )
 check(
     "171-78. server.py: AppointmentCreateInput does NOT accept representative_user_id",
     'representative_user_id' not in _appt_create_cls
 )
 check(
-    "171-79. server.py: AppointmentCreateInput has application_id as required int",
-    'application_id: int' in _appt_create_cls
+    "171-79. server.py: AppointmentCreateInput application_id = Path A (optional; Path B uses candidate_id + job_id)",
+    'application_id: Optional[int] = None' in _appt_create_cls
+    and '"code": "invalid_appointment_context"' in _server171
 )
 check(
     "171-80. server.py: api_create_appointment does NOT pass applicant_id=body.applicant_id",
     'applicant_id=body.applicant_id' not in _server171
 )
 check(
-    "171-81. server.py: api_create_appointment does NOT pass job_id=body.job_id",
-    'job_id=body.job_id' not in _server171
+    "171-81. server.py: api_create_appointment passes job_id only after the Path A/B contract check",
+    _server171.find('if _app_set and (_cand_set or _job_set):')
+    < _server171.find('job_id=body.job_id,') if 'job_id=body.job_id,' in _server171 else False
 )
 check(
     "171-82. server.py: api_create_appointment does NOT pass representative_user_id=body",
@@ -6997,8 +7004,10 @@ check(
     'application_id=body.application_id' in _server171
 )
 check(
-    "171-84. auth.py: create_appointment new secure signature (application_id, not applicant_id)",
-    'def create_appointment(company_user_id: int, application_id: int,' in _auth171
+    "171-84. auth.py: create_appointment secure signature (application_id / candidate_id + job_id, no applicant_id)",
+    re.search(r"def create_appointment\(company_user_id: int,\s+application_id: int = None,"
+              r"\s+candidate_id: int = None,\s+job_id: int = None,", _auth171) is not None
+    and 'applicant_id' not in _auth171.split('def create_appointment(')[1].split(')')[0]
 )
 check(
     "171-85. auth.py: create_appointment old insecure signature is GONE",
@@ -7014,7 +7023,7 @@ check(
 )
 check(
     "171-88. auth.py: create_appointment derives applicant_id from DB row",
-    'applicant_id = app_rows[0][1]' in _appt_create_fn
+    re.search(r"applicant_id\s+= app_rows\[0\]\[1\]", _appt_create_fn) is not None
 )
 check(
     "171-89. auth.py: create_appointment derives job_id from DB row",
@@ -7022,7 +7031,8 @@ check(
 )
 check(
     "171-90. auth.py: create_appointment queries jobs for company ownership (F6)",
-    'SELECT company_id FROM jobs WHERE id = :id' in _appt_create_fn
+    'SELECT company_id, archived_at FROM jobs WHERE id = :id' in _appt_create_fn
+    and 'if int(job_rows[0][0]) != int(company_user_id):' in _appt_create_fn
 )
 check(
     "171-91. auth.py: create_appointment raises PermissionError on company_id mismatch",
@@ -7278,7 +7288,7 @@ check(
 )
 check(
     "172-32. create_appointment derives applicant_id from job_applications, not body",
-    'applicant_id = app_rows' in _createappt
+    re.search(r"applicant_id\s+= app_rows", _createappt) is not None
 )
 check(
     "172-33. create_appointment derives job_id from job_applications, not body",
@@ -7871,15 +7881,19 @@ _server177 = open('server.py', encoding='utf-8').read()
 _plan177   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
 _sysidx177 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
-# Extract runner function body (last function in auth.py)
-_runner177 = _auth177.split('def run_due_scheduler_jobs')[1] if 'def run_due_scheduler_jobs' in _auth177 else ''
+# Extract runner function body — bounded at the next top-level def (S4 handlers and later
+# code were added after it in auth.py; an unbounded slice would include them)
+_runner177 = (_auth177.split('def run_due_scheduler_jobs')[1].split('\ndef ')[0]
+              if 'def run_due_scheduler_jobs' in _auth177 else '')
 # Extract helper function body (defined just before runner)
 _helper177_body = (
     _auth177.split('def _update_scheduler_job_final_status')[1].split('\n\ndef ')[0]
     if 'def _update_scheduler_job_final_status' in _auth177 else ''
 )
 # Extract endpoint section in server.py
-_ep177 = _server177[_server177.find('/internal/run-due-jobs'):] if '/internal/run-due-jobs' in _server177 else ''
+# bounded at the next route decorator (later endpoints in server.py use verify_token)
+_ep177 = (_server177[_server177.find('/internal/run-due-jobs'):].split('\n@app.')[0]
+          if '/internal/run-due-jobs' in _server177 else '')
 
 # AST analysis for except-pass detection
 import ast as _ast177
@@ -8859,9 +8873,9 @@ check("184-02. card div has data-name attribute in _renderApplicants",
 
 # 184-03: sched button rendered for interview status in _renderApplicants
 _render184 = _main184.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0] if 'function _renderApplicants' in _main184 else ''
-check("184-03. co-app-sched-btn rendered for interview status in _renderApplicants",
+check("184-03. co-app-sched-btn rendered in _renderApplicants for every pipeline candidate (PR-5 §69)",
       'co-app-sched-btn' in _render184
-      and 'isInterview' in _render184)
+      and "var schedBtn = entryId" in _render184)
 
 # 184-04: _wireApplicantCards delegates co-app-sched-btn to _onSchedBtn
 _wire184 = _main184.split('function _wireApplicantCards')[1].split('function _onSchedBtn')[0] if 'function _wireApplicantCards' in _main184 else ''
@@ -8971,9 +8985,10 @@ _sub184 = (_main184.split('function _submitApptForm')[1]
            .split('function _execSendStep')[0]
            if 'function _submitApptForm' in _main184
            and 'function _execSendStep' in _main184 else '')
-check("184-24. draft stored in _apptByAppId before _execSendStep — no orphan on send failure",
-      "_apptByAppId[String(appId)] = { id: apptId, status: 'draft' }" in _sub184
-      and '_execSendStep' in _sub184)
+check("184-24. draft stored in _apptByAppId / _apptByEntryId before _execSendStep — no orphan on send failure",
+      "var info = { id: apptId, status: 'draft' };" in _sub184
+      and "if (appId)   _apptByAppId[String(appId)]     = info;" in _sub184
+      and _sub184.find("_apptByAppId[String(appId)]     = info") < _sub184.find("_execSendStep(apptId"))
 
 # 184-25: _execSendStep defined — handles send step independently, preserves draft on failure
 check("184-25. _execSendStep defined — send isolated so draft survives send failure",
@@ -9058,8 +9073,9 @@ check("185-09. _savedCardHTML shows co-cand-job-chips not raw job_id",
       and 'مرتبط بوظيفة #' not in _scard185)
 
 # 185-10: _savedCardHTML uses item.job_titles array
-check("185-10. _savedCardHTML sources from item.job_titles array",
-      'item.job_titles' in _scard185)
+check("185-10. _savedCardHTML sources job chips from item.job_links (refs) — PR #481",
+      'Array.isArray(item.job_links) ? item.job_links : []' in _scard185
+      and 'co-cand-job-chip' in _scard185)
 
 # 185-11: _renderApplicants builds savedCtx for other_job_titles
 _rappl185 = (_main185.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0]
@@ -9146,7 +9162,8 @@ _gscf186 = (_auth186.split('def get_company_saved_candidates_filtered')[1].split
             if 'def get_company_saved_candidates_filtered' in _auth186 else '')
 check("186-08. get_company_saved_candidates_filtered reads job_titles from refs",
       'company_candidate_job_refs' in _gscf186
-      and 'r.candidate_id, j.title' in _gscf186)
+      and 'SELECT r.candidate_id, j.id, j.title' in _gscf186
+      and 'job_titles' in _gscf186)
 
 # 186-09: job_id filter in filtered view uses EXISTS subquery on refs (not sc.job_id =)
 check("186-09. job_id filter uses EXISTS on company_candidate_job_refs not sc.job_id =",
@@ -9867,10 +9884,8 @@ check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-dp d
 # 486-23: 'status' alias present alongside 'application_status' in both batch-fetch functions
 # Both keys must be in the jlmap dict append and must carry the same value (app_status)
 check("486-23. 'status' deprecated alias present alongside 'application_status' in batch-fetch jlmap (both functions)",
-      "'status':             app_status or None" in _auth486
-      and "'application_status': app_status or None" in _auth486
-      and _auth486.count("'status':             app_status or None") >= 2
-      and _auth486.count("'application_status': app_status or None") >= 2)
+      len(re.findall(r"'status':\s+app_status or None", _auth486)) >= 2
+      and len(re.findall(r"'application_status':\s+app_status or None", _auth486)) >= 2)
 
 # 486-24: 'status' alias documented as deprecated (not hidden — visible in docs)
 check("486-24. SYSTEMS_INDEX.md documents 'status' as deprecated backward-compat alias for application_status",
@@ -10148,9 +10163,11 @@ check("488-10. Functional: Field(...) model rejects empty body, accepts null, ac
 # ── Fix 3: Timezone contract ───────────────────────────────────────────────
 
 # 488-11: Backend has deprecated-fallback comment for naive ISO (not promoted as official)
-check("488-11. Backend has Legacy/deprecated fallback comment for naive ISO in send_appointment",
-      ('Legacy/deprecated' in _auth488 or 'deprecated fallback' in _auth488)
-      and 'tzinfo is None' in _auth488)
+_send488 = (_auth488.split('def send_appointment(')[1].split('\ndef ')[0]
+            if 'def send_appointment(' in _auth488 else '')
+check("488-11. send_appointment rejects naive ISO (strict timezone — PR-5 §69 replaced the deprecated fallback)",
+      'if scheduled_dt.tzinfo is None:' in _send488
+      and 'يجب أن يحتوي الوقت على Timezone' in _send488)
 
 # 488-12: SYSTEMS_INDEX §23 documents timezone contract
 check("488-12. SYSTEMS_INDEX §23 documents timezone-aware contract and deprecated naive fallback",
@@ -10274,9 +10291,8 @@ check("489-11. Migration has no DROP CONSTRAINT after advisory lock addition",
 
 # 489-12: status and application_status remain equal in both batch-fetch functions (backward compat)
 check("489-12. 'status' and 'application_status' both present and equal in both batch-fetch functions",
-      "'status':             app_status or None" in _auth489
-      and "'application_status': app_status or None" in _auth489
-      and _auth489.count("'application_status': app_status or None") >= 2)
+      len(re.findall(r"'status':\s+app_status or None", _auth489)) >= 2
+      and len(re.findall(r"'application_status':\s+app_status or None", _auth489)) >= 2)
 
 # 489-13: Field(...) and timezone tests still pass (verify §488 fixes not regressed)
 check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatusInput + toISOString in frontend",
@@ -10485,11 +10501,12 @@ check("492-04. التصنيف العام row no longer appears in _showJobChipPo
       'التصنيف العام' not in _pop492)
 
 # 492-05: apply_date row is conditional — rendered only inside `if (applyDate)` block
-_date_block492 = (_pop492.split('if (applyDate)')[1].split('\n    }')[0]
-                  if 'if (applyDate)' in _pop492 else '')
-check("492-05. تاريخ التقدم row only rendered inside if(applyDate) — not unconditional",
+# Guard is now `if (appId && applyDate)` — row only for a real application (SYSTEMS_INDEX §20c)
+_date_block492 = (_pop492.split('if (appId && applyDate)')[1].split('\n    }')[0]
+                  if 'if (appId && applyDate)' in _pop492 else '')
+check("492-05. تاريخ التقدم row only rendered inside if(appId && applyDate) — not unconditional",
       'تاريخ التقدم' in _date_block492
-      and 'تاريخ التقدم' not in _pop492.split('if (applyDate)')[0])
+      and 'تاريخ التقدم' not in _pop492.split('if (appId && applyDate)')[0])
 
 # 492-06: null candidate_status → «لم يتم ترشيحه بعد» label (updated in PR #498)
 check("492-06. null candidate_status displays «لم يتم ترشيحه بعد»",
@@ -10520,7 +10537,7 @@ check("492-10. co-cjp-no-app and co-cjp-cand-job-st CSS classes still present",
 check("492-11. SYSTEMS_INDEX §20c popover updated: 2 rows, حالة المرشح في هذه الوظيفة, apply_date conditional",
       'حالة المرشح في هذه الوظيفة' in _sysidx492
       and 'apply_date' in _sysidx492
-      and 'only when non-null' in _sysidx492
+      and 'shown **only when the chip has a real application' in _sysidx492
       and 'fix/job-chip-pop-simplify' in _sysidx492)
 
 # 492-12: genStatus / genLbl variables no longer in _showJobChipPop (clean removal)

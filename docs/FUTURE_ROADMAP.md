@@ -50,7 +50,7 @@
 - [ ] **P1** — DS-SIZE Phase 2 (job-detail ✅): migration صفحة صفحة إلى tokens الـ DS-SIZE — **المطابق وتحت البكسل فقط** (SIZE-05) + استثناء أيقونات 13px → `--size-icon-sm` (قرار 2). موافقة صريحة لكل صفحة؛ الاستثناءات المجمّدة (SIZE-08) خارجها. القيم المرئية بـ PR redesign معلن لكل صفحة.
 - [ ] **P1** — توحيد أزرار الهيدر: `.sc-home-btn` / `.sc-hicon` / `.hdr-back` = 32 (بروفايل/شركة) · 34 (رسائل) · 34/36 (مواعيد) · 40 (الهيدر المشترك). الميل لـ 40 (`--size-control-icon-lg`). PR بصري منفصل مع screenshots — ما في قرار لسا.
 - [ ] **P1** — DS-SHELL Phase C (F39 · `docs/design-system/PAGE-SHELL.md` SHELL-08): تحويل الصفحات للـ markers — **PR لكل صفحة** مع screenshots قبل/بعد (موبايل + ديسكتوب). بالترتيب: **landing ← appointments ← appointment-room** (الصفحات اللي ما بتحمّل `tw_shared.*` — `home-v2` ✅ PR-8 · `job-detail` ✅ Phase C؛ قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments الـ shell قبل `<style>` المحلي) ← بعدها الباقي. شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات. ومعها:
-  - guard موحّد عبر TwAuthSync: `<meta name="tw-page" content="auth|public|entry|admin">` بدل قراءة `tw_user` مباشرة بـ 5 صفحات؛ الزائر بالصفحات المحمية → `/login`.
+  - guard موحّد عبر TwAuthSync: `<meta name="tw-page" content="auth|public|entry|admin">` بدل قراءة `tw_user` مباشرة بـ 5 صفحات؛ الزائر بالصفحات المحمية → `twLoginHref(location.pathname + location.search)` (NAV-07 — جاهز من PR #558، job-detail أول مستهلك).
   - `alert()` بالمواعيد → `showToast` الموحّد (F34).
   - `.tw-skeleton` معرّف 6 مرات (`tw_shared.css` · `static/shared/tw-skeleton.css` · `company.css` · `index.css` …) → نسخة وحدة (§35).
   - `.sc-*` منسوخ 3 مرات (`app-header.css` / `profile-v2.css` / `messages.css`) → مصدر واحد.
@@ -61,6 +61,9 @@
   - غلاف الموظف 4:1 ثابت (العرض + `profile-v2.cover.js` cropper) — بدل الديناميكي W×240 (IMG-10).
   - لوغو الشركة مربع بزوايا (العرض + `openLogoCrop` preview مربع) — IMG-03.
 - [ ] **P2** — حذف `[data-ah-av]` الميت من `static/app-header.js` (ما في عنصر بيستعمله).
+- [ ] **P1** — **خلل مكشوف بـ PR #558 (ما انصلح):** picker «تصنيف المرشح لكل وظيفة» (`co-cand-job-status-dp`) موثّق بـ SYSTEMS_INDEX §20c (Frontend picker + `_renderCandidateJobLinksUI` خطوة 3–6) بس **ما في كود بيرسمه**: `_savedCardHTML` ما فيه picker، و `_renderCandidateJobLinksUI` بيعمل بس `data-job-links` + chips؛ `_handleJobStatusDpSelect` و قواعد CSS (`company.css` ~2515) ميتين. النتيجة: الشركة ما بتقدر تغيّر `candidate_status` لكل وظيفة من بنك المواهب. قرار مطلوب: نرجّع الـ picker (حسب التوثيق) أو نشيل التوثيق + الكود الميت. فحوص `test_post_comments.py` 486-16 · 488-07 · 489-07 · 490-03 حمر لحد القرار.
+- [ ] **P2** — `.ah-bell--active` بـ `static/app-header.css` صار CSS ميت من VM-10 (PR #532 — ما في JS بيضيف الـ class)؛ وعدّاد الإشعارات صار سقفه `9+` (`loadGlobalBadges`) بدل `99+` القديم. قرار: نرجّع الـ glow + `99+` بـ `loadGlobalBadges` أو نشيل الـ CSS.
+- [ ] **P2** — SYSTEMS_INDEX §20c سطر "Option B — job_titles display" لسا بيقول الكروت من `item.job_titles[]` — الكود من `item.job_links` (PR #481). تصحيح توثيق مع قرار الـ picker فوق.
   - **أول PR:** زر الرجوع بـ `profile-showcase.html:46` (`#scPreviewBackBtn` — سهم يدوي) → `twIcon('back')` + باقي أيقونات `profile-showcase.html` نفسها.
   - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
   - دمج `_lucideIcon()` المكرّرة (`static/home/home.cards.js`) — تختفي لصالح `twIconEl`.

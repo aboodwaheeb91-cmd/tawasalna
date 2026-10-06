@@ -62,6 +62,7 @@
 el.innerHTML = twIcon('back', { size: 'md' });  // string SVG
 btn.appendChild(twIconEl('delete'));            // عنصر SVG (DOM)
 twIcon.has('briefcase');                        // true / false — بدون warning
+twIcon.hydrate(root);                           // <i data-tw-icon="x" data-tw-size="sm"> → SVG
 ```
 
 ### عقد المخرجات (ثابت)
@@ -83,6 +84,22 @@ twIcon.has('briefcase');                        // true / false — بدون war
 
 - الأيقونة **زخرفية دائماً** (`aria-hidden="true"`). الاسم المقروء للزر مسؤولية DS-BTN (`aria-label` / نص).
 - `twIconEl` بيرجع عنصر SVG حقيقي (namespace SVG) عن طريق `<template>`.
+
+### ICON-03.1 — أيقونات HTML الثابتة: `twIcon.hydrate(root)` (PR #558)
+
+الأيقونة الثابتة بالـ HTML (عنوان قسم، زر حفظ، صف معلومات…) تنكتب placeholder، والصفحة بتنادي `twIcon.hydrate(document.body)` **مرّة وحدة** بالـ init:
+
+```html
+<button id="jdSaveBtn"><i data-tw-icon="bookmark" data-tw-size="md"></i>حفظ</button>
+<span class="badge"><i data-tw-icon="star" data-tw-size="xs" data-tw-filled></i></span>
+```
+
+- كل `<i data-tw-icon>` **جوّا** `root` بيتبدّل (replace — مش fill) بـ `twIconEl(name, { size, filled })` — نفس الـ SVG ونفس الـ DOM كأنه انبنى بالـ JS، فـ CSS الصفحة ما بيتغيّر وما في wrapper.
+- `data-tw-size` = اسم token (ICON-05)؛ قيمة غلط → تُتجاهل + warning. `data-tw-filled` (بدون قيمة) = `filled: true`.
+- الاسم مفتاح بالـ map بس (ICON-09) — مجهول أو خبيث → `help`، ما بيدخل الـ HTML.
+- نداء ثاني = no-op (الـ placeholders انبدلت) — بيرجع عدد الأيقونات اللي انعبّت.
+- الأيقونة اللي بتتغيّر وقت التشغيل (نص زر بيتبدّل، chip من API) → `twIconEl` بالـ JS، مش placeholder.
+- ❌ دالة محلية بالصفحة بتلزّق الأيقونات الثابتة (`_paintStaticIcons` / `_prependIcon` انحذفت من job-detail).
 
 ---
 
@@ -225,7 +242,7 @@ twIcon.has('briefcase');                        // true / false — بدون war
 |---------|--------|
 | A — جرد الأيقونات + القرارات | ✅ |
 | B — registry + توثيق + اختبار، **بدون مستهلك وبدون تغيير بصري** | ✅ PR-6 / المرحلة B (2026-10-06) |
-| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail.html` (أول مستهلك: `data-lucide` + emoji → `twIconEl`، `_lucideIcon` انحذفت، Lucide ما عاد ينحمّل بالصفحة، زر الرجوع `prev`) · الباقي: `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
+| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail.html` (أول مستهلك: `data-lucide` + emoji → `twIconEl`، `_lucideIcon` انحذفت، Lucide ما عاد ينحمّل بالصفحة، زر الرجوع `prev`؛ الأيقونات الثابتة placeholders + `twIcon.hydrate` — PR #558) · الباقي: `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
 
 **المرحلة C (ملخّص — التفاصيل بالـ roadmap):**
 1. أول PR: زر الرجوع بـ `profile-showcase.html:46` → `twIcon('back')` + باقي أيقونات الصفحة نفسها.

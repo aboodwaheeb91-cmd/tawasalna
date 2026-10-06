@@ -66,7 +66,11 @@ check("B03 no _lucideIcon / createIcons", "_lucideIcon" not in JS and "createIco
 check("B04 icons via twIconEl", JS.count("twIconEl(") >= 10, JS.count("twIconEl("))
 check("B05 skill icons: TW.getSkillIcon → twIconEl",
       "TW.getSkillIcon(skillName)" in JS and "twIconEl(_skillIconName(s)" in JS)
-check("B06 back button = 'prev' (chevron, dir:true)", "_el('jdBackBtn'), 'prev'" in JS)
+check("B06 back button = 'prev' (chevron, dir:true)",
+      'id="jdBackBtn" aria-label="رجوع"><i data-tw-icon="prev" data-tw-size="xl"></i>' in RAW)
+check("B10 static icons = <i data-tw-icon> placeholders hydrated once (twIcon.hydrate)",
+      RAW.count("<i data-tw-icon=") >= 20 and JS.count("twIcon.hydrate(document.body)") == 1
+      and "_paintStaticIcons" not in JS and "_prependIcon" not in JS)
 check("B07 no manual arrow / chevron names",
       not re.search(r"'(arrow|chevron)-(left|right)'", JS_CODE))
 check("B08 icon sizes are DS-SIZE token names only",
@@ -81,8 +85,10 @@ print("\nC — Session (VM-10 · Auth Gateway)")
 check("C01 no direct localStorage in job-detail.js", "localStorage" not in JS)
 check("C02 session from TwAuthSync.getSessionSnapshot()", "TwAuthSync.getSessionSnapshot()" in JS)
 check("C03 JWT header via getAuthHeaders (tw_shared.js)", "getAuthHeaders(json)" in JS and "_jwt" not in JS)
-check("C04 guest actions → /login (apply · save · report)",
-      "location.href = '/login'" in JS and JS.count("if (!_authed) { _toLogin(); return; }") >= 3)
+check("C04 guest actions → /login?next=<this job> via twLoginHref (apply · save · report)",
+      "location.href = twLoginHref(location.pathname + location.search)" in JS
+      and "location.href = '/login'" not in JS
+      and JS.count("if (!_authed) { _toLogin(); return; }") >= 3)
 
 print("\nD — DS-IMAGE (F38) · §54")
 check("D01 header logo = twAvatarHtml xl eager", "twAvatarHtml(_coEntity, 'xl', { eager: true })" in JS)

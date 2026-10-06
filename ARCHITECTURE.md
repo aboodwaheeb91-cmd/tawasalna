@@ -9838,7 +9838,7 @@ All data is fetched at runtime — zero hardcoded content.
 ### Backend — `get_job()` in `auth.py`
 
 `GET /jobs/{job_id}` calls `get_job(job_id)` which JOINs:
-- `users u` → `company_name`, `company_tw_id`
+- `users u` → `company_name`, `company_tw_id`, `company_user_type` (`users.user_type` of the publisher: `co` | `edu` — PR #558; job-detail passes it to `twAvatarHtml` so an edu publisher gets the edu fallback colour)
 - `LEFT JOIN profiles cp ON j.company_id = cp.user_id` → `company_logo`, `company_verified`
 - `LEFT JOIN profession_categories pc ON j.profession_id = pc.id` → `profession_name_ar`, `profession_name_en`, `profession_icon`, `profession_category_group`
 
@@ -9853,9 +9853,9 @@ var _authed = !!(_snap && _snap.isAuthenticated);
 var _user   = _authed ? getTwUser() : null;          // display cache (tw_id / name)
 ```
 - No redirect on load — guests (and expired / stale / invalid sessions) read the job.
-- Apply · Save · Report for a non-authenticated visitor → `location.href = '/login'`. Apply for a non-`emp` account → toast "التقديم متاح للموظفين فقط".
+- Apply · Save · Report for a non-authenticated visitor → `location.href = twLoginHref(location.pathname + location.search)` → `/login?next=/job-detail%3Fid%3DN`; after login the Auth Gateway returns to the job (NAVIGATION.md NAV-07 — PR #558). Apply for a non-`emp` account → toast "التقديم متاح للموظفين فقط".
 - `Authorization` header only via `getAuthHeaders()` (tw_shared.js) and only when `_authed`. No direct `localStorage` in `job-detail.js`.
-- Icons: `twIconEl` (DS-ICON) · company logo: `twAvatarHtml` xl / lg (DS-IMAGE) · feedback: shared `showToast` (F34).
+- Icons: static ones are `<i data-tw-icon>` placeholders in `job-detail.html` filled once by `twIcon.hydrate(document.body)`; runtime icons `twIconEl` (DS-ICON) · company logo: `twAvatarHtml` xl / lg with `user_type` = `company_user_type` (DS-IMAGE) · feedback: shared `showToast` (F34).
 
 ### Match Section — Client-Side Only
 

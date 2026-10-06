@@ -25,7 +25,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Register and authenticate users (emp / co / edu); bcrypt passwords; post-login routing by user_type.
 **Source of Truth:** `users` table · `auth.py` (`hash_password`, `verify_password`) · `index.auth.js` (`redirect()`) · destination: `twAccountHref(u)` in `tw_shared.js` (`tw_id` → `/u/{tw_id}`, else `/login`)
 **Details:** `docs/rules/auth-identity.md` · `CLAUDE.md → Auth Gateway Rules` · `ARCHITECTURE.md §46`
-**Do not recreate:** Do not add a second login form or second redirect logic. `redirect(u)` in `index.auth.js` is the single post-login routing authority and takes its destination from `twAccountHref()` — do not add per-type destinations in `redirect()` or `landing.html`. `twHomeHref()` is the feed/dashboard (not "my account") — do not use it for post-login routing.
+**Do not recreate:** Do not add a second login form or second redirect logic. `redirect(u)` in `index.auth.js` is the single post-login routing authority and takes its destination from `twAccountHref()` — do not add per-type destinations in `redirect()` or `landing.html`. `twHomeHref()` is the feed/dashboard (not "my account") — do not use it for post-login routing. **Auth Return Destination (PR #558):** a safe `?next=` (`twSafeNext` — internal path only) wins in `redirect(u)` and in the on-load entry check; pages send guests to login via `twLoginHref(next)` only (NAVIGATION.md NAV-07) — no hand-built `/login?next=` and no second next validator.
 
 ---
 
@@ -798,10 +798,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - لا تُضيف `.well-known` files للـ Flutter قبل طلب صريح.
 - لا تستخدم URL أو query params كمصدر للـ Authorization.
 - لا تُخزِّن navigation state في localStorage.
-- `?next=` محجوز لـ Auth Return Destination فقط — ليس Back fallback عام.
+- `?next=` محجوز لـ Auth Return Destination فقط — ليس Back fallback عام. التنفيذ الوحيد: `twSafeNext` / `twLoginHref` بـ `tw_shared.js` + قراءة `?next=` بـ `index.auth.js` فقط (NAV-07 — PR #558).
 - لا تستخدم flat namespace موازٍ مثل `{ds_nav:'*'}` — canonical namespace هو `history.state.nav` (NAV-03).
 - `replaceState` يجب أن يدمج مع الـ state الموجود (Object.assign pattern) — لا يُلغيه.
-**Gaps documented (not fixed):** `history.back()` بدون fallback في `job-detail.js:729`، `popstate` listener مزدوج في `company.main.js:1975+4624`، `redirect()` لا تحفظ `?next=` في `index.auth.js`.
+**Gaps documented (not fixed):** `history.back()` بدون fallback في `job-detail.js:729`، `popstate` listener مزدوج في `company.main.js:1975+4624`. (`?next=` ✅ PR #558.)
 **Status:** V1 Documentation ✅ · Partial Runtime Adoption ✅ — Auth Gateway (NAV-13) · Remaining migrations 🔄/🔜
 
 ---
@@ -1003,7 +1003,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** النظام الرسمي الوحيد لأيقونات الواجهة: registry واحد (أسماء + رسومات Lucide 0.460) ودالة رسم موحّدة، قلب RTL تلقائي للأيقونات الاتجاهية، ومنع الـ emoji والـ SVG اليدوي كأيقونات واجهة. يغطي كمان أيقونات الكتالوج (مهارات + مهن) — الهدف إلغاء مكتبة Lucide كاملة.
 **Source of Truth:** `static/shared/tw-icons.js` (Runtime — Phase B ✅ · Phase C: أول مستهلك `job-detail.html`) · `docs/design-system/ICON-SYSTEM.md`
 **Details:** `docs/design-system/ICON-SYSTEM.md` (ICON-00 → ICON-14) · `docs/rules/ds-icon.md` · `ARCHITECTURE_FOUNDATION.md` F37 · `THIRD_PARTY_NOTICES.md` → Lucide (ISC). أبرز قواعد:
-- **API:** `twIcon(name, opts)` → string SVG · `twIconEl(name, opts)` → عنصر SVG · `twIcon.has(name)`. مخرجات ثابتة: `viewBox 0 0 24 24` · `fill none` · `stroke currentColor` · `stroke-width 2` · class `tw-ico` · `aria-hidden="true"`.
+- **API:** `twIcon(name, opts)` → string SVG · `twIconEl(name, opts)` → عنصر SVG · `twIcon.has(name)` · `twIcon.hydrate(root)` → يبدّل كل `<i data-tw-icon="name" data-tw-size="sm" [data-tw-filled]>` جوّا root بالـ SVG (أيقونات HTML الثابتة — ICON-03.1، PR #558؛ نداء ثاني no-op). مخرجات ثابتة: `viewBox 0 0 24 24` · `fill none` · `stroke currentColor` · `stroke-width 2` · class `tw-ico` · `aria-hidden="true"`.
 - **`opts.size`** = `xs`…`2xl` → `var(--size-icon-X, <px>)` (يشتغل بدون `tw_shared.css`) · بدون size → CSS الصفحة · `opts.filled` → `fill currentColor` · `opts.className` مفلتر.
 - **الأسماء:** 106 اسم واجهة (`report` = flag — Phase C job-detail) (أفعال/تنقّل حسب المعنى: `back` · `forward` · `prev` · `next` · `close` · `delete`…) + 82 اسم كتالوج (القيمة المخزَّنة بالـ DB) + جدول `ALIASES` واحد (12).
 - **الاتجاه:** `dir:true` (`back` · `forward` · `prev` · `next` · `send` · `log-in` · `log-out`) → class `tw-ico-dir` + قاعدة وحدة محقونة (`<style id="tw-ico-style">`). ممنوع `arrow-left/right` و `chevron-left/right` يدوي.
@@ -1093,4 +1093,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — Phase C / job-detail · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — PR #558 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

@@ -279,6 +279,10 @@ These rules are permanent and apply to all future AI sessions.
 
 12. **`/login#register` opens the registration form directly.** `index.ui.js` contains a hash router that handles `#register`, `#register-emp`, `#register-co`, `#register-edu`. The global header menu's "إنشاء حساب" item must link to `/login#register` — NOT `/login` (which defaults to the login form). Login and Register menu items MUST have different hrefs.
 
+13. **Auth Return Destination — `?next=` (PR #558 · `docs/design-system/NAVIGATION.md` NAV-07).** A page that sends a guest to login uses **`twLoginHref(next)` in `tw_shared.js`** → `/login?next=<encoded>`. **`twSafeNext(next)`** is the only validator: internal path only — one leading `/` (not `//`, not `/\`), no backslash / whitespace / control char, ≤ 512 chars, not `/login` itself; anything else (`https://…`, `//host`, `javascript:` …) is ignored. In `index.auth.js` a safe `?next=` wins over `twAccountHref(u)` in `redirect(u)` and over `twEntryDestination()` in the on-load check (authenticated only — guests stay on the form).
+   - ❌ Hand-built `'/login?next=' + …` · ❌ a second next validator · ❌ reading `?next=` outside `index.auth.js`.
+   - Test: `node test_auth_next_icon_hydrate_runtime.js`.
+
 ---
 
 ## Shared System First — Architecture Pattern Check (mandatory for all AI sessions)
