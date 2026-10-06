@@ -1,5 +1,21 @@
 # CLAUDE.md — تواصلنا (Tawasalna)
 
+## بروتوكول المهام (إلزامي لكل جلسة ولكل مهمة)
+1. القراءة: اقرأ "فهرس القواعد" بأول ARCHITECTURE_FOUNDATION.md، ثم docs/SYSTEMS_INDEX.md كفهرس، ثم فقط نص القواعد والأنظمة المرتبطة بالمهمة. ممنوع قراءة ملفات توثيق كاملة بلا حاجة.
+2. النظام أولاً: كل عنصر يُنفَّذ حسب نظامه الموثّق. لا يوجد نظام أو التغطية ناقصة → STOP واشرح (F30).
+3. اقتراح قبل التنفيذ: إذا عندك حل أفضل أو أضمن معمارياً، أو اقتراح جميل وذكي → وقف واشرحه قبل التنفيذ. غير هيك نفّذ مباشرة.
+4. النطاق: نفّذ المطلوب فقط. لا refactor ولا cleanup ولا redesign خارج المهمة.
+5. السبب الجذري: حدّد السبب الجذري قبل الإصلاح، وصحّحه وليس العَرَض.
+6. نقص بالنظام: إذا الخطأ كشف نقص بنظام → صحّح الكود والتوثيق بنفس الـ PR. إذا المشكلة تطبيق فقط → لا تعدّل التوثيق.
+7. التوثيق: أي نظام أو قاعدة أو عقد جديد → SYSTEMS_INDEX + الملف التفصيلي بنفس الـ PR. حذف أي شي → يُحذف من الكود والتوثيق معاً.
+8. GitHub: Pre-push GitHub State Check قبل أي رفع. PR مدموج → branch جديد من آخر main.
+9. الدمج: ممنوع الدمج أو auto-merge. زعتر يدمج يدوياً.
+10. الرصيد: اختبار واحد مركّز. بدون screenshots، بدون بحث بكل الريبو، بدون تشغيل كل الاختبارات. فشل الاختبار مرتين → وقف وبلّغ.
+11. التقرير النهائي: رقم PR، آخر commit، الملفات، السبب الجذري، الاختبار ونتيجته، ما لم يُختبر، أي تغيير سلوك لازم زعتر يعرفه.
+12. الجلسات: مهمة جديدة = جلسة جديدة. تصحيحات نفس الـ PR بنفس الجلسة.
+
+---
+
 > Arabic Employment Platform & Credential Verification System
 
 ---
@@ -13,7 +29,7 @@
 - Multi-tenant: employees / companies / educational institutions
 - Backend: FastAPI + PostgreSQL (Supabase)
 - Frontend: Vanilla HTML/CSS/JS (no framework)
-- Heroku-ready deployment via Procfile
+- Railway deployment via Procfile (any `$PORT` platform works)
 
 ---
 
@@ -21,10 +37,10 @@
 
 ```
 tawasalna/
-├── server.py              # Main FastAPI application — ALL backend logic lives here
-├── auth.py                # Authentication helpers (bcrypt, tw_id generation, admin token)
+├── server.py              # FastAPI app — routes, JWT, WebSocket, middleware, migrations
+├── auth.py                # DB data layer + business logic (users, profiles, jobs, comments, pipeline, bcrypt, tw_id)
 ├── auto_sync.py           # File watcher that auto-commits changes to GitHub
-├── test.py                # Basic API integration tests
+├── test.py                # Legacy live-server smoke tests (see Testing)
 ├── requirements.txt       # Python dependencies
 ├── Procfile               # Deployment: uvicorn server:app --host 0.0.0.0 --port $PORT
 ├── README.md              # Quick-start guide
@@ -61,7 +77,7 @@ tawasalna/
 | Password hashing | bcrypt | 4.1.3 |
 | Frontend | Vanilla HTML/CSS/JS | — |
 | Font | Google Cairo | — |
-| Deployment | Heroku / any $PORT platform | — |
+| Deployment | Railway (Procfile, `$PORT`) | — |
 
 ---
 
@@ -69,8 +85,22 @@ tawasalna/
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `SUPABASE_DB_URL` | **Yes** | PostgreSQL connection string |
-| `PORT` | Yes (auto on Heroku) | Server port |
+Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are set as Railway Variables — never in source.
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `SUPABASE_DB_URL` | **Yes** | PostgreSQL connection string (`server.py` + `auth.py`) |
+| `JWT_SECRET` | **Yes** | HS256 signing secret for user JWTs — independent of `ADMIN_TOKEN` |
+| `ADMIN_TOKEN` | **Yes** (admin) | Admin login password + `X-Admin-Token` header value |
+| `ADMIN_URL_TOKEN` | **Yes** (admin) | Slug for the admin panel path `/tw-ctrl-{ADMIN_URL_TOKEN}` |
+| `SCHEDULER_SECRET` | Yes (scheduler) | `X-Scheduler-Secret` value for internal scheduler endpoints (503 when unset) |
+| `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage (`POST /upload/image`) |
+| `SUPABASE_SERVICE_KEY` | Yes (uploads) | Supabase service key for Storage uploads |
+| `REDIS_URL` | Optional | Redis cache; in-memory cache fallback when unset |
+| `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
+| `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
+| `DEV_OTP_LOG` | Optional (dev) | Logs OTP events (never the code) |
+| `PORT` | Yes (auto on Railway) | Server port |
 | `GITHUB_TOKEN` | Optional | Used by auto_sync.py for auto-commit |
 
 ---
@@ -81,8 +111,10 @@ tawasalna/
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set the database URL
+# 2. Set the required environment variables (see table above)
 export SUPABASE_DB_URL="postgres://..."
+export JWT_SECRET="<random hex>"
+export APP_ENV=development
 
 # 3. Start the server (with auto-reload for development)
 uvicorn server:app --reload
@@ -179,12 +211,11 @@ Tables are auto-created on startup (with migrations for legacy data):
 | POST | `/course/{user_id}` | Add completed course |
 | POST | `/verify-request` | Submit credential verification request |
 
-### Jobs & Matching
+### Jobs
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/jobs` | List all jobs |
-| POST | `/match` | Match CV text to jobs (returns top_k) |
-| POST | `/feedback` | Log user feedback on a match |
+| POST | `/feedback` | Log user feedback (stub — returns `{"status":"logged"}`) |
 | GET | `/stats` | Platform-wide statistics |
 
 ### Admin (require `X-Admin-Token` header)
@@ -222,19 +253,6 @@ Tables are auto-created on startup (with migrations for legacy data):
 
 ---
 
-## CV Matching Algorithm
-
-The matching engine in `server.py` uses **keyword overlap scoring**:
-
-```python
-score = count_of_matching_words(cv_text, job_description)
-match_percent = min(score * 10, 100)
-```
-
-Returns `top_k` best-matching jobs (default 5). This is intentionally simple — see README for the roadmap toward RLHF-based ranking.
-
----
-
 ## Frontend Conventions
 
 ### Design System
@@ -258,10 +276,12 @@ Returns `top_k` best-matching jobs (default 5). This is intentionally simple —
 - Glassmorphism cards: `backdrop-filter: blur(...)` + semi-transparent backgrounds
 - Bottom navigation bar for mobile; sidebar for desktop
 
-### Auth Guard Pattern (used in every page)
+### Auth Guard Pattern
+Session state comes from `TwAuthSync.getSessionSnapshot()` (`static/shared/auth-sync.js`, loaded after `tw_shared.js`). `localStorage` keys are `tw_user` / `tw_jwt` — a cache only, never the authority (see Auth Gateway Rules §6).
 ```js
-const _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
-if (!_u) { location.href = '/login'; }
+var snap = (window.TwAuthSync && TwAuthSync.getSessionSnapshot) ? TwAuthSync.getSessionSnapshot() : null;
+if (!snap || !snap.isAuthenticated) { location.replace('/login'); return; }
+var jwt = localStorage.getItem('tw_jwt');   // snapshot has no jwt field — never snap.jwt
 ```
 
 ---
@@ -290,12 +310,6 @@ if (!_u) { location.href = '/login'; }
 3. Admin calls `PUT /admin/verify/{req_id}` with `{ status: "approved" | "rejected" }`
 4. Approved credentials show a verified badge on the employee's public profile
 
-### 3. Job Matching Flow
-1. Employee CV text sent to `POST /match`
-2. Server scores each job by keyword overlap
-3. Returns ranked list with match percentages
-4. Employee's click tracked via `POST /feedback`
-
 ---
 
 ## auto_sync.py
@@ -314,17 +328,20 @@ python auto_sync.py &
 
 ## Testing
 
+Focused tests live at the repo root (`test_*.py`, `test_*_runtime.js`) and in `tests/`. Run only the one relevant to your change, e.g.:
+
 ```bash
-python test.py
+python -m pytest test_post_comments.py -q
+node test_stale_session_entry_runtime.js
 ```
 
-Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal — expand as features grow.
+`test.py` is a legacy smoke script against a running server (`uvicorn server:app`); its `test_match()` calls `POST /match`, which no longer exists.
 
 ---
 
 ## Development Guidelines for AI Assistants
 
-1. **All business logic lives in `server.py`** — this is the single source of truth for the backend. There is no separate routes/models/services split.
+1. **Backend = `server.py` + `auth.py`** — `server.py` holds the FastAPI app (routes, JWT, WebSocket, middleware, migrations); `auth.py` holds the DB data layer and business logic. There is no further routes/models/services split.
 
 2. **Frontend pages are self-contained** — each HTML file includes its own `<style>` and `<script>` blocks. Do not introduce a build system unless explicitly requested.
 
@@ -375,10 +392,8 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
 ## Deployment
 
 ```bash
-# Heroku (or any platform supporting Procfile)
-git push heroku main
-# Set env vars:
-heroku config:set SUPABASE_DB_URL="postgres://..."
+# Railway — deploys from GitHub main (Procfile)
+# Set env vars in Railway → Variables (see Environment Variables table)
 ```
 
 The `Procfile` binds to `$PORT` automatically:
@@ -390,12 +405,12 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 
 ## Architecture Foundation (mandatory for all AI sessions)
 
-**قبل أي تعديل أو ميزة جديدة، اقرأ [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md).**
+**قبل أي تعديل أو ميزة جديدة، اقرأ "فهرس القواعد" بأول [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md)، ثم فقط نص القواعد المرتبطة بالمهمة (بروتوكول المهام — البند 1).**
 
 هذا الملف هو الدستور المعماري للمشروع. له أولوية على جميع التوثيقات التفصيلية.
 إذا تعارض أي توثيق مع `ARCHITECTURE_FOUNDATION.md` — يُعتمد `ARCHITECTURE_FOUNDATION.md`.
 
-القواعد العليا الـ 13 (F1–F13) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
+القواعد العليا (F1–F35) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
 
 ---
 
@@ -812,7 +827,7 @@ The saved candidates system has **three independent status sources**. Never conf
 - NEVER modifies `company_saved_candidates.status`.
 - Returns 404 if the `company_candidate_job_refs` row doesn't exist.
 
-**Popover is 3 rows (permanent after feat/candidate-status-per-job):** حالة الطلب (`application_status`) + تصنيف في الوظيفة (`candidate_status`) + التصنيف العام (`company_saved_candidates.status`). Do NOT merge or reorder these rows.
+**Job chip popover is 2 rows (`_showJobChipPop` in `static/company/company.main.js` — fix/job-chip-pop-simplify, supersedes the 3-row layout of feat/candidate-status-per-job):** Row 1 «حالة المرشح في هذه الوظيفة» = `candidate_status` (`data-cand-status`; null → «لم يتم ترشيحه بعد»). Row 2 «تاريخ التقدم» = `job_links[].apply_date` — shown only when the chip has a real application (`data-app-id` AND `data-apply-date` non-empty). `application_status` and `company_saved_candidates.status` are NOT shown in this popover (they stay in the `job_links[]` contract and the manage panel). Do NOT re-add حالة الطلب or التصنيف العام rows. Full spec: `docs/SYSTEMS_INDEX.md §20c`.
 
 ---
 
@@ -936,7 +951,7 @@ These rules are permanent and apply to all future AI sessions.
 
 **Before implementing any new feature or opening a PR, you MUST:**
 
-1. Read `docs/SYSTEMS_INDEX.md` — the authoritative index of all 33 documented systems.
+1. Read `docs/SYSTEMS_INDEX.md` — the authoritative index of all documented systems.
 2. Find the relevant system entry and note the "Source of Truth" and "Details" pointer.
 3. Read the linked section in ARCHITECTURE.md or CLAUDE.md.
 4. Read any shared files the system depends on.
@@ -960,7 +975,7 @@ Then decide:
 
 ### Index location
 
-`docs/SYSTEMS_INDEX.md` — 33 systems, 9 categories. Read it before every PR.
+`docs/SYSTEMS_INDEX.md` — read it (as an index) before every PR.
 
 ---
 

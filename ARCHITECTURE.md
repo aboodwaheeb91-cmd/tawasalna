@@ -1,8 +1,8 @@
 # تواصلنا — Architecture Doctrine
 
-> **⚠️ Foundation First:** قبل تغيير أي معمارية أو تنفيذ أي ميزة، اقرأ [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md) أولاً.
-> هذا الملف هو الدستور المعماري للمشروع وله أولوية على أي توثيق تفصيلي.
-> Before changing architecture or implementing features, read `ARCHITECTURE_FOUNDATION.md` first.
+> **⚠️ Foundation First:** قبل تغيير أي معمارية أو تنفيذ أي ميزة، اقرأ "فهرس القواعد" بأول [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md)، ثم `docs/SYSTEMS_INDEX.md` كفهرس، ثم فقط الأقسام المرتبطة بالمهمة (`CLAUDE.md → بروتوكول المهام` البند 1).
+> `ARCHITECTURE_FOUNDATION.md` هو الدستور المعماري للمشروع وله أولوية على أي توثيق تفصيلي.
+> Before changing architecture or implementing features, read the Rule Index at the top of `ARCHITECTURE_FOUNDATION.md` first, then only the rules/sections relevant to the task.
 
 > **Single Source of Truth** للمعمارية.  
 > أي تطوير جديد يلتزم بهذا الملف. أي استثناء يُسجَّل هنا قبل التطبيق.
