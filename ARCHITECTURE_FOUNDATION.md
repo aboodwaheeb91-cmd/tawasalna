@@ -1306,14 +1306,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F37`
 
 ---
 
-*أُنشئ في PR #420 — 2026-07-09 — الدستور المعماري الأساسي لمشروع تواصلنا.*
-*حُدِّث في PR #420 (commit 2) — 2026-07-09 — أُضيفت القواعد F14–F28 (15 قاعدة مستقبلية). المجموع: 28 قاعدة عليا.*
-*حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
-*حُدِّث في PR #508 — 2026-07-22 — F31 جدول التوجيه: صف dropdown/select حُدِّث للإشارة إلى `docs/design-system/SELECT-PICKER.md` بعد توثيق DS-SEL V1 رسمياً — STOP أُزيل من هذا الصف.*
-*حُدِّث في PR docs/ds-date-v1 — 2026-07-23 — أُضيفت القاعدة F32: Date & Time Fields System (DS-DATE). F31 جدول التوجيه: صف تاريخ/وقت أُضيف للإشارة إلى `docs/design-system/DATE-TIME-FIELDS.md`. المجموع: 32 قاعدة عليا.*
-*حُدِّث في PR docs/ds-ovl-v1 — 2026-07-24 — أُضيفت القاعدة F33: Overlay System (DS-OVL). F31 جدول التوجيه: صف Overlay/Modal/Drawer أُضيف للإشارة إلى `docs/design-system/OVERLAY-SYSTEM.md`؛ تعارض Routing أُصلح: Popover حُذف من صف DS-OVL (OVL-00 + OVL-37 يُصرِّحان أنه خارج DS-OVL V1)؛ صف Tooltip/Popover/Floating label/Context menu أُضيف → STOP. المجموع: 33 قاعدة عليا.*
-*حُدِّث في PR docs/ds-feedback-v1 — 2026-07-24 — أُضيفت القاعدة F34: Operational Feedback System (DS-FEEDBACK). F31 جدول التوجيه: صف Toast/Snackbar/Operational Feedback أُضيف للإشارة إلى `docs/design-system/FEEDBACK-SYSTEM.md`. المجموع: 34 قاعدة عليا.*
-*حُدِّث في PR #520 (DS-COLOR Phase 1 Final Documentation Sync) — 2026-07-26 — F35 قاعدة 9 حُدِّثت: Phase 0 ✅ + Phase 1 ✅ (Runtime Tokens Foundation مكتمل). ممنوعات F35 حُدِّثت: Phase 1 Runtime restriction أُزيلت (مكتملة)؛ Phase 2 page migration restriction أُضيفت.*
-*حُدِّث في PR-3 (docs/protocol-conflicts) — 2026-10-06 — أُضيف "فهرس القواعد" (F1–F35 بسطر واحد لكل قاعدة) بأول الملف بدلاً من جدول "القواعد العليا" (نفس الأرقام والأولويات)؛ سطر "إلزامي القراءة" عُدِّل ليطابق بروتوكول المهام (CLAUDE.md البند 1). لم يتغيّر نص أي قاعدة.*
-*حُدِّث في PR-5 / المرحلة B (DS-SIZE) — 2026-10-06 — أُضيفت القاعدة F36: Size System (DS-SIZE). فهرس القواعد: سطر F36. F31 جدول التوجيه: صف font-size/radius/spacing/icon/control height → `docs/design-system/SIZE-SYSTEM.md`. المجموع: 36 قاعدة عليا.*
-*حُدِّث في PR-6 / المرحلة B (DS-ICON) — 2026-10-06 — أُضيفت القاعدة F37: Icon System (DS-ICON). فهرس القواعد: سطر F37. F31 جدول التوجيه: صف أيقونة واجهة / SVG / `data-lucide` / emoji كأيقونة → `docs/design-system/ICON-SYSTEM.md`. المجموع: 37 قاعدة عليا.*
+*آخر تحديث: 2026-10-06 — PR-6 / المرحلة B (DS-ICON) — F37 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*

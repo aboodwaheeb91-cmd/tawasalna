@@ -774,4 +774,4 @@ Before → Click → Loading → Result → Back → Refresh
 
 ---
 
-*آخر تحديث: 2026-07-26 — BTN-18 Loading Indicator Alignment Contract (fix/spinner-centering: margin-based centering, no transform conflict) — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md) · BTN-17 VM-10 Extension (2026-08-03): applies to links + dropdown items + header icons, not just buttons.*
+*آخر تحديث: 2026-08-03 — BTN-17 VM-10 Extension · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*
