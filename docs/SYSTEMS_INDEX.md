@@ -23,9 +23,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 1. Auth / Login / Registration
 **Purpose:** Register and authenticate users (emp / co / edu); bcrypt passwords; post-login routing by user_type.
-**Source of Truth:** `users` table · `auth.py` (`hash_password`, `verify_password`) · `index.auth.js` (`redirect()`)
+**Source of Truth:** `users` table · `auth.py` (`hash_password`, `verify_password`) · `index.auth.js` (`redirect()`) · destination: `twAccountHref(u)` in `tw_shared.js` (`tw_id` → `/u/{tw_id}`, else `/login`)
 **Details:** `CLAUDE.md → Authentication System` · `CLAUDE.md → Auth Gateway Rules` · `ARCHITECTURE.md §46`
-**Do not recreate:** Do not add a second login form or second redirect logic. `redirect(u)` in `index.auth.js` is the single post-login routing authority.
+**Do not recreate:** Do not add a second login form or second redirect logic. `redirect(u)` in `index.auth.js` is the single post-login routing authority and takes its destination from `twAccountHref()` — do not add per-type destinations in `redirect()` or `landing.html`. `twHomeHref()` is the feed/dashboard (not "my account") — do not use it for post-login routing.
 
 ---
 
@@ -59,6 +59,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `localStorage.tw_user` (user object) · `localStorage.tw_jwt` (JWT token)
 **Details:** `CLAUDE.md → Session Management` · `CLAUDE.md → Auth Gateway Rules §6`
 **Do not recreate:** localStorage is a cache, not an authority. Do not gate security decisions on it. Do not add a second session key.
+**Entry pages (fix/stale-session-entry-redirect):** `landing.html` + `index.auth.js` decide via `twEntryDestination()` (`tw_shared.js`) from `TwAuthSync.getSessionSnapshot()` only — redirect only if `isAuthenticated`; expired/stale/invalid → `invalidateSession('stale_entry')`, no redirect. Never redirect because `tw_user` exists. Test: `test_stale_session_entry_runtime.js`.
 
 ---
 
