@@ -54,8 +54,8 @@ class FakeStorage:
 def storage(monkeypatch):
     FakeStorage.calls, FakeStorage.status, FakeStorage.raise_exc = [], 200, False
     monkeypatch.setattr(httpx, "AsyncClient", FakeStorage)
-    monkeypatch.setenv("SUPABASE_URL", "https://sb.example")
-    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "svc")
+    monkeypatch.setenv("SUPABASE_URL", "https://sb.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "sb_secret_test")
     monkeypatch.delenv("TW_DEV_UPLOAD", raising=False)
     return FakeStorage
 
@@ -68,7 +68,7 @@ def test_valid_upload_server_decides_bucket_and_name(storage):
     r = up({"kind": "employee-avatar", "data_url": durl("image/png", PNG)})
     assert r.status_code == 200, r.text
     url = r.json()["url"]
-    assert url.startswith("https://sb.example/storage/v1/object/public/avatars/7_employee-avatar_")
+    assert url.startswith("https://sb.supabase.co/storage/v1/object/public/avatars/7_employee-avatar_")
     assert url.endswith(".png")
     assert storage.calls[0]["headers"].get("x-upsert") is None
 
@@ -159,7 +159,7 @@ def test_admin_logo_validation(storage):
 
 # ── Stored image URL gate (_validate_stored_image_url) — every endpoint that saves an image URL ──
 
-SB = "https://sb.example/storage/v1/object/public"
+SB = "https://sb.supabase.co/storage/v1/object/public"
 GOOD_AVATAR = f"{SB}/avatars/7_employee-avatar_0123456789ab.jpg"
 LEGACY = "https://old.cdn.example/whatever.png"
 
@@ -231,7 +231,7 @@ def test_kyc_upload_returns_private_path_not_public_url(storage):
     body = r.json()
     assert "url" not in body and "public" not in r.text
     assert body["path"].startswith("kyc-docs/7_kyc-id-front_") and body["path"].endswith(".jpg")
-    assert storage.calls[0]["url"].startswith("https://sb.example/storage/v1/object/kyc-docs/7_kyc-id-front_")
+    assert storage.calls[0]["url"].startswith("https://sb.supabase.co/storage/v1/object/kyc-docs/7_kyc-id-front_")
 
 
 def test_kyc_urls(db):
@@ -259,17 +259,18 @@ def test_stored_data_url_only_in_dev(db, monkeypatch):
     assert put_profile({"avatar_url": d}).status_code == 200
 
 
-@pytest.mark.parametrize("raw", ["https://sb.example/", " https://sb.example/ \n"])
+@pytest.mark.parametrize("raw", ["https://sb.supabase.co/", " https://sb.supabase.co/ \n"])
 def test_upload_then_save_roundtrip_with_untrimmed_supabase_url(db, storage, monkeypatch, raw):
     # Production incident (after PR #549): the URL /upload/image returned must
     # always pass PUT /profile — one normalised base (_supabase_base_url).
     monkeypatch.setenv("SUPABASE_URL", raw)
-    monkeypatch.setenv("SUPABASE_SERVICE_KEY", " svc\n")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", " sb_secret_test\n")
     r = up({"kind": "employee-avatar", "data_url": durl("image/jpeg", JPEG)})
     assert r.status_code == 200, r.text
     url = r.json()["url"]
-    assert url.startswith("https://sb.example/storage/v1/object/public/avatars/7_employee-avatar_")
-    assert storage.calls[0]["url"].startswith("https://sb.example/storage/v1/object/avatars/")
-    assert storage.calls[0]["headers"]["Authorization"] == "Bearer svc"
+    assert url.startswith("https://sb.supabase.co/storage/v1/object/public/avatars/7_employee-avatar_")
+    assert storage.calls[0]["url"].startswith("https://sb.supabase.co/storage/v1/object/avatars/")
+    assert storage.calls[0]["headers"]["apikey"] == "sb_secret_test"
+    assert "Authorization" not in storage.calls[0]["headers"]
     assert put_profile({"avatar_url": url}).status_code == 200
     assert db["avatar_url"] == url

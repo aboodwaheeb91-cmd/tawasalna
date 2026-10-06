@@ -36,6 +36,12 @@ These rules are permanent and apply to all future AI sessions.
    ❌ Logging the data URL
    ❌ Reading os.environ["SUPABASE_URL"] for storage outside _supabase_base_url()
    ```
+   **Supabase settings (fix/supabase-settings-key-migration):** `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` are read only via `_supabase_url_status()` / `_supabase_base_url()` and `_supabase_key_status()` / `_supabase_service_key()` — cleaned of whitespace, Unicode Cf (bidi U+200E/F · U+202A–E · U+2066–9 · BOM U+FEFF · zero-width) and surrounding quotes. URL must be exactly `https://<project>.supabase.co` (custom domains are **not** accepted — decision: one canonical host avoids a pasted wrong domain silently passing; add a documented allowlist if a custom domain is ever adopted). Key: `sb_secret_…` (new) or a legacy `service_role` JWT (payload decoded only, no signature check); anon JWT → "anon key, not service_role", `sb_publishable_…` / anything else → not configured (= 503, same as missing). Storage auth headers come only from `_supabase_auth_headers()`: `sb_secret_` → `{apikey}` only (not a JWT — never Bearer) · legacy JWT → `{apikey, Authorization: Bearer}`. Used by `_store_image` (uploads, `POST /admin/logo`, PR-7c migration) and `_sign_kyc_doc`. Startup logs one line `Supabase storage: OK (key type: legacy JWT | secret)` or `NOT CONFIGURED — <reason>` + a deprecation warning for legacy keys — never the key, any part of it, or the URL. Test: `test_supabase_settings.py`.
+   ```
+   ❌ Reading SUPABASE_SERVICE_KEY outside _supabase_key_status() · a hand-written "Authorization": f"Bearer {key}" for Supabase
+   ❌ Sending an sb_secret_ key as Authorization: Bearer (it is not a JWT)
+   ❌ Logging the key (or any part of it) or a raw/invalid SUPABASE_URL — reasons only
+   ```
 
 9. **KYC admin viewing (PR-7c).** `GET /admin/kyc/{submission_id}/docs` (`check_admin`) is the only way to view KYC documents: short-lived (300s) signed URL from `POST {_supabase_base_url()}/storage/v1/object/sign/kyc-docs/{name}`, only for a path exactly `kyc-docs/{user_id of the submission}_{kind}_{12 hex}.{ext}`; anything else → `url: null` + `reason`. `Cache-Control: no-store`. `GET /admin/kyc` returns the explicit allowlist `auth._ADMIN_KYC_LIST_COLUMNS` only — never `email_code` / `phone_code` / `id_front_url` / `selfie_url` (no `SELECT ks.*`). `admin.html` checks the URL starts with `{storage_base}/storage/v1/object/sign/kyc-docs/` before `src`.
    ```

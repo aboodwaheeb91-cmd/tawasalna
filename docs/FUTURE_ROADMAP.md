@@ -40,6 +40,7 @@
 
 ### Platform / Architecture
 
+- [ ] **P0** — تبديل `SUPABASE_SERVICE_KEY` لـ `sb_secret_…` قبل نهاية 2026 (Supabase بيوقف مفاتيح service_role JWT القديمة). الكود جاهز (`_supabase_auth_headers()` — SYSTEMS_INDEX §29a)؛ بعد التبديل لازم سطر startup يقول `Supabase storage: OK (key type: secret)`.
 - [ ] **P2** — الشعار الرسمي vector أصلي من المصمم — حالياً PNG داخل SVG (`33333.svg`). عند وصوله: استبدل الملف وأعد `python scripts/gen_app_icons.py` (SYSTEMS_INDEX §32).
 - [ ] **P1** — Service Worker / PWA: توثيق cache strategy في `ARCHITECTURE.md` (§32 في SYSTEMS_INDEX يشير لغياب التوثيق)
 - [ ] **P1** — Field validation shared helper: دالة مشتركة للـ validation بدلاً من تكرار المنطق في كل صفحة

@@ -489,6 +489,8 @@ async def on_startup():
         print("⚠️  ADMIN_TOKEN not configured — admin endpoints will return 503 for all requests")
     if not ADMIN_URL_TOKEN:
         print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
+    for _line in _supabase_storage_status_lines():
+        print(_line)
     try:
         init_db()
         print("✅ DB initialized")
@@ -4172,13 +4174,109 @@ def _validate_image_data_url(data_url: str):
 _STORED_IMAGE_TAIL_RE = re.compile(r"[0-9a-f]{12}\.(?:jpg|png|webp)")
 
 
+# ── Supabase Storage settings (§29a) — the ONLY readers of SUPABASE_URL /
+# SUPABASE_SERVICE_KEY and the ONLY builder of Storage auth headers.
+# Values pasted into Railway may carry invisible characters (bidi marks, BOM,
+# zero-width), surrounding quotes or whitespace → cleaned once here.
+# URL: https://<project>.supabase.co only (custom domains not allowed —
+# documented decision). Key: sb_secret_… (new, apikey header only) or a legacy
+# service_role JWT (apikey + Bearer). anon / publishable / anything else = not
+# configured. Values are never logged — reasons only.
+_ENV_QUOTES = "\"'`\u201c\u201d\u2018\u2019"
+
+
+def _clean_supabase_env(name: str) -> str:
+    """Env value without Unicode Cf chars (bidi U+200E/F, U+202A–E, U+2066–9,
+    BOM U+FEFF, zero-width), without any whitespace, without surrounding quotes."""
+    import unicodedata
+    raw = os.environ.get(name) or ""
+    s = "".join(ch for ch in raw if unicodedata.category(ch) != "Cf" and not ch.isspace())
+    while len(s) >= 2 and s[0] in _ENV_QUOTES and s[-1] in _ENV_QUOTES:
+        s = s[1:-1]
+    return s
+
+
+def _supabase_url_status():
+    """→ (base, None) when valid, else ("", reason). base has no trailing "/"."""
+    from urllib.parse import urlsplit
+    s = _clean_supabase_env("SUPABASE_URL").rstrip("/")
+    if not s:
+        return "", "SUPABASE_URL is not set"
+    if not s.lower().startswith("https://"):
+        return "", "SUPABASE_URL must start with https://"
+    try:
+        u = urlsplit(s)
+        host, port = (u.hostname or ""), u.port
+    except ValueError:
+        return "", "SUPABASE_URL is not a valid URL"
+    if (u.path or u.query or u.fragment or u.username or u.password or port is not None
+            or not re.fullmatch(r"[a-z0-9-]+\.supabase\.co", host)):
+        return "", "SUPABASE_URL must be https://<project>.supabase.co"
+    return f"https://{host}", None
+
+
 def _supabase_base_url() -> str:
-    """SUPABASE_URL normalised (whitespace + trailing "/" stripped). The only
-    reader of SUPABASE_URL for storage: _store_image builds the URL it returns
-    and _validate_stored_image_url checks it against the same base — a raw
+    """Cleaned SUPABASE_URL ("" when missing/invalid). The only reader of
+    SUPABASE_URL for storage: _store_image builds the URL it returns and
+    _validate_stored_image_url checks it against the same base — a raw
     "https://x.supabase.co/" would make them disagree ("//storage") and every
     saved image URL would be rejected with 400."""
-    return (os.environ.get("SUPABASE_URL") or "").strip().rstrip("/")
+    return _supabase_url_status()[0]
+
+
+def _supabase_key_status():
+    """→ (key, "secret" | "legacy", None) when it is a service key, else
+    ("", None, reason). Legacy JWT: payload decoded only (no signature check)."""
+    key = _clean_supabase_env("SUPABASE_SERVICE_KEY")
+    if not key:
+        return "", None, "SUPABASE_SERVICE_KEY is not set"
+    if key.startswith("sb_secret_") and len(key) > len("sb_secret_"):
+        return key, "secret", None
+    if key.startswith("sb_publishable_"):
+        return "", None, "SUPABASE_SERVICE_KEY is a publishable key, not a secret key"
+    parts = key.split(".")
+    if key.startswith("eyJ") and len(parts) == 3 and all(parts):
+        try:
+            seg = parts[1] + "=" * (-len(parts[1]) % 4)
+            role = (json.loads(_b64.urlsafe_b64decode(seg)) or {}).get("role")
+        except Exception:
+            role = None
+        if role == "service_role":
+            return key, "legacy", None
+        if role == "anon":
+            return "", None, "SUPABASE_SERVICE_KEY is an anon key, not service_role"
+    return "", None, "SUPABASE_SERVICE_KEY is not a service key"
+
+
+def _supabase_service_key() -> str:
+    """Cleaned service key ("" when missing or not a service key)."""
+    return _supabase_key_status()[0]
+
+
+def _supabase_auth_headers() -> dict:
+    """The only builder of Supabase Storage auth headers ({} when not configured).
+    sb_secret_… → apikey only (not a JWT — never Bearer); legacy service_role
+    JWT → apikey + Bearer."""
+    key, kind, _ = _supabase_key_status()
+    if kind == "secret":
+        return {"apikey": key}
+    if kind == "legacy":
+        return {"apikey": key, "Authorization": "Bearer " + key}
+    return {}
+
+
+def _supabase_storage_status_lines() -> list:
+    """Startup log lines — never the key or the URL, reasons only."""
+    _, url_reason = _supabase_url_status()
+    _, kind, key_reason = _supabase_key_status()
+    reason = url_reason or key_reason
+    if reason:
+        return [f"⚠️ Supabase storage: NOT CONFIGURED — {reason}"]
+    lines = [f"✅ Supabase storage: OK (key type: {'secret' if kind == 'secret' else 'legacy JWT'})"]
+    if kind == "legacy":
+        lines.append("⚠️ Supabase storage: legacy key — Supabase deprecates these by end of 2026, "
+                     "switch to sb_secret_…")
+    return lines
 
 
 def _validate_stored_image_url(url, kind, uid: int, current=None):
@@ -4238,20 +4336,19 @@ async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
     Dev only: TW_DEV_UPLOAD=1 + missing Supabase keys → returns the data URL."""
     import httpx
     supabase_url = _supabase_base_url()
-    supabase_key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
-    if not supabase_url or not supabase_key:
+    auth_headers = _supabase_auth_headers()
+    if not supabase_url or not auth_headers:
         if os.environ.get("TW_DEV_UPLOAD") == "1":
             print(f"{log_tag} TW_DEV_UPLOAD=1 — storage not configured, returning data URL (dev only)")
             return data_url
-        print(f"{log_tag} storage not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY missing)")
+        print(f"{log_tag} storage not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY missing or invalid)")
         raise HTTPException(503, "خدمة رفع الصور غير متاحة حالياً")
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(
                 f"{supabase_url}/storage/v1/object/{bucket}/{name}",
                 content=file_bytes,
-                headers={"Authorization": f"Bearer {supabase_key}",
-                         "Content-Type": mime},
+                headers={**auth_headers, "Content-Type": mime},
             )
     except Exception as e:
         print(f"{log_tag} storage error bucket={bucket} name={name}: {e!r}")
@@ -4441,24 +4538,20 @@ def _kyc_doc_path_reason(value, uid: int, kind: str):
     return None, "invalid_path"
 
 
-def _supabase_service_key() -> str:
-    return (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
-
-
 async def _sign_kyc_doc(name: str):
     """Supabase signed URL for kyc-docs/{name} → (url, None) or (None, reason).
     Base via _supabase_base_url() (same as _store_image). Logs never contain
     the signed URL / token."""
     import httpx
-    base, key = _supabase_base_url(), _supabase_service_key()
-    if not base or not key:
+    base, auth_headers = _supabase_base_url(), _supabase_auth_headers()
+    if not base or not auth_headers:
         return None, "storage_unavailable"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
                 f"{base}/storage/v1/object/sign/kyc-docs/{name}",
                 json={"expiresIn": _KYC_SIGN_EXPIRES},
-                headers={"Authorization": f"Bearer {key}"},
+                headers=auth_headers,
             )
     except Exception as e:
         print(f"[KYC docs] sign error name={name}: {type(e).__name__}")
@@ -4560,7 +4653,7 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
     Response never contains image content or URLs — counts + reasons only."""
     check_admin(request)
     dry = dry_run != 0
-    if not dry and not (_supabase_base_url() and _supabase_service_key()):
+    if not dry and not (_supabase_base_url() and _supabase_auth_headers()):
         raise HTTPException(503, "خدمة رفع الصور غير متاحة حالياً")
     report = {}
     for col, select_sql, update_sql, kind_of in _DATA_IMAGE_TARGETS:
