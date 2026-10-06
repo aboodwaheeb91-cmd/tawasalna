@@ -128,6 +128,29 @@
 .sc-menu-item.danger { color: #f87171; }
 .sc-menu-item.danger:hover { background: rgba(248,113,113,.1); }
 
+/* SVG icons inside dynamically-rendered menu items (tw_shared.js _twHeaderMenuItemHtml) */
+.sc-svg-icon-sm { width: 14px; height: 14px; flex-shrink: 0; }
+.sc-menu-item .sc-svg-icon-sm          { color: var(--ac, #00c896); }
+.sc-menu-item.danger .sc-svg-icon-sm   { color: #f87171; }
+
+/* Disabled ("قريباً") menu item — visual only, not interactive */
+.sc-menu-item.disabled {
+  color: rgba(255,255,255,.27);
+  cursor: default;
+  pointer-events: none;
+  justify-content: space-between;
+}
+.sc-menu-item.disabled .sc-svg-icon-sm { color: rgba(255,255,255,.27); }
+.sc-menu-item.disabled:hover           { background: none; }
+
+/* "قريباً" pill badge */
+.sc-menu-soon {
+  font-size: .6rem; font-weight: 700;
+  background: rgba(255,255,255,.07); color: rgba(255,255,255,.27);
+  border-radius: 999px; padding: 1px 6px;
+  margin-right: auto;
+}
+
 /* Notification unread badge — positioned relative to bell icon wrapper */
 .sc-notif-wrap { position: relative; display: inline-flex; overflow: visible; }
 [data-ah-notif-badge] {
