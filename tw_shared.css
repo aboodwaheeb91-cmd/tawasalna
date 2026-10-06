@@ -121,6 +121,74 @@
   --fbk-bdr-info:    rgba(var(--ac2-rgb), .3);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   1b. DS-SIZE — Size Tokens Foundation (F36 · SIZE-SYSTEM.md)
+   Runtime Source of Truth for --size-* / --radius-* / --space-*.
+   Definitions only — no selector consumes them yet (no migration).
+   Migration = replace identical + sub-pixel values only (SIZE-05).
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+  /* Font size scale (SIZE-02) — rem on a 16px root */
+  --size-font-3xs:     .6rem;   /*  9.6px */
+  --size-font-2xs:     .65rem;  /* 10.4px */
+  --size-font-xs:      .72rem;  /* 11.52px */
+  --size-font-sm:      .78rem;  /* 12.48px */
+  --size-font-md:      .82rem;  /* 13.12px */
+  --size-font-lg:      .9rem;   /* 14.4px */
+  --size-font-xl:      .95rem;  /* 15.2px */
+  --size-font-2xl:     1rem;    /* 16px */
+  --size-font-3xl:     1.2rem;  /* 19.2px */
+  --size-font-4xl:     1.4rem;  /* 22.4px */
+  --size-font-5xl:     1.6rem;  /* 25.6px */
+  --size-font-display: 2rem;    /* 32px */
+
+  /* Radius scale (SIZE-03) */
+  --radius-2xs:    4px;
+  --radius-xs:     6px;
+  --radius-sm:     8px;
+  --radius-md:     10px;
+  --radius-lg:     12px;
+  --radius-xl:     14px;
+  --radius-2xl:    16px;
+  --radius-3xl:    20px;
+  --radius-pill:   999px;
+  --radius-circle: 50%;
+  /* Role alias — buttons and input fields (BTN-02) */
+  --radius-control: var(--radius-md);
+
+  /* Spacing scale (SIZE-04) — padding / margin / gap; 2px base */
+  --space-1:  2px;
+  --space-2:  4px;
+  --space-3:  6px;
+  --space-4:  8px;
+  --space-5:  10px;
+  --space-6:  12px;
+  --space-7:  14px;
+  --space-8:  16px;
+  --space-9:  18px;
+  --space-10: 20px;
+  --space-11: 24px;
+  --space-12: 32px;
+  --space-13: 40px;
+
+  /* Icon glyph size (SIZE-06) */
+  --size-icon-xs:  12px;
+  --size-icon-sm:  14px;
+  --size-icon-md:  16px;
+  --size-icon-lg:  18px;
+  --size-icon-xl:  20px;
+  --size-icon-2xl: 22px;
+
+  /* Interactive control heights (SIZE-06) */
+  --size-control-icon-xs: 28px;  /* square icon button */
+  --size-control-icon-sm: 30px;
+  --size-control-icon-md: 32px;
+  --size-control-icon-lg: 40px;
+  --size-control-sm:      28px;  /* text button */
+  --size-control-md:      40px;
+  --size-touch-min:       44px;  /* minimum touch target */
+}
+
 /* ══════════════════════════════════════
    2. Reset & Base
    ══════════════════════════════════════ */

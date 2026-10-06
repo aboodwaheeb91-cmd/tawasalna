@@ -521,6 +521,8 @@ Feature (profile-v2.css أو skills.css):
               --co-anim-dur: 250ms;     ✅
 ```
 
+> **الأبعاد المحلية صارت تتبع DS-SIZE** (`docs/design-system/SIZE-SYSTEM.md` SIZE-07 — F36). الأبعاد (radius / spacing / font-size / icon / control height) ما عادت Tier 3 حرّ: لما ينعمل migration للملف، المثال أعلاه بيصير `--co-modal-radius: var(--radius-lg);` (T2 alias)، والقيمة الخام بتبقى بس إذا ما إلها token مطابق (T3 موثقة — SIZE-09). المدد و z-index بتبقى هون.
+
 ### Local Color Role في Tier 3
 
 لون محلي في Tier 3 مسموح إذا توفرت **جميع** الشروط الآتية:

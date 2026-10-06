@@ -1582,7 +1582,7 @@ PR #523 أضاف: `aria-invalid` / `aria-describedby` / `aria-labelledby` / `dis
 | Runtime implementation: multi-select | PR مستقل |
 | aria-activedescendant + combobox role semantics | PR مستقل |
 | توحيد الأنظمة القديمة (co-dp-*, profile-v2.select.js) | قرار مستقل |
-| CSS layer (`tw-ui-tokens.css` لـ DS-SEL tokens) | FUTURE_ROADMAP |
+| CSS layer (`tw-ui-tokens.css` لـ DS-SEL tokens) | استُبدل بـ DS-SIZE في `tw_shared.css` — أبعاد DS-SEL عبر DS-SIZE Phase 2 |
 | Bottom Sheet على mobile (DS-OVL أولاً) | بعد توثيق DS-OVL |
 
 ### مسار الانتقال المحدَّث

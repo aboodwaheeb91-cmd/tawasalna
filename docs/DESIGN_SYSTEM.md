@@ -83,13 +83,14 @@
 | Modal / Drawer / Overlay / Confirmation / Sheet | [OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | OVL-00 (Routing Protocol) → القسم المناسب |
 | Toast / Snackbar / Operational Feedback | [FEEDBACK-SYSTEM.md](design-system/FEEDBACK-SYSTEM.md) | FBK-00 (Routing Protocol) → القسم المناسب |
 | color token / `--color-*` / palette / تعريف لون / ترحيل لون | [COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | CLR-00 (Routing Protocol) → القسم المناسب |
+| font-size / border-radius / padding / margin / gap / حجم أيقونة / ارتفاع زر / `--size-*` / `--radius-*` / `--space-*` | [SIZE-SYSTEM.md](design-system/SIZE-SYSTEM.md) | SIZE-00 (Routing Protocol) → القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | [DS-TOOLTIP] | **STOP — غير موثَّق بعد (خارج DS-OVL V1 — راجع OVL-37)** |
 | بيانات مرجعية (مهن / مهارات / دول) | [DS-REF] | **STOP — غير موثَّق بعد (tw-options-data.js موجود)** |
 | Content Moderation | [DS-MODERATION] | **STOP — غير موثَّق بعد** |
 
 > **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع. (F30)
-> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] · [DS-COLOR] — لا تبني نظاماً موازياً لأيٍّ منها.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] · [DS-COLOR] · [DS-SIZE] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 
@@ -109,6 +110,7 @@
 | [DS-OVL] | Overlay System V1 | [design-system/OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | موثَّق — V1 (توثيق) |
 | [DS-FEEDBACK] | Operational Feedback System V1 | [design-system/FEEDBACK-SYSTEM.md](design-system/FEEDBACK-SYSTEM.md) | موثَّق — V1 (توثيق) |
 | [DS-COLOR] | Color System V1 | [design-system/COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | Phase 0 ✅ توثيق + Phase 1 ✅ Runtime Tokens |
+| [DS-SIZE] | Size System V1 | [design-system/SIZE-SYSTEM.md](design-system/SIZE-SYSTEM.md) | Phase 1 ✅ توثيق + Tokens (بدون migration) |
 
 **أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
@@ -144,11 +146,13 @@
 | Documentation — `design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً) | مكتمل ✓ — Phase 0 توثيق (تصحيح موثَّق 2026-07-26) |
 | DS-COLOR Phase 1 — Runtime Tokens Foundation (`tw_shared.css` three-section `:root`) | مكتمل ✓ — PR #520 (2026-07-26) |
-| CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
+| Documentation — `design-system/SIZE-SYSTEM.md` (SIZE-00 → SIZE-12) + DS-SIZE Phase 1 Tokens (`tw_shared.css` قسم `1b. DS-SIZE`) | مكتمل ✓ — PR-5 / المرحلة B (2026-10-06) — بدون مستهلك وبدون تغيير بصري |
+| CSS Layer (`static/shared/tw-ui-tokens.css`) | استُبدل بـ DS-SIZE في `tw_shared.css` — DS-SIZE Phase 1 Tokens Foundation مكتمل ✓ (PR-5 / المرحلة B، 2026-10-06) |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |
 
-> `tw-ui-tokens.css` **ممنوع إنشاؤها** حتى يُطلب صراحةً.
+> `tw-ui-tokens.css` استُبدل بـ DS-SIZE في `tw_shared.css` — **ممنوع إنشاؤها** (نظام أحجام موازٍ).
+> `DS-SIZE Phase 2` (page-by-page migration — المطابق وتحت البكسل فقط) **ممنوع** حتى يُطلب صراحةً لكل صفحة على حدة. Phase 1 Tokens ✅ مكتمل.
 > `Navigation Implementation` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `Input/Form/Validation Runtime` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `DS-DATE Runtime` (tw-date.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.

@@ -43,8 +43,11 @@
 - [ ] **P1** — Service Worker / PWA: توثيق cache strategy في `ARCHITECTURE.md` (§32 في SYSTEMS_INDEX يشير لغياب التوثيق)
 - [ ] **P1** — Field validation shared helper: دالة مشتركة للـ validation بدلاً من تكرار المنطق في كل صفحة
 - [ ] **P1** — Unified Profile Settings Menu: توحيد زر وقائمة إعدادات البروفايل عبر employee/company/education — نفس الشكل والسلوك والخيارات المشتركة، مع إضافات حسب نوع الحساب. القائمة تُبنى حسب صلاحيات viewer من backend فقط — ممنوع الاعتماد على localStorage.
-- [ ] **P1** — Unified Profile UI Tokens: قواعد موحدة لأحجام الواجهة (أيقونات، خطوط، مسافات، border radius، أزرار هيدر، meta text) عبر صفحات employee/company/education. لاحقاً تُنفَّذ عبر `static/shared/tw-ui-tokens.css` — لا تنشئ الملف حتى يُطلب صراحةً.
-  - **[2026-07-18] Design System Button System V1 documentation مكتمل** (`docs/design-system/BUTTONS.md` + `docs/DESIGN_SYSTEM.md`). هذا يُغطي الـ button contract فقط — لا يُعتبر تنفيذاً لـ Unified Profile UI Tokens. طبقة الـ CSS (`tw-ui-tokens.css`) **لم تُنشأ بعد** وتبقى على هذه القائمة حتى يُطلب صراحةً.
+- [ ] **P1** — Unified Profile UI Tokens: قواعد موحدة لأحجام الواجهة (أيقونات، خطوط، مسافات، border radius، أزرار هيدر، meta text) عبر صفحات employee/company/education. `tw-ui-tokens.css` استُبدل بـ DS-SIZE في `tw_shared.css` (F36 · `docs/design-system/SIZE-SYSTEM.md`) — Phase 1 tokens ✅؛ الـ migration بالبنود تحت.
+  - **[2026-07-18] Design System Button System V1 documentation مكتمل** (`docs/design-system/BUTTONS.md` + `docs/DESIGN_SYSTEM.md`). هذا يُغطي الـ button contract فقط — لا يُعتبر تنفيذاً لـ Unified Profile UI Tokens. طبقة الـ CSS (`tw-ui-tokens.css`) استُبدل بـ DS-SIZE في `tw_shared.css` — **[2026-10-06] PR-5 / المرحلة B**.
+- [ ] **P1** — DS-SIZE Phase 2: migration صفحة صفحة إلى tokens الـ DS-SIZE — **المطابق وتحت البكسل فقط** (SIZE-05) + استثناء أيقونات 13px → `--size-icon-sm` (قرار 2). موافقة صريحة لكل صفحة؛ الاستثناءات المجمّدة (SIZE-08) خارجها. القيم المرئية بـ PR redesign معلن لكل صفحة.
+- [ ] **P1** — توحيد أزرار الهيدر: `.sc-home-btn` / `.sc-hicon` / `.hdr-back` = 32 (بروفايل/شركة) · 34 (رسائل) · 34/36 (مواعيد) · 40 (الهيدر المشترك). الميل لـ 40 (`--size-control-icon-lg`). PR بصري منفصل مع screenshots — ما في قرار لسا.
+- [ ] **P1** — إضافة `tw_shared.css` للصفحات الخمس اللي ما بتحمّله: `home-v2.html` · `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`. PR منفصل مع فحص بصري (قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments لازم الرابط قبل `<style>` المحلي). شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات.
 - [ ] **P1** — Unified Profile Media Sizing: توحيد قواعد عرض الصور في صفحات البروفايل (avatar دائري للموظف، rounded square logo للشركة والمؤسسة، نظام موحد للكفر). لا يعني تعديل upload/cropper الآن.
 - [ ] **P1** — First-time Profile Setup Wizard: flow إعداد أولي خطوة بخطوة لحسابات جديدة بدلاً من صفحة فارغة. يختلف حسب نوع الحساب. يفرّق بين Required وRecommended. يدعم حفظ جزئي. لا يعتمد على frontend فقط — يحتاج backend support.
 - [ ] **P1** — Unified section IDs: تعريف section IDs موحدة (`#posts`, `#jobs`, `#courses`, `#experience`, `#skills`, `#followers`) لدعم clickable stats وguided tour بشكل متسق وغير هش.
@@ -127,6 +130,7 @@
 - [ ] **P2** — First-time Guided Tour / Page Coach: جولة إرشادية لصاحب الصفحة عند أول دخول — رسائل صغيرة تشرح أجزاء الصفحة مع خيارات "التالي / تخطي / عدم الإظهار مرة أخرى". لا تظهر للزائر. تختلف حسب نوع الحساب. يُفضَّل لاحقاً حفظ الحالة في backend user preferences. _(localStorage مؤقتاً مقبول إذا وُثِّق كحل مؤقت — انظر Needs Decision)_
 - [ ] **P2** — Unified toast system: shared helper بدلاً من `showToast` مكرر في كل صفحة
 - [ ] **P2** — Dark mode refinements: مراجعة تباين الألوان على الشاشات المختلفة
+- [ ] **P2** — الوضع الليلي/النهاري (Light / Dark theme): **يعتمد على إكمال DS-COLOR Phase 2** (نقل كل الألوان الثابتة بالصفحات لـ tokens). المطلوب: مجموعة قيم ثانية للـ semantic tokens (`--color-*` Section B) لوضع النهار · زر تبديل · حفظ اختيار المستخدم · احترام إعداد الجهاز (`prefers-color-scheme`) كافتراضي.
 
 ---
 
