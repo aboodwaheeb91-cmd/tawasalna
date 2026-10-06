@@ -29,4 +29,12 @@ These rules are permanent and apply to all future AI sessions.
 
 7. **Saving an image URL (PR-7a).** Every endpoint that stores an image URL calls `_validate_stored_image_url(url, kind, uid, current)` in `server.py` — currently `PUT /profile/{id}` (`avatar_url`: `employee-avatar`, or `company-logo` for a `co` account · `cover_url`: `employee-cover`), `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`), `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). Allowed: `null`/`""` (clear) · the currently stored value unchanged (legacy) · exactly `{SUPABASE_URL}/storage/v1/object/public/{bucket of kind}/{uid}_{kind}_{12 hex}.{jpg|png|webp}` — for KYC (private) exactly `kyc-docs/{uid}_{kind}_{12 hex}.{jpg|png|webp}` instead. `data:` only with `TW_DEV_UPLOAD=1`. Anything else → 400. ❌ A new image-URL field or endpoint without this gate.
 
-Test: `python -m pytest test_upload_security.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.
+8. **Error classes (fix/upload-error-classes).** `TW.uploadImage` never rejects: it resolves `{ ok, status, data, errorType }` (`errorType`: `null` · `network` · `non_json` · `server`); `TW.uploadResult(r)` classifies the save-URL response the same way. Every image flow (avatar · cover · company logo/cover · KYC) throws `TW.uploadError(res, fallback, stage)` for a failed upload **and** a failed save step, and its catch shows `TW.uploadFailureMessage(e, fallback)` — session expired (401 / client guard `session_invalid`) · network · server text · `fallback (رمز {status})` for a non-JSON reply. `console.error` logs kind / status / errorType / payloadBytes only. Server: `SUPABASE_URL` is read only via `_supabase_base_url()` (trimmed, no trailing `/`) so the stored URL always passes `_validate_stored_image_url`.
+   ```
+   ❌ One generic toast for every failure in an image flow
+   ❌ Dropping the server error of the save step (PUT /profile …)
+   ❌ Logging the data URL
+   ❌ Reading os.environ["SUPABASE_URL"] for storage outside _supabase_base_url()
+   ```
+
+Test: `python -m pytest test_upload_security.py -q` · `node test_upload_client_runtime.js`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.

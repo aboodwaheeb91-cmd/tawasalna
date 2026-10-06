@@ -6289,6 +6289,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | bucket خاص (KYC) | `kyc-docs` خاص: الرد `{status, path}` بدل `url`، والمحفوظ بالداتا هو مسار الكائن `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بس — ممنوع رابط `/object/public/` لـ KYC (ما بيشتغل). عرض الأدمن برابط مؤقت (signed URL) = `docs/FUTURE_ROADMAP.md` P0. |
 | حفظ الرابط | كل endpoint بيحفظ رابط صورة بيمرّ بـ `_validate_stored_image_url(url, kind, uid, current)`: فاضي/`null` = حذف (مسموح) · نفس القيمة المحفوظة حالياً = مسموح (صور قديمة) · غير هيك لازم يكون بالضبط `{SUPABASE_URL}/storage/v1/object/public/{bucket الـ kind}/{uid}_{kind}_{12 hex}.{jpg\|png\|webp}` (بدون `../` أو query)؛ لـ KYC المسار الخاص `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بدل الرابط العام · `data:` مرفوض إلا بـ `TW_DEV_UPLOAD=1` · غير هيك **400**. المستعملين: `PUT /profile/{id}` (`avatar_url` = `employee-avatar`، أو `company-logo` لحساب `co` · `cover_url` = `employee-cover`) · `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`) · `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). |
 | الواجهة | `TW.uploadImage({ kind, dataUrl, jwt })`؛ عند `!ok` المستدعي يعرض `TW.uploadErrorText(res, fallback)` عبر toast الصفحة ولا يحفظ الـ data URL أبداً. |
+| SUPABASE_URL | يُقرأ بس عبر `_supabase_base_url()` (trim + بدون `/` بالآخر) — نفس الـ base لبناء الرابط بـ `_store_image` وللتحقق بـ `_validate_stored_image_url`. قيمة متغير فيها `/` بالآخر كانت تنتج `//storage` فيترفض حفظ كل صورة 400 (حادثة بعد PR #549). `SUPABASE_SERVICE_KEY` كمان trim. نجاح التخزين يُسجَّل `[Upload] stored bucket= name= bytes=`، ورفض رابط محفوظ `[ImageURL] rejected kind= uid=`. |
+| تصنيف الأخطاء (fix/upload-error-classes) | `TW.uploadImage` ما بيرفض أبداً — بيرجع `{ok, status, data, errorType}` حيث `errorType` = `null` · `network` (status 0) · `non_json` (رد مش JSON، مثلاً صفحة HTML من الـ edge) · `server` (JSON error). `TW.uploadResult(r)` نفس التصنيف لخطوة حفظ الرابط. `TW.uploadErrorText`: 401 أو `session_invalid` → "انتهت الجلسة" · network → رسالة اتصال · `data.error` → نص السيرفر · غير هيك → fallback + `(رمز {status})`. كل مسار صورة (avatar · cover · company logo/cover · KYC) بيرمي `TW.uploadError(res, fallback, stage)` وبيعرض `TW.uploadFailureMessage(e, fallback)` بالـ catch — رسالة عامة وحدة لكل الحالات ممنوعة. `console.error` فيه kind/status/errorType/payloadBytes — ممنوع بيانات الصورة. |
 
 ```
 ❌ bucket أو filename أو user_id من العميل
@@ -6296,8 +6298,11 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 ❌ رجوع data URL كـ "success" عند فشل التخزين (إنتاج)
 ❌ endpoint جديد بيحفظ رابط صورة بدون `_validate_stored_image_url`
 ❌ str(e) أو رد Supabase بالـ response
+❌ قراءة SUPABASE_URL مباشرة بدل `_supabase_base_url()`
+❌ catch بمسار صورة يعرض رسالة ثابتة بدل `TW.uploadFailureMessage(e, fallback)` · خطأ حفظ الرابط بدون رسالة السيرفر
+❌ تسجيل الـ data URL بالـ console أو الـ log
 ```
-Test: `python -m pytest test_upload_security.py -q`.
+Test: `python -m pytest test_upload_security.py -q` · `node test_upload_client_runtime.js`.
 
 ### Safe Rendering (PR security/admin-safe-rendering — §54)
 

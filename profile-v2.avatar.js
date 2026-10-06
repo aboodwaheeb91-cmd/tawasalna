@@ -82,13 +82,11 @@
       .then(function(res){
         if(!res.ok || !res.data || !res.data.url){
           // PR-7a: never save the data URL — surface the upload error
-          var err = new Error('upload failed');
-          err.userMsg = TW.uploadErrorText(res, 'حدث خطأ أثناء رفع الصورة');
-          throw err;
+          throw TW.uploadError(res, 'حدث خطأ أثناء رفع الصورة', 'upload_failed');
         }
         return updateProfile(uid, { avatar_url: res.data.url })
           .then(function(ur){
-            if(!ur.ok) throw new Error('profile update failed');
+            if(!ur.ok) throw TW.uploadError(ur, 'تعذّر حفظ الصورة في الملف الشخصي', 'save_failed');
             return { url: res.data.url };
           });
       })
@@ -108,7 +106,7 @@
         if(window._updateCompletion) window._updateCompletion();
       })
       .catch(function(e){
-        toast((e && e.userMsg) || 'حدث خطأ أثناء رفع الصورة');
+        toast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الصورة'));
       })
       .finally(function(){
         saveBtn.disabled = false;

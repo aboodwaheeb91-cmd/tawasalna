@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## fix/upload-error-classes — 2026-10-06 — حادثة رفع الصور بعد PR #549
+
+- السبب الجذري (الأرجح — قيمة المتغير بالإنتاج ما انفحصت من هون؛ الـ logs الجديدة بتأكّده): الرفع لـ Storage بينجح، بس `PUT /profile` بيرفض الرابط (400 `رابط الصورة غير صالح`) لأن `_store_image` كان يبني الرابط من `SUPABASE_URL` الخام و`_validate_stored_image_url` يقارن بـ base بدون `/` بالآخر — قيمة المتغير بـ `/` بالآخر (أو مسافة) تنتج `//storage`. الواجهة كانت ترمي `Error('profile update failed')` بدون رسالة → toast عام، ونجاح الرفع ما كان يطبع شي بالـ log (يعني "ما في طلب").
+- السيرفر: `_supabase_base_url()` مصدر وحيد (trim + rstrip `/`)، trim لـ `SUPABASE_SERVICE_KEY`، log نجاح `[Upload] stored …` ورفض `[ImageURL] rejected …`.
+- الواجهة: `tw-upload.js` بيصنّف (session / network / non_json + status / server) + `TW.uploadResult` / `TW.uploadError` / `TW.uploadFailureMessage`؛ مطبّق على avatar · cover · company logo/cover · KYC. `console.error` بدون بيانات الصورة.
+- الـ cropper ما تغيّر: avatar 260×260 JPEG 0.85 (~بضع KB) — الحجم مش السبب.
+- اختبارات: `test_upload_security.py` (round-trip بـ SUPABASE_URL فيه `/`) · `node test_upload_client_runtime.js`.
+
 ## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
 
 - السيرفر: `kind` → bucket map ثابت (`_UPLOAD_KINDS`)، اسم ملف يولّده السيرفر، user_id من الـ JWT فقط، JPEG/PNG/WebP + فحص magic bytes (لا SVG)، حدود حجم 7MB نص / 5MB، لا fallback لـ data URL بالإنتاج (502/503؛ dev فقط بـ `TW_DEV_UPLOAD=1`). `/admin/logo` نفس الفحص.

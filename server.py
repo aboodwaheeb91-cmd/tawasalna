@@ -4172,6 +4172,15 @@ def _validate_image_data_url(data_url: str):
 _STORED_IMAGE_TAIL_RE = re.compile(r"[0-9a-f]{12}\.(?:jpg|png|webp)")
 
 
+def _supabase_base_url() -> str:
+    """SUPABASE_URL normalised (whitespace + trailing "/" stripped). The only
+    reader of SUPABASE_URL for storage: _store_image builds the URL it returns
+    and _validate_stored_image_url checks it against the same base — a raw
+    "https://x.supabase.co/" would make them disagree ("//storage") and every
+    saved image URL would be rejected with 400."""
+    return (os.environ.get("SUPABASE_URL") or "").strip().rstrip("/")
+
+
 def _validate_stored_image_url(url, kind, uid: int, current=None):
     """PR-7a — gate for every endpoint that SAVES an image URL (avatar / cover /
     logo / KYC). Raises 400 unless the value is:
@@ -4194,7 +4203,7 @@ def _validate_stored_image_url(url, kind, uid: int, current=None):
             _validate_image_data_url(url)
             return url
         raise HTTPException(400, "رابط الصورة غير صالح")
-    base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    base = _supabase_base_url()
     bucket = _UPLOAD_KINDS.get(kind)
     if bucket in _PRIVATE_BUCKETS:
         prefix = f"{bucket}/{int(uid)}_{kind}_"
@@ -4204,6 +4213,7 @@ def _validate_stored_image_url(url, kind, uid: int, current=None):
         prefix = f"{base}/storage/v1/object/public/{bucket}/{int(uid)}_{kind}_"
         if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
             return url
+    print(f"[ImageURL] rejected kind={kind} uid={uid} base_set={bool(base)} url={url[:160]!r}")
     raise HTTPException(400, "رابط الصورة غير صالح")
 
 
@@ -4227,8 +4237,8 @@ async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
     in production: missing config → 503, storage failure → 502 (details logged).
     Dev only: TW_DEV_UPLOAD=1 + missing Supabase keys → returns the data URL."""
     import httpx
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    supabase_url = _supabase_base_url()
+    supabase_key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
     if not supabase_url or not supabase_key:
         if os.environ.get("TW_DEV_UPLOAD") == "1":
             print(f"{log_tag} TW_DEV_UPLOAD=1 — storage not configured, returning data URL (dev only)")
@@ -4249,6 +4259,7 @@ async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
     if r.status_code not in (200, 201):
         print(f"{log_tag} storage rejected bucket={bucket} name={name} status={r.status_code} body={r.text[:300]!r}")
         raise HTTPException(502, "تعذّر رفع الصورة، حاول مرة أخرى")
+    print(f"{log_tag} stored bucket={bucket} name={name} bytes={len(file_bytes)}")
     if bucket in _PRIVATE_BUCKETS:
         return f"{bucket}/{name}"
     return f"{supabase_url}/storage/v1/object/public/{bucket}/{name}"
