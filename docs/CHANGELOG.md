@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## fix/supabase-settings-key-migration — 2026-10-06 — تقوية قراءة إعدادات Supabase + دعم مفاتيح `sb_secret_`
+
+- السبب الجذري: (1) `SUPABASE_URL` بالإنتاج كان فيه حرف اتجاه مخفي بأوله (لصق من موبايل) و `.strip()` ما بيشيله → httpx `UnsupportedProtocol`. (2) المفتاح كان غلط والكود بيبعته دايماً `Authorization: Bearer` → Storage 400 "Invalid Compact JWS"؛ ومفاتيح `sb_secret_` الجديدة مش JWT ولازم تنبعت بـ `apikey`.
+- الإصلاح (`server.py`): `_clean_supabase_env` (مسافات + Unicode Cf + BOM + تنصيص) · `_supabase_url_status()` (لازم `https://<project>.supabase.co`) · `_supabase_key_status()` (`sb_secret_` / JWT `service_role`؛ anon → "anon key, not service_role") · `_supabase_auth_headers()` المصدر الوحيد للـ headers (`_store_image` ← `/upload/image` + `POST /admin/logo` + الترحيل · `_sign_kyc_doc`) · سطر حالة عند startup بدون أي قيمة + تحذير المفتاح القديم.
+- تغيير سلوك: رابط مش `*.supabase.co` أو مفتاح anon/publishable/مش معروف = غير مضبوط → 503 (كان بيحاول ويفشل 502). `sb_secret_` ما عاد ينبعت Bearer.
+- توثيق: CLAUDE.md (جدول المتغيرات) · SYSTEMS_INDEX §29a · `docs/rules/upload.md` · `ARCHITECTURE.md` (Image Upload Security Contract) · `docs/FUTURE_ROADMAP.md`. اختبار: `test_supabase_settings.py` (+ تحديث fixtures بـ `test_upload_security.py` / `test_kyc_docs_migration.py`).
+
 ## fix/vm01-same-owner-focus-carveout — 2026-10-06 — أول "حفظ" بعد اختيار صورة بيطلع "انتهت الجلسة"
 
 - السبب الجذري: `auth-sync.js` بيستدعي الـ handlers على `visibilitychange` / `focus` (force) حتى لو الجلسة ما تغيّرت، والـ carve-out للمالك نفسه بـ `profile-v2.render.js` (`p2-authsync`) كان بس لـ `pageshow` → revocation مؤقت (`_scViewerType='guest'` + إغلاق `.ep-overlay`) لما الموبايل يرجع من معرض الصور → `_ownerGuard()` يرفض أول حفظ قبل ما يرجع الـ re-verify.

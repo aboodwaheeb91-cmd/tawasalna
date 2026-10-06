@@ -44,8 +44,8 @@ class FakeStorage:
 def env(monkeypatch):
     FakeStorage.calls = []
     monkeypatch.setattr(httpx, "AsyncClient", FakeStorage)
-    monkeypatch.setenv("SUPABASE_URL", "https://sb.example")
-    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "svc")
+    monkeypatch.setenv("SUPABASE_URL", "https://sb.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "sb_secret_test")
     monkeypatch.delenv("TW_DEV_UPLOAD", raising=False)
 
 
@@ -72,7 +72,7 @@ def test_docs_signed_for_own_paths_only_no_store_no_log(monkeypatch, capsys):
     assert r.headers["cache-control"] == "no-store"
     d = r.json()["docs"]
     assert d["id_front"]["url"].startswith(
-        "https://sb.example/storage/v1/object/sign/kyc-docs/5_kyc-id-front_0123456789ab.jpg?token=")
+        "https://sb.supabase.co/storage/v1/object/sign/kyc-docs/5_kyc-id-front_0123456789ab.jpg?token=")
     assert d["selfie"] == {"url": None, "reason": "invalid_path"}
     assert len(FakeStorage.calls) == 1        # never signed the foreign path
     assert TOKEN not in capsys.readouterr().out
@@ -138,7 +138,7 @@ def _mig(monkeypatch, db, dry):
     monkeypatch.setattr(server, "_mig_run", db.run)
     r = client.post(f"/admin/maintenance/migrate-data-images?dry_run={dry}", headers=ADMIN)
     assert r.status_code == 200, r.text
-    assert "base64" not in r.text and "sb.example" not in r.text
+    assert "base64" not in r.text and "sb.supabase.co" not in r.text
     return r.json()["report"]["profiles.avatar_url"]
 
 
@@ -158,11 +158,11 @@ def test_dry_run_default_writes_nothing(monkeypatch):
 
 def test_migrate_conditional_invalid_left_and_idempotent(monkeypatch):
     db = FakeDB({1: DATA_PNG, 2: DATA_SVG, 3: DATA_PNG}, {1: "co", 2: "emp", 3: "emp"})
-    db.change_before_update[3] = "https://sb.example/storage/v1/object/public/avatars/3_employee-avatar_aaaaaaaaaaaa.jpg"
+    db.change_before_update[3] = "https://sb.supabase.co/storage/v1/object/public/avatars/3_employee-avatar_aaaaaaaaaaaa.jpg"
     a = _mig(monkeypatch, db, 0)
     assert (a["found"], a["migrated"], a["skipped"]) == (3, 1, 2)
     assert a["reasons"] == {"invalid_image": 1, "changed_concurrently": 1}
-    assert db.avatars[1].startswith("https://sb.example/storage/v1/object/public/avatars/1_company-logo_")
+    assert db.avatars[1].startswith("https://sb.supabase.co/storage/v1/object/public/avatars/1_company-logo_")
     assert db.avatars[2] == DATA_SVG                     # invalid value untouched
     assert db.avatars[3].endswith("aaaaaaaaaaaa.jpg")    # newer value not overwritten
     uploads = len(FakeStorage.calls)
@@ -174,10 +174,10 @@ def test_migrate_conditional_invalid_left_and_idempotent(monkeypatch):
 def test_docs_base_normalised_trailing_slash(monkeypatch):
     """Base comes from _supabase_base_url() (#551): a raw value with "/" or
     whitespace must not produce "//storage" or break the prefix check."""
-    monkeypatch.setenv("SUPABASE_URL", " https://sb.example/ ")
+    monkeypatch.setenv("SUPABASE_URL", " https://sb.supabase.co/ ")
     _kyc_row(monkeypatch, {"user_id": 5, "selfie_url": None,
                            "id_front_url": "kyc-docs/5_kyc-id-front_0123456789ab.jpg"})
     j = client.get("/admin/kyc/3/docs", headers=ADMIN).json()
-    assert j["storage_base"] == "https://sb.example"
-    assert FakeStorage.calls == ["https://sb.example/storage/v1/object/sign/kyc-docs/5_kyc-id-front_0123456789ab.jpg"]
-    assert j["docs"]["id_front"]["url"].startswith("https://sb.example/storage/v1/object/sign/kyc-docs/")
+    assert j["storage_base"] == "https://sb.supabase.co"
+    assert FakeStorage.calls == ["https://sb.supabase.co/storage/v1/object/sign/kyc-docs/5_kyc-id-front_0123456789ab.jpg"]
+    assert j["docs"]["id_front"]["url"].startswith("https://sb.supabase.co/storage/v1/object/sign/kyc-docs/")

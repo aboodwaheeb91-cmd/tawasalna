@@ -61,8 +61,8 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `ADMIN_TOKEN` | **Yes** (admin) | Admin login password + `X-Admin-Token` header value |
 | `ADMIN_URL_TOKEN` | **Yes** (admin) | Slug for the admin panel path `/tw-ctrl-{ADMIN_URL_TOKEN}` |
 | `SCHEDULER_SECRET` | Yes (scheduler) | `X-Scheduler-Secret` value for internal scheduler endpoints (503 when unset) |
-| `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage (`POST /upload/image`) |
-| `SUPABASE_SERVICE_KEY` | Yes (uploads) | Supabase service key for Storage uploads |
+| `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage — must be `https://<project>.supabase.co` (cleaned of spaces / hidden chars / quotes; anything else = not configured) |
+| `SUPABASE_SERVICE_KEY` | Yes (uploads) | Storage service key: new `sb_secret_…` (sent as `apikey` only) **or** legacy `service_role` JWT (deprecated by Supabase end of 2026). anon / publishable keys are rejected. Status logged at startup (never the value) — SYSTEMS_INDEX §29a |
 | `REDIS_URL` | Optional | Redis cache; in-memory cache fallback when unset |
 | `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
