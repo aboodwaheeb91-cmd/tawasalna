@@ -1,16 +1,4 @@
-<!DOC
-
-  <!-- Job Applications -->
-  <div class="sec-card" id="secApplications" style="display:none">
-    <div class="sec-title">📋 طلبات التوظيف</div>
-    <div id="appsList"><div class="empty">جاري التحميل...</div></div>
-  </div>
-
-  <!-- Posted Jobs -->
-  <div class="sec-card" id="secPostedJobs" style="display:none">
-    <div class="sec-title">💼 الوظائف المنشورة</div>
-    <div id="postedJobsList"><div class="empty">جاري التحميل...</div></div>
-  </div>TYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -348,8 +336,15 @@ const _userId = _urlParams.get('id');
 const _adminToken = sessionStorage.getItem('tw_adm_token') || '';
 let _profile = null;
 
-if(!_adminToken){ window.location.href = '/tw-ctrl-kPuOWhpIYjdLQXmh'; }
-if(!_userId){ window.location.href = 'admin.html'; }
+// The admin panel URL is a secret slug served only by the server — never hard-code it here.
+// No admin session / no id → stop and ask the admin to open the panel (no redirect).
+function _adminStop(msg){
+  const box = document.getElementById('loadingState');
+  if(box){ box.textContent = msg; box.style.display = ''; }
+  const main = document.getElementById('mainContent');
+  if(main) main.style.display = 'none';
+}
+const _adminBlocked = !_adminToken || !_userId;
 
 // ── Admin headers ──
 function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
@@ -358,7 +353,7 @@ function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Toke
 async function loadProfile(){
   try{
     const r = await fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
-    if(r.status===403){ window.location.href='/tw-ctrl-kPuOWhpIYjdLQXmh'; return; }
+    if(r.status===403){ _adminStop('انتهت جلسة الإدارة — افتح لوحة الإدارة وسجّل الدخول من جديد.'); return; }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
     _profile = data.profile || data;
@@ -639,7 +634,7 @@ async function deleteUser(){
     const r = await fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     toast('تم حذف الحساب ✓');
-    setTimeout(()=> window.location.href='admin.html', 1500);
+    setTimeout(goBack, 1500);
   }catch(e){
     toast('خطأ: '+e.message,'e');
   }
@@ -675,7 +670,10 @@ initScrollProg(); toast('تم الحذف ✓');
 
 // ── Utils ──
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
-function goBack(){ window.location.href='admin.html'; }
+function goBack(){
+  if(window.history.length > 1){ window.history.back(); return; }
+  _adminStop('افتح لوحة الإدارة للرجوع.');
+}
 function toast(msg, type='s'){
   const t=document.getElementById('toast');
   t.textContent=msg; t.className='toast '+type+' show';
@@ -683,7 +681,8 @@ function toast(msg, type='s'){
 }
 
 // ── Init ──
-loadProfile();
+if(_adminBlocked){ _adminStop(!_adminToken ? 'افتح لوحة الإدارة وسجّل الدخول أولاً.' : 'افتح لوحة الإدارة واختر مستخدماً.'); }
+else { loadProfile(); }
 initScrollProg();
 
 // ── Job Applications ──
@@ -810,7 +809,7 @@ async function adminDeleteUser(){
     const r=await fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
     if(!r.ok) throw new Error();
     showToast('تم حذف المستخدم');
-    setTimeout(function(){window.location.href='admin.html';},1500);
+    setTimeout(goBack,1500);
   }catch(e){showToast('خطأ في الحذف','error');}
 }
 

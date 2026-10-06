@@ -617,7 +617,9 @@ def read_html(name: str) -> str:
         _html_cache[name] = content
         return content
     except FileNotFoundError:
-        return f"<h1>الصفحة غير موجودة: {name}</h1>"
+        # Missing page file → real 404 (never 200 with an error body, never echo the filename).
+        print(f"[read_html] page file missing: {name}")
+        raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
 
 def check_admin(request: Request):
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
