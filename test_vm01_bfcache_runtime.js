@@ -544,7 +544,91 @@ console.log('\nScenario 16: No duplicate TwAuthSync listener registered (company
   assert('Exactly 1 listener registered (company)', registrations.length === 1);
 })();
 
+// ════════════════════════════════════════════════════════════════════════════
+// SCENARIO 17 — Profile V2: focus / visibilitychange, same owner → NO revocation
+// (mobile gallery pick backgrounds the page; first save must not hit session_invalid)
+// ════════════════════════════════════════════════════════════════════════════
+['focus', 'visibilitychange'].forEach(function(reason){
+  console.log('\nScenario 17 (' + reason + '): Profile V2 — same owner returns to foreground → no revocation');
+  var ctx = mkP2Context({ bodyClasses: ['view-owner'], profileId: 42, viewerType: 'owner' });
+  var verifyCalls = 0;
+  ctx.getProfile = function(){ verifyCalls++; return Promise.resolve({}); };
+  var ov = { classList: mkBodyClassList(['open', 'show']) };
+  ctx.document.querySelectorAll = function(sel){ return sel === '.ep-overlay' ? [ov] : []; };
+
+  ctx._registeredCb({ reason: reason, snapshot:{ isAuthenticated:true, userType:'emp', userId:42 } });
+
+  assert(reason + ': _scViewerType still owner',          ctx._scViewerType === 'owner');
+  assert(reason + ': view-owner kept',                     ctx.document.body.classList.contains('view-owner'));
+  assert(reason + ': view-guest NOT added',                !ctx.document.body.classList.contains('view-guest'));
+  assert(reason + ': _scOwnerProfile preserved',           ctx._scOwnerProfile !== null);
+  assert(reason + ': generation NOT incremented',          ctx._scOwnerHydrationGeneration === 0);
+  assert(reason + ': open .ep-overlay stays open',         ov.classList.contains('open') && ov.classList.contains('show'));
+  assert(reason + ': background re-verify ran',            verifyCalls === 1);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCENARIO 18 — Profile V2: focus / visibilitychange after logout / account switch
+//               → immediate revocation (VM-01 guarantees kept)
+// ════════════════════════════════════════════════════════════════════════════
+[
+  ['focus',            'logout',         { state:'guest', isAuthenticated:false, userId:null }],
+  ['visibilitychange', 'logout',         { state:'guest', isAuthenticated:false, userId:null }],
+  ['focus',            'expired',        { state:'expired', isAuthenticated:false, userId:null }],
+  ['focus',            'account switch', { state:'authenticated', isAuthenticated:true, userType:'emp', userId:99 }],
+  ['visibilitychange', 'account switch', { state:'authenticated', isAuthenticated:true, userType:'emp', userId:99 }],
+  ['storage',          'same-owner jwt change in storage', { state:'authenticated', isAuthenticated:true, userType:'emp', userId:42 }]
+].forEach(function(c){
+  var reason = c[0], label = c[1], snap = c[2];
+  console.log('\nScenario 18 (' + reason + ' / ' + label + '): Profile V2 → immediate revocation');
+  var ctx = mkP2Context({ bodyClasses: ['view-owner'], profileId: 42, viewerType: 'owner' });
+  var ov = { classList: mkBodyClassList(['open']) };
+  ctx.document.querySelectorAll = function(sel){ return sel === '.ep-overlay' ? [ov] : []; };
+
+  ctx._registeredCb({ reason: reason, snapshot: snap });
+
+  assert(label + ': _scViewerType set to guest',   ctx._scViewerType === 'guest');
+  assert(label + ': view-owner removed',           !ctx.document.body.classList.contains('view-owner'));
+  assert(label + ': _scOwnerProfile cleared',      ctx._scOwnerProfile === null);
+  assert(label + ': generation incremented',       ctx._scOwnerHydrationGeneration === 1);
+  assert(label + ': .ep-overlay closed',           !ov.classList.contains('open'));
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCENARIO 19 — Profile V2: focus carve-out re-verify 401 → invalidateSession
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\nScenario 19: Profile V2 — focus carve-out re-verify returns 401 → invalidateSession');
+var _s19 = (function(){
+  var ctx = mkP2Context({ bodyClasses: ['view-owner'], profileId: 42, viewerType: 'owner' });
+  ctx.getProfile = function(){ return Promise.reject(new Error('HTTP 401')); };
+  ctx._registeredCb({ reason:'focus', snapshot:{ isAuthenticated:true, userType:'emp', userId:42 } });
+  return new Promise(function(r){ setImmediate(r); }).then(function(){
+    assert('401 on re-verify → invalidateSession(api_401)', ctx._invalidateCalled() === 'api_401');
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCENARIO 20 — Company: focus / visibilitychange same owner → no strip;
+//               after logout / account switch → strip
+// ════════════════════════════════════════════════════════════════════════════
+['focus', 'visibilitychange'].forEach(function(reason){
+  console.log('\nScenario 20 (' + reason + '): Company — same owner → no strip');
+  var ctx = mkCoContext({ companyState: { viewMode:'owner', profile:{ id:42 } } });
+  ctx._registeredCb({ reason: reason, snapshot:{ isAuthenticated:true, userType:'co', userId:42 } });
+  assert(reason + ': viewMode still owner',        ctx.companyState.viewMode === 'owner');
+  assert(reason + ': _applyViewMode NOT called',   ctx._applyModeCalls.length === 0);
+  assert(reason + ': silent re-verify ran',        ctx._loadDataArgs.length === 1 && ctx._loadDataArgs[0].silent === true);
+
+  [['logout', { isAuthenticated:false, userId:null }], ['account switch', { isAuthenticated:true, userType:'co', userId:99 }]].forEach(function(c){
+    var ctx2 = mkCoContext({ companyState: { viewMode:'owner', profile:{ id:42 } } });
+    ctx2._registeredCb({ reason: reason, snapshot: c[1] });
+    assert(reason + ' / ' + c[0] + ': viewMode → guest', ctx2.companyState.viewMode === 'guest');
+  });
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(60));
-console.log('VM-01 bfcache runtime tests:', _passed, 'passed,', _failed, 'failed');
-if (_failed > 0) { process.exit(1); }
+_s19.then(function(){
+  console.log('VM-01 bfcache runtime tests:', _passed, 'passed,', _failed, 'failed');
+  if (_failed > 0) { process.exit(1); }
+});

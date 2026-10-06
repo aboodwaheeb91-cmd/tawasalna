@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## fix/vm01-same-owner-focus-carveout — 2026-10-06 — أول "حفظ" بعد اختيار صورة بيطلع "انتهت الجلسة"
+
+- السبب الجذري: `auth-sync.js` بيستدعي الـ handlers على `visibilitychange` / `focus` (force) حتى لو الجلسة ما تغيّرت، والـ carve-out للمالك نفسه بـ `profile-v2.render.js` (`p2-authsync`) كان بس لـ `pageshow` → revocation مؤقت (`_scViewerType='guest'` + إغلاق `.ep-overlay`) لما الموبايل يرجع من معرض الصور → `_ownerGuard()` يرفض أول حفظ قبل ما يرجع الـ re-verify.
+- الإصلاح: الـ carve-out صار لـ `pageshow` / `visibilitychange` / `focus` (نفس المالك + جلسة صالحة → re-verify بس). نفس الإصلاح بـ `company.main.js` (`co-authsync` — كان يسكّر `editOverlay` ويعطّل زر الحفظ). الـ revoke الفوري باقي لـ logout · expired/invalid/stale · account switch · `storage`. `edu-profile.html` ما فيه نفس المشكلة.
+- توثيق: `VIEWER-MODES.md §VM-01-BFCACHE`. اختبار: `node test_vm01_bfcache_runtime.js` (سيناريوهات 17–20).
+
 ## PR-7c — 2026-10-06 — KYC docs للأدمن (signed URL) + ترحيل صور `data:` القديمة
 
 - (أ) `GET /admin/kyc/{submission_id}/docs` (`check_admin`): روابط Supabase مؤقتة (300s) للهوية والسيلفي، بس لمسار `kyc-docs/{user_id الطلب}_{kind}_{12hex}.{ext}`؛ غير هيك `null` + سبب. `Cache-Control: no-store`، الرابط ممنوع بالـ log. `GET /admin/kyc` ما عاد يرجّع `id_front_url` / `selfie_url`. `admin.html`: زر "عرض المستندات" → modal بالصورتين + قبول/رفض.
@@ -207,6 +213,7 @@ reflects systems as of PR #386–#430 (pending).
 
 > منقول حرفياً من تذييل "آخر تحديث" بـ `VIEWER-MODES.md`. الأحدث فوق.
 
+- 2026-10-06 (fix/vm01-same-owner-focus-carveout): §VM-01-BFCACHE — carve-out المالك نفسه صار يشمل `visibilitychange` / `focus` (مش بس `pageshow`)؛ `storage` يضل revoke فوري.
 - rev.7 (2026-08-05): Final runtime integrity — preview no-exemption، .catch() generation guard، renderProfile non-owner clear، _isCurrentEduOwner() fail-closed، _applyEduOwnerMode unified، saveEdit() live snapshot، company identity-aware carve-out، tests rewritten with Node.js vm module + @vm-extract markers.
 - rev.6 (2026-08-05): إضافة VM-01-BFCACHE — bfcache session revalidation hotfix (PR fix/vm01-bfcache-session-revalidation)؛ Generation guard + edu live guard + Authorization header fix.
 - rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).
