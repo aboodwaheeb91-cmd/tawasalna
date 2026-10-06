@@ -4125,7 +4125,7 @@ _UPLOAD_KINDS = {
     "kyc-selfie":      "kyc-docs",
 }
 # Private buckets: no public URL exists — the server returns / stores the object
-# path "{bucket}/{name}" only (admin viewing via signed URL = FUTURE_ROADMAP P0).
+# path "{bucket}/{name}" only (admin viewing via signed URL: GET /admin/kyc/{id}/docs — PR-7c).
 _PRIVATE_BUCKETS = frozenset({"kyc-docs"})
 _LOGO_SLOTS = ("logo_wide", "logo_tall")
 _UPLOAD_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -4390,6 +4390,8 @@ def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
 def admin_get_kyc(request: Request):
     check_admin(request)
     try:
+        # PR-7c: allowlisted fields only (auth._ADMIN_KYC_LIST_COLUMNS) — no OTP
+        # codes, no document paths (those → GET /admin/kyc/{submission_id}/docs).
         submissions = get_all_kyc_submissions()
         return {"status": "success", "submissions": submissions, "count": len(submissions)}
     except Exception as e:
@@ -4412,6 +4414,210 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
         return {"status": "success", **result}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+# ══ PR-7c — Admin KYC document viewing (signed URLs) ══
+# kyc-docs is private (_PRIVATE_BUCKETS): kyc_submissions stores the object path
+# only. The admin gets a short-lived Supabase signed URL per document — never a
+# public URL, never logged, never cached (Cache-Control: no-store).
+_KYC_DOC_FIELDS = (("id_front", "id_front_url", "kyc-id-front"),
+                   ("selfie", "selfie_url", "kyc-selfie"))
+_KYC_SIGN_EXPIRES = 300
+
+
+def _kyc_doc_path_reason(value, uid: int, kind: str):
+    """→ (object name, None) when value is exactly kyc-docs/{uid}_{kind}_{12hex}.{ext}
+    for this submission's user, else (None, reason)."""
+    if not value:
+        return None, "missing"
+    if not isinstance(value, str):
+        return None, "invalid_path"
+    if value.startswith("data:"):
+        return None, "legacy_data_url"
+    if value.startswith(("http://", "https://")):
+        return None, "legacy_url"
+    prefix = f"kyc-docs/{int(uid)}_{kind}_"
+    if value.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(value[len(prefix):]):
+        return value[len("kyc-docs/"):], None
+    return None, "invalid_path"
+
+
+def _supabase_service_key() -> str:
+    return (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
+
+
+async def _sign_kyc_doc(name: str):
+    """Supabase signed URL for kyc-docs/{name} → (url, None) or (None, reason).
+    Base via _supabase_base_url() (same as _store_image). Logs never contain
+    the signed URL / token."""
+    import httpx
+    base, key = _supabase_base_url(), _supabase_service_key()
+    if not base or not key:
+        return None, "storage_unavailable"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"{base}/storage/v1/object/sign/kyc-docs/{name}",
+                json={"expiresIn": _KYC_SIGN_EXPIRES},
+                headers={"Authorization": f"Bearer {key}"},
+            )
+    except Exception as e:
+        print(f"[KYC docs] sign error name={name}: {type(e).__name__}")
+        return None, "sign_failed"
+    if r.status_code != 200:
+        print(f"[KYC docs] sign rejected name={name} status={r.status_code}")
+        return None, "sign_failed"
+    try:
+        signed = (r.json() or {}).get("signedURL") or ""
+    except Exception:
+        signed = ""
+    url = f"{base}/storage/v1{signed}" if signed.startswith("/") else ""
+    if not url.startswith(f"{base}/storage/v1/object/sign/kyc-docs/{name}?"):
+        print(f"[KYC docs] sign response unexpected shape name={name}")
+        return None, "sign_failed"
+    return url, None
+
+
+@app.get("/admin/kyc/{submission_id}/docs")
+async def admin_kyc_docs(submission_id: int, request: Request):
+    """Admin only — short-lived signed URLs for one KYC submission's documents.
+    Only paths matching kyc-docs/{user_id}_{kind}_{12hex}.{ext} of the same
+    submission's user are signed; anything else → url null + reason."""
+    check_admin(request)
+    row = _current_image_urls(
+        "SELECT user_id, id_front_url, selfie_url FROM kyc_submissions WHERE id = :uid",
+        submission_id)
+    if not row:
+        raise HTTPException(404, "الطلب غير موجود")
+    uid = int(row["user_id"])
+    base = _supabase_base_url()
+    docs = {}
+    for label, col, kind in _KYC_DOC_FIELDS:
+        name, reason = _kyc_doc_path_reason(row.get(col), uid, kind)
+        url = None
+        if name:
+            url, reason = await _sign_kyc_doc(name)
+        docs[label] = {"url": url, "reason": reason}
+    print(f"[KYC docs] admin viewed submission={submission_id} user={uid}")
+    return JSONResponse(
+        {"status": "success", "submission_id": submission_id, "user_id": uid,
+         "storage_base": base, "expires_in": _KYC_SIGN_EXPIRES, "docs": docs},
+        headers={"Cache-Control": "no-store"})
+
+
+# ══ PR-7c — Migrate legacy data: images to Storage (admin maintenance) ══
+# Each target: (report key, SELECT returning (row_key, value, user_type|None),
+# UPDATE with :new / :old / :k RETURNING 1, kind resolver).
+# The UPDATE is conditional on the column still holding the old value, so a
+# newer change made meanwhile is never overwritten. Constant SQL only.
+def _mig_avatar_kind(user_type):
+    return "company-logo" if user_type == "co" else "employee-avatar"
+
+
+_DATA_IMAGE_TARGETS = (
+    ("profiles.avatar_url",
+     "SELECT p.user_id, p.avatar_url, u.user_type FROM profiles p JOIN users u ON u.id = p.user_id "
+     "WHERE p.avatar_url LIKE 'data:%' ORDER BY p.user_id",
+     "UPDATE profiles SET avatar_url = :new WHERE user_id = :k AND avatar_url = :old RETURNING 1",
+     _mig_avatar_kind),
+    ("profiles.cover_url",
+     "SELECT user_id, cover_url, NULL FROM profiles WHERE cover_url LIKE 'data:%' ORDER BY user_id",
+     "UPDATE profiles SET cover_url = :new WHERE user_id = :k AND cover_url = :old RETURNING 1",
+     lambda _t: "employee-cover"),
+    ("company_profiles.cover_url",
+     "SELECT user_id, cover_url, NULL FROM company_profiles WHERE cover_url LIKE 'data:%' ORDER BY user_id",
+     "UPDATE company_profiles SET cover_url = :new WHERE user_id = :k AND cover_url = :old RETURNING 1",
+     lambda _t: "company-cover"),
+    ("kyc_submissions.id_front_url",
+     "SELECT user_id, id_front_url, NULL FROM kyc_submissions WHERE id_front_url LIKE 'data:%' ORDER BY user_id",
+     "UPDATE kyc_submissions SET id_front_url = :new WHERE user_id = :k AND id_front_url = :old RETURNING 1",
+     lambda _t: "kyc-id-front"),
+    ("kyc_submissions.selfie_url",
+     "SELECT user_id, selfie_url, NULL FROM kyc_submissions WHERE selfie_url LIKE 'data:%' ORDER BY user_id",
+     "UPDATE kyc_submissions SET selfie_url = :new WHERE user_id = :k AND selfie_url = :old RETURNING 1",
+     lambda _t: "kyc-selfie"),
+    ("site_settings.logo",
+     "SELECT key, value, NULL FROM site_settings WHERE key IN ('logo_wide', 'logo_tall') "
+     "AND value LIKE 'data:%' ORDER BY key",
+     "UPDATE site_settings SET value = :new, updated_at = NOW() WHERE key = :k AND value = :old RETURNING 1",
+     None),  # slot = key → bucket "site", name {slot}_{hex}{ext} (same as POST /admin/logo)
+)
+
+
+def _mig_run(sql: str, **params):
+    conn = get_conn()
+    try:
+        return conn.run(sql, **params)
+    finally:
+        release_conn(conn)
+
+
+@app.post("/admin/maintenance/migrate-data-images")
+async def admin_migrate_data_images(request: Request, dry_run: int = 1):
+    """Admin only. Moves legacy base64 data: images from the DB to Supabase
+    Storage with the PR-7a rules (_validate_image_data_url → _store_image).
+    dry_run=1 (default) only counts. Invalid values are left untouched and
+    reported. Idempotent: a second run finds nothing to migrate.
+    Response never contains image content or URLs — counts + reasons only."""
+    check_admin(request)
+    dry = dry_run != 0
+    if not dry and not (_supabase_base_url() and _supabase_service_key()):
+        raise HTTPException(503, "خدمة رفع الصور غير متاحة حالياً")
+    report = {}
+    for col, select_sql, update_sql, kind_of in _DATA_IMAGE_TARGETS:
+        try:
+            rows = _mig_run(select_sql)
+        except Exception as e:
+            print(f"[Migrate images] select failed {col}: {type(e).__name__}")
+            report[col] = {"found": 0, "migrated": 0, "would_migrate": 0, "skipped": 0,
+                           "reasons": {"select_failed": 1}}
+            continue
+        stat = {"found": len(rows), "migrated": 0, "would_migrate": 0, "skipped": 0, "reasons": {}}
+
+        def _skip(reason):
+            stat["skipped"] += 1
+            stat["reasons"][reason] = stat["reasons"].get(reason, 0) + 1
+
+        for row_key, old, user_type in rows:
+            try:
+                mime, ext, file_bytes = _validate_image_data_url(old)
+            except HTTPException as he:
+                _skip("too_large" if he.status_code == 413 else "invalid_image")
+                continue
+            if dry:
+                stat["would_migrate"] += 1
+                continue
+            if kind_of is None:
+                bucket, name = "site", f"{row_key}_{secrets.token_hex(6)}{ext}"
+            else:
+                kind = kind_of(user_type)
+                bucket = _UPLOAD_KINDS[kind]
+                name = f"{int(row_key)}_{kind}_{secrets.token_hex(6)}{ext}"
+            try:
+                new = await _store_image(bucket, name, file_bytes, mime, old, "[Migrate images]")
+            except HTTPException:
+                _skip("storage_failed")
+                continue
+            if not new or new == old:
+                _skip("storage_failed")
+                continue
+            try:
+                updated = _mig_run(update_sql, new=new, k=row_key, old=old)
+            except Exception as e:
+                print(f"[Migrate images] update failed {col} key={row_key}: {type(e).__name__}")
+                _skip("update_failed")
+                continue
+            if not updated:
+                # Value changed since SELECT — keep the newer value (uploaded object = orphan).
+                _skip("changed_concurrently")
+                continue
+            stat["migrated"] += 1
+            if kind_of is None:
+                _html_cache[row_key] = new
+        report[col] = stat
+    print(f"[Migrate images] dry_run={dry} " + ", ".join(
+        f"{c}: found={v['found']} migrated={v['migrated']} skipped={v['skipped']}" for c, v in report.items()))
+    return {"status": "success", "dry_run": dry, "report": report}
+
 
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):

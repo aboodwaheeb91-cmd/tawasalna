@@ -3294,16 +3294,30 @@ def admin_reject_kyc(user_id: int, note: str = "") -> dict:
     finally:
         release_conn(conn)
 
+# PR-7c — explicit allowlist for GET /admin/kyc (never SELECT ks.*).
+# Never returned: email_code / phone_code (OTP — Tier 4), phone, document paths
+# (id_front_url / selfie_url → GET /admin/kyc/{id}/docs only).
+_ADMIN_KYC_LIST_COLUMNS = (
+    ("id", "ks.id"), ("user_id", "ks.user_id"),
+    ("full_name", "u.full_name"), ("email", "u.email"), ("user_type", "u.user_type"),
+    ("step", "ks.step"), ("status", "ks.status"),
+    ("email_verified", "ks.email_verified"), ("phone_verified", "ks.phone_verified"),
+    ("admin_note", "ks.admin_note"),
+    ("submitted_at", "ks.submitted_at"), ("reviewed_at", "ks.reviewed_at"),
+)
+_ADMIN_KYC_LIST_SQL = (
+    "SELECT " + ", ".join(expr for _, expr in _ADMIN_KYC_LIST_COLUMNS) +
+    " FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id "
+    "ORDER BY ks.submitted_at DESC"
+)
+
+
 def get_all_kyc_submissions() -> list:
-    """Get all KYC submissions for admin"""
+    """KYC submissions for the admin list — allowlisted fields only (PR-7c)."""
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT ks.*, u.full_name, u.email, u.user_type "
-            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id "
-            "ORDER BY ks.submitted_at DESC"
-        )
-        cols = [c["name"] for c in conn.columns]
+        rows = conn.run(_ADMIN_KYC_LIST_SQL)
+        cols = [name for name, _ in _ADMIN_KYC_LIST_COLUMNS]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
