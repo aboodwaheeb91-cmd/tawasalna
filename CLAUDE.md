@@ -112,7 +112,7 @@ Server starts at `http://localhost:8000`.
 هذا الملف هو الدستور المعماري للمشروع. له أولوية على جميع التوثيقات التفصيلية.
 إذا تعارض أي توثيق مع `ARCHITECTURE_FOUNDATION.md` — يُعتمد `ARCHITECTURE_FOUNDATION.md`.
 
-القواعد العليا (F1–F38) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
+القواعد العليا (F1–F39) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
 
 ---
 
@@ -410,6 +410,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Size System V1 (DS-SIZE) Rules | `docs/rules/ds-size.md` |
 | Icon System V1 (DS-ICON) Rules | `docs/rules/ds-icon.md` |
 | Image Display System V1 (DS-IMAGE) Rules — أفاتار / لوغو / رابط صورة | `docs/rules/ds-image.md` |
+| Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |

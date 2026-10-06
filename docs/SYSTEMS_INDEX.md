@@ -512,8 +512,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ## G — Platform Infrastructure
 
 ### 30a. Architecture Foundation ✅
-**Purpose:** الدستور المعماري للمشروع — القواعد العليا F1–F38. أعلى أولوية من جميع التوثيقات التفصيلية.
-**Rule Index + Task Protocol (PR-3):** `ARCHITECTURE_FOUNDATION.md → فهرس القواعد` (جدول F1–F38: الرقم + الأولوية + سطر واحد) يُقرأ أولاً في كل مهمة، ثم هذا الفهرس، ثم فقط نص القواعد/الأنظمة المرتبطة — حسب `CLAUDE.md → بروتوكول المهام` (13 بنداً، إلزامي لكل جلسة ومهمة). لا قراءة كاملة للتوثيق بلا حاجة.
+**Purpose:** الدستور المعماري للمشروع — القواعد العليا F1–F39. أعلى أولوية من جميع التوثيقات التفصيلية.
+**Rule Index + Task Protocol (PR-3):** `ARCHITECTURE_FOUNDATION.md → فهرس القواعد` (جدول F1–F39: الرقم + الأولوية + سطر واحد) يُقرأ أولاً في كل مهمة، ثم هذا الفهرس، ثم فقط نص القواعد/الأنظمة المرتبطة — حسب `CLAUDE.md → بروتوكول المهام` (13 بنداً، إلزامي لكل جلسة ومهمة). لا قراءة كاملة للتوثيق بلا حاجة.
 **Changelog (PR-6c):** تاريخ تعديلات التوثيق بـ [`docs/CHANGELOG.md`](CHANGELOG.md) فقط (بند لكل PR، الأحدث فوق) — `CLAUDE.md → بروتوكول المهام` البند 13. ❌ تطويل سطر "Last updated" بأي ملف.
 **Source of Truth:** `ARCHITECTURE_FOUNDATION.md`
 **Details:** `ARCHITECTURE_FOUNDATION.md` · مرتبط من `ARCHITECTURE.md` (أول الصفحة) و `CLAUDE.md` (بروتوكول المهام + Architecture Foundation section)
@@ -1033,6 +1033,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 58. Page Shell V1 [DS-SHELL]
+**Purpose:** المصدر الوحيد لكتلة `<head>` المشتركة وسكربتات آخر `<body>` المشتركة لكل صفحة HTML — بدل نسخ charset / viewport / manifest / icons / Cairo / `tw_shared.*` / `auth-sync.js` بكل صفحة.
+**Source of Truth:** `page_shell.py` (`apply_shell` · `build_shell` · `asset_hash` · `SHELL_ASSETS` · `SHELL_VARIANTS`) · `partials/shell-head.html` · `partials/shell-scripts.html` · `partials/shell-head.admin.html` · `partials/shell-scripts.admin.html` · `read_html()` بـ `server.py` · `docs/design-system/PAGE-SHELL.md`
+**Details:** `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08) · `docs/rules/page-shell.md` · `ARCHITECTURE_FOUNDATION.md` F39. أبرز قواعد:
+- **Markers:** `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (app + entry) · `<!--tw:shell-head:admin-->` / `<!--tw:shell-scripts:admin-->`. بدون markers → الصفحة مطابقة بالبايت. ناقصة / مكرّرة / مخلوطة → `ValueError`.
+- **head:** charset · viewport عادي · theme-color `#00c896` · manifest · `/favicon.ico` + `/apple-touch-icon.png` (§32) · Cairo 400–900 · `/static/tw_shared.css?v=H`. **scripts:** `/tw_shared.js?v=H` ← `/static/shared/auth-sync.js?v=H`.
+- **الترتيب:** المشترك أولاً — يُطبَّق صفحة صفحة (المرحلة C) مع فحص بصري.
+- **`H`:** أول 10 hex من sha256 للملف، مرة وحدة عند بدء السيرفر.
+- **admin:** بدون manifest / auth-sync · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل SW.
+- **مستهلكين:** `home-v2.html` (Phase B — تجريبية).
+**Do not recreate:** لا آلية حقن ثانية ولا partial ثاني. لا نسخ tags الـ shell يدوياً بصفحة محوّلة. لا `?v=` يدوي لملف مشترك. لا بيانات مستخدم بالحقن (§54). لا `tw-icons.js` ولا `user-scalable=no` بالـ shell. لا تحويل صفحة بدون screenshots.
+**Cross-references:** §32 SW / PWA (icons · manifest · allowlist) · §54 · VM-10 / TwAuthSync (guard المرحلة C) · DS-ICON §56 (F37) · DS-COLOR §50.
+**Test:** `python test_page_shell.py`
+**Status:** Phase A (فحص) ✅ · Phase B (النظام + home-v2 تجريبية، screenshots مطابقة) ✅ (2026-10-06 — PR-8) · Phase C (job-detail ← landing ← appointments ← appointment-room ← الباقي) 🔜
+
+---
+
 ### 51. CRS — Change Routing System ✅
 **Purpose:** Workflow يُطبِّق F30/F31 على مستوى الطلب — يُصنِّف نوع التغيير، يُحدِّد المالك عبر F31+SYSTEMS_INDEX، يضبط الحد الأدنى من القراءة، ويُصدر حكماً (PROCEED / STOP / DISCUSS). ليس Source of Truth لأي نظام، وليس طبقة فوق F30/F31.
 **Source of Truth:** `docs/CHANGE_ROUTER.md` — CRS-01 (Routing Engine A–I) · CRS-02 (Architectural Sanity Check) · CRS-03 (Execution Scope / Credit Control)
@@ -1076,4 +1093,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — fix/page-shell-security · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — PR-8 (DS-SHELL) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

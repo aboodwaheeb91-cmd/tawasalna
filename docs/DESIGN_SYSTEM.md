@@ -92,7 +92,7 @@
 
 > **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع. (F30)
-> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] · [DS-COLOR] · [DS-SIZE] · [DS-ICON] · [DS-IMAGE] — لا تبني نظاماً موازياً لأيٍّ منها.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] · [DS-COLOR] · [DS-SIZE] · [DS-ICON] · [DS-IMAGE] · [DS-SHELL] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 
@@ -115,6 +115,7 @@
 | [DS-SIZE] | Size System V1 | [design-system/SIZE-SYSTEM.md](design-system/SIZE-SYSTEM.md) | Phase 1 ✅ توثيق + Tokens (بدون migration) |
 | [DS-ICON] | Icon System V1 | [design-system/ICON-SYSTEM.md](design-system/ICON-SYSTEM.md) | Phase B ✅ توثيق + Registry (`tw-icons.js`، بدون مستهلك) |
 | [DS-IMAGE] | Image Display System V1 | [design-system/IMAGE-SYSTEM.md](design-system/IMAGE-SYSTEM.md) | Phase B ✅ توثيق + helper (`twAvatarHtml` / `twAvatarEl` / `twSafeImageUrl`) + `.tw-ava`، بدون مستهلك |
+| [DS-SHELL] | Page Shell V1 | [design-system/PAGE-SHELL.md](design-system/PAGE-SHELL.md) | Phase B ✅ `page_shell.py` + `partials/` + `read_html` — مستهلك تجريبي: `home-v2.html` |
 
 **أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
@@ -153,6 +154,7 @@
 | Documentation — `design-system/SIZE-SYSTEM.md` (SIZE-00 → SIZE-12) + DS-SIZE Phase 1 Tokens (`tw_shared.css` قسم `1b. DS-SIZE`) | مكتمل ✓ — PR-5 / المرحلة B (2026-10-06) — بدون مستهلك وبدون تغيير بصري |
 | Documentation — `design-system/ICON-SYSTEM.md` (ICON-00 → ICON-14) + DS-ICON Registry (`static/shared/tw-icons.js`) | مكتمل ✓ — PR-6 / المرحلة B (2026-10-06) — بدون مستهلك وبدون تغيير بصري |
 | Documentation — `design-system/IMAGE-SYSTEM.md` (IMG-00 → IMG-13) + DS-IMAGE helper (`tw_shared.js`) + `.tw-ava` (`tw_shared.css`) | مكتمل ✓ — PR-7b (2026-10-06) — بدون مستهلك وبدون تغيير بصري |
+| Documentation — `design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08) + `page_shell.py` + `partials/shell-*.html` | مكتمل ✓ — PR-8 / المرحلة B (2026-10-06) — `home-v2.html` تجريبية، screenshots مطابقة |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | استُبدل بـ DS-SIZE في `tw_shared.css` — DS-SIZE Phase 1 Tokens Foundation مكتمل ✓ (PR-5 / المرحلة B، 2026-10-06) |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |
@@ -161,6 +163,7 @@
 > `DS-SIZE Phase 2` (page-by-page migration — المطابق وتحت البكسل فقط) **ممنوع** حتى يُطلب صراحةً لكل صفحة على حدة. Phase 1 Tokens ✅ مكتمل.
 > `DS-ICON Phase C` (تحويل الصفحات لـ `twIcon` + إزالة Lucide) **ممنوع** حتى يُطلب صراحةً لكل صفحة على حدة. Phase B Registry ✅ مكتمل.
 > `DS-IMAGE Phase C` (تحويل الصفحات لـ `twAvatarHtml` + شيل الـ escaping المحلي + توحيد الأحجام) **ممنوع** حتى يُطلب صراحةً لكل صفحة على حدة. Phase B ✅ مكتمل.
+> `DS-SHELL Phase C` (تحويل باقي الصفحات للـ markers) **ممنوع** إلا PR لكل صفحة مع screenshots قبل/بعد. Phase B ✅ مكتمل.
 > `Navigation Implementation` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `Input/Form/Validation Runtime` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `DS-DATE Runtime` (tw-date.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
