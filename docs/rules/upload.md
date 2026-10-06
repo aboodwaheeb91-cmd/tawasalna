@@ -9,9 +9,9 @@ These rules are permanent and apply to all future AI sessions.
 
 1. **`static/shared/tw-upload.js` is the only approved client for `POST /upload/image`.** Do NOT write a new `fetch('/upload/image', ...)` call in any page module, HTML file, or IIFE.
 
-2. **`TW.uploadImage(opts)` is the single entry point.** Signature: `TW.uploadImage({ userId, bucket, filename, dataUrl, jwt })`. Returns `Promise<{ ok: boolean, data: object }>`. All callers must handle the `{ok, data}` shape — never assume a direct `res.url`.
+2. **`TW.uploadImage(opts)` is the single entry point.** Signature (PR-7a): `TW.uploadImage({ kind, dataUrl, jwt })`. Returns `Promise<{ ok: boolean, data: object }>`. All callers must handle the `{ok, data}` shape — never assume a direct `res.url`. On `!ok` show `TW.uploadErrorText(res, fallback)` in the page toast and stop — never save the data URL.
 
-3. **Load order is mandatory.** `tw-upload.js` must appear in the HTML `<script>` list before any module that calls `TW.uploadImage`. Current pages: `profile-showcase.html` (before `profile-v2.api.js`) · `company-profile.html` (before `company.main.js`).
+3. **Load order is mandatory.** `tw-upload.js` must appear in the HTML `<script>` list before any module that calls `TW.uploadImage`. Current pages: `profile-showcase.html` (before `profile-v2.api.js`) · `company-profile.html` (before `company.main.js`) · `settings.html` (KYC).
 
 4. **Each page keeps its own UX.** File picking, validation, canvas crop, loading state, and saving the returned URL to the DB are each page's responsibility. `tw-upload.js` only does the HTTP upload — nothing else.
 
@@ -19,6 +19,14 @@ These rules are permanent and apply to all future AI sessions.
    ```
    ❌ fetch('/upload/image', ...) called directly from any page module
    ❌ A second upload helper function in a page file
-   ❌ Storing base64 data_url as-is in the DB (dev fallback only — do not make it the primary path)
+   ❌ Storing base64 data_url as-is in the DB (the server never returns one in production — PR-7a)
    ❌ Bypassing TW.uploadImage for "simplicity" in a new page
+   ❌ Sending bucket / filename / user_id from the client (server decides from `kind` + JWT)
+   ❌ A new upload `kind` without adding it to `_UPLOAD_KINDS` in `server.py` + this file + SYSTEMS_INDEX §29a
    ```
+
+6. **Server contract (PR-7a — upload security).** `server.py → _UPLOAD_KINDS` is the only kind → bucket map (`employee-avatar→avatars` · `employee-cover→avatars` · `company-logo→avatars` · `company-cover→avatars` · `kyc-id-front→kyc-docs` · `kyc-selfie→kyc-docs`); unknown kind → 400. `kyc-docs` is **private** (`_PRIVATE_BUCKETS`): the response is `{status, path}` with `path = kyc-docs/{name}` — never a `/object/public/` URL; admin viewing via signed URL is a separate PR (`docs/FUTURE_ROADMAP.md` P0). File name = `{user_id}_{kind}_{random}.{ext}` (JWT user_id only, no upsert). `_validate_image_data_url()`: JPEG/PNG/WebP only, magic bytes must match the declared mime, no SVG, data URL ≤ 7MB (413), decoded ≤ 5MB (413), bad base64 → 400. `_store_image()`: storage failure → 502, missing keys → 503, generic messages only (details in logs); data URL returned only when `TW_DEV_UPLOAD=1` and keys are missing. `POST /admin/logo` uses the same two helpers.
+
+7. **Saving an image URL (PR-7a).** Every endpoint that stores an image URL calls `_validate_stored_image_url(url, kind, uid, current)` in `server.py` — currently `PUT /profile/{id}` (`avatar_url`: `employee-avatar`, or `company-logo` for a `co` account · `cover_url`: `employee-cover`), `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`), `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). Allowed: `null`/`""` (clear) · the currently stored value unchanged (legacy) · exactly `{SUPABASE_URL}/storage/v1/object/public/{bucket of kind}/{uid}_{kind}_{12 hex}.{jpg|png|webp}` — for KYC (private) exactly `kyc-docs/{uid}_{kind}_{12 hex}.{jpg|png|webp}` instead. `data:` only with `TW_DEV_UPLOAD=1`. Anything else → 400. ❌ A new image-URL field or endpoint without this gate.
+
+Test: `python -m pytest test_upload_security.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.

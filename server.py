@@ -1212,6 +1212,9 @@ def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verif
     payload = data.dict(exclude_none=True)
     if not payload.get("industry"):
         raise HTTPException(400, "يجب تحديد تصنيف الجهة")
+    if payload.get("cover_url"):
+        _validate_stored_image_url(payload["cover_url"], "company-cover", company_id,
+                                   get_company_profile_row(company_id).get("cover_url"))
     updated = update_company_profile(company_id, payload)
     if not updated:
         raise HTTPException(400, "لا توجد بيانات للحفظ")
@@ -1230,6 +1233,9 @@ def update_co_cover(company_id: int, data: CoverUrlInput, token=Depends(verify_t
     tok_utype = token.get("user_type")
     if str(tok_uid) != str(company_id) or tok_utype != "co":
         raise HTTPException(403, "غير مصرح")
+    if data.cover_url:
+        _validate_stored_image_url(data.cover_url, "company-cover", company_id,
+                                   get_company_profile_row(company_id).get("cover_url"))
     updated = update_company_profile(company_id, {"cover_url": data.cover_url})
     if not updated:
         raise HTTPException(500, "تعذّر حفظ الغلاف")
@@ -1376,10 +1382,22 @@ class EducationInput(BaseModel):
     description: Optional[str] = None
 
 class ImageUploadInput(BaseModel):
-    user_id: int
-    bucket: str
-    filename: str
+    # PR-7a: the client sends `kind` only — bucket + filename are decided by
+    # the server (_UPLOAD_KINDS). user_id / bucket / filename are accepted for
+    # backward compatibility and ignored (user_id comes from the JWT only).
+    kind: Optional[str] = None
     data_url: str
+    user_id: Optional[int] = None
+    bucket: Optional[str] = None
+    filename: Optional[str] = None
+
+class AdminLogoInput(BaseModel):
+    # PR-7a: `filename` is the logo slot key (logo_wide | logo_tall), not a
+    # storage file name. Other legacy fields (user_id / bucket) are ignored.
+    filename: Optional[str] = None
+    data_url: str
+    user_id: Optional[int] = None
+    bucket: Optional[str] = None
 
 class ErrorLogInput(BaseModel):
     msg: Optional[str] = None
@@ -3004,46 +3022,24 @@ class ResetPasswordInput(BaseModel):
 
 
 @app.post("/admin/logo")
-async def upload_logo(data: ImageUploadInput, request: Request):
-    """Upload logo - filename: logo_wide or logo_tall"""
+async def upload_logo(data: AdminLogoInput, request: Request):
+    """Upload site logo (admin only) — slot: logo_wide | logo_tall.
+    Same image validation as /upload/image (PR-7a): JPEG/PNG/WebP only, no SVG."""
     check_admin(request)
+    slot = data.filename or "logo_wide"
+    if slot not in _LOGO_SLOTS:
+        raise HTTPException(400, "نوع الشعار غير معروف")
+    mime, ext, file_bytes = _validate_image_data_url(data.data_url)
+    logo_url = await _store_image("site", f"{slot}_{secrets.token_hex(6)}{ext}",
+                                  file_bytes, mime, data.data_url, "[Logo]")
+    # Always cache in memory
+    _html_cache[slot] = logo_url
     try:
-        filename = data.filename or "logo_wide"
-        logo_url = data.data_url
-        import httpx, base64 as _b64
-        s_url = os.environ.get("SUPABASE_URL","")
-        s_key = os.environ.get("SUPABASE_SERVICE_KEY","")
-        if s_url and s_key and ',' in data.data_url:
-            try:
-                header, b64data = data.data_url.split(',', 1)
-                mime = header.split(':')[1].split(';')[0]
-                ext = ".png" if "png" in mime else ".jpg" if "jpg" in mime else ".svg" if "svg" in mime else ".png"
-                fname = filename + ext
-                file_bytes = _b64.b64decode(b64data)
-                async with httpx.AsyncClient(timeout=15) as client:
-                    r = await client.post(
-                        f"{s_url}/storage/v1/object/site/{fname}",
-                        content=file_bytes,
-                        headers={"Authorization": f"Bearer {s_key}",
-                                "Content-Type": mime, "x-upsert": "true"}
-                    )
-                    if r.status_code in (200, 201):
-                        logo_url = f"{s_url}/storage/v1/object/public/site/{fname}"
-                        print(f"[Logo] Saved: {logo_url}")
-            except Exception as e:
-                print(f"[Logo] Supabase failed: {e}")
-        # Always cache in memory
-        _html_cache[filename] = logo_url
-        # Try save to DB (table may not exist yet)
-        try:
-            ensure_site_settings_table()
-            set_site_setting(filename, logo_url)
-        except Exception as db_err:
-            print(f"[Logo] DB save failed: {db_err} - cached in memory only")
-        return {"status": "success", "url": logo_url}
-    except Exception as e:
-        print(f"[Logo] Error: {e}")
-        raise HTTPException(500, str(e))
+        ensure_site_settings_table()
+        set_site_setting(slot, logo_url)
+    except Exception as db_err:
+        print(f"[Logo] DB save failed: {db_err} - cached in memory only")
+    return {"status": "success", "url": logo_url}
 
 @app.get("/admin/logo")
 def get_logos():
@@ -3673,6 +3669,15 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
     payload = data.dict(exclude_unset=True)
     user_type = token.get('user_type')
+    # PR-7a: image URLs must come from /upload/image for this user (company logo = avatar_url of a co)
+    _img_kinds = {"avatar_url": "company-logo" if user_type == "co" else "employee-avatar",
+                  "cover_url": "employee-cover"}
+    _img_pending = {f: k for f, k in _img_kinds.items() if payload.get(f)}
+    if _img_pending:
+        _cur = _current_image_urls(
+            "SELECT avatar_url, cover_url FROM profiles WHERE user_id = :uid", user_id)
+        for _f, _k in _img_pending.items():
+            _validate_stored_image_url(payload[_f], _k, user_id, _cur.get(_f))
     try:
         # Validate profession_id only when it is explicitly set to a non-null value
         if payload.get("profession_id") is not None:
@@ -4108,65 +4113,165 @@ def read_single_notification(user_id: int, notif_id: int, token=Depends(verify_t
         raise HTTPException(500, str(e))
 
 # ══ Storage Upload ══
+# PR-7a — Upload security (SYSTEMS_INDEX §29a · docs/rules/upload.md).
+# kind → bucket is a fixed server-side map; the client never chooses a bucket
+# or a file name. Stored name: {user_id}_{kind}_{random}.{ext}.
+_UPLOAD_KINDS = {
+    "employee-avatar": "avatars",
+    "employee-cover":  "avatars",
+    "company-logo":    "avatars",
+    "company-cover":   "avatars",
+    "kyc-id-front":    "kyc-docs",
+    "kyc-selfie":      "kyc-docs",
+}
+# Private buckets: no public URL exists — the server returns / stores the object
+# path "{bucket}/{name}" only (admin viewing via signed URL = FUTURE_ROADMAP P0).
+_PRIVATE_BUCKETS = frozenset({"kyc-docs"})
+_LOGO_SLOTS = ("logo_wide", "logo_tall")
+_UPLOAD_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_UPLOAD_MAX_BYTES = 5 * 1024 * 1024        # decoded image
+_UPLOAD_MAX_DATA_URL = 7 * 1024 * 1024     # data URL text, checked before decode
+_DATA_URL_RE = re.compile(r"^data:(image/(?:jpeg|png|webp));base64,")
+
+
+def _image_magic_mime(b: bytes):
+    """Real content type from magic bytes — None when not JPEG/PNG/WebP."""
+    if b[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if len(b) >= 12 and b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _validate_image_data_url(data_url: str):
+    """Validate a base64 image data URL → (mime, ext, bytes). Raises 400/413.
+    Only JPEG/PNG/WebP; declared mime must match the magic bytes (no SVG/HTML)."""
+    if not isinstance(data_url, str) or not data_url:
+        raise HTTPException(400, "صورة غير صالحة")
+    if len(data_url) > _UPLOAD_MAX_DATA_URL:
+        raise HTTPException(413, "الصورة كبيرة جداً - الحد الأقصى 5MB")
+    m = _DATA_URL_RE.match(data_url)
+    if not m:
+        raise HTTPException(400, "نوع الصورة غير مدعوم — يُقبل فقط JPEG أو PNG أو WebP")
+    mime = m.group(1)
+    try:
+        file_bytes = base64.b64decode(data_url[m.end():], validate=True)
+    except Exception:
+        raise HTTPException(400, "صورة غير صالحة")
+    if not file_bytes:
+        raise HTTPException(400, "صورة غير صالحة")
+    if len(file_bytes) > _UPLOAD_MAX_BYTES:
+        raise HTTPException(413, "الصورة كبيرة جداً - الحد الأقصى 5MB")
+    if _image_magic_mime(file_bytes) != mime:
+        raise HTTPException(400, "محتوى الصورة لا يطابق نوعها")
+    return mime, _UPLOAD_EXT[mime], file_bytes
+
+
+_STORED_IMAGE_TAIL_RE = re.compile(r"[0-9a-f]{12}\.(?:jpg|png|webp)")
+
+
+def _validate_stored_image_url(url, kind, uid: int, current=None):
+    """PR-7a — gate for every endpoint that SAVES an image URL (avatar / cover /
+    logo / KYC). Raises 400 unless the value is:
+      • None or ""  (clear — existing behaviour), or
+      • exactly the currently stored value (legacy values keep saving), or
+      • {SUPABASE_URL}/storage/v1/object/public/{bucket of kind}/{uid}_{kind}_{12 hex}.{jpg|png|webp}
+        — i.e. a name /upload/image generated for this user (no ../, no query);
+        for a private bucket (kyc-docs) the object path {bucket}/{uid}_{kind}_{12 hex}.{ext}
+        instead — never a public URL, or
+      • a valid image data URL only when TW_DEV_UPLOAD=1.
+    `kind` is one key of _UPLOAD_KINDS."""
+    if url is None or url == "":
+        return url
+    if not isinstance(url, str):
+        raise HTTPException(400, "رابط الصورة غير صالح")
+    if current is not None and url == current:
+        return url
+    if url.startswith("data:"):
+        if os.environ.get("TW_DEV_UPLOAD") == "1":
+            _validate_image_data_url(url)
+            return url
+        raise HTTPException(400, "رابط الصورة غير صالح")
+    base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    bucket = _UPLOAD_KINDS.get(kind)
+    if bucket in _PRIVATE_BUCKETS:
+        prefix = f"{bucket}/{int(uid)}_{kind}_"
+        if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
+            return url
+    elif base and bucket:
+        prefix = f"{base}/storage/v1/object/public/{bucket}/{int(uid)}_{kind}_"
+        if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
+            return url
+    raise HTTPException(400, "رابط الصورة غير صالح")
+
+
+def _current_image_urls(sql: str, uid: int) -> dict:
+    """Currently stored image URL columns for one row (constant SQL from callers)."""
+    conn = get_conn()
+    try:
+        rows = conn.run(sql, uid=uid)
+        if not rows:
+            return {}
+        cols = [c["name"] for c in conn.columns]
+        return dict(zip(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
+                       data_url: str, log_tag: str) -> str:
+    """Upload to Supabase Storage → public URL, or "{bucket}/{name}" for a private
+    bucket (_PRIVATE_BUCKETS). Never falls back to a data URL
+    in production: missing config → 503, storage failure → 502 (details logged).
+    Dev only: TW_DEV_UPLOAD=1 + missing Supabase keys → returns the data URL."""
+    import httpx
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not supabase_url or not supabase_key:
+        if os.environ.get("TW_DEV_UPLOAD") == "1":
+            print(f"{log_tag} TW_DEV_UPLOAD=1 — storage not configured, returning data URL (dev only)")
+            return data_url
+        print(f"{log_tag} storage not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY missing)")
+        raise HTTPException(503, "خدمة رفع الصور غير متاحة حالياً")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"{supabase_url}/storage/v1/object/{bucket}/{name}",
+                content=file_bytes,
+                headers={"Authorization": f"Bearer {supabase_key}",
+                         "Content-Type": mime},
+            )
+    except Exception as e:
+        print(f"{log_tag} storage error bucket={bucket} name={name}: {e!r}")
+        raise HTTPException(502, "تعذّر رفع الصورة، حاول مرة أخرى")
+    if r.status_code not in (200, 201):
+        print(f"{log_tag} storage rejected bucket={bucket} name={name} status={r.status_code} body={r.text[:300]!r}")
+        raise HTTPException(502, "تعذّر رفع الصورة، حاول مرة أخرى")
+    if bucket in _PRIVATE_BUCKETS:
+        return f"{bucket}/{name}"
+    return f"{supabase_url}/storage/v1/object/public/{bucket}/{name}"
+
 
 @app.post("/upload/image")
 async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
-    """Upload image to Supabase Storage and return public URL"""
-    tok_uid = token.get("user_id")
-    if str(tok_uid) != str(data.user_id):
-        raise HTTPException(403, "Unauthorized upload")
-    import httpx
+    """Upload an image for the JWT user → {status, url} (public bucket) or
+    {status, path} (private bucket — kyc-docs). kind decides the bucket."""
     try:
-        # Parse data URL: "data:image/jpeg;base64,/9j/4AAQ..."
-        if ',' not in data.data_url:
-            raise HTTPException(400, "Invalid data URL")
-
-        header, b64data = data.data_url.split(',', 1)
-        # Get mime type: "data:image/jpeg;base64"
-        mime = header.split(':')[1].split(';')[0]
-        ext = mimetypes.guess_extension(mime) or '.jpg'
-        if ext == '.jpe': ext = '.jpg'
-
-        file_bytes = base64.b64decode(b64data)
-
-        # Check size - max 5MB
-        if len(file_bytes) > 5 * 1024 * 1024:
-            raise HTTPException(400, "الصورة كبيرة جداً - الحد الأقصى 5MB")
-
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-
-        if not supabase_url or not supabase_key:
-            # Fallback: return data URL as-is (dev mode)
-            return {"status": "success", "url": data.data_url, "dev_mode": True}
-
-        bucket = data.bucket
-        filename = f"{data.user_id}_{data.filename}{ext}"
-        storage_url = f"{supabase_url}/storage/v1/object/{bucket}/{filename}"
-
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                storage_url,
-                content=file_bytes,
-                headers={
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": mime,
-                    "x-upsert": "true"
-                }
-            )
-            if r.status_code not in (200, 201):
-                # Fallback to data URL
-                return {"status": "success", "url": data.data_url, "dev_mode": True}
-
-        public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{filename}"
-        return {"status": "success", "url": public_url}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Upload error: {e}")
-        # Fallback: return data URL
-        return {"status": "success", "url": data.data_url, "dev_mode": True}
+        uid = int(token.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(401, "Token invalid or expired")
+    bucket = _UPLOAD_KINDS.get(data.kind or "")
+    if not bucket:
+        raise HTTPException(400, "نوع الرفع غير معروف")
+    mime, ext, file_bytes = _validate_image_data_url(data.data_url)
+    name = f"{uid}_{data.kind}_{secrets.token_hex(6)}{ext}"
+    url = await _store_image(bucket, name, file_bytes, mime, data.data_url, "[Upload]")
+    key = "path" if bucket in _PRIVATE_BUCKETS else "url"
+    if url == data.data_url:
+        return {"status": "success", key: url, "dev_mode": True}
+    return {"status": "success", key: url}
 
 # ══ KYC Endpoints ══
 
@@ -4258,6 +4363,11 @@ def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
 def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
     try:
         uid = int(token.get("user_id"))
+        if data.id_front_url or data.selfie_url:
+            _cur = _current_image_urls(
+                "SELECT id_front_url, selfie_url FROM kyc_submissions WHERE user_id = :uid", uid)
+            _validate_stored_image_url(data.id_front_url, "kyc-id-front", uid, _cur.get("id_front_url"))
+            _validate_stored_image_url(data.selfie_url, "kyc-selfie", uid, _cur.get("selfie_url"))
         result = upload_kyc_docs(uid, data.id_front_url, data.selfie_url)
         return {"status": "success", **result}
     except HTTPException:

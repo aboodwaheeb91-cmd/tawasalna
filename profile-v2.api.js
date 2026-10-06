@@ -82,12 +82,12 @@ function deleteExperience(expId){
 
 function uploadCover(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return TW.uploadImage({ userId: userId, bucket: 'covers', filename: 'cover', dataUrl: dataUrl, jwt: _currentJwt() });
+  return TW.uploadImage({ kind: 'employee-cover', dataUrl: dataUrl, jwt: _currentJwt() });
 }
 
 function uploadAvatar(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'avatar', dataUrl: dataUrl, jwt: _currentJwt() });
+  return TW.uploadImage({ kind: 'employee-avatar', dataUrl: dataUrl, jwt: _currentJwt() });
 }
 
 window.addExperience    = addExperience;

@@ -81,12 +81,10 @@
     uploadAvatar(uid, dataUrl)
       .then(function(res){
         if(!res.ok || !res.data || !res.data.url){
-          // dev fallback: save data_url directly to profile
-          return updateProfile(uid, { avatar_url: dataUrl })
-            .then(function(ur){
-              if(!ur.ok) throw new Error('profile update failed');
-              return { url: dataUrl };
-            });
+          // PR-7a: never save the data URL — surface the upload error
+          var err = new Error('upload failed');
+          err.userMsg = TW.uploadErrorText(res, 'حدث خطأ أثناء رفع الصورة');
+          throw err;
         }
         return updateProfile(uid, { avatar_url: res.data.url })
           .then(function(ur){
@@ -109,8 +107,8 @@
         toast('تم تحديث الصورة الشخصية');
         if(window._updateCompletion) window._updateCompletion();
       })
-      .catch(function(){
-        toast('حدث خطأ أثناء رفع الصورة');
+      .catch(function(e){
+        toast((e && e.userMsg) || 'حدث خطأ أثناء رفع الصورة');
       })
       .finally(function(){
         saveBtn.disabled = false;

@@ -248,6 +248,7 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/tw-upload.js"></script>
 <script>
 'use strict';
 // ── State ──
@@ -650,17 +651,20 @@ function kycSubmitDocs(btn){
   if(!_kycIdB64){showToast('ارفع صورة الهوية أولاً','error');return;}
   setBtnLoad(btn,true);
   showToast('جاري رفع المستندات...','info',5000);
-  // Upload ID to storage first
+  // Upload ID to storage first (PR-7a: shared client + kind; never save the data URL)
   Promise.all([
-    fetch('/upload/image',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:_user.id,bucket:'kyc-docs',filename:'id_front',data_url:_kycIdB64})
-    }).then(function(r){return r.json();}),
-    _kycSelfieB64 ? fetch('/upload/image',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:_user.id,bucket:'kyc-docs',filename:'selfie',data_url:_kycSelfieB64})
-    }).then(function(r){return r.json();}) : Promise.resolve({url:null})
+    TW.uploadImage({kind:'kyc-id-front',dataUrl:_kycIdB64,jwt:_kycJwt()}),
+    _kycSelfieB64 ? TW.uploadImage({kind:'kyc-selfie',dataUrl:_kycSelfieB64,jwt:_kycJwt()}) : Promise.resolve(null)
   ]).then(function(results){
-    var idUrl=results[0].url||_kycIdB64;
-    var selfieUrl=results[1]?results[1].url:null;
+    // kyc-docs is private → the server returns the object path (data.path), never a public URL
+    var bad=results.filter(function(r){return r&&(!r.ok||!r.data||!r.data.path);})[0];
+    if(bad){
+      var err=new Error('upload failed');
+      err.userMsg=TW.uploadErrorText(bad,'تعذّر رفع المستندات، حاول مرة أخرى');
+      throw err;
+    }
+    var idUrl=results[0].data.path;
+    var selfieUrl=results[1]?results[1].data.path:null;
     return fetch('/kyc/docs',{method:'POST',headers:_kycAuthHdr(),
       body:JSON.stringify({id_front_url:idUrl,selfie_url:selfieUrl})
     }).then(function(r){return r.json();});
@@ -671,9 +675,9 @@ function kycSubmitDocs(btn){
       document.getElementById('kycStatus').textContent='⏳ قيد المراجعة';
       setTimeout(function(){showKYCStep(4);},700);
     }
-  }).catch(function(){
+  }).catch(function(e){
     setBtnLoad(btn,false);
-    showToast('خطأ في الإرسال','error');
+    showToast((e&&e.userMsg)||'خطأ في الإرسال','error');
   });
 }
 
@@ -748,12 +752,12 @@ function showSaved(sectionId){
       <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:10px;cursor:pointer" onclick="document.getElementById('kyc-id-file').click()">
         <div id="kyc-id-preview" style="font-size:2rem;margin-bottom:8px">🪪</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.4)">صورة الهوية الوطنية</div>
-        <input id="kyc-id-file" type="file" accept="image/*" style="display:none" onchange="kycPreviewID(this)">
+        <input id="kyc-id-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="kycPreviewID(this)">
       </div>
       <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:14px;cursor:pointer" onclick="document.getElementById('kyc-selfie-file').click()">
         <div id="kyc-selfie-preview" style="font-size:2rem;margin-bottom:8px">🤳</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.4)">سيلفي مع الهوية (اختياري)</div>
-        <input id="kyc-selfie-file" type="file" accept="image/*" style="display:none" onchange="kycPreviewSelfie(this)">
+        <input id="kyc-selfie-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="kycPreviewSelfie(this)">
       </div>
       <button onclick="kycSubmitDocs(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال للمراجعة</button>
     </div>

@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
+
+- السيرفر: `kind` → bucket map ثابت (`_UPLOAD_KINDS`)، اسم ملف يولّده السيرفر، user_id من الـ JWT فقط، JPEG/PNG/WebP + فحص magic bytes (لا SVG)، حدود حجم 7MB نص / 5MB، لا fallback لـ data URL بالإنتاج (502/503؛ dev فقط بـ `TW_DEV_UPLOAD=1`). `/admin/logo` نفس الفحص.
+- الواجهة: `TW.uploadImage({ kind, dataUrl, jwt })` + `TW.uploadErrorText()`؛ المستدعين (profile-v2 avatar/cover · company logo/cover · KYC بـ settings.html · admin logo) ما عاد يحفظوا data URL.
+- توثيق: SYSTEMS_INDEX §29a · `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract` · `CLAUDE.md` جدول المتغيرات (`TW_DEV_UPLOAD`). اختبار: `test_upload_security.py`.
+- تصحيح (نفس الـ PR): `_validate_stored_image_url()` على كل حفظ لرابط صورة (`PUT /profile` avatar/cover · `PUT /company/profile` + `PUT /company/cover` · `POST /kyc/docs`) — لازم رابط Storage تبع نفس المستخدم ونفس الـ kind، أو القيمة الحالية بدون تغيير، أو فاضي؛ `data:` بـ `TW_DEV_UPLOAD=1` بس.
+- تصحيح 2 (نفس الـ PR): `employee-cover` → bucket `avatars` (bucket `covers` ما كان موجود بـ Supabase — رفع غلاف الموظف كان بيفشل دايماً وينحفظ base64). `kyc-docs` خاص (`_PRIVATE_BUCKETS`): الرفع بيرجع `{path}` = `kyc-docs/{name}` وهو اللي بينحفظ، والتحقق لـ KYC على المسار الخاص. عرض الأدمن بـ signed URL → `docs/FUTURE_ROADMAP.md` P0.
+
 ## PR-6c — 2026-10-06 — docs: changelog split
 
 - سطر `*Last updated*` بـ `docs/SYSTEMS_INDEX.md` (~22KB) + قسم "التحديثات" بـ `ARCHITECTURE_FOUNDATION.md` + تذييلَي `VIEWER-MODES.md` و`BUTTONS.md` نُقلت حرفياً لهذا الملف؛ كل ملف بقي فيه سطر واحد قصير.

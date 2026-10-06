@@ -195,7 +195,7 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <div class="logo-card" style="margin-bottom:10px">
       <div class="sec-hdr" style="margin-bottom:6px">🖼️ شعار الموقع</div>
       <div id="prevWide" class="logo-prev" onclick="document.getElementById('fileWide').click()">+</div>
-      <input type="file" id="fileWide" accept="image/*" style="display:none" onchange="prevLogo(this)">
+      <input type="file" id="fileWide" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="prevLogo(this)">
       <button onclick="uploadLogo(this)" style="width:100%;padding:7px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.72rem;font-weight:700;cursor:pointer">⬆️ رفع الشعار</button>
     </div>
 
@@ -348,11 +348,11 @@ async function uploadLogo(btn){
   try{
     const r=await fetch('/admin/logo',{method:'POST',
       headers:{...adminHeaders()},
-      body:JSON.stringify({user_id:0,bucket:'site',filename:'logo_wide',data_url:_logob64})
+      body:JSON.stringify({filename:'logo_wide',data_url:_logob64})
     });
-    const d=await r.json();
-    if(d.status==='success') showToast('تم رفع الشعار ✅');
-    else throw new Error();
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.status==='success') showToast('تم رفع الشعار ✅');
+    else showToast((typeof d.error==='string'&&d.error)||'خطأ في الرفع','error');
   }catch(e){showToast('خطأ في الرفع','error');}
   setBtnLoad(btn,false);
 }

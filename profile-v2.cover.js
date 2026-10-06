@@ -99,13 +99,13 @@
 
     uploadCover(uid, dataUrl)
       .then(function(res){
-        var coverUrl;
-        if(res.ok && res.data && res.data.url){
-          coverUrl = res.data.url;
-        } else {
-          // dev fallback: save data_url directly
-          coverUrl = dataUrl;
+        if(!res.ok || !res.data || !res.data.url){
+          // PR-7a: never save the data URL — surface the upload error
+          var err = new Error('upload failed');
+          err.userMsg = TW.uploadErrorText(res, 'حدث خطأ أثناء رفع الكفر');
+          throw err;
         }
+        var coverUrl = res.data.url;
         return updateProfile(uid, { cover_url: coverUrl })
           .then(function(ur){
             if(!ur.ok) throw new Error('profile update failed');
@@ -128,8 +128,8 @@
             .catch(function(){});
         }
       })
-      .catch(function(){
-        toast('حدث خطأ أثناء رفع الكفر');
+      .catch(function(e){
+        toast((e && e.userMsg) || 'حدث خطأ أثناء رفع الكفر');
       })
       .finally(function(){
         saveBtn.disabled = false;
