@@ -701,12 +701,4 @@ if (reason === 'pageshow') {
 
 ---
 
-*آخر تحديث: 2026-07-18 — V1: Viewer Modes & Permissions System foundation.
-يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
-موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
-rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
-rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).
-rev.4 (2026-08-04): إضافة VM-10J — Global Site Header Auto-Detection Marker؛ اعتماد home-v2.html (5 صفحات مكتملة).
-rev.5 (2026-08-04): اعتماد edu-profile.html (6 صفحات مكتملة)؛ إزالة edu-profile.html من _LEGACY_ALLOWED؛ إزالة employees-group.html من _LEGACY_ALLOWED (لا session actions فيها).
-rev.6 (2026-08-05): إضافة VM-01-BFCACHE — bfcache session revalidation hotfix (PR fix/vm01-bfcache-session-revalidation)؛ Generation guard + edu live guard + Authorization header fix.
-rev.7 (2026-08-05): Final runtime integrity — preview no-exemption، .catch() generation guard، renderProfile non-owner clear، _isCurrentEduOwner() fail-closed، _applyEduOwnerMode unified، saveEdit() live snapshot، company identity-aware carve-out، tests rewritten with Node.js vm module + @vm-extract markers.*
+*آخر تحديث: 2026-08-05 — rev.7 (Final runtime integrity) · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*

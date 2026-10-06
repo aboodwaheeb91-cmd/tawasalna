@@ -59,6 +59,7 @@
   - emoji الواجهة تُستبدل ضمن تحويل كل صفحة؛ **admin بالآخر**.
   - **بالآخر:** إزالة `static/vendor/lucide/lucide.min.js` + unpkg CDN (`index.html` · `profile-showcase.html`) + كل `lucide.createIcons()` + قواعد `i[data-lucide]` بالـ CSS؛ فحص "رسمة = Lucide 0.460" بـ `test_ds_icon_registry.js` يتحوّل لمقارنة مع snapshot ثابت؛ تحديث جدول Vendor Assets.
 - [ ] **P2** — أيقونات PWA (`/icon-192.png` · `/icon-512.png`): اليوم placeholder (بكسل واحد بـ `server.py`) — **بانتظار ملفات رسمية** من صاحب المشروع ثم تُخدم كملفات ثابتة + `manifest.json`.
+- [ ] **P2** — `manifest.json` shortcut "ملفي" لسا بيأشّر على `/profile` (مسار قديم بيعمل redirect — `_LEGACY_REDIRECT_HTML`) → يتحدّث لمسار صحيح (حسب Smart Router `/u/{tw_id}` — يحتاج قرار لأن الـ manifest ثابت بلا `tw_id`) بـ PR كود صغير لاحقاً.
 - [ ] **P2** — favicon (`/favicon.ico` بـ `server.py`) لونه ثابت `#2563ff` → يتبع DS-COLOR (لون العلامة الرسمي) — PR منفصل بقرار لون.
 - [ ] **P1** — Unified Profile Media Sizing: توحيد قواعد عرض الصور في صفحات البروفايل (avatar دائري للموظف، rounded square logo للشركة والمؤسسة، نظام موحد للكفر). لا يعني تعديل upload/cropper الآن.
 - [ ] **P1** — First-time Profile Setup Wizard: flow إعداد أولي خطوة بخطوة لحسابات جديدة بدلاً من صفحة فارغة. يختلف حسب نوع الحساب. يفرّق بين Required وRecommended. يدعم حفظ جزئي. لا يعتمد على frontend فقط — يحتاج backend support.
@@ -143,6 +144,14 @@
 - [ ] **P2** — Unified toast system: shared helper بدلاً من `showToast` مكرر في كل صفحة
 - [ ] **P2** — Dark mode refinements: مراجعة تباين الألوان على الشاشات المختلفة
 - [ ] **P2** — الوضع الليلي/النهاري (Light / Dark theme): **يعتمد على إكمال DS-COLOR Phase 2** (نقل كل الألوان الثابتة بالصفحات لـ tokens). المطلوب: مجموعة قيم ثانية للـ semantic tokens (`--color-*` Section B) لوضع النهار · زر تبديل · حفظ اختيار المستخدم · احترام إعداد الجهاز (`prefers-color-scheme`) كافتراضي.
+  - **مرتبط بـ:** بند تعدد اللغات (i18n) تحته — الاثنين بيعتمدوا على أنظمة الـ tokens (DS-COLOR للألوان · CSS بخصائص منطقية + DS-ICON للاتجاه).
+- [ ] **P2** — تعدد اللغات (i18n) — التفاصيل الأصلية: [§1 Full Internationalization / Localization](#1-full-internationalization--localization). **مرتبط بـ:** بند الوضع الليلي/النهاري فوقه (الاثنين بيعتمدوا على أنظمة الـ tokens).
+  - **نظام نصوص موحّد:** كل نصوص الواجهة من ملف لكل لغة عبر مفتاح (مثل `t('nav.home')`)، بدل النص المكتوب مباشرة.
+  - **اتجاه الصفحة RTL/LTR حسب اللغة:** CSS بخصائص منطقية (`margin-inline-start` · `padding-inline-end` · `inset-inline-*` …) + أيقونات DS-ICON الاتجاهية (`dir:true` — F37 · `docs/design-system/ICON-SYSTEM.md`).
+  - **رسائل السيرفر تنترجم:** الأخطاء · الإشعارات · الإيميلات. الإشعارات تنخزن كـ **مفتاح + بيانات** مش نص جاهز.
+  - **محتوى المستخدمين ما بينترجم** (منشورات · تعليقات · رسائل · بيانات البروفايل).
+  - **ترتيب اختيار اللغة:** اختيار المستخدم ← بلد الحساب (`country_code`) ← لغة الجهاز/المتصفح للزائر ← العربي.
+  - **التوصية:** بناء نظام النصوص وتوثيقه بدري (حتى بالعربي فقط) حتى الصفحات الجديدة/المعاد بناؤها تنكتب عليه؛ الترجمة الفعلية بالآخر.
 
 ---
 

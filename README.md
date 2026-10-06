@@ -51,6 +51,6 @@ node test_stale_session_entry_runtime.js
 ## التوثيق
 
 - [`CLAUDE.md`](CLAUDE.md) — بروتوكول المهام وقواعد العمل الإلزامية (يبدأ به أي مطوّر أو جلسة AI)
-- [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md) — الدستور المعماري (فهرس القواعد F1–F35 بأول الملف)
+- [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md) — الدستور المعماري (فهرس القواعد F1–F37 بأول الملف)
 - [`docs/SYSTEMS_INDEX.md`](docs/SYSTEMS_INDEX.md) — فهرس الأنظمة
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — المواصفات التقنية التفصيلية
