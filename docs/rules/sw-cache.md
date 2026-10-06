@@ -9,4 +9,5 @@
 2. **Any new endpoint needs NO change to `sw.js`** — the API is not cached by default. Do not reintroduce a `NO_CACHE` blocklist.
 3. **Session-end cache wipe = `twClearAppCaches()` in `tw_shared.js` only**, called from `TwAuthSync.invalidateSession()` and the `twLogout()` fallback. Best-effort, never delays redirect. Do not write a second helper.
 4. **Bump `BUILD_TIME` in `sw.js` on every change to `sw.js`.**
+4b. **Offline fallback precache (Phase C — landing):** `STATIC_ASSETS` = `/landing.html` + `/manifest.json` + every shared CSS/JS of the Page Shell partials + `/static/shared/tw-icons.js`, stored without `?v=` and matched offline with `ignoreSearch` (exact URL first). A new asset in `partials/shell-*.html` or a new script on `landing.html` → add it here + bump `BUILD_TIME` in the same PR (test: `python test_landing_shell.py`).
 5. Full spec: `ARCHITECTURE.md §71` · `docs/SYSTEMS_INDEX.md §32`.

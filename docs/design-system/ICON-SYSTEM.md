@@ -3,7 +3,7 @@
 > النظام الرسمي الوحيد لأيقونات الواجهة في تواصلنا: مصدر الرسومات، الأسماء، طريقة الرسم (render)، الاتجاه بالـ RTL، والممنوعات.
 >
 > **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F37.
-> **Runtime Source of Truth:** `static/shared/tw-icons.js` (registry — Phase B ✅ · Phase C: أول مستهلك `job-detail.html`).
+> **Runtime Source of Truth:** `static/shared/tw-icons.js` (registry — Phase B ✅ · Phase C: `job-detail.html` · `landing.html`).
 > **قوانين الـ AI:** `docs/rules/ds-icon.md`.
 > **الاختبار:** `node test_ds_icon_registry.js`.
 > **المرجع:** تقرير المرحلة A (PR-6 / المرحلة A — جرد الأيقونات) + القرارات المعتمدة من صاحب المشروع (1–7).
@@ -242,7 +242,7 @@ twIcon.hydrate(root);                           // <i data-tw-icon="x" data-tw-s
 |---------|--------|
 | A — جرد الأيقونات + القرارات | ✅ |
 | B — registry + توثيق + اختبار، **بدون مستهلك وبدون تغيير بصري** | ✅ PR-6 / المرحلة B (2026-10-06) |
-| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail.html` (أول مستهلك: `data-lucide` + emoji → `twIconEl`، `_lucideIcon` انحذفت، Lucide ما عاد ينحمّل بالصفحة، زر الرجوع `prev`؛ الأيقونات الثابتة placeholders + `twIcon.hydrate` — PR #558) · الباقي: `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
+| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail.html` (أول مستهلك: `data-lucide` + emoji → `twIconEl`، `_lucideIcon` انحذفت، Lucide ما عاد ينحمّل بالصفحة، زر الرجوع `prev`؛ الأيقونات الثابتة placeholders + `twIcon.hydrate` — PR #558) · ✅ `landing.html` (29 أيقونة: `data-lucide` + SVG يدوي (`check`) + الـ glyphs `←` → `forward` و `✓` → `check` — كلها `<i data-tw-icon>` + `twIcon.hydrate`؛ Lucide انشال من الصفحة؛ `stroke` الثابت (`#fff` وألوان الأقسام) → `color` + currentColor؛ أحجام 11→12 · 13→14 · 24→22 وسماكة 1.7/1.8/2.5/3 → 2 — ICON-05/07) · الباقي: `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
 
 **المرحلة C (ملخّص — التفاصيل بالـ roadmap):**
 1. أول PR: زر الرجوع بـ `profile-showcase.html:46` → `twIcon('back')` + باقي أيقونات الصفحة نفسها.

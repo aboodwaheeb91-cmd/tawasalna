@@ -27,7 +27,7 @@
 
 11. **أيقونة جديدة (ICON-12):** مدخل بالـ registry + مستهلك حقيقي بنفس الـ PR + الاختبار أخضر. مهارة/مهنة جديدة بالـ seed → أيقونتها بالـ registry بنفس الـ PR.
 
-12. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة (بتحمّل `tw-icons.js` كسكربت صفحة بعد `<!--tw:shell-scripts-->` — مش بالـ shell): `job-detail.html`. أي صفحة جديدة بتنضاف لـ `PHASE_C_PAGES` بـ `test_ds_icon_registry.js` بنفس الـ PR.
+12. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة (بتحمّل `tw-icons.js` كسكربت صفحة بعد `<!--tw:shell-scripts-->` — مش بالـ shell): `job-detail.html` · `landing.html`. أي صفحة جديدة بتنضاف لـ `PHASE_C_PAGES` بـ `test_ds_icon_registry.js` بنفس الـ PR.
 
 ### Forbidden (permanent)
 
