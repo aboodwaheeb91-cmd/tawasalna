@@ -169,3 +169,15 @@ def test_migrate_conditional_invalid_left_and_idempotent(monkeypatch):
     a2 = _mig(monkeypatch, db, 0)                        # second run: nothing new
     assert (a2["found"], a2["migrated"]) == (1, 0) and a2["reasons"] == {"invalid_image": 1}
     assert len(FakeStorage.calls) == uploads
+
+
+def test_docs_base_normalised_trailing_slash(monkeypatch):
+    """Base comes from _supabase_base_url() (#551): a raw value with "/" or
+    whitespace must not produce "//storage" or break the prefix check."""
+    monkeypatch.setenv("SUPABASE_URL", " https://sb.example/ ")
+    _kyc_row(monkeypatch, {"user_id": 5, "selfie_url": None,
+                           "id_front_url": "kyc-docs/5_kyc-id-front_0123456789ab.jpg"})
+    j = client.get("/admin/kyc/3/docs", headers=ADMIN).json()
+    assert j["storage_base"] == "https://sb.example"
+    assert FakeStorage.calls == ["https://sb.example/storage/v1/object/sign/kyc-docs/5_kyc-id-front_0123456789ab.jpg"]
+    assert j["docs"]["id_front"]["url"].startswith("https://sb.example/storage/v1/object/sign/kyc-docs/")

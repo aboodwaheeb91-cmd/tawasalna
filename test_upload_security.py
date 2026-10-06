@@ -257,3 +257,19 @@ def test_stored_data_url_only_in_dev(db, monkeypatch):
     assert put_profile({"avatar_url": d}).status_code == 400
     monkeypatch.setenv("TW_DEV_UPLOAD", "1")
     assert put_profile({"avatar_url": d}).status_code == 200
+
+
+@pytest.mark.parametrize("raw", ["https://sb.example/", " https://sb.example/ \n"])
+def test_upload_then_save_roundtrip_with_untrimmed_supabase_url(db, storage, monkeypatch, raw):
+    # Production incident (after PR #549): the URL /upload/image returned must
+    # always pass PUT /profile — one normalised base (_supabase_base_url).
+    monkeypatch.setenv("SUPABASE_URL", raw)
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", " svc\n")
+    r = up({"kind": "employee-avatar", "data_url": durl("image/jpeg", JPEG)})
+    assert r.status_code == 200, r.text
+    url = r.json()["url"]
+    assert url.startswith("https://sb.example/storage/v1/object/public/avatars/7_employee-avatar_")
+    assert storage.calls[0]["url"].startswith("https://sb.example/storage/v1/object/avatars/")
+    assert storage.calls[0]["headers"]["Authorization"] == "Bearer svc"
+    assert put_profile({"avatar_url": url}).status_code == 200
+    assert db["avatar_url"] == url

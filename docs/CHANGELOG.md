@@ -15,8 +15,17 @@
 
 - (أ) `GET /admin/kyc/{submission_id}/docs` (`check_admin`): روابط Supabase مؤقتة (300s) للهوية والسيلفي، بس لمسار `kyc-docs/{user_id الطلب}_{kind}_{12hex}.{ext}`؛ غير هيك `null` + سبب. `Cache-Control: no-store`، الرابط ممنوع بالـ log. `GET /admin/kyc` ما عاد يرجّع `id_front_url` / `selfie_url`. `admin.html`: زر "عرض المستندات" → modal بالصورتين + قبول/رفض.
 - (ب) `POST /admin/maintenance/migrate-data-images?dry_run=1`: ترحيل `data:` من `profiles.avatar_url` / `cover_url` · `company_profiles.cover_url` · `kyc_submissions` · `site_settings` logos إلى Storage بنفس قواعد PR-7a؛ UPDATE مشروط بالقيمة القديمة؛ غير الصالح بينترك ويتذكر؛ idempotent. `admin.html`: قسم صيانة (فحص + ترحيل بتأكيد).
-- توثيق: SYSTEMS_INDEX §23 + §29a · `docs/rules/upload.md` (بنود 8–9) · `ARCHITECTURE.md` (Admin Endpoints · KYC · Image Upload Security Contract) · `docs/FUTURE_ROADMAP.md` (شيل P0 KYC + بند تنظيف ملفات Storage اليتيمة). اختبار: `test_kyc_docs_migration.py`.
+- توثيق: SYSTEMS_INDEX §23 + §29a · `docs/rules/upload.md` (بنود 9–10) · `ARCHITECTURE.md` (Admin Endpoints · KYC · Image Upload Security Contract) · `docs/FUTURE_ROADMAP.md` (شيل P0 KYC + بند تنظيف ملفات Storage اليتيمة). اختبار: `test_kyc_docs_migration.py`.
 - تصحيح (نفس الـ PR): `GET /admin/kyc` كان بيرجّع `email_code` / `phone_code` (`SELECT ks.*` — مخالف Tier 4 Never-Returned) → allowlist صريح (`auth._ADMIN_KYC_LIST_COLUMNS`): `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at` — ممنوع `email_code` / `phone_code` / `id_front_url` / `selfie_url` / `ks.*`.
+- merge main (#551): التوقيع (`_sign_kyc_doc`) و`admin_kyc_docs` (`storage_base`) والترحيل صاروا يقرأوا الـ base عبر `_supabase_base_url()` بس (+ `_supabase_service_key()` مع trim) — ما في قراءة مباشرة لـ `SUPABASE_URL`. اختبار: base فيه `/` بالآخر.
+
+## fix/upload-error-classes — 2026-10-06 — حادثة رفع الصور بعد PR #549
+
+- السبب الجذري (الأرجح — قيمة المتغير بالإنتاج ما انفحصت من هون؛ الـ logs الجديدة بتأكّده): الرفع لـ Storage بينجح، بس `PUT /profile` بيرفض الرابط (400 `رابط الصورة غير صالح`) لأن `_store_image` كان يبني الرابط من `SUPABASE_URL` الخام و`_validate_stored_image_url` يقارن بـ base بدون `/` بالآخر — قيمة المتغير بـ `/` بالآخر (أو مسافة) تنتج `//storage`. الواجهة كانت ترمي `Error('profile update failed')` بدون رسالة → toast عام، ونجاح الرفع ما كان يطبع شي بالـ log (يعني "ما في طلب").
+- السيرفر: `_supabase_base_url()` مصدر وحيد (trim + rstrip `/`)، trim لـ `SUPABASE_SERVICE_KEY`، log نجاح `[Upload] stored …` ورفض `[ImageURL] rejected …`.
+- الواجهة: `tw-upload.js` بيصنّف (session / network / non_json + status / server) + `TW.uploadResult` / `TW.uploadError` / `TW.uploadFailureMessage`؛ مطبّق على avatar · cover · company logo/cover · KYC. `console.error` بدون بيانات الصورة.
+- الـ cropper ما تغيّر: avatar 260×260 JPEG 0.85 (~بضع KB) — الحجم مش السبب.
+- اختبارات: `test_upload_security.py` (round-trip بـ SUPABASE_URL فيه `/`) · `node test_upload_client_runtime.js`.
 
 ## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
 

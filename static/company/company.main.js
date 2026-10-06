@@ -565,9 +565,7 @@
     TW.uploadImage({ kind: 'company-cover', dataUrl: dataUrl, jwt: jwt })
     .then(function (res) {
       if (!res.ok || !res.data || !res.data.url) {
-        var err = new Error('no_url');
-        err.userMsg = TW.uploadErrorText(res, 'تعذّر رفع الغلاف، حاول مرة أخرى');
-        throw err;
+        throw TW.uploadError(res, 'تعذّر رفع الغلاف، حاول مرة أخرى', 'upload_failed');
       }
       var url = res.data.url;
       return fetch('/company/cover/' + userId, {
@@ -575,8 +573,9 @@
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
         body:    JSON.stringify({ cover_url: url }),
       })
+      .then(TW.uploadResult)
       .then(function (r2) {
-        if (!r2.ok) throw new Error('save_fail');
+        if (!r2.ok) throw TW.uploadError(r2, 'تعذّر حفظ الغلاف، حاول مرة أخرى', 'save_failed');
         return url;
       });
     })
@@ -589,7 +588,7 @@
       closeCoverCrop();
     })
     .catch(function (e) {
-      if (window.showToast) showToast((e && e.userMsg) || 'تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
+      if (window.showToast) showToast(TW.uploadFailureMessage(e, 'تعذّر رفع الغلاف، حاول مرة أخرى'), 'error');
     })
     .finally(function () {
       isUploadingCover = false;
@@ -677,9 +676,7 @@
     .then(function (res) {
       if (!res.ok || !res.data || !res.data.url) {
         // PR-7a: never save the data URL — surface the upload error
-        var err = new Error('upload_fail');
-        err.userMsg = TW.uploadErrorText(res, 'تعذر رفع الصورة، حاول مرة أخرى');
-        throw err;
+        throw TW.uploadError(res, 'تعذر رفع الصورة، حاول مرة أخرى', 'upload_failed');
       }
       var url = res.data.url;
       return fetch('/profile/' + userId, {
@@ -687,8 +684,9 @@
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
         body: JSON.stringify({ avatar_url: url })
       })
+      .then(TW.uploadResult)
       .then(function (r2) {
-        if (!r2.ok) throw new Error('save_fail');
+        if (!r2.ok) throw TW.uploadError(r2, 'تعذّر حفظ الشعار، حاول مرة أخرى', 'save_failed');
         return url;
       });
     })
@@ -701,7 +699,7 @@
       closeLogoCrop();
     })
     .catch(function (e) {
-      if (window.showToast) showToast((e && e.userMsg) || 'تعذر رفع الصورة، حاول مرة أخرى', 'error');
+      if (window.showToast) showToast(TW.uploadFailureMessage(e, 'تعذر رفع الصورة، حاول مرة أخرى'), 'error');
     })
     .finally(function () {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الشعار'; }
