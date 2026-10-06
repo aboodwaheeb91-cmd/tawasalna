@@ -89,7 +89,7 @@
 | `cursor` | `pointer` | لا يُترك للمتصفح |
 | `user-select` | `none` → BTN-08 | لا يُحدَّد نص الزر |
 | `border` | explicit | يمنع تضارب الـ reset |
-| `border-radius` | صغير وموحَّد | شكل مستطيل slim |
+| `border-radius` | `var(--radius-control)` (= `--radius-md` 10px — DS-SIZE SIZE-03) | شكل مستطيل slim، موحَّد للأزرار والحقول |
 | `font-family` | `inherit` | يحافظ على Cairo + RTL |
 | `transition` | محددة ومنطقية | لا transitions غير ضرورية |
 
@@ -119,7 +119,7 @@
 | **Success** | `#22c55e` | حالة تأكيد نجاح — لا تظهر ابتداءً |
 
 > **ملاحظة:** الألوان المذكورة هي existing tokens مرجعية — ليست final Design Tokens.
-> المصدر النهائي مستقبلاً سيكون Shared Design Tokens عند بناء `tw-ui-tokens.css`.
+> `tw-ui-tokens.css` استُبدل بـ DS-SIZE في `tw_shared.css` — الألوان من DS-COLOR (`COLOR-SYSTEM.md`)، والأحجام والزوايا من DS-SIZE (`SIZE-SYSTEM.md`).
 
 ### قواعد الاستخدام
 
@@ -139,17 +139,27 @@
 - **Button Group أو Container** مسؤول عن width وspacing وposition.
 - **Base Button لا يحمل margins خارجية** — الـ spacing ينتمي للـ container.
 
-### قيم موجودة (Existing Constraints — ليست Universal Tokens)
+### قيم موجودة وربطها بـ DS-SIZE tokens
 
-| الحجم | height | padding أفقي | font-size | تنطبق على |
-|-------|--------|--------------|-----------|-----------|
-| SM | 27px | 18px | 11px | Profile V2 action buttons — **مجمَّدة في CLAUDE.md** |
-| MD | 36px | 20px | 13px | مودالات، forms |
-| LG | 44px | 28px | 15px | CTAs رئيسية |
+| الحجم | height | padding أفقي | font-size | تنطبق على | DS-SIZE |
+|-------|--------|--------------|-----------|-----------|---------|
+| SM | 27px | 18px | 11px | Profile V2 action buttons — **مجمَّدة** (`docs/rules/profile-v2.md`) | استثناء مجمَّد SIZE-08 — **بدون tokens** (27 و 11px برّا السلّم) |
+| MD | 36px | 20px | 13px | — | **بدون مستهلك فعلي** كارتفاع زر (36 موجود بس كارتفاع لوغو) → **ما في token لـ 36** (SIZE-06). padding → `--space-10` · font 13px → `--size-font-md` (تحت البكسل) |
+| LG | 44px | 28px | 15px | CTAs رئيسية | height → `--size-touch-min` · font → `--size-font-xl` (تحت البكسل) · padding 28px قيمة محلية (SIZE-09) |
 
-> هذه قيم قائمة في صفحات محددة — **ليست Design Tokens موحَّدة معتمدة**.
-> لا تطبِّقها على صفحات جديدة بدون قرار موثَّق.
-> القيم SM مجمَّدة في `.sc-btn` — راجع CLAUDE.md قبل أي تعديل.
+**Tokens الأزرار المعتمدة (DS-SIZE — `docs/design-system/SIZE-SYSTEM.md`):**
+
+| الاستعمال | Token |
+|-----------|-------|
+| زاوية كل زر وحقل | `--radius-control` (10px) |
+| زر نص صغير | `--size-control-sm` (28px) |
+| زر نص متوسط | `--size-control-md` (40px) |
+| touch target أدنى | `--size-touch-min` (44px) |
+| أزرار أيقونة مربعة | `--size-control-icon-xs/sm/md/lg` (28/30/32/40px) — BTN-06 |
+| أيقونة داخل الزر | `--size-icon-*` |
+
+> نقل قيمة زر موجودة إلى token = **migration للمطابق وتحت البكسل فقط** (SIZE-05). أي فرق مرئي = redesign معلن.
+> القيم SM مجمَّدة في `.sc-btn` — راجع `docs/rules/profile-v2.md` قبل أي تعديل.
 
 ### Layout داخل الزر
 

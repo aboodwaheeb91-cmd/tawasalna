@@ -53,6 +53,7 @@
 | F33 | **P0** | DS-OVL هو النظام الوحيد لكل Overlays (Modal / Drawer / Sheet / Confirmation / Dialog). |
 | F34 | **P0** | DS-FEEDBACK هو النظام الوحيد لـ Toast / Snackbar. |
 | F35 | **P0** | DS-COLOR هو النظام الوحيد لكل color tokens؛ `--color-*` في `tw_shared.css` فقط. |
+| F36 | **P0** | DS-SIZE هو النظام الوحيد لأحجام الخط/الزوايا/المسافات/الأيقونات/ارتفاعات العناصر؛ `--size-*` / `--radius-*` / `--space-*` في `tw_shared.css` فقط. |
 
 ---
 
@@ -1017,6 +1018,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | Overlay / Modal / Drawer / Confirmation / Sheet / Dialog | DS-OVL → `docs/design-system/OVERLAY-SYSTEM.md` — اقرأ OVL-00 (Routing Protocol) ثم القسم المناسب |
 | Toast / Snackbar / Operational Feedback | DS-FEEDBACK → `docs/design-system/FEEDBACK-SYSTEM.md` — اقرأ FBK-00 (Routing Protocol) ثم القسم المناسب |
 | color token / `--color-*` / palette / لون / تعريف لون جديد | DS-COLOR → `docs/design-system/COLOR-SYSTEM.md` — اقرأ CLR-00 (Routing Protocol) ثم القسم المناسب |
+| font-size / border-radius / padding / margin / gap / حجم أيقونة / ارتفاع زر / `--size-*` / `--radius-*` / `--space-*` | DS-SIZE → `docs/design-system/SIZE-SYSTEM.md` — اقرأ SIZE-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1058,7 +1060,7 @@ async function handleSave() {
 إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
 → انظر `docs/CHANGE_ROUTER.md` (CRS). CRS يُطبِّق F30/F31 على مستوى الطلب — ليس طبقة فوقهما.
 Workflow order: `ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime`
-Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F35`
+Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F36`
 
 ---
 
@@ -1199,6 +1201,37 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F35`
 
 ---
 
+## F36 — [P0] Size System V1 (DS-SIZE)
+
+**DS-SIZE هو النظام الرسمي الوحيد لأحجام الواجهة في منصة تواصلنا:** أحجام الخط، الزوايا، المسافات، أحجام الأيقونات، وارتفاعات العناصر التفاعلية.
+
+### القواعد الأساسية
+
+1. **`--size-*` و `--radius-*` و `--space-*` namespaces محجوزة حصراً لـ DS-SIZE** — تُعرَّف فقط في `tw_shared.css` (قسم `1b. DS-SIZE`). أي ملف CSS/HTML/JS آخر ممنوع يعرّفها أو يعيد تعريفها.
+2. **السلالم** (SIZE-02 → SIZE-06): خط 12 درجة (`--size-font-3xs` .6rem → `--size-font-display` 2rem، و `--size-font-xl` = .95rem token منفصل) · زوايا 10 درجات (`--radius-2xs` 4px → `--radius-circle` 50%) + `--radius-control: var(--radius-md)` للأزرار والحقول · مسافات `--space-1..13` (2 → 40px) · أيقونات `--size-icon-*` (12 → 22px) · ارتفاعات `--size-control-*` + `--size-touch-min` 44px.
+3. **Visual Difference Classification** (SIZE-05): مطابق / تحت البكسل (< 0.5px) / مرئي (≥ 0.5px).
+4. **Migration ≠ Redesign** — Migration = استبدال المطابق وتحت البكسل فقط. المرئي بـ PR redesign معلن لكل صفحة. الاستثناء الوحيد المعتمد: أيقونات 13px → `--size-icon-sm` 14px.
+5. **Three-Tier Policy** (SIZE-07): T1 عالمي في `tw_shared.css` · T2 alias محلي يُشير إلى T1 (`--r-sm: var(--radius-md)`) · T3 قيمة محلية موثقة (مرئية / شاذة / مجمّدة).
+6. **Frozen Exceptions** (SIZE-08): `.sc-actions` / `.sc-btn` (profile-v2) وقيم post-comments — خارج أي migration، حتى القيم المطابقة جوّاها.
+7. **لا tokens بدون مستهلك حقيقي** — كل درجة في السلّم إلها استعمالات خام موجودة بجرد المرحلة A. لهيك ما في token لارتفاع 36px (BTN-04 MD) ولا للمسافات الفردية (3/5/7/9/11/13px).
+8. **Phase 1 ✅ Tokens Foundation (PR-5 / المرحلة B)**: tokens معرّفة فقط، بدون مستهلك وبدون تغيير بصري. Phase 2 = migration صفحة صفحة بموافقة صريحة لكل صفحة. أي تغيير على قيمة token يحتاج PR DS-SIZE معلن.
+
+### ممنوعات F36
+
+```
+❌ `--size-*` / `--radius-*` / `--space-*` تُعرَّف أو تُعاد تعريفها خارج `tw_shared.css`
+❌ نسخ tokens لصفحة ما بتحمّل `tw_shared.css`
+❌ استبدال قيمة مرئية ضمن PR migration
+❌ لمس الاستثناءات المجمّدة (SIZE-08) ضمن migration
+❌ DS-SIZE Phase 2 (page migration) بدون موافقة صريحة لكل صفحة
+❌ تغيير قيمة أي DS-SIZE token بدون PR DS-SIZE معلن
+❌ نظام أحجام موازٍ أو ملف tokens ثاني
+```
+
+**المرجع التفصيلي:** `docs/design-system/SIZE-SYSTEM.md` (SIZE-00 → SIZE-12) · `docs/rules/ds-size.md`
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1248,3 +1281,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F35`
 *حُدِّث في PR docs/ds-feedback-v1 — 2026-07-24 — أُضيفت القاعدة F34: Operational Feedback System (DS-FEEDBACK). F31 جدول التوجيه: صف Toast/Snackbar/Operational Feedback أُضيف للإشارة إلى `docs/design-system/FEEDBACK-SYSTEM.md`. المجموع: 34 قاعدة عليا.*
 *حُدِّث في PR #520 (DS-COLOR Phase 1 Final Documentation Sync) — 2026-07-26 — F35 قاعدة 9 حُدِّثت: Phase 0 ✅ + Phase 1 ✅ (Runtime Tokens Foundation مكتمل). ممنوعات F35 حُدِّثت: Phase 1 Runtime restriction أُزيلت (مكتملة)؛ Phase 2 page migration restriction أُضيفت.*
 *حُدِّث في PR-3 (docs/protocol-conflicts) — 2026-10-06 — أُضيف "فهرس القواعد" (F1–F35 بسطر واحد لكل قاعدة) بأول الملف بدلاً من جدول "القواعد العليا" (نفس الأرقام والأولويات)؛ سطر "إلزامي القراءة" عُدِّل ليطابق بروتوكول المهام (CLAUDE.md البند 1). لم يتغيّر نص أي قاعدة.*
+*حُدِّث في PR-5 / المرحلة B (DS-SIZE) — 2026-10-06 — أُضيفت القاعدة F36: Size System (DS-SIZE). فهرس القواعد: سطر F36. F31 جدول التوجيه: صف font-size/radius/spacing/icon/control height → `docs/design-system/SIZE-SYSTEM.md`. المجموع: 36 قاعدة عليا.*

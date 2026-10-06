@@ -629,9 +629,9 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 
 ### خطة V2 (مؤجَّلة)
 
-- `static/shared/tw-ui-tokens.css` (موثَّقة في FUTURE_ROADMAP.md)
-- توحيد Input tokens عبر هذا الملف
-- لا يُنشأ حتى يُطلب صراحةً
+- `static/shared/tw-ui-tokens.css` — استُبدل بـ DS-SIZE في `tw_shared.css` (`docs/design-system/SIZE-SYSTEM.md`)
+- توحيد أبعاد الحقول عبر DS-SIZE: `--radius-control` + tokens الـ padding والخط — بدون فرض `height` (SIZE-06)
+- الـ migration بـ DS-SIZE Phase 2 (صفحة صفحة، المطابق وتحت البكسل فقط)
 
 ### التطابق مع هذا التوثيق
 
