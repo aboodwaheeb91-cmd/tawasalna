@@ -40,6 +40,7 @@
 
 ### Platform / Architecture
 
+- [ ] **P2** — الشعار الرسمي vector أصلي من المصمم — حالياً PNG داخل SVG (`33333.svg`). عند وصوله: استبدل الملف وأعد `python scripts/gen_app_icons.py` (SYSTEMS_INDEX §32).
 - [ ] **P1** — Service Worker / PWA: توثيق cache strategy في `ARCHITECTURE.md` (§32 في SYSTEMS_INDEX يشير لغياب التوثيق)
 - [ ] **P1** — Field validation shared helper: دالة مشتركة للـ validation بدلاً من تكرار المنطق في كل صفحة
 - [ ] **P1** — Unified Profile Settings Menu: توحيد زر وقائمة إعدادات البروفايل عبر employee/company/education — نفس الشكل والسلوك والخيارات المشتركة، مع إضافات حسب نوع الحساب. القائمة تُبنى حسب صلاحيات viewer من backend فقط — ممنوع الاعتماد على localStorage.
@@ -1224,6 +1225,7 @@ draft → sent → viewed → under_negotiation → countered → accepted
 | WebSocket Security Hardening — First-Message JWT auth on `/ws/{user_id}`, fail-closed origin policy, close codes 4001–4007 (SYSTEMS_INDEX §18) | `security/ws-auth-hardening` | — |
 | `POST /auth/verify-token` endpoint (`server.py`) | — | — |
 | Reports review panel — admin «بلاغات» tab (`GET /admin/reports` + `PUT /admin/reports/{id}/resolve`) | — | — |
+| PWA icons + favicon من الشعار الرسمي بدل placeholder البكسل الأخضر والـ favicon المولّد بالكود (`static/icons/` · `scripts/gen_app_icons.py`) | `ccr-d9605ec3-4sgig5` | 2026-10-06 |
 
 ---
 

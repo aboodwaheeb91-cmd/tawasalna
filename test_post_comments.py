@@ -2672,9 +2672,9 @@ check(
     'apple-touch-icon' in _edu136
 )
 check(
-    "136h. server.py not modified — backend untouched",
+    "136h. server.py does not inject iOS meta/link tags (serving /apple-touch-icon.png file is allowed — §32)",
     'apple-mobile-web-app-capable' not in _srv136
-        and 'apple-touch-icon' not in _srv136
+        and 'rel="apple-touch-icon"' not in _srv136
 )
 check(
     "136j. no JS or CSS files modified for iOS meta tags",
