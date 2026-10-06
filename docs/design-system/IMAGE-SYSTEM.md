@@ -159,7 +159,7 @@
 | غلاف الموظف ديناميكي W×240 | `profile-v2.cover.js` · `.sc-cover` | IMG-10 — المرحلة C |
 | `company-logo` cropper دائري | `company.main.js → openLogoCrop` | يصير مربع (IMG-03) — المرحلة C |
 | `[data-ah-av]` ميت | `static/app-header.js` | حذف — Roadmap |
-| home-v2 / job-detail بدون `tw_shared.*` | الصفحتين | تحميل `tw_shared.*` قبل تحويلهم |
+| home-v2 بدون `twAvatar*` (بتحمّل `tw_shared.*` من PR-8) | home-v2 | تحويلها بالمرحلة C (job-detail ✅) |
 
 ---
 
@@ -169,7 +169,7 @@
 |---------|--------|
 | A — فحص | ✅ |
 | B — helper + CSS + tokens + توثيق + إصلاح §54 بـ profile-v2 (بدون مستهلك وبدون تغيير بصري) | ✅ PR-7b (2026-10-06) |
-| C — تحويل صفحة صفحة | 🔜 بالترتيب: messages ← company ← profile، وبعدها home و job-detail (بعد تحميل `tw_shared.*` عندهم). كل صفحة: helper + شيل الـ escaping المحلي + توحيد الأحجام + screenshots. + غلاف الموظف 4:1 + cropper · لوغو الشركة مربع + cropper مربع |
+| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail` (أول صفحة بموافقة صريحة: لوغو الهيدر `twAvatarHtml(company, 'xl', {eager:true})` + كرت الشركة `lg` — الشكل صار مربع بزوايا بدل الدائرة). الباقي: messages ← company ← profile ← home. كل صفحة: helper + شيل الـ escaping المحلي + توحيد الأحجام + screenshots. + غلاف الموظف 4:1 + cropper · لوغو الشركة مربع + cropper مربع |
 | الجهة التعليمية | 🔜 PR مستقل: upload لوغو + غلاف عبر §29a / §29b (بدل localStorage) |
 
 > المرحلة C ممنوعة إلا بموافقة صريحة لكل صفحة.

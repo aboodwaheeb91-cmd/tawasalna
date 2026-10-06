@@ -890,7 +890,7 @@ DS-FEEDBACK هو النظام المفاهيمي. `div.tw-toast` هو أحد imp
 |-------|--------|---------|
 | `tw_shared.js` | `showToast(msg, type, dur)` | **الأساسي** — يُصلَح ويُعمَّم |
 | `profile-v2.utils.js` | `toast(msg)` — `#scToast` existing element | يُهاجَر ليستدعي Canonical API |
-| `static/job/job-detail.js` | `showToast(msg, type)` — `#jdToast` + clearTimeout | **أفضل implementation حالي** |
+| ~~`static/job/job-detail.js`~~ | ~~`showToast(msg, type)` — `#jdToast`~~ | ✅ انحذفت (المرحلة C — job-detail): الصفحة بتستعمل `showToast` الموحّد من `tw_shared.js` |
 | `profile-v2.completion.js` | `_showToast(msg)` — `#scGrowthToast` private | مختلف معمارياً — يُراجَع في V2 |
 | `settings.html` (lines 478+) | `showToast(msg, type, dur)` محلية | تكرار غير ضروري — يُزال ويستخدم `tw_shared.js` |
 | Legacy `.toast/#toast` | `home.html` / `index.html` قديمة | Legacy — يُزال بعد migration callers |

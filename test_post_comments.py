@@ -2451,12 +2451,12 @@ check(
     "X-User-Id" not in _jd132
 )
 check(
-    "132b. job-detail.js: confirmApply sends Authorization Bearer JWT",
-    "'Authorization': 'Bearer ' + _jwt" in _jd132 and "confirmApply" in _jd132
+    "132b. job-detail.js: confirmApply sends Authorization Bearer JWT (getAuthHeaders via _hdrs)",
+    "headers: _hdrs(true)" in _jd132 and "return getAuthHeaders(json)" in _jd132 and "confirmApply" in _jd132
 )
 check(
     "132c. job-detail.js: _checkAlreadyApplied fetches /my/applications with Bearer JWT",
-    "/my/applications" in _jd132 and "'Authorization': 'Bearer ' + _jwt" in _jd132
+    "fetch('/my/applications', { headers: _hdrs() })" in _jd132
 )
 check(
     "132d. job-detail.js: _applyOwnerMode hides .jd-apply-actions for owner",
@@ -2467,16 +2467,16 @@ check(
     "jdStickyBar" in _jd132 and "display = 'none'" in _jd132
 )
 check(
-    "132f. job-detail.js: openApply guards against unauthenticated users",
-    "!_jwt || !_user" in _jd132
+    "132f. job-detail.js: openApply guards against unauthenticated users (→ /login)",
+    "if (!_authed) { _toLogin(); return; }" in _jd132
 )
 check(
     "132g. job-detail.js: openApply guards against non-emp user_type (not just unauthenticated)",
-    "user_type !== 'emp'" in _jd132
+    "_snap.userType !== 'emp'" in _jd132
 )
 check(
     "132h. job-detail.js: _checkAlreadyApplied only runs for emp user_type",
-    "_user.user_type !== 'emp'" in _jd132
+    "if (!_authed || _snap.userType !== 'emp') return;" in _jd132
 )
 check(
     "132i. profile-v2.apps.js: no X-User-Id header in fetch calls (comment mention is ok)",

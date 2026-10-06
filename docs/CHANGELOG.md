@@ -11,6 +11,17 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## Phase C / job-detail — 2026-10-06 — أول صفحة محوّلة: Shell + DS-ICON + DS-IMAGE + DS-SIZE + DS-FEEDBACK
+
+- `job-detail.html`: markers `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — انشالت charset / viewport / preconnect / Cairo / manifest / theme-color / apple-touch-icon (`/icon-192.png` → `/apple-touch-icon.png` من الـ shell) + `apple-mobile-web-app-*` (مش بالـ shell — نفس home-v2). صارت تحمّل `tw_shared.css` (قبل `app-header.css` و `job-detail.css`) + `tw_shared.js` + `auth-sync.js` لأول مرة. Lucide انشال؛ `tw-icons.js` سكربت صفحة (أول مستهلك). `#jdToast` انشال.
+- `partials/shell-scripts*.html`: `/tw_shared.js` → `/static/tw_shared.js` (نفس الملف عبر `/static/` fallback — جوّا allowlist الـ SW §32). route `/tw_shared.js` القديم باقي للصفحات غير المحوّلة. `sw.js` `BUILD_TIME` → `20261006_1800`. (home-v2 بتاخد المسار الجديد تلقائياً.)
+- `static/job/job-detail.js`: session من `TwAuthSync.getSessionSnapshot()` فقط (بدون `localStorage` مباشر؛ `getTwUser()` / `getAuthHeaders()` من `tw_shared.js`) · تقديم / حفظ / إبلاغ للزائر → `/login` · `_lucideIcon` / `_iconsRefresh` / `showToast` المحلي / `goHome` (ميتة) انحذفوا → `twIconEl` + `showToast` الموحّد · لوغو الشركة `twAvatarHtml` (xl eager بالهيدر · lg بكرت الشركة) · emoji / رموز الواجهة (★ ✓ ⚐ 🚨 ⚠️ ℹ️ ← 🔖 ✅) → `twIconEl` أو انشالت من نص الـ toast.
+- `static/shared/tw-icons.js`: أيقونة جديدة `report` (flag — Lucide 0.460) بمستهلك حقيقي.
+- `static/job/job-detail.css`: 163 قيمة مطابق / تحت البكسل → DS-SIZE tokens · شيل CSS الـ toast و `i[data-lucide]` · `.jd-logo` / `.jd-co-av` صاروا wrappers (الحجم والشكل من `.tw-ava`).
+- تغيير مرئي: لوغو الشركة دائرة → مربع بزوايا (IMG-03) · اللوغو بالموبايل 80 → 88 · fallback بدون صورة: أيقونة مبنى → أول حرف من اسم الشركة · أيقونات 13→14 · 10→12 · 15→16 · نجمة الشارة والـ ✓ صاروا SVG · زر "رجوع" بحالة الخطأ: `←` → أيقونة `back` · الـ toast صار `.tw-snackbar` الموحّد.
+- اختبارات: `python test_job_detail_shell.py` (جديد) · `test_ds_icon_registry.js` / `test_ds_image_runtime.js` / `test_ds_size_tokens.py`: "بدون مستهلك" → allowlist صفحات المرحلة C · `test_page_shell.py` (`/static/tw_shared.js`) · `test_post_comments.py` 132b/c/f/g/h.
+- توثيق: PAGE-SHELL (SHELL-02 · SHELL-08) · ICON-SYSTEM (ICON-04.2 · ICON-13) · IMAGE-SYSTEM (IMG-12 · IMG-13) · SIZE-SYSTEM (SIZE-01 · SIZE-11 · SIZE-12) · FEEDBACK-SYSTEM (جدول النسخ المحلية) · `docs/rules/{page-shell,ds-icon,ds-image,ds-size}.md` · SYSTEMS_INDEX §14 · §55–§58 · ARCHITECTURE §62 (Session بدل Auth Guard القديم) + Vendor Assets · FUTURE_ROADMAP.
+
 ## PR-8 — 2026-10-06 — Page Shell (DS-SHELL) المرحلة B + home-v2 تجريبية (F39)
 
 - `page_shell.py` (جديد): `apply_shell` · `build_shell` · `asset_hash` — markers `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (+ `:admin`) → `partials/shell-*.html` (4 ملفات جديدة، برّا `static/`). `?v=` = أول 10 hex من sha256 لـ `tw_shared.css` / `tw_shared.js` / `auth-sync.js`، مرة وحدة عند بدء السيرفر.

@@ -36,7 +36,7 @@ PAGE = ("<!DOCTYPE html><html><head>\n<!--tw:shell-head-->\n<title>t</title>\n"
 print("\nA — marker replacement (app)")
 out = apply_shell(PAGE, "t.html")
 check("A01 markers removed", "<!--tw:shell-" not in out)
-for asset in ("/static/tw_shared.css?v=", "/tw_shared.js?v=", "/static/shared/auth-sync.js?v=",
+for asset in ("/static/tw_shared.css?v=", "/static/tw_shared.js?v=", "/static/shared/auth-sync.js?v=",
               'rel="manifest"', 'charset="UTF-8"', 'name="viewport"', 'name="theme-color"',
               'rel="icon"', 'href="/apple-touch-icon.png"', "Cairo:wght@400;500;600;700;800;900"):
     check(f"A02 '{asset}' exactly once", out.count(asset) == 1, out.count(asset))
@@ -62,7 +62,7 @@ check("C01 markers removed", "<!--tw:shell-" not in adm)
 check("C02 no auth-sync", "auth-sync" not in adm)
 check("C03 no manifest", "manifest" not in adm)
 check("C04 SW opt-out meta", '<meta name="tw-sw" content="off">' in adm)
-check("C05 tw_shared.js + css once", adm.count("/tw_shared.js?v=") == 1 and adm.count("tw_shared.css?v=") == 1)
+check("C05 tw_shared.js + css once", adm.count("/static/tw_shared.js?v=") == 1 and adm.count("tw_shared.css?v=") == 1)
 check("C06 tw_shared.js honours tw-sw=off",
       'meta[name="tw-sw"][content="off"]' in read("tw_shared.js"))
 

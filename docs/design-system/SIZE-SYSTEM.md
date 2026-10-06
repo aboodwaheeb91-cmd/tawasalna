@@ -48,7 +48,7 @@
 
 ### صفحات ما بتحمّل `tw_shared.css`
 
-`home-v2.html` · `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`.
+`landing.html` · `appointments.html` · `appointment-room.html` (`home-v2.html` بتحمّله من PR-8 · `job-detail.html` من المرحلة C).
 هاي الصفحات ما بتشوف الـ tokens لحد ما ينضاف إلها `tw_shared.css` بـ PR منفصل مع فحص بصري (FUTURE_ROADMAP). ممنوع تنسخ الـ tokens لجوّاها.
 
 ---
@@ -304,7 +304,7 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 |---------|---------|--------|
 | A | جرد + سلالم مقترحة + قرارات | ✅ (تقرير PR-5 / المرحلة A) |
 | B (Phase 1) | توثيق + tokens بـ `tw_shared.css` — بدون تغيير بصري وبدون migration | ✅ هذا الـ PR |
-| Phase 2 | migration صفحة صفحة — المطابق وتحت البكسل فقط (+ استثناء قرار 2) — موافقة صريحة لكل صفحة | 🔜 FUTURE_ROADMAP |
+| Phase 2 | migration صفحة صفحة — المطابق وتحت البكسل فقط (+ استثناء قرار 2) — موافقة صريحة لكل صفحة | 🔜 جاري — ✅ `job-detail` (`job-detail.css` + skeleton بـ `job-detail.html`) · الباقي FUTURE_ROADMAP |
 | — | توحيد أزرار الهيدر (PR بصري منفصل مع screenshots) | 🔜 FUTURE_ROADMAP |
 | — | إضافة `tw_shared.css` للصفحات الخمس (PR منفصل مع فحص بصري) | 🔜 FUTURE_ROADMAP |
 | — | redesign معلن لكل صفحة للقيم المرئية | عند الطلب |
@@ -315,5 +315,6 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 
 | التاريخ | الـ PR | التغيير |
 |---------|-------|---------|
+| 2026-10-06 | Phase C — job-detail | أول migration صفحة: `job-detail.css` (163 قيمة مطابق / تحت البكسل → tokens) + أيقونات الصفحة على `--size-icon-*` (قرارات 13→14 · 10→12 · 15→16) — القيم المرئية بتضل محلية (SIZE-09). `test_ds_size_tokens.py` S4 بيستثني ملفات صفحات المرحلة C |
 | 2026-10-06 | PR-7b | `--size-avatar-md/lg/xl/2xl` (40/48/88/106) لـ DS-IMAGE (SIZE-06) |
 | 2026-10-06 | PR-5 / المرحلة B | إنشاء النظام: SIZE-00 → SIZE-12 · قسم `1b. DS-SIZE` بـ `tw_shared.css` · F36 · `docs/rules/ds-size.md` · `test_ds_size_tokens.py` |

@@ -3446,7 +3446,7 @@ window._scCheckProfessional(text)
 ### الحالة الحالية (قبل DS-ICON المرحلة C)
 
 - **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) **v0.460.0** — مصدرين للتحميل اليوم (تناقض موروث، يُزال بالمرحلة C):
-  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `landing.html` · `job-detail.html` · `home-v2.html` · `company-profile.html` · `notifications.html`.
+  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `landing.html` · `home-v2.html` · `company-profile.html` · `notifications.html`.
   - unpkg CDN `https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js`: `profile-showcase.html` · `index.html` (مخالف لقاعدة Vendor Assets — مسجّل بـ FUTURE_ROADMAP → DS-ICON Phase C).
 - **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM.
 - **الحقل في الكتالوج:** `skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG[].icon` (fallback) — اسم Lucide بصيغة kebab-case.
@@ -6470,7 +6470,7 @@ if (window.lucide) { lucide.createIcons(); }
 | المكتبة | النسخة | المسار المحلي | الترخيص |
 |---------|--------|--------------|---------|
 | Lucide | 0.460.0 | `static/vendor/lucide/lucide.min.js` | ISC |
-| Lucide (رسومات مختارة — DS-ICON registry) | 0.460.0 | `static/shared/tw-icons.js` (187 رسمة منسوخة حرفياً من نفس الإصدار) | ISC |
+| Lucide (رسومات مختارة — DS-ICON registry) | 0.460.0 | `static/shared/tw-icons.js` (188 رسمة منسوخة حرفياً من نفس الإصدار) | ISC |
 | circle-flags (HatScripts) | gh-pages @ 2026-06-26 | `static/shared/flags/*.svg` (18 ملف) | MIT |
 
 ### قواعد Vendor Assets
@@ -9831,7 +9831,7 @@ All data is fetched at runtime — zero hardcoded content.
 
 | File | Role |
 |------|------|
-| `job-detail.html` | HTML structure only — no inline `<style>` or `<script>` |
+| `job-detail.html` | HTML structure only — no inline `<style>` or `<script>`. Page Shell markers (`<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — F39); page scripts after the shell: `tw-icons.js` → `tw-options-data.js` → `tw-skills.js` → `app-header.js` → `job-detail.js` |
 | `static/job/job-detail.css` | All page styles — `.jd-*` namespace |
 | `static/job/job-detail.js` | All page logic — single IIFE, `(function(){...}())` |
 
@@ -9845,19 +9845,23 @@ All data is fetched at runtime — zero hardcoded content.
 No auth required for `GET /jobs/{job_id}` — public endpoint.  
 `POST /jobs/{job_id}/apply` requires `Authorization: Bearer {jwt}`.
 
-### Auth Guard
+### Session (public page — Phase C)
 
 ```javascript
-var _jwt = localStorage.getItem('tw_jwt') || '';
-if (!_jwt) { location.href = '/login'; return; }
+var _snap   = TwAuthSync.getSessionSnapshot();      // VM-10 — never tw_user alone
+var _authed = !!(_snap && _snap.isAuthenticated);
+var _user   = _authed ? getTwUser() : null;          // display cache (tw_id / name)
 ```
-Redirects immediately if no JWT. Does not wait for DOMContentLoaded.
+- No redirect on load — guests (and expired / stale / invalid sessions) read the job.
+- Apply · Save · Report for a non-authenticated visitor → `location.href = '/login'`. Apply for a non-`emp` account → toast "التقديم متاح للموظفين فقط".
+- `Authorization` header only via `getAuthHeaders()` (tw_shared.js) and only when `_authed`. No direct `localStorage` in `job-detail.js`.
+- Icons: `twIconEl` (DS-ICON) · company logo: `twAvatarHtml` xl / lg (DS-IMAGE) · feedback: shared `showToast` (F34).
 
 ### Match Section — Client-Side Only
 
-1. Fetch `GET /profile/{user_id}/full` with Bearer JWT → extract skills
-2. If API fails → check `localStorage.tw_user.skills` as fallback (not source of truth)
-3. If no skills found → show "أضف مهاراتك في ملفك الشخصي" + link to `/profile`
+1. Fetch `GET /profile/{snapshot.userId}/full` with Bearer JWT → extract skills
+2. If API fails → `getTwUser().skills` cache as fallback (not source of truth)
+3. If no skills found → show "أضف مهاراتك في ملفك الشخصي" + link `twAccountHref(user)` (`/u/{tw_id}`)
 4. If skills found → compute `matched` / `missing` arrays → render conic ring + chips
 5. Match % = `matched.length / job.skills.length * 100`
 
@@ -9872,7 +9876,7 @@ No server-side match endpoint — computed entirely in the browser.
 
 - All fetch calls use `Authorization: Bearer {jwt}` — X-User-Id header forbidden
 - All API data set via `textContent` — `innerHTML = apiData` forbidden
-- `_user.id` (from `localStorage.tw_user`) sent in apply POST body alongside JWT — the JWT is the auth signal; `user_id` is the payload
+- Apply POST body = `{ cover_letter }` only — the applicant is the JWT user (server-side)
 - `source_url` from job API: not rendered on job-detail page (no external link needed here; source is always the platform)
 
 ### Forbidden Patterns
@@ -9884,6 +9888,9 @@ No server-side match endpoint — computed entirely in the browser.
 ❌ localStorage as source of truth for user skills — API first, localStorage is fallback
 ❌ Separate CSS/JS file per feature added to job-detail — stays in job-detail.css/js
 ❌ Additional inline <style> or <script> blocks in job-detail.html
+❌ Shell tags (charset / viewport / manifest / Cairo / tw_shared.* / auth-sync) copied into job-detail.html
+❌ Direct localStorage in job-detail.js — TwAuthSync.getSessionSnapshot() / getTwUser() / getAuthHeaders()
+❌ Lucide / data-lucide / emoji icons · local toast (#jdToast) · hand-built logo <img>
 ```
 
 ---

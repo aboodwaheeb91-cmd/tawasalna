@@ -4,7 +4,7 @@ DS-SIZE Phase 1 static checks — PR-5 / Phase B (F36 · docs/design-system/SIZE
   S1  every DS-SIZE token is defined exactly once in tw_shared.css, with its documented value
   S2  tw_shared.css defines no --size-* / --radius-* / --space-* outside the documented set
   S3  no other CSS / HTML / JS file defines --size-* / --radius-* / --space-*
-  S4  vs origin/main: no CSS / HTML file other than tw_shared.css adds a DS-SIZE consumer (no migration)
+  S4  vs origin/main: no CSS / HTML file other than tw_shared.css (and phase-C pages) adds a DS-SIZE consumer
 
 Run:  python test_ds_size_tokens.py
 """
@@ -93,18 +93,21 @@ check('S3 no --size-*/--radius-*/--space-* defined outside tw_shared.css', not o
       '; '.join(outside[:10]))
 
 # S4 — no page migration: no CSS/HTML file other than tw_shared.css gains a DS-SIZE consumer
-# (a version-string bump or unrelated HTML change is not a migration)
+# (a version-string bump or unrelated HTML change is not a migration) — except the files of
+# pages migrated in phase C (one approved PR per page adds its files here).
+_PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css']
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,
                           capture_output=True, text=True, check=True).stdout.strip()
-    diff = subprocess.run(['git', 'diff', '-U0', base, '--', '*.css', '*.html', ':!tw_shared.css'],
+    diff = subprocess.run(['git', 'diff', '-U0', base, '--', '*.css', '*.html', ':!tw_shared.css']
+                          + [':!' + f for f in _PHASE_C_FILES],
                           cwd=_ROOT, capture_output=True, text=True, check=True).stdout
     untracked = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard'], cwd=_ROOT,
                                capture_output=True, text=True, check=True).stdout.split()
     added = [l for l in diff.splitlines() if l.startswith('+') and not l.startswith('+++')]
     for f in untracked:
-        if f.endswith(('.css', '.html')) and f != 'tw_shared.css':
+        if f.endswith(('.css', '.html')) and f != 'tw_shared.css' and f not in _PHASE_C_FILES:
             added += open(os.path.join(_ROOT, f), encoding='utf-8').read().splitlines()
     consumers = [l.strip()[:80] for l in added if _USE_RE.search(l)]
     check('S4 no DS-SIZE consumer added outside tw_shared.css vs origin/main', not consumers,

@@ -7,7 +7,7 @@
  *   3. unknown name → fallback drawing + one warning; the name never reaches the output
  *   4. output contract (viewBox / fill / stroke / class / aria-hidden / DS-SIZE size)
  *   5. every drawing is a Lucide 0.460 drawing (vendored bundle)
- *   6. no page loads tw-icons.js yet (no consumers — phase B)
+ *   6. tw-icons.js is loaded only by the pages converted in phase C (allowlist)
  *   7. dir:true icons mirror under dir=rtl and not under dir=ltr (real Chromium via
  *      Playwright; reported as SKIP when Playwright is not installed)
  *
@@ -150,7 +150,8 @@ const notLucide = entries.filter(e => !lucideInners.has(e.inner)).map(e => e.nam
 check('every drawing is a Lucide 0.460 drawing', notLucide.length === 0, notLucide);
 check('registry names are unique', new Set(entries.map(e => e.name)).size === entries.length);
 
-// ── 6. no consumers yet ────────────────────────────────────────────
+// ── 6. consumers = phase-C pages only (one PR per page adds itself here) ──
+const PHASE_C_PAGES = ['job-detail.html'];
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {
@@ -162,7 +163,10 @@ const consumers = [];
     if (read(p).includes('tw-icons')) consumers.push(p);
   }
 }('.'));
-check('no page / script / server route loads tw-icons.js yet', consumers.length === 0, consumers);
+check('only phase-C pages load tw-icons.js', JSON.stringify(consumers.slice().sort())
+  === JSON.stringify(PHASE_C_PAGES.slice().sort()), consumers);
+check('tw-icons.js is not in the Page Shell partials (F37 / F39)',
+  !fs.readdirSync('partials').some(f => read(path.join('partials', f)).includes('tw-icons')));
 
 // ── 7. RTL mirroring in a real browser ─────────────────────────────
 async function browserPart() {
