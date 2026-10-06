@@ -1722,7 +1722,7 @@ GET /profile = قراءة كاملة → يُستدعى من frontend عند ا�
 | الملف | المسؤولية |
 |-------|-----------|
 | `profile-v2.cover.js` | كامل منطق cover upload + crop |
-| `profile-v2.api.js` | `uploadCover()` — POST /upload/image kind=employee-cover (→ bucket covers) |
+| `profile-v2.api.js` | `uploadCover()` — POST /upload/image kind=employee-cover (→ bucket avatars) |
 | `profile-v2.css` | `.cv-edit-btn` + `.cv-crop-overlay` styles |
 | `profile-showcase.html` | HTML: زر + file input + crop overlay |
 
@@ -1735,7 +1735,7 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT;
 
 ### Bucket
 ```
-kind: "employee-cover"  → bucket "covers" (server-side map, PR-7a)
+kind: "employee-cover"  → bucket "avatars" (server-side map, PR-7a — bucket "covers" never existed in Supabase)
 filename: server-generated {user_id}_employee-cover_{random}.{ext}
 endpoint: POST /upload/image
 ```
@@ -2110,7 +2110,7 @@ cropper.reset();
 | نوع الصورة | ratio | shape | outputW | outputH | quality | bucket | filename | الملف المسؤول |
 |------------|-------|-------|---------|---------|---------|--------|----------|--------------|
 | employee-avatar | 1/1 | circle (preview only) | 260 | 260 | 0.85 | avatars | avatar | `profile-v2.avatar.js` |
-| employee-cover | 6/1 | rect | 720 | 120 | 0.88 | covers | cover | `profile-v2.cover.js` |
+| employee-cover | 6/1 | rect | 720 | 120 | 0.88 | avatars (kind `employee-cover`) | server-generated | `profile-v2.cover.js` |
 | company-logo | 1/1 | circle (preview only) | 300 | 300 | 0.85 | avatars | logo | `company.main.js` |
 | company-cover | 4/1 | rect | 800 | 200 | 0.88 | avatars | cover | `company.main.js` |
 
@@ -6279,14 +6279,15 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 
 | البند | العقد |
 |------|-------|
-| bucket | يقرّره السيرفر من `kind` عبر `_UPLOAD_KINDS` الثابت: `employee-avatar→avatars` · `employee-cover→covers` · `company-logo→avatars` · `company-cover→avatars` · `kyc-id-front→kyc-docs` · `kyc-selfie→kyc-docs`. `kind` غير معروف → **400**. `bucket` / `filename` بالـ body تُتجاهل. |
+| bucket | يقرّره السيرفر من `kind` عبر `_UPLOAD_KINDS` الثابت: `employee-avatar→avatars` · `employee-cover→avatars` · `company-logo→avatars` · `company-cover→avatars` · `kyc-id-front→kyc-docs` · `kyc-selfie→kyc-docs`. `kind` غير معروف → **400**. Buckets بـ Supabase: `site` (public) · `avatars` (public) · `kyc-docs` (**private** — `_PRIVATE_BUCKETS`). `bucket` / `filename` بالـ body تُتجاهل. |
 | user_id | من الـ JWT فقط؛ `user_id` بالـ body يُتجاهل (باقٍ للتوافق). |
 | اسم الملف | السيرفر يولّده: `{user_id}_{kind}_{token_hex(6)}.{ext}` — بدون `x-upsert` (اسم جديد بكل رفع = لا مشاكل cache). اللوغو: `{logo_wide\|logo_tall}_{token_hex(6)}.{ext}` بـ bucket `site`؛ slot غير معروف → 400. |
 | الأنواع | `image/jpeg` · `image/png` · `image/webp` فقط (data URL بصيغة `data:<mime>;base64,`). magic bytes للمحتوى لازم تطابق الـ mime المعلن، غير هيك → **400**. SVG ممنوع (حتى للّوغو). |
 | الحجم | طول الـ data URL > 7MB → **413** قبل الـ decode · بعد الـ decode > 5MB → **413** · base64 غير صالح (`validate=True`) → **400**. |
 | فشل التخزين | Supabase رجّع غير 200/201 أو exception → **502** برسالة عامة؛ مفاتيح Supabase ناقصة → **503**. التفاصيل بالـ log فقط (ممنوع `str(e)` بالـ response). **ممنوع أي fallback لـ data URL بالإنتاج.** |
 | وضع التطوير | فقط `TW_DEV_UPLOAD=1` **و** مفاتيح Supabase ناقصة → يرجّع الـ data URL مع `dev_mode: true`. غياب المفاتيح وحده ≠ وضع تطوير. |
-| حفظ الرابط | كل endpoint بيحفظ رابط صورة بيمرّ بـ `_validate_stored_image_url(url, kind, uid, current)`: فاضي/`null` = حذف (مسموح) · نفس القيمة المحفوظة حالياً = مسموح (صور قديمة) · غير هيك لازم يكون بالضبط `{SUPABASE_URL}/storage/v1/object/public/{bucket الـ kind}/{uid}_{kind}_{12 hex}.{jpg\|png\|webp}` (بدون `../` أو query) · `data:` مرفوض إلا بـ `TW_DEV_UPLOAD=1` · غير هيك **400**. المستعملين: `PUT /profile/{id}` (`avatar_url` = `employee-avatar`، أو `company-logo` لحساب `co` · `cover_url` = `employee-cover`) · `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`) · `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). |
+| bucket خاص (KYC) | `kyc-docs` خاص: الرد `{status, path}` بدل `url`، والمحفوظ بالداتا هو مسار الكائن `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بس — ممنوع رابط `/object/public/` لـ KYC (ما بيشتغل). عرض الأدمن برابط مؤقت (signed URL) = `docs/FUTURE_ROADMAP.md` P0. |
+| حفظ الرابط | كل endpoint بيحفظ رابط صورة بيمرّ بـ `_validate_stored_image_url(url, kind, uid, current)`: فاضي/`null` = حذف (مسموح) · نفس القيمة المحفوظة حالياً = مسموح (صور قديمة) · غير هيك لازم يكون بالضبط `{SUPABASE_URL}/storage/v1/object/public/{bucket الـ kind}/{uid}_{kind}_{12 hex}.{jpg\|png\|webp}` (بدون `../` أو query)؛ لـ KYC المسار الخاص `kyc-docs/{uid}_{kind}_{12 hex}.{ext}` بدل الرابط العام · `data:` مرفوض إلا بـ `TW_DEV_UPLOAD=1` · غير هيك **400**. المستعملين: `PUT /profile/{id}` (`avatar_url` = `employee-avatar`، أو `company-logo` لحساب `co` · `cover_url` = `employee-cover`) · `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`) · `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). |
 | الواجهة | `TW.uploadImage({ kind, dataUrl, jwt })`؛ عند `!ok` المستدعي يعرض `TW.uploadErrorText(res, fallback)` عبر toast الصفحة ولا يحفظ الـ data URL أبداً. |
 
 ```

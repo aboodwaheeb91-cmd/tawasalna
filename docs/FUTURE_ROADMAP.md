@@ -164,6 +164,7 @@
 
 ### Security
 
+- [ ] **P0** — KYC: عرض مستندات KYC للأدمن برابط مؤقت (Supabase signed URL). `kyc-docs` bucket **خاص**؛ من PR-7a بينحفظ مسار الكائن بس (`kyc_submissions.id_front_url` / `selfie_url` = `kyc-docs/{uid}_{kind}_{random}.{ext}`). المطلوب: endpoint أدمن (`check_admin`) بيولّد signed URL قصير العمر (`POST {SUPABASE_URL}/storage/v1/object/sign/kyc-docs/{name}`) + عرض الصور بصفحة الأدمن (حالياً صفحة الأدمن ما بتعرض المستندات أبداً — قبول/رفض بدون رؤية الهوية). القيم القديمة (base64 / روابط) تُعالج ضمن PR تنظيف الداتا.
 - [ ] **P2** — Rate limiting audit: مراجعة rate limits على endpoints الحساسة (تعليق، تقدير، متابعة)
 
 > **ملاحظة — مراجعة أمنية شاملة مؤجلة:**

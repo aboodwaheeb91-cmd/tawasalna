@@ -84,7 +84,7 @@ def test_forged_bucket_and_filename_ignored(storage):
             "data_url": durl("image/jpeg", JPEG)})
     assert r.status_code == 200
     target = storage.calls[0]["url"]
-    assert "/object/covers/7_employee-cover_" in target
+    assert "/object/avatars/7_employee-cover_" in target
     assert "site" not in target and "logo_wide" not in target and ".." not in target
 
 
@@ -189,7 +189,7 @@ def put_profile(body, uid=7, utype="emp"):
     "https://evil.example/x.jpg",                                   # external
     "data:image/png;base64," + base64.b64encode(PNG).decode(),     # data:
     "javascript:alert(1)",                                          # scheme
-    f"{SB}/covers/7_employee-avatar_0123456789ab.jpg",             # wrong bucket
+    f"{SB}/site/7_employee-avatar_0123456789ab.jpg",               # wrong bucket
     f"{SB}/avatars/8_employee-avatar_0123456789ab.jpg",            # another uid
     f"{SB}/avatars/7_company-logo_0123456789ab.jpg",               # wrong kind
     f"{SB}/avatars/7_employee-avatar_0123456789ab.jpg?x=1",        # query
@@ -208,7 +208,7 @@ def test_profile_valid_url_legacy_value_and_clear_pass(db):
     assert put_profile({"avatar_url": LEGACY}).status_code == 200      # unchanged legacy value
     assert put_profile({"avatar_url": None}).status_code == 200        # clear
     assert put_profile({"cover_url": ""}).status_code == 200
-    ok_cover = f"{SB}/covers/7_employee-cover_abcdef012345.webp"
+    ok_cover = f"{SB}/avatars/7_employee-cover_abcdef012345.webp"
     assert put_profile({"cover_url": ok_cover}).status_code == 200
 
 
@@ -225,12 +225,27 @@ def test_company_logo_and_cover(db):
     assert client.put("/company/profile/9", json=body, headers=h).status_code == 400
 
 
+def test_kyc_upload_returns_private_path_not_public_url(storage):
+    r = up({"kind": "kyc-id-front", "data_url": durl("image/jpeg", JPEG)})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "url" not in body and "public" not in r.text
+    assert body["path"].startswith("kyc-docs/7_kyc-id-front_") and body["path"].endswith(".jpg")
+    assert storage.calls[0]["url"].startswith("https://sb.example/storage/v1/object/kyc-docs/7_kyc-id-front_")
+
+
 def test_kyc_urls(db):
     h = auth(7)
-    good = f"{SB}/kyc-docs/7_kyc-id-front_abcdef012345.jpg"
+    good = "kyc-docs/7_kyc-id-front_abcdef012345.jpg"                    # private object path
     assert client.post("/kyc/docs", json={"id_front_url": good}, headers=h).status_code == 200
-    bad = f"{SB}/kyc-docs/7_kyc-selfie_abcdef012345.jpg"                 # selfie kind in id field
-    assert client.post("/kyc/docs", json={"id_front_url": bad}, headers=h).status_code == 400
+    assert db["id_front_url"] == good
+    public = f"{SB}/kyc-docs/7_kyc-id-front_abcdef012345.jpg"            # public URL of a private bucket
+    assert client.post("/kyc/docs", json={"id_front_url": public}, headers=h).status_code == 400
+    for bad in ("kyc-docs/7_kyc-selfie_abcdef012345.jpg",               # selfie kind in id field
+                "kyc-docs/8_kyc-id-front_abcdef012345.jpg",             # another uid
+                "avatars/7_kyc-id-front_abcdef012345.jpg",              # wrong bucket
+                "kyc-docs/7_kyc-id-front_../../x.jpg"):                 # traversal
+        assert client.post("/kyc/docs", json={"id_front_url": bad}, headers=h).status_code == 400, bad
     assert client.post("/kyc/docs", json={"id_front_url": good, "selfie_url": "https://evil.example/s.jpg"},
                        headers=h).status_code == 400
     # unchanged legacy data: value already stored → still accepted

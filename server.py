@@ -4118,12 +4118,15 @@ def read_single_notification(user_id: int, notif_id: int, token=Depends(verify_t
 # or a file name. Stored name: {user_id}_{kind}_{random}.{ext}.
 _UPLOAD_KINDS = {
     "employee-avatar": "avatars",
-    "employee-cover":  "covers",
+    "employee-cover":  "avatars",
     "company-logo":    "avatars",
     "company-cover":   "avatars",
     "kyc-id-front":    "kyc-docs",
     "kyc-selfie":      "kyc-docs",
 }
+# Private buckets: no public URL exists — the server returns / stores the object
+# path "{bucket}/{name}" only (admin viewing via signed URL = FUTURE_ROADMAP P0).
+_PRIVATE_BUCKETS = frozenset({"kyc-docs"})
 _LOGO_SLOTS = ("logo_wide", "logo_tall")
 _UPLOAD_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _UPLOAD_MAX_BYTES = 5 * 1024 * 1024        # decoded image
@@ -4175,7 +4178,9 @@ def _validate_stored_image_url(url, kind, uid: int, current=None):
       • None or ""  (clear — existing behaviour), or
       • exactly the currently stored value (legacy values keep saving), or
       • {SUPABASE_URL}/storage/v1/object/public/{bucket of kind}/{uid}_{kind}_{12 hex}.{jpg|png|webp}
-        — i.e. a name /upload/image generated for this user (no ../, no query), or
+        — i.e. a name /upload/image generated for this user (no ../, no query);
+        for a private bucket (kyc-docs) the object path {bucket}/{uid}_{kind}_{12 hex}.{ext}
+        instead — never a public URL, or
       • a valid image data URL only when TW_DEV_UPLOAD=1.
     `kind` is one key of _UPLOAD_KINDS."""
     if url is None or url == "":
@@ -4191,7 +4196,11 @@ def _validate_stored_image_url(url, kind, uid: int, current=None):
         raise HTTPException(400, "رابط الصورة غير صالح")
     base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
     bucket = _UPLOAD_KINDS.get(kind)
-    if base and bucket:
+    if bucket in _PRIVATE_BUCKETS:
+        prefix = f"{bucket}/{int(uid)}_{kind}_"
+        if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
+            return url
+    elif base and bucket:
         prefix = f"{base}/storage/v1/object/public/{bucket}/{int(uid)}_{kind}_"
         if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
             return url
@@ -4213,7 +4222,8 @@ def _current_image_urls(sql: str, uid: int) -> dict:
 
 async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
                        data_url: str, log_tag: str) -> str:
-    """Upload to Supabase Storage → public URL. Never falls back to a data URL
+    """Upload to Supabase Storage → public URL, or "{bucket}/{name}" for a private
+    bucket (_PRIVATE_BUCKETS). Never falls back to a data URL
     in production: missing config → 503, storage failure → 502 (details logged).
     Dev only: TW_DEV_UPLOAD=1 + missing Supabase keys → returns the data URL."""
     import httpx
@@ -4239,12 +4249,15 @@ async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
     if r.status_code not in (200, 201):
         print(f"{log_tag} storage rejected bucket={bucket} name={name} status={r.status_code} body={r.text[:300]!r}")
         raise HTTPException(502, "تعذّر رفع الصورة، حاول مرة أخرى")
+    if bucket in _PRIVATE_BUCKETS:
+        return f"{bucket}/{name}"
     return f"{supabase_url}/storage/v1/object/public/{bucket}/{name}"
 
 
 @app.post("/upload/image")
 async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
-    """Upload an image for the JWT user → {status, url}. kind decides the bucket."""
+    """Upload an image for the JWT user → {status, url} (public bucket) or
+    {status, path} (private bucket — kyc-docs). kind decides the bucket."""
     try:
         uid = int(token.get("user_id"))
     except (TypeError, ValueError):
@@ -4255,9 +4268,10 @@ async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
     mime, ext, file_bytes = _validate_image_data_url(data.data_url)
     name = f"{uid}_{data.kind}_{secrets.token_hex(6)}{ext}"
     url = await _store_image(bucket, name, file_bytes, mime, data.data_url, "[Upload]")
+    key = "path" if bucket in _PRIVATE_BUCKETS else "url"
     if url == data.data_url:
-        return {"status": "success", "url": url, "dev_mode": True}
-    return {"status": "success", "url": url}
+        return {"status": "success", key: url, "dev_mode": True}
+    return {"status": "success", key: url}
 
 # ══ KYC Endpoints ══
 
