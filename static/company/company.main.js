@@ -2166,11 +2166,14 @@
       var snapshot = (e && e.snapshot)
         || (window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null);
 
-      // Identity-aware bfcache carve-out.
+      // Identity-aware same-owner carve-out (bfcache pageshow / visibilitychange / focus).
       // Old pattern (reason === 'pageshow' && jwt) was account-switch vulnerable:
       // Account B's valid JWT is truthy while Account A's owner UI is showing.
       // New pattern checks snapshot.userId === companyState.profile.id.
-      if (reason === 'pageshow') {
+      // visibilitychange/focus included: a mobile gallery pick backgrounds the page, and
+      // revoking on return closed the edit sheet / disabled save mid-edit.
+      // 'storage' (jwt/user changed in another tab) is NOT carved out.
+      if (reason === 'pageshow' || reason === 'visibilitychange' || reason === 'focus') {
         var _coProfileId = window.companyState && companyState.profile ? companyState.profile.id : null;
         if (snapshot && snapshot.isAuthenticated &&
             snapshot.userId != null &&

@@ -541,8 +541,10 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 
 **`TwAuthSync.onSessionChange`** في كل صفحة تملك owner mode تستقبل `reason === 'pageshow'` وتُقرر:
 
-1. **Carve-out (نفس المالك + جلسة صالحة):** `reason === 'pageshow' AND snapshot.isAuthenticated AND snapshot.userId === profileId AND viewerType === 'owner'` → تحقق خلفي فقط بدون إلغاء.
-2. **Revoke (أي حالة أخرى):** إلغاء فوري لحالة المالك + إعادة رسم بيانات عامة.
+1. **Carve-out (نفس المالك + جلسة صالحة):** `reason ∈ {pageshow, visibilitychange, focus} AND snapshot.isAuthenticated AND snapshot.userId === profileId AND viewerType === 'owner'` → تحقق خلفي فقط (re-verify) بدون إلغاء وبدون إغلاق النوافذ المفتوحة (`.ep-overlay` / `editOverlay`). 401 من الـ re-verify → `TwAuthSync.invalidateSession('api_401')`.
+   - **ليش visibilitychange / focus:** `auth-sync.js` بيستدعي `_check(reason, true)` عليهم بكل رجوع للصفحة حتى لو الجلسة ما تغيّرت. على الموبايل اختيار صورة من المعرض (avatar / cover) بيودّي الصفحة للخلفية وبيرجّعها → كان يصير revocation مؤقت → `_ownerGuard()` يرفض أول "حفظ" (`session_invalid` / "انتهت الجلسة") قبل ما يرجع الـ re-verify.
+   - مطبّق بـ `profile-v2.render.js` (`p2-authsync`) و`company.main.js` (`co-authsync`). `edu-profile.html` ما بيلغي مؤقتاً أصلاً (بيعيد حساب `_isCurrentEduOwner()` live) — ما تغيّر.
+2. **Revoke فوري (أي حالة أخرى):** logout · expired / invalid / stale · account switch (`userId ≠ profileId`) · `reason === 'storage'` (تغيّر jwt / user بتاب تاني — حتى لو نفس المالك) → إلغاء فوري لحالة المالك + إغلاق النوافذ + إعادة رسم بيانات عامة.
 
 **ملاحظة مهمة — Preview Mode لا يُعفي من الـ Revoke:**
 Preview mode (`preview-public-user` / `preview-guest`) لا يمنع إلغاء الجلسة. تسجيل الخروج أو تبديل الحساب أثناء Preview يجب أن يُلغي owner UI فوراً ويُنهي Preview mode بأمان.
@@ -688,6 +690,8 @@ if (reason === 'pageshow') {
 ```
 ❌ قراءة _scViewerType كحماية أمنية بدون التحقق من TwAuthSync snapshot
 ❌ bfcache carve-out يعتمد على jwt فقط (يجب أيضاً snapshot.userId === profileId)
+❌ revocation مؤقت لنفس المالك على visibilitychange / focus (بيكسر أول حفظ بعد اختيار صورة من المعرض)
+❌ إضافة 'storage' للـ carve-out (تغيّر jwt بتاب تاني = revoke فوري دائماً)
 ❌ Preview mode يمنع session revocation (preview لا يُعفي من الـ revoke)
 ❌ .catch() في owner hydration بدون generation guard
 ❌ _isCurrentEduOwner() مع fallback إلى localStorage (يجب أن تكون fail-closed)
@@ -701,4 +705,4 @@ if (reason === 'pageshow') {
 
 ---
 
-*آخر تحديث: 2026-08-05 — rev.7 (Final runtime integrity) · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*
+*آخر تحديث: 2026-10-06 — fix/vm01-same-owner-focus-carveout · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*

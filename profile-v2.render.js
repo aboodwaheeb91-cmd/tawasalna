@@ -1496,11 +1496,13 @@ window._scOwnerHydrationGeneration = 0;
 //
 // Fires on: localStorage jwt/user change, bfcache pageshow, visibilitychange, focus.
 //
-// bfcache carve-out (valid same-owner pageshow):
-//   reason === 'pageshow' + isAuthenticated + userId matches profile owner + still view-owner
-//   → background-verify only; no strip; no flicker.
+// Same-owner carve-out (bfcache pageshow / visibilitychange / focus):
+//   reason ∈ {pageshow, visibilitychange, focus} + isAuthenticated + userId matches
+//   profile owner + still view-owner → background-verify only; no strip; open sheets stay open.
+//   (Mobile gallery pick backgrounds the page → visibilitychange/focus on return; a
+//    revocation here made the first save fail with session_invalid.)
 //
-// All other cases (logout / expired / invalid / stale / account switch):
+// All other cases (logout / expired / invalid / stale / account switch / storage jwt change):
 //   → immediate owner revocation (classes + private data + generation counter).
 // @vm-extract-begin: p2-authsync
 (function(){
@@ -1514,10 +1516,11 @@ window._scOwnerHydrationGeneration = 0;
     // revocation. A logout or account switch during preview must still revoke owner UI.
     // Preview classes are cleared unconditionally in the revocation path below.
 
-    // bfcache carve-out: page restored with same valid owner session.
+    // Same-owner carve-out: bfcache restore or tab returning to foreground with the same
+    // valid owner session. 'storage' (jwt/user changed in another tab) is NOT carved out.
     // Identity-aware: must check snapshot.userId === profileId (not jwt presence alone).
     // Account-switch safety: Account B's valid JWT must NOT carve out Account A's owner view.
-    if(reason === 'pageshow' &&
+    if((reason === 'pageshow' || reason === 'visibilitychange' || reason === 'focus') &&
        snapshot && snapshot.isAuthenticated &&
        snapshot.userId != null &&
        String(snapshot.userId) === String(window._scProfileId) &&
@@ -1538,7 +1541,8 @@ window._scOwnerHydrationGeneration = 0;
 
     // ── Immediate owner revocation ──
     // Covers: logout, expired, invalid, stale, account switch (userId ≠ profileId),
-    //         and pageshow with a valid-but-different-user JWT.
+    //         storage jwt/user change, and pageshow/visibilitychange/focus with a
+    //         valid-but-different-user JWT.
     // Also safely ends any active preview session — preview classes removed unconditionally.
 
     // Increment generation FIRST — this cancels any in-flight owner hydration Promise.
