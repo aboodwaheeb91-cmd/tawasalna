@@ -4662,6 +4662,34 @@ def public_profile_short_url(tw_id: str):
 | بروفايل شركة | `/company-profile?id={id}` | `company-profile.html?id=` |
 | بروفايل جهة تعليمية | `/edu-profile?id={id}` | `edu-profile.html?id=` |
 
+### HTML Page Routes (source: `server.py` — PR-3b, moved from `CLAUDE.md → API Endpoints → HTML Pages`)
+
+Every page path also answers at its `.html` variant unless noted.
+
+| Path | Serves | Audience / note |
+|------|--------|-----------------|
+| `/` | `landing.html` | Public landing (Auth Gateway Rules §1) |
+| `/login` · `/index.html` | `index.html` | Auth Gateway (login + register) |
+| `/home` | `home-v2.html` | Feed (Home V2 — `home.html` is legacy, not a route) |
+| `/u/{tw_id}` | `profile-showcase.html` / `company-profile.html` / `edu-profile.html` by `users.user_type` | Smart Router — canonical public URL (§63) |
+| `/u` | HTTP 404 | Empty public URL |
+| `/profile` | `profile.html` (legacy, `?id=` injected) | Legacy — not a redirect target |
+| `/profile-showcase` | `profile-showcase.html` | Backward-compat |
+| `/company-profile` | redirect HTML (no `id`) / 302 → `/u/{tw_id}` (`?id=`) | Legacy redirect only (PR #386) |
+| `/company` | `company.html` | Companies |
+| `/edu` | `edu.html` | Education |
+| `/edu-profile` | `edu-profile.html` | Education |
+| `/job-detail` | `job-detail.html` | All |
+| `/jobs.html` | `jobs.html` | All (`.html` path only) |
+| `/messages` | `messages.html` | All |
+| `/notifications` | `notifications.html` | All |
+| `/employees-group` | `employees-group.html` | Companies |
+| `/settings` | `settings.html` | All |
+| `/appointments` | `appointments.html` | All (no `.html` variant) |
+| `/appointment-room` | `appointment-room.html` | All (no `.html` variant) |
+| `/admin-view` | `admin-view.html` | Admin (see §57) |
+| `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
+
 ### Profile Button Pattern
 
 When navigating to another user's profile from any page (Messenger, company search, team list):
@@ -6200,6 +6228,46 @@ def check_admin(request: Request):
 | Quick Actions | تغيير النوع، verify/unverify، reset password، إرسال رسالة، حذف الحساب |
 | Basic Info | full_name، headline، location، bio، is_verified، tw_id |
 | Experience / Education / Courses | قائمة مع زر حذف لكل عنصر |
+
+### Admin Endpoints (source: `server.py` — PR-3b, moved from `CLAUDE.md → API Endpoints → Admin`)
+
+All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compare_digest`) unless marked otherwise.
+
+| Method | Path | Handler | Purpose |
+|--------|------|---------|---------|
+| POST | `/tw-ctrl-login` | `admin_login` | Admin login (password = `ADMIN_TOKEN`) — **no** `check_admin`; rate-limited |
+| GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
+| GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
+| GET | `/auth/users` | `get_all_users` | List all users |
+| GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
+| DELETE | `/admin/user/{user_id}` | `delete_user` | Delete user account |
+| PUT | `/admin/user/{user_id}/type` | `change_user_type` | Change user type |
+| PUT | `/admin/user/{user_id}/verify` | `verify_user` | Set verified badge |
+| PUT | `/admin/user/{user_id}/password` | `admin_reset_password` | Reset password |
+| DELETE | `/admin/experience/{exp_id}` | `admin_delete_exp` | Delete experience entry |
+| DELETE | `/admin/education/{edu_id}` | `admin_delete_edu` | Delete education entry |
+| DELETE | `/admin/course/{course_id}` | `admin_delete_course` | Delete course entry |
+| POST | `/admin/message` | `admin_send_message` | Send message to user |
+| GET | `/admin/verify-requests` | `admin_verify_requests` | List verification requests |
+| PUT | `/admin/verify/{req_id}` | `admin_update_verify` | Approve / reject verification |
+| GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions |
+| PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
+| PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
+| GET | `/admin/jobs` | `admin_list_jobs` | List jobs |
+| DELETE | `/admin/jobs/{job_id}` | `admin_delete_job` | Delete job |
+| GET | `/admin/reports` | `admin_get_reports` | List content reports (§58) |
+| PUT | `/admin/reports/{report_id}/resolve` | `resolve_report` | Resolve report |
+| GET | `/admin/errors` | `admin_errors` | JS error logs |
+| GET | `/admin/news` | `admin_list_news` | List official news |
+| POST | `/admin/news` | `admin_create_news` | Create news post |
+| PUT | `/admin/news/{news_id}` | `admin_update_news` | Update news post |
+| DELETE | `/admin/news/{news_id}` | `admin_delete_news` | Delete news post |
+| POST | `/admin/logo` | `upload_logo` | Upload platform logo |
+| GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
+| POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
+| POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c) — `?dry_run` / `?confirm=true` |
+| GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill analysis |
+| POST | `/admin/pipeline/migrate-index` | `admin_pipeline_migrate_index` | Create pipeline partial UNIQUE index — `?confirm=true` |
 
 ### Rules
 
@@ -12486,3 +12554,23 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 **Test:** `node test_sw_cache_allowlist_runtime.js` (vm, real code — 23 checks).
 
+---
+
+## §72 — Core Schema: Base Tables (`init_db()` in `auth.py`)
+
+> PR-3b: moved from `CLAUDE.md → Database Schema` and corrected from `auth.py → init_db()`. Tables are auto-created on startup (`CREATE TABLE IF NOT EXISTS`) with inline `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migrations. Feature tables (company, pipeline, comments, notifications, appointments …) are documented in their own sections.
+
+| Table | Key Columns (from `CREATE TABLE` + migrations) |
+|-------|-------------------------------------------------|
+| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at |
+| `profiles` | user_id (UNIQUE FK → users, CASCADE), headline, bio, location, skills[], avatar_url, website, is_verified, updated_at + migrated: dob, phone, country, city, avail, availability_status (deprecated — see `docs/rules/profile-v2.md`), title, sections_order, custom_sections, profile_color, profile_style, first_name, middle_name, last_name, cover_url, short_bio |
+| `experience` | user_id FK, title, company, location, start_date, end_date, is_current, description, sort_order, created_at |
+| `education` | user_id FK, institution, degree, field, start_year, end_year, description, created_at |
+| `user_skills` | user_id FK, skill, level, note — UNIQUE(user_id, skill) |
+| `user_langs` | user_id FK, language, level — UNIQUE(user_id, language) |
+| `user_links` | user_id FK, link_type, url — UNIQUE(user_id, link_type) |
+| `courses` | user_id FK, title, provider, completion_date, certificate_url, description |
+| `jobs` | company_id FK → users, title, description, location, job_type (default `'full_time'`), salary_min/max, currency, experience_years, skills[], status (default `'active'`), views, created_at, expires_at (+ later migrations: `profession_id`, archive fields — see Taxonomy / §66b) |
+| `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
+| `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code, email_verified, phone, phone_code, created_at (§52) |
+| `verify_requests` | user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status (default `'pending'`), created_at |
