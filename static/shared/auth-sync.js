@@ -182,7 +182,8 @@
     // Never throws; always returns a valid snapshot object.
     getSessionSnapshot: function () { return _resolveSession(); },
 
-    // Clears session keys (allowlist only), cancels expiry timer,
+    // Clears session keys (allowlist only), wipes Cache Storage (best-effort),
+    // cancels expiry timer,
     // fires handlers with a guest snapshot, then optionally redirects.
     // opts: { redirect: '/login' }
     invalidateSession: function (reason, opts) {
@@ -192,6 +193,12 @@
           localStorage.removeItem(_SESSION_KEYS[i]);
         }
       } catch (e) {}
+      // Wipe Cache Storage via the single shared helper (tw_shared.js).
+      // Fire-and-forget: the redirect below is never delayed.
+      if (typeof window.twClearAppCaches === 'function') {
+        try { window.twClearAppCaches(); }
+        catch (e) { console.warn('[TwAuthSync] cache clear failed:', e); }
+      }
       if (_expiryTimer) { clearTimeout(_expiryTimer); _expiryTimer = null; }
       _prevJwt     = '';
       _prevUserStr = '';

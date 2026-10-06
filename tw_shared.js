@@ -163,6 +163,26 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(function(){});
   });
 }
+
+// Clears every Cache Storage entry for this origin — the single cache-wipe
+// helper on session end (called by TwAuthSync.invalidateSession() and the
+// twLogout() fallback). Best-effort and fire-and-forget: never delays a redirect.
+function twClearAppCaches() {
+  try {
+    if (typeof caches === 'undefined' || !caches || typeof caches.keys !== 'function') {
+      return Promise.resolve();
+    }
+    return caches.keys().then(function(keys){
+      return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+    }).catch(function(err){
+      console.warn('[twClearAppCaches] cache clear failed:', err);
+    });
+  } catch (err) {
+    console.warn('[twClearAppCaches] cache clear failed:', err);
+    return Promise.resolve();
+  }
+}
+window.twClearAppCaches = twClearAppCaches;
 // ══ Error Tracking ══
 window.addEventListener('error', function(e){
   var err = {
@@ -386,6 +406,7 @@ function twLogout() {
         localStorage.removeItem(_LOGOUT_KEYS[_li]);
       }
     } catch(e){}
+    twClearAppCaches();
     window.location.href = '/login';
   }
 }
