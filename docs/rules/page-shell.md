@@ -13,7 +13,7 @@
 
 4. **الترتيب:** `tw_shared.css` قبل CSS الصفحة · `/static/tw_shared.js` ← `auth-sync.js` ← سكربتات الصفحة (`/tw_shared.js` القديم بيضل للصفحات غير المحوّلة — نفس الملف).
 
-5. **`?v=H`** للملفات المشتركة = hash المحتوى عند بدء السيرفر. ممنوع `?v=` يدوي لـ `tw_shared.*` / `auth-sync.js`.
+5. **`?v=H`** للملفات المشتركة = hash المحتوى عند بدء السيرفر. ممنوع `?v=` يدوي لـ `tw_shared.*` / `auth-sync.js`. صفحة shell بتحمّل أصل من `PAGE_ASSETS` (`page_shell.py` — حالياً `tw-icons.js`) بتكتب `?v={{v:<name>}}`؛ اسم مش بالـ allowlist → `ValueError`.
 
 6. **الأدمن:** بدون `manifest`، بدون `auth-sync.js`، و `<meta name="tw-sw" content="off">` (ما في تسجيل SW).
 
