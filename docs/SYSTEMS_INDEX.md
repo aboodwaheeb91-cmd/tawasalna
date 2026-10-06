@@ -410,6 +410,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `X-Admin-Token` header (= `ADMIN_TOKEN` env var) · `hmac.compare_digest` in `check_admin()` · admin routes in `server.py` · `admin.html` at `/tw-ctrl-{ADMIN_URL_TOKEN}`
 **Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Admin Authentication`
 **Do not recreate:** Do not hardcode secrets. Do not add admin features accessible without `check_admin`. Do not derive `ADMIN_TOKEN` from a password. Do not use `ADMIN_TOKEN` as `JWT_SECRET`.
+**Safe Rendering (PR security/admin-safe-rendering):** All API data in `admin.html` and `admin-view.html` is escaped via `twEscHtml()` / `twEscAttr()`. `GET /admin.html` public route is removed — panel is served only via `/tw-ctrl-{ADMIN_URL_TOKEN}`. See §39 (Safe Rendering).
 
 ---
 
@@ -1001,6 +1002,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Tier 4 — Never Returned**: `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens, `dob` in public responses.
 **Derived Public Fields Rule:** Derived fields may be computed from private source fields only inside the backend projection boundary. The private source field must never be copied into the public response. `age` is the canonical example: `dob` → `calculate_age_from_dob()` → `age` in response, `dob` discarded.
 **Do not recreate:** Do not use `{**user, **profile}` dict-merge pattern for any sensitive endpoint. Do not add a new endpoint that returns owner fields without `Depends(verify_token)` + ownership check. Do not read the `profile:{user_id}` cache key from the public code path. Do not add a new DB column to a public response without first classifying its tier. Do not compute age from `p.dob` in frontend — use `p.age` from the API response.
+
+---
+
+### 54. Safe Rendering / Output Escaping
+**Purpose:** Shared HTML escaping helpers to prevent stored XSS across all pages.
+**Source of Truth:** `tw_shared.js` → `twEscAttr(v)` (canonical implementation) · `twEscHtml(v)` (alias for `twEscAttr`) · `sanitize(str)` (@deprecated alias — kept while profile.html migrates). All exposed on `window.`
+**Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Safe Rendering / Output Escaping Rules`
+**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. URL/image src must pass `/^(https?:\/\/|\/(?!\/))/.test(url)` — rejects `//evil.com` (protocol-relative). `sanitize` is deprecated; do not use in new code.
 
 ---
 

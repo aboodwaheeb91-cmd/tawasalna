@@ -189,17 +189,27 @@ window.addEventListener('unhandledrejection', function(e){
   }).catch(function(){});
 });
 
-// ── XSS Protection ──
-function sanitize(str){
-  if(!str) return '';
-  return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#x27;')
-    .replace(/\//g,'&#x2F;');
+// ── XSS Protection (§54 Safe Rendering — single canonical implementation) ──
+// twEscAttr: canonical escaping for attribute values and text content.
+// Handles null/undefined → ''; handles numeric 0 → "0" (correct; old sanitize returned '').
+function twEscAttr(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
 }
+window.twEscAttr = twEscAttr;
+
+// twEscHtml: alias — attr escaping is a safe superset of text-content escaping.
+function twEscHtml(v) { return twEscAttr(v); }
+window.twEscHtml = twEscHtml;
+
+// sanitize: @deprecated — alias for twEscAttr. Kept while profile.html migrates (PR cleanup).
+// Behavioral note: old sanitize returned '' for 0; twEscAttr returns "0" (correct).
+function sanitize(str) { return twEscAttr(str); }
 
 // Safe text setter
 function safeText(el, text){

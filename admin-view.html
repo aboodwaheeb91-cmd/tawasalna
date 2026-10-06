@@ -371,7 +371,7 @@ async function loadProfile(){
       const errData = await errR.json();
       errMsg = errData.detail || errData.error || e.message;
     } catch(e2) {}
-    document.getElementById('loadingState').innerHTML = `<div style="color:#f87171;text-align:center">⚠️ خطأ في تحميل البيانات<br><small style="color:rgba(255,100,100,.5)">${errMsg}</small></div>`;
+    document.getElementById('loadingState').innerHTML = `<div style="color:#f87171;text-align:center">⚠️ خطأ في تحميل البيانات<br><small style="color:rgba(255,100,100,.5)">${twEscHtml(errMsg)}</small></div>`;
   }
 }
 
@@ -426,10 +426,10 @@ function renderProfile(){
     <div class="item">
       <div class="item-top">
         <div>
-          <div class="item-title">${e.title||'—'}</div>
-          <div class="item-sub">${e.company||'—'} ${e.location?'· '+e.location:''}</div>
-          <div class="item-date">${e.start_date||''} ${e.end_date?'← '+e.end_date:''}</div>
-          ${e.description?`<div style="font-size:.72rem;color:rgba(255,255,255,.35);margin-top:4px">${e.description}</div>`:''}
+          <div class="item-title">${twEscHtml(e.title)||'—'}</div>
+          <div class="item-sub">${twEscHtml(e.company)||'—'} ${e.location?'· '+twEscHtml(e.location):''}</div>
+          <div class="item-date">${twEscHtml(e.start_date||'')} ${e.end_date?'← '+twEscHtml(e.end_date):''}</div>
+          ${e.description?`<div style="font-size:.72rem;color:rgba(255,255,255,.35);margin-top:4px">${twEscHtml(e.description)}</div>`:''}
         </div>
         <button class="item-del" onclick="deleteExp(${e.id})">🗑️ حذف</button>
       </div>
@@ -442,9 +442,9 @@ function renderProfile(){
     <div class="item">
       <div class="item-top">
         <div>
-          <div class="item-title">${e.degree||''} ${e.field?'- '+e.field:''}</div>
-          <div class="item-sub">${e.institution||'—'}</div>
-          <div class="item-date">${e.end_year||''}</div>
+          <div class="item-title">${twEscHtml(e.degree||'')} ${e.field?'- '+twEscHtml(e.field):''}</div>
+          <div class="item-sub">${twEscHtml(e.institution)||'—'}</div>
+          <div class="item-date">${twEscHtml(e.end_year||'')}</div>
         </div>
         <button class="item-del" onclick="deleteEdu(${e.id})">🗑️ حذف</button>
       </div>
@@ -457,9 +457,9 @@ function renderProfile(){
     <div class="item">
       <div class="item-top">
         <div>
-          <div class="item-title">${c.title||'—'}</div>
-          <div class="item-sub">${c.provider||''}</div>
-          <div class="item-date">${c.completion_date||''}</div>
+          <div class="item-title">${twEscHtml(c.title)||'—'}</div>
+          <div class="item-sub">${twEscHtml(c.provider||'')}</div>
+          <div class="item-date">${twEscHtml(c.completion_date||'')}</div>
         </div>
         <button class="item-del" onclick="deleteCourse(${c.id})">🗑️ حذف</button>
       </div>
@@ -478,8 +478,8 @@ function editField(field){
   if(!label) return;
 
   const inputEl = type==='textarea'
-    ? `<textarea id="m-val" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:80px">${val}</textarea>`
-    : `<input id="m-val" type="text" value="${val}" autocomplete="off" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">`;
+    ? `<textarea id="m-val" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:80px">${twEscHtml(val)}</textarea>`
+    : `<input id="m-val" type="text" value="${twEscAttr(val)}" autocomplete="off" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">`;
 
   document.getElementById('modal').innerHTML = `
     <div class="modal-title">✏️ تعديل ${label}</div>
@@ -588,7 +588,7 @@ function openSendMsg(){
   document.getElementById('modal').innerHTML = `
     <div class="modal-title">💬 مراسلة المستخدم</div>
     <div class="mf"><label>إلى</label>
-      <input value="${_profile?.email||''}" disabled style="width:100%;padding:9px 11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;color:rgba(255,255,255,.4);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">
+      <input value="${twEscAttr(_profile?.email||'')}" disabled style="width:100%;padding:9px 11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;color:rgba(255,255,255,.4);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">
     </div>
     <div class="mf"><label>الموضوع</label>
       <select id="m-sub" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
@@ -701,10 +701,10 @@ async function loadUserApplications(userId){
     list.innerHTML=apps.map(a=>`
       <div class="sec-item">
         <div style="flex:1">
-          <div class="si-title">${a.title||'وظيفة'}</div>
-          <div class="si-sub">${a.company_name||''} · ${statusMap[a.status]||a.status}</div>
+          <div class="si-title">${twEscHtml(a.title||'وظيفة')}</div>
+          <div class="si-sub">${twEscHtml(a.company_name||'')} · ${twEscHtml(statusMap[a.status]||a.status)}</div>
         </div>
-        <div style="font-size:.68rem;color:var(--t3)">${(a.applied_at||'').slice(0,10)}</div>
+        <div style="font-size:.68rem;color:var(--t3)">${twEscHtml((a.applied_at||'').slice(0,10))}</div>
       </div>`).join('');
   }catch(e){ console.error(e); }
 }
@@ -722,8 +722,8 @@ async function loadCompanyJobs(userId){
     list.innerHTML=jobs.map(j=>`
       <div class="sec-item">
         <div style="flex:1">
-          <div class="si-title">${j.title}</div>
-          <div class="si-sub">${j.location||''} · ${j.views||0} مشاهدة</div>
+          <div class="si-title">${twEscHtml(j.title)}</div>
+          <div class="si-sub">${twEscHtml(j.location||'')} · ${j.views||0} مشاهدة</div>
         </div>
         <span style="font-size:.68rem;padding:2px 8px;border-radius:20px;${j.status==='active'?'background:rgba(0,200,150,.1);color:var(--ac)':'background:rgba(239,68,68,.1);color:#f87171'}">${j.status==='active'?'نشطة':'مغلقة'}</span>
       </div>`).join('');

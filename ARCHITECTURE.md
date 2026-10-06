@@ -6215,6 +6215,34 @@ def check_admin(request: Request):
 ❌ لا تُضف admin endpoints بدون check_admin dependency
 ```
 
+### Safe Rendering (PR security/admin-safe-rendering — §54)
+
+All API data rendered inside `admin.html` and `admin-view.html` template literals is now escaped via the shared helpers in `tw_shared.js` (§54 Safe Rendering):
+
+**Single canonical implementation — `twEscAttr(v)` in `tw_shared.js`:**
+- `twEscAttr(v)` — canonical: escapes `& < > " '`; null/undefined → `''`; numeric `0` → `"0"` (correct; old `sanitize` returned `''` for falsy)
+- `twEscHtml(v)` — alias for `twEscAttr` (attr escaping is a safe superset for text content)
+- `sanitize(str)` — @deprecated alias for `twEscAttr`; kept while profile.html migrates; do NOT use in new code
+
+**URL/image src validation:** only `http://`, `https://`, or `/`-relative paths (not protocol-relative `//`).
+Regex: `/^(https?:\/\/|\/(?!\/))/.test(url)` — negative lookahead rejects `//evil.com`.
+
+- Inline `onclick` with non-numeric string interpolation replaced by `data-*` attribute + event delegation
+
+**Route change:** `GET /admin.html` public route removed from `server.py`. Admin panel is served exclusively via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
+
+**Rate limiting:** `/tw-ctrl-login` added to `rate_limit_middleware` list alongside `/auth/login`.
+
+```
+❌ ممنوع استخدام ${apiData} مباشرة داخل innerHTML — استخدم twEscHtml()
+❌ ممنوع استخدام ${apiData} في attribute values بدون twEscAttr()
+❌ ممنوع src="${url}" بدون /^(https?:\/\/|\/(?!\/))/.test(url) — يرفض // protocol-relative
+❌ ممنوع onclick="fn('${stringData}')" — استخدم data-* + event delegation
+❌ GET /admin.html route — محذوف نهائياً
+❌ ممنوع كتابة دالة escaping جديدة — twEscAttr هي التنفيذ الوحيد
+❌ ممنوع استخدام sanitize() في كود جديد — deprecated alias
+```
+
 ---
 
 ## [P2] 58. Reports System
