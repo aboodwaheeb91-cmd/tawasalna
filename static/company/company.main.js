@@ -2666,13 +2666,14 @@
   var _pendingManageOpen      = null;   // candidate_id to auto-open after saved tab loads
   var _pendingManageOpenNotes = false;  // also focus notes textarea
 
-  // Deep-link from ?cand=<id>[&notes=1] in URL — set at init, consumed in _loadBadge
+  // Deep-link from ?cand=<id>[&notes=1] in URL — set at init, consumed in _loadBadge.
+  // Empty ?cand= (twTalentBankHref) opens the Talent Bank without a selected candidate.
   var _urlDeepLinkPending = false;
   (function () {
     var sp = new URLSearchParams(location.search);
     var cand = sp.get('cand');
-    if (cand) {
-      _pendingManageOpen      = cand;
+    if (cand !== null) {
+      _pendingManageOpen      = cand || null;
       _pendingManageOpenNotes = sp.get('notes') === '1';
       _urlDeepLinkPending     = true;
     }

@@ -74,7 +74,7 @@
         ]);
         _sbLinks([
           { icon: 'layout-dashboard', label: 'لوحة التحكم', href: _coUrl          },
-          { icon: 'users',            label: 'المرشحون',     href: '/company'      },
+          { icon: 'users',            label: 'بنك المواهب',  href: twTalentBankHref(user) },
           { icon: 'plus-circle',      label: 'نشر فرصة',    href: _coUrl          },
           { icon: 'settings',         label: 'الإعدادات',    href: '/settings'     },
         ]);
@@ -91,7 +91,7 @@
         ]);
         _sbLinks([
           { icon: 'layout-dashboard', label: 'لوحة التحكم',    href: '/edu-profile' },
-          { icon: 'book-open',        label: 'الدورات',          href: '/edu'         },
+          { icon: 'book-open',        label: 'الدورات',          href: '/edu-profile' },
           { icon: 'shield-check',     label: 'طلبات التوثيق',  href: '/edu-profile' },
           { icon: 'settings',         label: 'الإعدادات',        href: '/settings'    },
         ]);

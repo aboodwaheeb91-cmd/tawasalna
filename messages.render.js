@@ -36,7 +36,7 @@ function accentClass(type) {
 }
 
 // Line-2 profession/specialty caption — profiles.headline (falling back to
-// the older profiles.title column, same convention as profile.html /
+// the older profiles.title column, same convention as
 // profile-v2.render.js: `prof.headline || prof.title`). The account type
 // already shows as the line-1 badge, so when neither field is set, render
 // no line at all rather than repeating the type.
@@ -164,16 +164,12 @@ document.addEventListener('click', function(e) {
   if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
 });
 
-// ── Unified header nav buttons (.sc-header, Profile V2 source) — type-aware
-// since messages.html is shared by emp/co/edu, unlike profile-showcase.html
-// which always goes to /home regardless of account type ──
+// ── Unified header nav buttons (.sc-header, Profile V2 source) — home goes to
+// twHomeHref() (/home for every account type; Home V2 renders a per-type view) ──
 function goMessengerHome() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }
-  var dest = _user.user_type === 'co'  ? '/company'
-           : _user.user_type === 'edu' ? '/edu'
-           : '/home';
-  window.location.href = dest;
+  window.location.href = twHomeHref(_user);
 }
 
 function goMessengerProfile() {

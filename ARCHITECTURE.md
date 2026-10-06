@@ -87,8 +87,8 @@ Exception [N]: [اسم]
 
 **Invariant قبل كل deploy:**
 ```bash
-opens=$(grep -c "<script" profile.html)
-closes=$(grep -c "</script>" profile.html)
+opens=$(grep -c "<script" profile-showcase.html)
+closes=$(grep -c "</script>" profile-showcase.html)
 [ "$opens" = "$closes" ] || { echo "❌ Script tag mismatch!"; exit 1; }
 ```
 
@@ -123,8 +123,8 @@ if token.user_id != resource.user_id → 403
 ## [P1] 5. صفحة واحدة + View Mode
 
 ```
-✅ profile.html + viewMode switch
-❌ profile.html + profile-public.html (نسختان)
+✅ profile-showcase.html + viewMode switch
+❌ profile-showcase.html + profile-public.html (نسختان)
 ```
 
 استثناء: إذا الصفحتان مختلفتان جذرياً في البنية.
@@ -308,7 +308,7 @@ color: var(--ui-muted);    color: var(--ui-soft);
 ```javascript
 // ✅ Logic أعلى، Template أسفل
 function renderItem(item) {
-    const escaped = sanitize(item.name);
+    const escaped = twEscHtml(item.name);
     const badge = item.level || "";
     return `<div>${escaped}<span>${badge}</span></div>`;
 }
@@ -814,9 +814,9 @@ Phase 1 — Security Foundation (مكتمل):
 
 Phase 1.5 — Modularization (مكتمل — PR #224 + PR #361):
   ✅ CSS نُقل من company-profile.html → static/company/company.css
-  ✅ JS نُقل من company-profile.html + company-profile.js → static/company/ modules
+  ✅ JS نُقل من company-profile.html → static/company/ modules
   ✅ company-profile.html أصبح HTML هيكل فقط (no inline <style>, <script>, أو event handlers)
-  ✅ company-profile.js (القديم) لا يُحمَّل بعد الآن (superseded by modules)
+  ✅ company-profile.js (القديم) حُذف مع route الخاص به (PR-4)
   ✅ لا تغيير في التصميم / لا تغيير في API / Security P0 محفوظة
   ✅ inline event handlers نُقلت إلى JS delegation في initCompanyProfile() — PR #361
 
@@ -872,7 +872,7 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 
 ### قواعد إلزامية
 - **ممنوع** إضافة `<style>` أو `<script>` inline في `company-profile.html`
-- **ممنوع** تحميل `company-profile.js` (القديم) — superseded
+- **ممنوع** إعادة `company-profile.js` (القديم) أو route الخاص به — حُذفا في PR-4
 - **ممنوع** إضافة module جديد قبل تحديد الترتيب الصحيح له في الجدول أعلاه
 - كل namespace: `window.X` — لا ES modules، لا bundler
 
@@ -990,7 +990,7 @@ company_ratings: id PK، UNIQUE(company_id, rater_id), CHECK(score 1-5)
 
 
 > نظام البروفايل الجديد يُبنى في `profile-showcase.html`.  
-> `profile.html` القديم **Read-only** — لا يُلمس حتى يكتمل V2 ويُعتمد.  
+> `profile.html` القديم حُذف (PR-4) — `/profile` و `/profile.html` صارا redirect عبر صفحة التحويل المشتركة.  
 > أي قرار في هذا القسم يسري على V2 ويصبح جزءاً من النظام النهائي.
 
 ---
@@ -1238,7 +1238,6 @@ briefcase + headline                      → fallback إذا لا يوجد
 ❌ التخصص كـ text input حر فقط
 ❌ تخمين profession icon من النص
 ❌ حفظ profession_id بدون التحقق من is_active
-❌ تلمس profile.html القديم
 ```
 
 ---
@@ -1246,7 +1245,6 @@ briefcase + headline                      → fallback إذا لا يوجد
 ## [P0] الممنوعات الصارمة — Profile V2
 
 ```
-❌ تعديل profile.html (Read-only حتى اكتمال V2)
 ❌ viewer_type من localStorage
 ❌ is_owner من URL أو DOM
 ❌ preview class تحذف view-owner
@@ -1414,7 +1412,6 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 ❌ API داخل render functions مباشرة — استخدم api.js
 ❌ DOM rendering داخل api.js
 ❌ business permissions من localStorage
-❌ تعديل profile.html القديم (Read-only حتى اكتمال V2)
 ❌ إضافة features جديدة داخل ملفات الـ refactor
 ❌ تغيير أسماء CSS classes
 ❌ تغيير API contracts أو endpoints
@@ -1576,8 +1573,7 @@ https://tawasolna.com                                          ← الصحيح
 
 ### روابط حية مرجعية
 ```
-صفحة البروفايل:    https://tawasolna.com/profile.html?id=U0000db005c71b0
-Profile Showcase:  https://tawasolna.com/profile-showcase?id=U0000db005c71b0
+Profile (Smart Router): https://tawasolna.com/u/U0000db005c71b0
 ```
 يُستخدم في كل live verification بعد deploy.
 
@@ -1597,8 +1593,8 @@ Profile Showcase:  https://tawasolna.com/profile-showcase?id=U0000db005c71b0
 # 1. الصفحة الرئيسية
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/
 
-# 2. Profile (الحالي)
-curl -o /dev/null -sw "%{http_code}" "https://tawasolna.com/profile.html?id=U0000db005c71b0"
+# 2. Profile (Smart Router)
+curl -o /dev/null -sw "%{http_code}" "https://tawasolna.com/u/U0000db005c71b0"
 
 # 3. Static JS files
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.exp.js
@@ -1691,7 +1687,7 @@ GET /profile = قراءة كاملة → يُستدعى من frontend عند ا�
 لا يُنفذ `get_full_profile` داخل PUT.
 
 ### Backward Compatibility
-- `profile.html` يقرأ `d.profile.bio`, `d.profile.headline`, إلخ. بعد الحفظ.
+- الواجهة تقرأ `d.profile.bio`, `d.profile.headline`, إلخ. بعد الحفظ.
   هذه الحقول موجودة في الـ response الخفيف لأنها نفس الحقول التي أُرسلت في الـ payload.
 - باقي الصفحات تتجاهل `response.profile` — آمن تماماً.
 
@@ -1777,9 +1773,6 @@ body.view-owner .cv-edit-btn { display:flex; }
 - إذا لا يوجد `cover_url`: CSS default (Cover.png) يبقى كما هو
 - `aspect-ratio: 6/1` لا يتغير
 
-### profile.html القديم
-Read-only — لا يُعدَّل نهائياً.
-
 ---
 
 ## Profile V2 — Experience Module
@@ -1832,9 +1825,6 @@ Read-only — لا يُعدَّل نهائياً.
 - exp.js تستخدمها عند `_reRenderExp()`
 - isOwner = true → تُضاف زر ⋮ + قائمة الإجراءات
 - isOwner = false → cards بدون أي أدوات
-
-### profile.html القديم
-Read-only — لا يُعدَّل نهائياً.
 
 ---
 
@@ -2559,7 +2549,7 @@ Runtime الحالي: static/shared/tw-select.js
 
 | قبل | بعد |
 |-----|-----|
-| profile.html كبير ومتشابك (147KB) | 12 ملف منفصل، كل له مسؤولية واحدة |
+| البروفايل القديم كبير ومتشابك (147KB — حُذف في PR-4) | 12 ملف منفصل، كل له مسؤولية واحدة |
 | لا تحكم في View Mode | نظام صلاحيات server-verified كامل |
 | selects بستايل النظام (أبيض) | custom dark-themed selects موحدة |
 | 4 أزرار على كل بطاقة خبرة | قائمة ⋮ واحدة نظيفة |
@@ -3486,7 +3476,6 @@ window._scCheckProfessional(text)
 ❌ لا تستخدم emoji كأيقونات للمهارات
 ❌ لا تستخدم صور خارجية أو URLs للأيقونات
 ❌ لا تغيّر منطق الحفظ أو الـ validation بسبب تغييرات الأيقونات
-❌ لا تلمس profile.html القديم
 ```
 
 ---
@@ -3685,7 +3674,6 @@ DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
 ❌ لا interest_type من Frontend
 ❌ لا guest POST/DELETE
 ❌ لا owner self-interest
-❌ لا تعديل على profile.html القديم
 ❌ لا كسر Follow / Contact / QR
 ❌ لا تغيير ستايل زر profile_like بتغيير candidate_save والعكس
 ```
@@ -4294,12 +4282,12 @@ container.addEventListener('click', function(e) {
 
 ### Header Badge — Auth Requirements
 
-| Endpoint | Auth Required | Header in home.html |
+| Endpoint | Auth Required | Header |
 |----------|---------------|---------------------|
 | `GET /notifications/{user_id}` | None | — |
 | `GET /messages/unread/{user_id}` | JWT (`verify_token`) | `Authorization: Bearer {tw_jwt}` |
 
-`home.html` reads `tw_jwt` from localStorage before both badge IIFEs. Both the nav-bar badge IIFE and the home-badges IIFE apply the JWT header to the `/messages/unread/` call.
+Every caller sends `Authorization: Bearer {tw_jwt}` on the `/messages/unread/` call.
 
 ### `get_conversations()` — Sort Fix
 
@@ -4324,12 +4312,7 @@ ORDER BY created_at DESC               -- outer sort by recency
 ## [P0] 52. Global Badge System (`loadGlobalBadges`)
 
 ### Problem
-Each page had its own (or missing) badge-loading logic:
-- `home.html` — had logic, fixed in PR #150 with JWT header
-- `profile.html` — had `window._triggerBadges()` with JWT
-- `company.html` — hardcoded `0`
-- `edu.html` — hardcoded `2` (wrong, never updates)
-- `edu-profile.html`, `company-profile.html`, `settings.html`, `notifications.html` — no badge loading
+Each page had its own (or missing) badge-loading logic (hardcoded numbers or none) — the legacy pages involved were deleted in PR-4.
 
 ### Solution: `loadGlobalBadges()` in `tw_shared.js`
 
@@ -4357,11 +4340,7 @@ All badge `<span>` elements in nav menus use `data-badge="msgs"` or `data-badge=
 - ممنوع: per-page badge-loading logic (use `loadGlobalBadges` from tw_shared.js)
 
 ### Pages That Call `loadGlobalBadges()`
-- `company.html` — `document.addEventListener('DOMContentLoaded', loadGlobalBadges)`
-- `edu.html` — same
 - `notifications.html` — called directly after page init
-- `home.html` — has its own inline IIFE (compatible, uses same endpoints)
-- `profile.html` — has `window._triggerBadges()` (compatible, uses same endpoints)
 - `profile-showcase.html` (Profile V2 / `/u/{tw_id}`) — called from header-wiring IIFE in `profile-v2.render.js`; badge spans on `#scBellBtn` and `#scMsgBtn`
 
 ### Profile V2 Badge Span Locations
@@ -4656,7 +4635,7 @@ def public_profile_short_url(tw_id: str):
 
 | Use case | Correct URL | Forbidden |
 |----------|-------------|---------|
-| عرض بروفايل مستخدم (موظف) | `/u/{tw_id}` | `profile.html?id=`, `/profile?id=` |
+| عرض بروفايل مستخدم (موظف) | `/u/{tw_id}` | `/profile`, `/profile?id=` (legacy redirect only) |
 | صفحة الرسائل | `/messages` | `messages.html` |
 | فتح محادثة مع مستخدم | `/messages?with={tw_id}` | `messages.html` |
 | بروفايل شركة | `/company-profile?id={id}` | `company-profile.html?id=` |
@@ -4670,25 +4649,37 @@ Every page path also answers at its `.html` variant unless noted.
 |------|--------|-----------------|
 | `/` | `landing.html` | Public landing (Auth Gateway Rules §1) |
 | `/login` · `/index.html` | `index.html` | Auth Gateway (login + register) |
-| `/home` | `home-v2.html` | Feed (Home V2 — `home.html` is legacy, not a route) |
+| `/home` | `home-v2.html` | Feed (Home V2) — per-account-type view; `twHomeHref()` destination for emp / co / edu (no `.html` variant — `/home.html` is a legacy redirect) |
 | `/u/{tw_id}` | `profile-showcase.html` / `company-profile.html` / `edu-profile.html` by `users.user_type` | Smart Router — canonical public URL (§63) |
 | `/u` | HTTP 404 | Empty public URL |
-| `/profile` | `profile.html` (legacy, `?id=` injected) | Legacy — not a redirect target |
 | `/profile-showcase` | `profile-showcase.html` | Backward-compat |
-| `/company-profile` | redirect HTML (no `id`) / 302 → `/u/{tw_id}` (`?id=`) | Legacy redirect only (PR #386) |
-| `/company` | `company.html` | Companies |
-| `/edu` | `edu.html` | Education |
+| `/company-profile` · `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` | `?id=N` (existing account) → 302 `/u/{tw_id}`; otherwise legacy redirect page `_LEGACY_REDIRECT_HTML` | Legacy redirect only (PR-4 / PR #544) — see **Legacy Redirect Page** below |
 | `/edu-profile` | `edu-profile.html` | Education |
 | `/job-detail` | `job-detail.html` | All |
-| `/jobs.html` | `jobs.html` | All (`.html` path only) |
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
-| `/employees-group` | `employees-group.html` | Companies |
 | `/settings` | `settings.html` | All |
 | `/appointments` | `appointments.html` | All (no `.html` variant) |
 | `/appointment-room` | `appointment-room.html` | All (no `.html` variant) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
+
+### Legacy Redirect Page (PR-4)
+
+Retired page files (`profile.html`, `company.html`, `edu.html`, `home.html`, `jobs.html`, …) were deleted. Their URLs stay reachable through **one** shared redirect page — `_LEGACY_REDIRECT_HTML` + `_legacy_redirect_page()` in `server.py` (registered with `app.add_api_route` in a single loop, `include_in_schema=False`).
+
+| URLs | Behaviour |
+|------|-----------|
+| `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` · `/company-profile` · `/company-profile.html` **with `?id=N`** (N numeric, account exists — any `user_type`) | Server-side **302 → `/u/{tw_id}`** of that account (F7 / F14). Lookup: `_tw_id_for_user_id()` in `server.py` — the only id → tw_id lookup for legacy redirects |
+| Same URLs **without `?id=`**, or `id` not 1–18 ASCII digits (rejects `"²"`, `"١٢"`, over-long values — never reaches `int()` or the DB), or no such account | `_LEGACY_REDIRECT_HTML`: loads `/tw_shared.js` → `/static/shared/auth-sync.js`, then `location.replace(twEntryDestination() \|\| "/login")` (no 302) |
+
+- Decision comes from `TwAuthSync.getSessionSnapshot()` via `twEntryDestination()` — never `tw_user` alone.
+- authenticated → `twAccountHref(u)` = `/u/{tw_id}` (all account types; previously `/company-profile` sent non-co users to `/home`).
+- guest → `/login`; expired / stale / invalid → `TwAuthSync.invalidateSession('stale_entry')` then `/login`.
+- `?id=` lookup is type-agnostic (PR #544): `/company-profile?id=` of a non-company account now also 302s to that account's `/u/{tw_id}`; an unknown id no longer 302s to `/login` — it gets the redirect page.
+- ❌ A second id → tw_id lookup for legacy routes (`_get_co_tw_id` was merged into `_tw_id_for_user_id`).
+- ❌ Re-creating any deleted page file, or adding a per-route redirect/HTML for one of these URLs.
+- Test: `python test_legacy_routes_cleanup.py`.
 
 ### Profile Button Pattern
 
@@ -4704,7 +4695,6 @@ fetch('/auth/user/' + numericId)
   });
 
 // FORBIDDEN
-window.open('profile.html?id=' + id, '_blank');
 window.location.href = '/profile?id=' + id;
 ```
 
@@ -4735,9 +4725,8 @@ window.location.href = 'messages.html';
 
 | File | Status |
 |------|--------|
-| `profile.html` | Legacy — لا تُضاف إليه navigation جديد. لا تحذفه. |
 | `messages.html` → `/messages` | الـ route يخدم نفس الملف، استخدم `/messages` دائماً |
-| `/profile?id=` | لا تُستخدم كـ display URL — للـ API والـ legacy فقط |
+| `/profile`, `/company`, `/edu` (+ `.html`), `/home.html`, `/jobs.html` | redirect فقط (PR-4) — لا تُستخدم كـ display URL أو هدف رابط جديد |
 
 ---
 
@@ -5588,7 +5577,6 @@ Added inside the candidates modal (`#coCandidatesModal`) only. No changes to com
 ❌ لا تُنشئ جدول جديد للاقتراحات — الأنظمة الموجودة كافية
 ❌ لا تُضيف AI أو embeddings قبل decision صريح من المستخدم
 ❌ لا تعرض اقتراحات عشوائية بدون وظائف active
-❌ لا تُعدِّل نظام /jobs/match الموجود
 ❌ لا تضف تبويب عام في صفحة الشركة — الاقتراحات داخل المودال فقط
 ❌ لا تستدعي endpoint الاقتراحات لغير المالك
 ```
@@ -6229,7 +6217,7 @@ def check_admin(request: Request):
 | Basic Info | full_name، headline، location، bio، is_verified، tw_id |
 | Experience / Education / Courses | قائمة مع زر حذف لكل عنصر |
 
-### Admin Endpoints (source: `server.py` — PR-3b, moved from `CLAUDE.md → API Endpoints → Admin`)
+### Admin Endpoints (source: `server.py` — single table; PR-3b moved it from `CLAUDE.md`, PR-4 merged the §66c pipeline table into it)
 
 All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compare_digest`) unless marked otherwise.
 
@@ -6265,9 +6253,9 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | POST | `/admin/logo` | `upload_logo` | Upload platform logo |
 | GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
 | POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
-| POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c) — `?dry_run` / `?confirm=true` |
-| GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill analysis |
-| POST | `/admin/pipeline/migrate-index` | `admin_pipeline_migrate_index` | Create pipeline partial UNIQUE index — `?confirm=true` |
+| POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c). `?dry_run=true` for analysis only; `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)` |
+| GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill dry-run shortcut (§66c) |
+| POST | `/admin/pipeline/migrate-index` | `admin_pipeline_migrate_index` | Create pipeline partial UNIQUE index (§66c). `?confirm=true` required; idempotent; run AFTER backfill. Checks status before (for `action` label) and after (readiness guard). `BlockingConflictError` → `JSONResponse(409, e.report)`; `ready=False` → `JSONResponse(500, {"code":"pipeline_index_not_ready","index_status":{...}})`; success `{"status":"ok","action":"created"\|"already_exists","index_status":{ready:true,...}}` |
 
 ### Rules
 
@@ -6290,7 +6278,7 @@ All API data rendered inside `admin.html` and `admin-view.html` template literal
 **Single canonical implementation — `twEscAttr(v)` in `tw_shared.js`:**
 - `twEscAttr(v)` — canonical: escapes `& < > " '`; null/undefined → `''`; numeric `0` → `"0"` (correct; old `sanitize` returned `''` for falsy)
 - `twEscHtml(v)` — alias for `twEscAttr` (attr escaping is a safe superset for text content)
-- `sanitize(str)` — @deprecated alias for `twEscAttr`; kept while profile.html migrates; do NOT use in new code
+- `sanitize(str)` — **deleted (PR-4)**: its last users (legacy `profile.html` + the header menu builder in `tw_shared.js`, now `twEscHtml`) are gone
 
 **URL/image src validation:** only `http://`, `https://`, or `/`-relative paths (not protocol-relative `//`).
 Regex: `/^(https?:\/\/|\/(?!\/))/.test(url)` — negative lookahead rejects `//evil.com`.
@@ -6308,7 +6296,7 @@ Regex: `/^(https?:\/\/|\/(?!\/))/.test(url)` — negative lookahead rejects `//e
 ❌ ممنوع onclick="fn('${stringData}')" — استخدم data-* + event delegation
 ❌ GET /admin.html route — محذوف نهائياً
 ❌ ممنوع كتابة دالة escaping جديدة — twEscAttr هي التنفيذ الوحيد
-❌ ممنوع استخدام sanitize() في كود جديد — deprecated alias
+❌ ممنوع إعادة sanitize() — حُذف في PR-4
 ```
 
 ---
@@ -6391,7 +6379,7 @@ edu          → /edu-profile      ← بدون ?id= query params
 ### Forbidden Patterns (Landing Page)
 
 - **ممنوع** استدعاء `/auth/users` من `landing.html` — يتطلب `X-Admin-Token`
-- **ممنوع** الرجوع إلى `profile.html?id=`، `company-profile.html?id=`، `edu-profile.html?id=`
+- **ممنوع** الرجوع إلى `/profile?id=`، `company-profile.html?id=`، `edu-profile.html?id=` — استخدم `twAccountHref()` (`/u/{tw_id}`)
 - **ممنوع** قراءة `tawasalna_user` من `localStorage` — المفتاح الصحيح هو `tw_user`
 - **ممنوع** وضع stat counters ديناميكية إلا إذا كان الـ endpoint عاماً ويعيد بيانات حقيقية
 - **ممنوع** وعود تسويقية مبالغة مثل "مؤكدة من مصادرها مباشرة" — استخدم "قابلة للتوثيق والاعتماد"
@@ -6448,7 +6436,7 @@ if (window.lucide) { lucide.createIcons(); }
 ## Home V2 — `home-v2.html` (Feed-first — Production)
 
 **File:** `home-v2.html` (مُفعَّل في production)
-**Route:** `GET /home` و `GET /home.html` — يخدمان `home-v2.html` (استُبدل `home.html` القديم)
+**Route:** `GET /home` — يخدم `home-v2.html` لكل أنواع الحسابات (emp / co / edu — `home.nav.js` يبني view لكل نوع) · `home.html` القديم حُذف (PR-4) و `/home.html` صار redirect عبر صفحة التحويل المشتركة
 **Preview Route:** `GET /preview/home-v2` — **محذوف**
 **Design Direction:** **Feed-first** — أول ما يراه المستخدم = filter tabs + feed cards
 
@@ -6473,10 +6461,11 @@ if (window.lucide) { lucide.createIcons(); }
 | `home.render.js` | `Home.render.showSkeleton / showEmpty / showError / renderFeed` |
 | `home.filters.js` | `Home.filters.init() / load(filter)` — tab wiring + orchestration |
 | `home.header.js` | `Home.header.init()` — home btn, menu dropdown, logout |
-| `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments |
-| `home.main.js` | bootstrap only: auth guard, populate state, init modules, load initial feed |
+| `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments (co sidebar "بنك المواهب" → `twTalentBankHref(user)`) |
+| `home.main.js` | bootstrap only: auth guard (TwAuthSync snapshot), populate state, init modules, load initial feed |
 
-**ممنوع** إضافة منطق في `home-v2.js` — هذا الملف deprecated ويحتوي تعليق redirect فقط.  
+**Auth guard (`home.main.js`, PR-4):** يقرر من `TwAuthSync.getSessionSnapshot()` فقط — غير مصادق → `/login` (expired/stale/invalid → `TwAuthSync.invalidateSession('home_guard')` أولاً). ممنوع الرجوع لـ `tw_user` كمصدر قرار.  
+**ممنوع** إعادة `static/home-v2.js` — حُذف (PR-4).  
 **ممنوع** تضخيم `home.main.js` بمنطق — هو bootstrap فقط.
 
 ### Shared Namespace
@@ -6700,7 +6689,6 @@ body     { padding-top: var(--flt, 46px); }   /* only filter bar height */
 - **ممنوع** إضافة فلتر `companies` للـ Home — الشركات ليست محتوى feed؛ مكانها صفحة استكشاف/بحث مستقلة
 - **ممنوع** إعادة `questions` أو `courses` كـ filters قبل بناء جداولهما الكاملة
 - **ممنوع** إنشاء header مستقل لصفحة جديدة بدون استخدام `static/app-header.css` — الـ App Header موحد
-- **ممنوع** إضافة منطق في `static/home-v2.js` — الملف deprecated؛ أي logic يذهب إلى module مناسب في `static/home/`
 - **ممنوع** إضافة feature جديدة على Home قبل تحديد module المناسب لها في `static/home/`
 - **ممنوع** تضخيم `home.main.js` — bootstrap فقط؛ أي منطق يذهب لـ module مخصص
 - **ممنوع** `ORDER BY RANDOM()` في أي query على `/home/feed` — يكسر pagination ويُحمّل DB
@@ -7427,73 +7415,9 @@ type) is wanted and it can be added as a real, working control.
   already-rendered DOM text and already-available conversation data; they
   issue no new HTTP/WebSocket requests
 
-### Unified header pass — `messages.html` now uses profile.html's `.toolbar`
+### Header source — Profile V2 (`.sc-header`)
 
-A follow-up correction: the page-specific `.nav`/`.nb`/`.nav-brand` header
-built in the previous pass was replaced with the **same header component
-`profile.html` actually uses** — `.toolbar` / `.tb-logo` / `.tb-btn.tb-ghost`
-— copied verbatim (same selector names, same `height:50px`, same blur/colors)
-from `profile.html`'s `<style>` block into `messages.css`, instead of the
-generic `.nav` pattern used by `home.html`/`company.html`/`edu.html`. Cache
-bump: `?v=v12`.
-
-**Note on "logo in the center":** the request asked for the logo to sit in
-the middle "like the profile page," but `profile.html`'s real `.toolbar`
-does not center its logo — `.tb-logo{margin-left:auto}` pins it to one edge,
-with action buttons clustered on the other side (verified by rendering the
-real `/profile` page, not by reading the CSS alone). Since "نفس الهيدر
-تماماً" (identical to the profile header) was the more heavily emphasized,
-literal, and testable instruction, fidelity to the real component took
-priority over the "centered" description — the messages.html toolbar now
-positions its logo exactly where profile.html's does (edge-pinned), not
-dead-center. Flag if true centering is wanted as an intentional deviation
-from `profile.html`'s actual layout.
-
-| Toolbar slot (right → left, RTL source order) | profile.html | messages.html |
-|---|---|---|
-| Logo | `Logo.svg`, `.tb-logo` | same `Logo.svg`, same `.tb-logo` |
-| Next to logo | 🏠 → `home.html` (hardcoded, employee-only page) | 🏠 → `goMessengerHome()`: type-aware (`/home` emp, `/company` co, `/edu` edu), since unlike `profile.html`, `messages.html` is shared by all three user types |
-| *(removed)* | 👁 preview toggle | **not present** — preview has no meaning outside profile editing |
-| Notifications | 🔔 → `notifications.html` | 🔔 → `/notifications` |
-| *(removed)* | 💬 messages → `messages.html` | **not present** — would be a self-link from the messages page |
-| Profile | *(not present — page is already "my profile")* | 👤 → `goMessengerProfile()`: `/u/{tw_id}` (same pattern as `home.html`'s `goProfile()`) |
-| Menu/settings | ⚙️ → `openPanel()` (opens profile-editing accordion — style/sections/etc., meaningless outside `profile.html`) | ☰ → **visually present, intentionally inert** (`opacity:.65; cursor:not-allowed`, title "القائمة (قريباً)") — same "designed but not wired" treatment already used by the existing `.attach-btn` ("إرفاق ملف (قريباً)"). `profile.html`'s side panel is profile-editing-specific markup/JS and isn't portable to this page; building a new generic menu wasn't requested and would be new scope |
-
-"الرسائل" page title (`.msg-page-title`) + subtitle (`.msg-page-subtitle`)
-moved out of the fixed header entirely and now render as the first child of
-`#convList`, directly above the search/filter row. This means the title is
-part of the conversation-list view only — opening a conversation hides
-`#convList` (mobile) or simply isn't where the title lives (desktop column),
-so inside a chat only the unified `.toolbar` plus the chat-specific
-`.chat-head` show, per the requirement that the per-conversation header
-follow directly under the unified site header with no page title in between.
-
-`goMessengerHome()` / `goMessengerProfile()` both call the existing
-`sendInactiveConversation()` before navigating away, mirroring `goHome()`'s
-existing guard — reusing an already-shipped function, not new WebSocket logic.
-
-### Header source correction — Profile V2, not `profile.html` (supersedes the pass above)
-
-A read-only audit (triggered by user-reported confusion between "the old
-profile and the new profile") established that `profile.html`'s `.toolbar`
-— used as the copy source in the previous pass — is **not** the site's
-current/actively-developed profile surface. Hard evidence:
-
-- `profile.html` git history: ~195 commits, **all** `"Add files via upload"`
-  — no descriptive feature commits, ever.
-- `profile-showcase.html` git history: ~96 commits with real feature
-  messages (`feat: follow list filter`, `fix: Profile V2 header badges`...)
-  — actively maintained, internally branded **"Profile V2"**.
-- `server.py:443-458` (`/u/{tw_id}`) docstring literally says *"Public share
-  URL for Profile V2. Serves profile-showcase.html..."*; commit `ccd94ca`
-  is titled *"fix: profile routing — /u/{tw_id} everywhere, no profile.html
-  refs"*.
-- `profile-showcase.html`'s header (`.sc-header`, defined in external
-  `/static/profile-v2.css:14`) centers its logo via real CSS —
-  `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)` —
-  unlike `profile.html`'s edge-pinned `.tb-logo{margin-left:auto}`. This is
-  the literal source of the "centered logo" mismatch flagged (but not yet
-  resolved) in the previous pass.
+The site's profile surface — and the header source — is **Profile V2** (`profile-showcase.html`, served by `/u/{tw_id}`). The legacy `profile.html` and its `.toolbar` header were deleted in PR-4.
 
 **Messenger Header Source Contract** (binding for all future header work
 on `messages.html` and any other page that unifies its header with the
@@ -7502,25 +7426,22 @@ profile page):
 - The approved header source is **Profile V2**: `profile-showcase.html` /
   `/static/profile-v2.css` (`.sc-header` / `.sc-logo` / `.sc-home-pill` /
   `.sc-head-icons` / `.sc-hicon`).
-- `profile.html` (`.toolbar` / `.tb-logo` / `.tb-btn` / `.tb-ghost`) must
-  **not** be used as a visual reference for any new header work — it is
-  legacy (owner-editing surface only, never feature-developed).
+- The legacy `.toolbar` / `.tb-logo` / `.tb-btn` / `.tb-ghost` header
+  (deleted `profile.html`) must **not** be re-introduced.
 - The old `Logo.svg` asset must not be used in any newly-unified header;
   the official mark is `33333.svg`.
-- Any future header change must state which of these two sources it is
-  built from, in its own ARCHITECTURE.md entry.
+- Any future header change must state its source, in its own ARCHITECTURE.md entry.
 
 ### `messages.html` header rebuilt from `.sc-header` (Profile V2)
 
-Replaced the `.toolbar`/`.tb-logo`/`.tb-btn` block (copied from `profile.html`
-in the previous pass) with `.sc-header`/`.sc-logo`/`.sc-home-pill`/
+Replaced the old `.toolbar`/`.tb-logo`/`.tb-btn` block with `.sc-header`/`.sc-logo`/`.sc-home-pill`/
 `.sc-head-icons`/`.sc-hicon` — copied from `profile-showcase.html:16-60` and
 `/static/profile-v2.css:14-44` — into `messages.html` + `messages.css`.
 Cache bump: `?v=v14` on `messages.css` and all 5 JS files.
 
 | Slot | Profile V2 source (`profile-showcase.html`) | `messages.html` |
 |---|---|---|
-| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` (type-aware: `/home` emp, `/company` co, `/edu` edu) |
+| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` → `twHomeHref()` = `/home` for every account type (PR #544) |
 | Logo | `.sc-logo img`, `33333.svg`, centered via `position:absolute;left:50%;top:50%` | identical — same asset, same centering rule |
 | *(removed)* | 👁 eye/preview (`.sc-eye-wrap`, owner-only) | **not present** — no preview concept on the messages page |
 | Notifications | `.sc-hicon` bell → `/notifications` | same class, → `/notifications` |
@@ -7558,7 +7479,7 @@ inline SVG icon:
 
 | Item | Target |
 |---|---|
-| الرئيسية | `goMessengerHome()` — type-aware (`/home`/`/company`/`/edu`) |
+| الرئيسية | `goMessengerHome()` → `twHomeHref()` (`/home` لكل الأنواع) |
 | الملف الشخصي | `goMessengerProfile()` — `/u/{tw_id}` |
 | الإشعارات | `/notifications` |
 | الإعدادات | `/settings` (single shared route for all account types, `server.py:630-634`) |
@@ -7587,17 +7508,15 @@ Dead code removed: `goHome()` in `messages.render.js` (superseded by
   `messages.debug.js` — confirmed via `git diff --stat HEAD` showing only
   `messages.html`, `messages.css`, `messages.render.js`, `ARCHITECTURE.md`
 - No bottom navigation bar added
-- `profile.html`/`.toolbar`/`.tb-logo`/`.tb-btn`/old `Logo.svg` are no
-  longer referenced anywhere in `messages.html`/`messages.css` (verified
-  via grep — zero matches)
+- `.toolbar`/`.tb-logo`/`.tb-btn`/old `Logo.svg` are not referenced anywhere
+  in `messages.html`/`messages.css`
 
 ### Shared Header — Home Button: Pill → Icon-Only Ghost Button
 
 **Supersedes the "Home pill" row of the `messages.html` header table
 above and the original `.sc-home-pill` markup in `profile-showcase.html`.**
 Both pages share the same `.sc-header` contract (per the rule at the top
-of that section: "any future header change must state which of these two
-sources it is built from"), so this change was applied identically to
+of that section: "any future header change must state its source"), so this change was applied identically to
 both `messages.html`/`messages.css` and `profile-showcase.html`/
 `profile-v2.css` — there is no longer a `.sc-home-pill` class anywhere in
 the codebase.
@@ -7625,8 +7544,8 @@ header icon button — `.sc-hicon.sc-hicon-bare` — with no text, icon only,
 ```
 `onclick`/`id="scHomeBtn"` and their JS wiring (`goMessengerHome()` /
 `profile-v2.render.js`'s `homeBtn.onclick`) are untouched — same route
-logic (`/home` emp, `/company` co, `/edu` edu on the messages page;
-`/home` on the showcase page), confirmed via Playwright click test
+logic (messages page: `twHomeHref()` = `/home` for every account type —
+PR #544; `/home` on the showcase page), confirmed via Playwright click test
 (`/messages` → click → lands on `/home`).
 
 **CSS — one ghost-icon rule instead of two near-duplicates.** Previously
@@ -8222,7 +8141,7 @@ second time — now always shows the latest message.
 **Bug 2 — line 2 of the conversation card/chat header now shows real
 profession data instead of staying empty.** `get_conversations()` never
 selected `profiles.headline`/`profiles.title` — the same canonical
-"professional headline" fields already used by `profile.html` and
+"professional headline" fields already used by
 `profile-v2.render.js` (`prof.headline || prof.title`). Added
 `p.headline, p.title` to its existing `SELECT`/JOIN (additive, no new
 column, no migration). Frontend (`messages.render.js`): added a
@@ -8562,7 +8481,7 @@ Three explicit cards replace the old 2-button + dropdown:
 
 - Do NOT put auth logic in `index.ui.js` — keep `redirect()`, `doLogin()`, `doRegister()` in `index.auth.js` only
 - Do NOT put DOM/appearance effects in `index.auth.js` — keep UI in `index.ui.js`
-- Do NOT redirect to `profile.html?id=` — this is a legacy URL; use `/u/{tw_id}` for employees
+- Do NOT redirect to `/profile` / `profile.html?id=` — legacy redirect URLs (file deleted PR-4); use `/u/{tw_id}` for employees
 - Do NOT redirect to `company-profile.html?id=` or `edu-profile.html?id=` — use `/company-profile` and `/edu-profile`
 - Do NOT redirect to `/messages` or `/notifications` as the post-login landing page
 - Do NOT add more than ONE on-load redirect check — exactly one IIFE in `index.auth.js`
@@ -11270,7 +11189,7 @@ HTTP 409 Conflict
 
 #### 6. Company dashboard — archived jobs tab
 
-`company.html` gains a two-tab UI ("المنشورة" / "المؤرشفة") using the `_jobView` variable and `switchJobTab(view)` function. `loadCompanyJobs()` now fetches `/company/jobs?view=<_jobView>`. Archived job cards show a grey "مؤرشفة" badge and no archive button (archive is a one-way operation). The confirm dialog wording is `"أرشفة هذه الوظيفة؟ (لا يمكن التراجع)"`.
+~~`company.html` gains a two-tab UI ("المنشورة" / "المؤرشفة") using the `_jobView` variable and `switchJobTab(view)` function. `loadCompanyJobs()` now fetches `/company/jobs?view=<_jobView>`. Archived job cards show a grey "مؤرشفة" badge and no archive button (archive is a one-way operation). The confirm dialog wording is `"أرشفة هذه الوظيفة؟ (لا يمكن التراجع)"`.~~ — **PR-4:** `company.html` was deleted; this archived-jobs tab UI was removed with it (no replacement UI yet — backend `GET /company/jobs?view=archived` unchanged).
 
 ### What PR-JOB does NOT include
 
@@ -11279,7 +11198,7 @@ HTTP 409 Conflict
 - No change to `job_applications.status`
 - No change to pipeline entry lifecycle (`job_pipeline_entries` is RESTRICT FK — entries must be resolved before a job can be hard-deleted by admin)
 - No new hard-delete path for company users
-- No frontend changes beyond `company.html`
+- No frontend changes beyond the legacy `company.html` (deleted in PR-4 — see note above)
 
 ### admin hard delete unchanged
 
@@ -11353,7 +11272,7 @@ The `GET /jobs/{job_id}/applicants` ownership check does **not** filter by `arch
 
 #### Company dashboard — archived job management button
 
-Archived job cards in `company.html` include a "المتقدمون" button that calls `GET /jobs/{id}/applicants` (existing ownership-checked endpoint) and displays the applicant names in a toast/alert. No new endpoint created.
+~~Archived job cards in `company.html` include a "المتقدمون" button that calls `GET /jobs/{id}/applicants` (existing ownership-checked endpoint) and displays the applicant names in a toast/alert. No new endpoint created.~~ — removed with `company.html` (PR-4).
 
 ### Forbidden Patterns (PR-JOB — permanent)
 
@@ -11587,13 +11506,9 @@ WHERE application_id IS NOT NULL
 - Prevents two pipeline entries from claiming the same `application_id`
 - NULL `application_id` rows not covered — company-add or bank-link entries may have no application
 
-### Admin Endpoints (server.py)
+### Pipeline Backfill — Endpoint Reference
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/admin/pipeline/backfill` | Execute backfill. `?dry_run=true` for analysis only. `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)`. Requires `X-Admin-Token`. |
-| `GET` | `/admin/pipeline/backfill/dry-run` | Read-only dry-run shortcut. Requires `X-Admin-Token`. |
-| `POST` | `/admin/pipeline/migrate-index` | Creates partial UNIQUE index. `?confirm=true` required. Idempotent. Run AFTER backfill. Checks status **before** (for `action` label) and **after** (for readiness guard). `BlockingConflictError` → `JSONResponse(409, e.report)`. Post-creation: if `ready=False` → `JSONResponse(500, {"code":"pipeline_index_not_ready","index_status":{...}})`. Success: `{"status":"ok","action":"created"\|"already_exists","index_status":{ready:true,...}}`. Requires `X-Admin-Token`. |
+The three endpoints (`POST /admin/pipeline/backfill`, `GET /admin/pipeline/backfill/dry-run`, `POST /admin/pipeline/migrate-index`) are listed with their full behaviour in the single table **§57 → Admin Endpoints**.
 
 **HTTP 409 format:** Both endpoints return `JSONResponse(status_code=409, content=e.report)` — NOT `HTTPException(status_code=409, detail=dict)`. The `e.report` dict has the structured conflict report from `BlockingConflictError.report`.
 
@@ -12492,7 +12407,7 @@ CREATE INDEX IF NOT EXISTS idx_ja_match_score ON job_applications(job_id, match_
 ```
 
 - `match_score` computed at apply time in `apply_job()` using skill-overlap formula:  
-  `|job_skills ∩ user_skills| / |job_skills| × 100` (same formula as `match_jobs_for_user()`)
+  `|job_skills ∩ user_skills| / |job_skills| × 100`
 - `match_score = NULL` when job has no skills
 - `match_alg = 1` is the current version; increment when algorithm changes
 - Backfill in `_migrate_match_score()` runs on startup (evidence-based, does not overwrite existing values)

@@ -1658,19 +1658,20 @@ def test_AH_architecture_contracts():
 
 def test_AI_emp_fullname_contract():
     print('\n\033[1m── AI: Employee full_name Contract Tightening (Item 11) ──\033[0m')
-    claude_src = _read('CLAUDE.md')
+    # Employee Name Fields Contract moved from CLAUDE.md to docs/rules/profile-v2.md (PR-3b)
+    claude_src = _read('docs/rules/profile-v2.md')
 
-    label = 'AI1: CLAUDE.md documents emp_name_mutation_forbidden error code'
+    label = 'AI1: docs/rules/profile-v2.md documents emp_name_mutation_forbidden error code'
     ok(label) if 'emp_name_mutation_forbidden' in claude_src \
-        else fail(label, 'emp_name_mutation_forbidden not in CLAUDE.md')
+        else fail(label, 'emp_name_mutation_forbidden not in docs/rules/profile-v2.md')
 
-    label = 'AI2: CLAUDE.md documents Atomic Name Group Rule'
+    label = 'AI2: docs/rules/profile-v2.md documents Atomic Name Group Rule'
     ok(label) if 'Atomic Name Group' in claude_src or 'atomic name group' in claude_src.lower() \
-        else fail(label, 'Atomic Name Group rule not in CLAUDE.md')
+        else fail(label, 'Atomic Name Group rule not in docs/rules/profile-v2.md')
 
-    label = 'AI3: CLAUDE.md prohibits full_name direct mutation for emp'
+    label = 'AI3: docs/rules/profile-v2.md prohibits full_name direct mutation for emp'
     ok(label) if 'full_name' in claude_src and 'emp' in claude_src \
-        else fail(label, 'CLAUDE.md does not reference emp + full_name prohibition')
+        else fail(label, 'docs/rules/profile-v2.md does not reference emp + full_name prohibition')
 
     label = 'AI4: SELECT-PICKER.md has SEL-37 _syncAriaState documentation'
     sel_doc = _read('docs/design-system/SELECT-PICKER.md')

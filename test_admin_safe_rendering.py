@@ -76,7 +76,7 @@ def check_rate_limit(server_content):
 def check_single_escaping_impl(tw_shared_content):
     """
     Check that tw_shared.js has exactly ONE full escaping implementation.
-    twEscAttr must have the replace chain; twEscHtml and sanitize must NOT
+    twEscAttr must have the replace chain; twEscHtml must NOT
     have their own (they must delegate to twEscAttr).
     Returns list of violation descriptions.
     """

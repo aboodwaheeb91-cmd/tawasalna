@@ -456,11 +456,7 @@ function confirmDelete() {
 // ── Navigation ──
 function goBack() {
   if (!_user) { window.location.href = '/'; return; }
-  const _pid = _user.tw_id || _user.id;
-  const dest = _user.user_type === 'co' ? 'company-profile.html?id=' + _pid
-             : _user.user_type === 'edu' ? 'edu-profile.html?id=' + _pid
-             : 'profile.html?id=' + _pid;
-  window.location.href = dest;
+  window.location.href = twAccountHref(_user);
 }
 
 // ── Toast ──

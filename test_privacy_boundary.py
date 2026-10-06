@@ -389,12 +389,6 @@ def _test_group_g():
         with open(path, encoding="utf-8") as f:
             return f.read()
 
-    def g1_home_html_jwt_on_full():
-        src = _read("home.html")
-        assert "tw_jwt" in src and "/full" in src, "home.html missing JWT on /full call"
-        # The /full fetch should have Authorization header
-        assert "Authorization" in src, "home.html missing Authorization header on /full call"
-
     def g2_edu_profile_uses_public_endpoint():
         src = _read("edu-profile.html")
         # Should NOT call /full anymore
@@ -428,7 +422,6 @@ def _test_group_g():
         assert "apiGetUser(_activeConvMeta" not in src, \
             "messages.render.js still calls apiGetUser for cross-user tw_id lookup"
 
-    _test("G1 — home.html uses JWT for /full", g1_home_html_jwt_on_full)
     _test("G2 — edu-profile.html uses public endpoint (not /full)", g2_edu_profile_uses_public_endpoint)
     _test("G3 — settings.html uses JWT for KYC calls", g3_settings_html_kyc_jwt)
     _test("G4 — settings.html has no dev_code reference", g4_settings_html_no_dev_code)

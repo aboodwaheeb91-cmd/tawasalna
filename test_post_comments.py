@@ -2568,43 +2568,11 @@ check(
     "tw-skeleton" not in _srv133 and "co-skeleton" not in _srv133
 )
 
-# ── 134: Legacy profile.html — Share/QR URL canonical fix ────────────────
-_prof134 = open('profile.html',  encoding='utf-8').read()
+# ── 134: Share/QR URL canonical fix (legacy profile.html deleted in PR-4) ─
 _srv134  = open('server.py',     encoding='utf-8').read()
 _psh134  = open('profile-showcase.html', encoding='utf-8').read()
+# 134a–134f removed — legacy profile.html deleted (PR-4 dead-file cleanup)
 
-# Extract only the share/QR-relevant block (openQROverlay + _qrUrl declaration)
-# to avoid false positives from DNS prefetch or canvas watermark text
-import re as _re134
-_qr_block134 = '\n'.join(
-    l for l in _prof134.splitlines()
-    if any(k in l for k in ('openQROverlay', '_qrUrl', '_qrUser', 'redrawQR', 'initQR'))
-)
-
-check(
-    "134a. profile.html share/QR: no /profile?id= in QR/share logic",
-    '/profile?id=' not in _qr_block134
-)
-check(
-    "134b. profile.html share/QR: no hardcoded tawasolna.com/profile URL",
-    'tawasolna.com/profile' not in _qr_block134
-)
-check(
-    "134c. profile.html share/QR: share URL uses /u/ path",
-    "'/u/'" in _qr_block134 or '"/u/"' in _qr_block134
-)
-check(
-    "134d. profile.html share/QR: share URL uses window.location.origin (no hardcoded host)",
-    'window.location.origin' in _qr_block134 or 'location.origin' in _qr_block134
-)
-check(
-    "134e. profile.html QR overlay: openQROverlay uses _qrUrl with /u/ fallback",
-    '_qrUrl' in _qr_block134 and "'/u/'" in _qr_block134
-)
-check(
-    "134f. profile.html: no X-User-Id header in fetch calls",
-    'X-User-Id' not in _prof134
-)
 check(
     "134g. server.py not modified — no /u/ QR logic injected into backend",
     'openQROverlay' not in _srv134 and '_qrUrl' not in _srv134
@@ -2624,7 +2592,6 @@ _cperm135 = open('static/company/company.permissions.js', encoding='utf-8').read
 _pvcss135 = open('profile-v2.css', encoding='utf-8').read()
 _ccss135  = open('static/company/company.css', encoding='utf-8').read()
 _srv135  = open('server.py',  encoding='utf-8').read()
-_prof135 = open('profile.html', encoding='utf-8').read()
 
 check(
     "135a. employee skeleton not permanent on error: catch hides scLoading",
@@ -2661,10 +2628,6 @@ check(
     "co-error" not in _srv135
 )
 check(
-    "135h. legacy profile.html not modified — error state not added there",
-    "scErrorState" not in _prof135 and "co-error" not in _prof135
-)
-check(
     "135i. /u/ route handling not touched in server.py",
     _srv135.count("'/u/") == _srv135.count("'/u/") and
     "scErrorState" not in _srv135
@@ -2679,7 +2642,6 @@ _psh136  = open('profile-showcase.html',  encoding='utf-8').read()
 _cph136  = open('company-profile.html',   encoding='utf-8').read()
 _edu136  = open('edu-profile.html',       encoding='utf-8').read()
 _srv136  = open('server.py',              encoding='utf-8').read()
-_prof136 = open('profile.html',           encoding='utf-8').read()
 
 check(
     "136a. profile-showcase.html has apple-mobile-web-app-capable",
@@ -2713,10 +2675,6 @@ check(
     "136h. server.py not modified — backend untouched",
     'apple-mobile-web-app-capable' not in _srv136
         and 'apple-touch-icon' not in _srv136
-)
-check(
-    "136i. legacy profile.html not modified (still has its own tags, unchanged)",
-    'apple-mobile-web-app-capable' in _prof136
 )
 check(
     "136j. no JS or CSS files modified for iOS meta tags",
@@ -9976,7 +9934,7 @@ check("486-31. Per-job custom picker rendered with data-cid + data-jid via _dpHT
 # ── §487: Five-fix batch (documentation, UI, timezone, migration, Pydantic) ───
 
 _srv487   = open('server.py',                   encoding='utf-8').read()
-_claude487 = open('CLAUDE.md',                  encoding='utf-8').read()
+_claude487 = open('docs/rules/saved-candidates.md', encoding='utf-8').read()  # moved from CLAUDE.md (PR-3b)
 _idx487   = open('docs/SYSTEMS_INDEX.md',        encoding='utf-8').read()
 
 # ── Fix 1a: CLAUDE.md treats status as deprecated alias, not banned ────────
@@ -10331,7 +10289,7 @@ check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatus
 # ═══════════════════════════════════════════════════════════════════
 
 _main490 = open('static/company/company.main.js').read()
-_claude490 = open('CLAUDE.md').read()
+_claude490 = open('docs/rules/saved-candidates.md').read()  # moved from CLAUDE.md (PR-3b)
 _sysidx490 = open('docs/SYSTEMS_INDEX.md').read()
 
 # 490-01: _jobStatusInFlight registry exists at IIFE level
@@ -10413,7 +10371,7 @@ check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the
 _auth491  = open('auth.py').read()
 _srv491   = open('server.py').read()
 _main491  = open('static/company/company.main.js').read()
-_claude491 = open('CLAUDE.md').read()
+_claude491 = open('docs/rules/saved-candidates.md').read()  # moved from CLAUDE.md (PR-3b)
 _sysidx491 = open('docs/SYSTEMS_INDEX.md').read()
 _arch491   = open('ARCHITECTURE.md').read()
 
@@ -10849,7 +10807,7 @@ _srv_sec3_src = open("server.py", encoding="utf-8").read()
 # Extract VerifyRequestInput class block once
 _vri_block_sec3 = _srv_sec3_src[
     _srv_sec3_src.find('class VerifyRequestInput'):
-    _srv_sec3_src.find('class FeedbackInput')
+    _srv_sec3_src.find('class AdminLoginInput')
 ] if 'class VerifyRequestInput' in _srv_sec3_src else ''
 
 # ── Static checks ─────────────────────────────────────────────────────

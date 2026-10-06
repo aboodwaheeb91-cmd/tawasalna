@@ -11,13 +11,19 @@
 (function () {
   'use strict';
 
-  /* Auth guard — must run before any module touches the DOM */
-  var _u = null, _jwt = '';
-  try {
-    _u   = JSON.parse(localStorage.getItem('tw_user') || 'null');
-    _jwt = localStorage.getItem('tw_jwt') || '';
-  } catch (e) {}
-  if (!_u || !_u.id) { location.replace('/login'); return; }
+  /* Auth guard — must run before any module touches the DOM.
+   * Decides from TwAuthSync.getSessionSnapshot() only — never tw_user alone.
+   * expired / stale / invalid → invalidate the session, then /login.
+   * guest or TwAuthSync missing → /login (fail-closed). */
+  var _snap = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
+    ? TwAuthSync.getSessionSnapshot() : null;
+  if (!_snap || !_snap.isAuthenticated) {
+    if (_snap && _snap.state !== 'guest') TwAuthSync.invalidateSession('home_guard');
+    location.replace('/login');
+    return;
+  }
+  var _u = getTwUser(), _jwt = '';
+  try { _jwt = localStorage.getItem('tw_jwt') || ''; } catch (e) {}
 
   /* Populate shared state */
   window.Home.state.user = _u;

@@ -9,7 +9,7 @@ These rules are permanent and apply to all future AI sessions.
 
 1. **Button label is frozen: "أقدّر".** Do not rename it, translate it, or change it to "أعجبني", "تقدير", or any other word. The word "أقدّر" was chosen deliberately and is permanent.
 
-2. **Use the idempotent `PUT` endpoint.** `PUT /company/posts/{post_id}/appreciation` with `{"appreciated": bool}` is the canonical endpoint. The legacy `POST /appreciate` toggle remains in server.py for backward compatibility only — do not use it in new code.
+2. **Use the idempotent `PUT` endpoint.** `PUT /company/posts/{post_id}/appreciation` with `{"appreciated": bool}` is the canonical endpoint. The legacy `POST /appreciate` toggle was deleted (PR-4) — do not re-add a toggle endpoint.
 
 3. **`INSERT ... ON CONFLICT DO NOTHING` is mandatory.** The DB operation must be idempotent. Never use a simple `INSERT` that can throw a unique-constraint error on rapid clicks.
 

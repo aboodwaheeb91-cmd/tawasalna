@@ -14,7 +14,7 @@ These rules are permanent and apply to all future AI sessions:
 3. **Module load order is mandatory:**
    `company.state.js` → `company.api.js` → `company.permissions.js` → `company.render.js` → `company.jobs.js` → `company.posts.js` → `company.main.js`
 
-4. **`company-profile.js` (root file) is superseded.** It must not be loaded from `company-profile.html`. The `/company-profile.js` server route remains in `server.py` but is unused.
+4. **`company-profile.js` (root file) and its `/company-profile.js` route were deleted (PR-4).** Do not re-add them — all company JS lives in `static/company/`.
 
 5. **New features for Company Profile go into the appropriate module** — never a new root-level JS file, never inline in HTML.
 
@@ -50,3 +50,5 @@ These rules are permanent and apply to all future AI sessions:
 15. **`ep-select` visual is driven by `tw-select.js` + `tw-select.css`.** The CSS-only chevron in `company.css` is a no-JS fallback only. Do NOT use it as the primary styling mechanism. Any visual change to dropdowns goes in `static/shared/tw-select.css` — not in page CSS.
 
 16. **No merge without user approval.** No PR is to be merged automatically. Every merge requires explicit user instruction.
+
+17. **Talent Bank deep-link is the only entry to candidates (PR-4).** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it without a selected candidate (`company.main.js`). Every link to the bank (header menu "بنك المواهب", Home V2 co sidebar) is built by `twTalentBankHref(u)` in `tw_shared.js` only. The old candidate-search page `company.html` is deleted — `/company` is a legacy redirect.

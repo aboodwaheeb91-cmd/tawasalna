@@ -67,7 +67,6 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
 | `DEV_OTP_LOG` | Optional (dev) | Logs OTP events (never the code) |
 | `PORT` | Yes (auto on Railway) | Server port |
-| `GITHUB_TOKEN` | Optional | Used by auto_sync.py for auto-commit |
 
 ---
 
@@ -85,8 +84,8 @@ export APP_ENV=development
 # 3. Start the server (with auto-reload for development)
 uvicorn server:app --reload
 
-# 4. Run tests
-python test.py
+# 4. Run a focused test (one file — see docs/rules/project-reference.md → Testing)
+python -m pytest test_post_comments.py -q
 ```
 
 Server starts at `http://localhost:8000`.
@@ -222,8 +221,8 @@ These rules are permanent and apply to all future AI sessions.
 6. **Empty URL must return 404.** `/u` and `/u/` must never open a blank page. A dedicated `GET /u` route returns HTTP 404.
 
 7. **`/company-profile` is a legacy redirect only (PR #386).** It is NOT a canonical URL and must not appear as a final link in share buttons, "شركتي" buttons, "إدارة الصفحة" buttons, or copy-link flows.
-   - `/company-profile` (no params): serves a minimal redirect HTML that checks `tw_user.user_type === "co"` → redirects to `/u/{tw_id}`; non-co users → `/home`; no JWT → `/login`.
-   - `/company-profile?id=123`: server-side 302 → `/u/{that_company_tw_id}`.
+   - `/company-profile` (no params): serves the shared legacy redirect page (`_LEGACY_REDIRECT_HTML` in `server.py`) — see rule 10 below.
+   - `/company-profile?id=123`: server-side 302 → `/u/{tw_id}` of account 123 (any type) — see rule 10.
    - `/company-profile.html`: same as above.
    - **Owner mode is determined by `viewer_type` from the server via JWT** — never by which URL the user arrived at.
 
@@ -232,6 +231,14 @@ These rules are permanent and apply to all future AI sessions.
 8. **Numeric id stays internal.** Never put `id` (integer) in a public share URL. Use `tw_id` only.
 
 9. **Future entity public IDs** (J/P/A/V/D/E/L/Q/S) must use one shared generator in `auth.py` with **entity prefix only + random unique code — no country code, no ISO code, no dial code inside the public_id**. Signature: `generate_public_id(prefix)` — NOT `generate_public_id(prefix, country_code)`. Country data lives in the DB on the entity/user record; it must never be baked into the ID. Do NOT create a separate generator per entity type.
+
+10. **One legacy redirect page for every retired page URL (PR-4).** `_LEGACY_REDIRECT_HTML` in `server.py` is the single source for `/profile`, `/profile.html`, `/company`, `/company.html`, `/edu`, `/edu.html`, `/home.html`, `/jobs.html`, `/company-profile`, `/company-profile.html`.
+   - `?id=N` (numeric, existing account of any type) → server-side **302 → `/u/{tw_id}`** via `_tw_id_for_user_id()` — the only id → tw_id lookup for legacy routes (F7 / F14).
+   - No `?id=`, id that is not 1–18 ASCII digits (`id.isascii() and id.isdigit() and len(id) <= 18`), or unknown id → the redirect page (no 302, no lookup for invalid ids). It loads `tw_shared.js` → `auth-sync.js` and decides via `twEntryDestination()` (TwAuthSync snapshot only): authenticated → `twAccountHref(u)` = `/u/{tw_id}`; guest / expired / stale / invalid → `/login` (stale session invalidated first).
+   - ❌ Re-creating a page file or a per-route redirect for any of these URLs.
+   - ❌ Deciding the redirect from `tw_user` alone.
+   - ❌ A second id → tw_id lookup for legacy routes.
+   - Test: `python test_legacy_routes_cleanup.py`.
 
 ---
 
@@ -245,9 +252,9 @@ These rules are permanent and apply to all future AI sessions.
    - account with `tw_id` (emp / co / edu) → `/u/{tw_id}` (Smart Router decides the page by `users.user_type`)
    - no `tw_id` → `/login`
    - Do NOT re-add per-type branches (`/company-profile`, `/edu-profile`, `/admin`, `/profile-showcase`) in `redirect()` or `landing.html`.
-   - `twHomeHref()` is a different concept — the type-aware **feed/dashboard** (`/home` · `/company` · `/edu`) used by header home buttons. Never use it as the post-login destination, and never merge it with `twAccountHref()`.
+   - `twHomeHref()` is a different concept — the **feed/dashboard** (`/home` for every account type; Home V2 renders a per-type view) used by header home buttons. Never use it as the post-login destination, and never merge it with `twAccountHref()`.
 
-4. **`profile.html?id=` is a forbidden redirect target for new code.** Use `/u/{tw_id}` for employees. The legacy URL `profile.html?id=` must not appear in any new redirect, link, or button.
+4. **`/profile` / `profile.html?id=` are retired (file deleted in PR-4) — redirect-only.** Use `/u/{tw_id}` for employees. They must not appear in any new redirect, link, or button.
 
 5. **`company-profile.html?id=` and `edu-profile.html?id=` are forbidden as new redirect targets.** Use `/company-profile` and `/edu-profile` (modern routes without query params).
 
@@ -330,7 +337,7 @@ Every implementation plan or execution report must include a section named **"Sh
 
 These rules are permanent and apply to all future AI sessions.
 
-1. **`twEscAttr(v)` in `tw_shared.js` is the canonical escaping implementation** (escapes `& < > " '`). `twEscHtml(v)` is an alias (safe superset). `sanitize(str)` is a @deprecated alias — do NOT use in new code. Do NOT write a new escaping function in any page or module. One implementation only (§54).
+1. **`twEscAttr(v)` in `tw_shared.js` is the canonical escaping implementation** (escapes `& < > " '`). `twEscHtml(v)` is an alias (safe superset). The old `sanitize()` alias was deleted (PR-4) — do NOT re-add it. Do NOT write a new escaping function in any page or module. One implementation only (§54).
 
 2. **All API data inserted into `innerHTML` via template literals MUST be wrapped in `twEscHtml()`.** Raw `${u.full_name}` in innerHTML is a permanent violation.
 
@@ -405,7 +412,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Development Guidelines for AI Assistants (incl. WebSocket / real-time contract) | `docs/rules/dev-guidelines.md` |
 | Pre-PR System Registry Check · Rule Index First | `docs/rules/system-registry.md` |
 | AI Usage Budget — Minimal Execution | `docs/rules/ai-usage-budget.md` |
-| Repository Structure · API Endpoints (Authentication / Profile / Jobs) · Frontend Conventions (Design System · Patterns · Auth Guard Pattern) · Key Workflows (Registration · Credential Verification) · auto_sync.py · Testing · Deployment | `docs/rules/project-reference.md` |
+| Repository Structure · API Endpoints (Authentication / Profile / Jobs) · Frontend Conventions (Design System · Patterns · Auth Guard Pattern) · Key Workflows (Registration · Credential Verification) · Testing · Deployment | `docs/rules/project-reference.md` |
 
 ### الجداول المرجعية (محذوفة من هنا — مكانها الصحيح)
 

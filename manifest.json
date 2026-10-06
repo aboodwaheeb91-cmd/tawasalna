@@ -15,7 +15,6 @@
   ],
   "categories": ["business", "productivity"],
   "shortcuts": [
-    {"name": "الوظائف", "url": "/jobs.html", "description": "تصفح الوظائف"},
-    {"name": "ملفي", "url": "/profile.html", "description": "ملفي الشخصي"}
+    {"name": "ملفي", "url": "/profile", "description": "ملفي الشخصي"}
   ]
 }
