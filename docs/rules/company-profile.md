@@ -51,4 +51,4 @@ These rules are permanent and apply to all future AI sessions:
 
 16. **No merge without user approval.** No PR is to be merged automatically. Every merge requires explicit user instruction.
 
-17. **Talent Bank deep-link is the only entry to candidates (PR-4).** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it without a selected candidate (`company.main.js`). Every link to the bank (header menu "بنك المواهب", Home V2 co sidebar, messages home for co) is built by `twTalentBankHref(u)` in `tw_shared.js` only. The old candidate-search page `company.html` is deleted — `/company` is a legacy redirect.
+17. **Talent Bank deep-link is the only entry to candidates (PR-4).** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it without a selected candidate (`company.main.js`). Every link to the bank (header menu "بنك المواهب", Home V2 co sidebar) is built by `twTalentBankHref(u)` in `tw_shared.js` only. The old candidate-search page `company.html` is deleted — `/company` is a legacy redirect.

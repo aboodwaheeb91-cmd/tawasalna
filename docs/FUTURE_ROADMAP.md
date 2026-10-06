@@ -59,6 +59,7 @@
 - [ ] **P2** — Generic About Section Label: استبدال "عن الشركة" بعنوان عام مثل "حول" يصلح لكل أنواع الكيانات (مصنع، مؤسسة، محل، مركز، منظمة). لاحقاً يمكن جعله ديناميكياً حسب `entity_type`.
 - [ ] **P2** — Improve empty states: أيقونة + CTA واضحة عند عدم وجود وظائف أو منشورات
 - [ ] **P2** — Company analytics dashboard: عدد مشاهدات الوظائف والمتقدمين في لوحة داخلية للمالك
+- [ ] **P1** — تبويب الوظائف المؤرشفة بصفحة الشركة — الـ endpoint `view=archived` موجود (`GET /company/jobs?view=archived`)، الواجهة انحذفت مع `company.html` في PR #544.
 
 ---
 

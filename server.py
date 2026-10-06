@@ -940,10 +940,14 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
 
 # ── Legacy redirect page (single source for every retired page URL) ─────────
 # Served by: /profile, /profile.html, /company, /company.html, /edu, /edu.html,
-# /home.html, /jobs.html, and /company-profile(.html) without ?id=.
-# Decides from TwAuthSync (twEntryDestination() in tw_shared.js) — never tw_user alone:
-#   authenticated → twAccountHref(u) = /u/{tw_id}
-#   guest / expired / stale / invalid → /login (stale session invalidated first)
+# /home.html, /jobs.html, /company-profile, /company-profile.html.
+#   ?id=<numeric user id> of an existing account (any user_type)
+#       → server-side 302 → /u/{tw_id} of that account (F7 / F14)
+#   no id / id not numeric / id not found
+#       → _LEGACY_REDIRECT_HTML, which decides from TwAuthSync
+#         (twEntryDestination() in tw_shared.js) — never tw_user alone:
+#           authenticated → twAccountHref(u) = /u/{tw_id}
+#           guest / expired / stale / invalid → /login (stale session invalidated first)
 _LEGACY_REDIRECT_HTML = (
     '<!doctype html><html dir="rtl"><head><meta charset="utf-8">'
     '<title>جاري التوجيه…</title></head><body>'
@@ -955,40 +959,30 @@ _LEGACY_REDIRECT_HTML = (
     '})();</script></body></html>'
 )
 
-def _legacy_redirect_page():
-    return HTMLResponse(content=_LEGACY_REDIRECT_HTML)
-
-for _legacy_path in ("/profile", "/profile.html", "/company", "/company.html",
-                     "/edu", "/edu.html", "/home.html", "/jobs.html"):
-    app.add_api_route(_legacy_path, _legacy_redirect_page, methods=["GET"],
-                      response_class=HTMLResponse, include_in_schema=False)
-
-def _get_co_tw_id(user_id: int):
-    """Return tw_id for a company user by numeric id, or None if not found."""
+def _tw_id_for_user_id(user_id: int):
+    """Return the tw_id of any account (emp / co / edu) by numeric id, or None.
+    Single lookup for every legacy ?id= redirect."""
     conn = get_conn()
     try:
-        rows = conn.run("SELECT tw_id FROM users WHERE id=:id AND user_type='co'", id=user_id)
-        return rows[0][0] if rows else None
+        rows = conn.run("SELECT tw_id FROM users WHERE id=:id", id=user_id)
+        return rows[0][0] if rows and rows[0][0] else None
     finally:
         release_conn(conn)
 
-@app.get("/company-profile")
-def company_profile(id: Optional[int] = None):
-    """Legacy redirect — canonical URL is /u/{tw_id} for all viewers.
-    /company-profile?id=123 → /u/{tw_id}  (server-side 302)
-    /company-profile         → shared legacy redirect page (_LEGACY_REDIRECT_HTML)"""
-    if id is not None:
-        tw = _get_co_tw_id(id)
-        return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
-    return _legacy_redirect_page()
+def _legacy_redirect_page(id: Optional[str] = None):
+    """Legacy page URL → 302 /u/{tw_id} when ?id= names an existing account;
+    otherwise the shared client-side redirect page."""
+    if id is not None and id.isdigit():
+        tw = _tw_id_for_user_id(int(id))
+        if tw:
+            return RedirectResponse(url=f'/u/{tw}', status_code=302)
+    return HTMLResponse(content=_LEGACY_REDIRECT_HTML)
 
-@app.get("/company-profile.html")
-def company_profile_html(id: Optional[int] = None):
-    """Same as /company-profile (.html extension kept for backward compatibility)."""
-    if id is not None:
-        tw = _get_co_tw_id(id)
-        return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
-    return _legacy_redirect_page()
+for _legacy_path in ("/profile", "/profile.html", "/company", "/company.html",
+                     "/edu", "/edu.html", "/home.html", "/jobs.html",
+                     "/company-profile", "/company-profile.html"):
+    app.add_api_route(_legacy_path, _legacy_redirect_page, methods=["GET"],
+                      response_class=HTMLResponse, include_in_schema=False)
 
 @app.get("/profile-showcase", response_class=HTMLResponse)
 def profile_showcase(): return read_html("profile-showcase.html")

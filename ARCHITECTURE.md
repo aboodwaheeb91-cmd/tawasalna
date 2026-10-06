@@ -4653,8 +4653,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/u/{tw_id}` | `profile-showcase.html` / `company-profile.html` / `edu-profile.html` by `users.user_type` | Smart Router — canonical public URL (§63) |
 | `/u` | HTTP 404 | Empty public URL |
 | `/profile-showcase` | `profile-showcase.html` | Backward-compat |
-| `/company-profile` | legacy redirect page (no `id`) / 302 → `/u/{tw_id}` (`?id=`) | Legacy redirect only (PR #386) |
-| `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` | legacy redirect page `_LEGACY_REDIRECT_HTML` | Legacy redirect only (PR-4) — see **Legacy Redirect Page** below |
+| `/company-profile` · `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` | `?id=N` (existing account) → 302 `/u/{tw_id}`; otherwise legacy redirect page `_LEGACY_REDIRECT_HTML` | Legacy redirect only (PR-4 / PR #544) — see **Legacy Redirect Page** below |
 | `/edu-profile` | `edu-profile.html` | Education |
 | `/job-detail` | `job-detail.html` | All |
 | `/messages` | `messages.html` | All |
@@ -4671,12 +4670,14 @@ Retired page files (`profile.html`, `company.html`, `edu.html`, `home.html`, `jo
 
 | URLs | Behaviour |
 |------|-----------|
-| `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` · `/company-profile(.html)` without `?id=` | Loads `/tw_shared.js` → `/static/shared/auth-sync.js`, then `location.replace(twEntryDestination() \|\| "/login")` |
+| `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` · `/company-profile` · `/company-profile.html` **with `?id=N`** (N numeric, account exists — any `user_type`) | Server-side **302 → `/u/{tw_id}`** of that account (F7 / F14). Lookup: `_tw_id_for_user_id()` in `server.py` — the only id → tw_id lookup for legacy redirects |
+| Same URLs **without `?id=`**, or `id` not numeric, or no such account | `_LEGACY_REDIRECT_HTML`: loads `/tw_shared.js` → `/static/shared/auth-sync.js`, then `location.replace(twEntryDestination() \|\| "/login")` (no 302) |
 
 - Decision comes from `TwAuthSync.getSessionSnapshot()` via `twEntryDestination()` — never `tw_user` alone.
 - authenticated → `twAccountHref(u)` = `/u/{tw_id}` (all account types; previously `/company-profile` sent non-co users to `/home`).
 - guest → `/login`; expired / stale / invalid → `TwAuthSync.invalidateSession('stale_entry')` then `/login`.
-- `/company-profile?id=` keeps its server-side 302 → `/u/{tw_id}`.
+- `?id=` lookup is type-agnostic (PR #544): `/company-profile?id=` of a non-company account now also 302s to that account's `/u/{tw_id}`; an unknown id no longer 302s to `/login` — it gets the redirect page.
+- ❌ A second id → tw_id lookup for legacy routes (`_get_co_tw_id` was merged into `_tw_id_for_user_id`).
 - ❌ Re-creating any deleted page file, or adding a per-route redirect/HTML for one of these URLs.
 - Test: `python test_legacy_routes_cleanup.py`.
 
@@ -7440,7 +7441,7 @@ Cache bump: `?v=v14` on `messages.css` and all 5 JS files.
 
 | Slot | Profile V2 source (`profile-showcase.html`) | `messages.html` |
 |---|---|---|
-| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` (co → `twTalentBankHref()` = Talent Bank `/u/{tw_id}?cand=`; emp / edu → `twHomeHref()` = `/home` — PR-4) |
+| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` → `twHomeHref()` = `/home` for every account type (PR #544) |
 | Logo | `.sc-logo img`, `33333.svg`, centered via `position:absolute;left:50%;top:50%` | identical — same asset, same centering rule |
 | *(removed)* | 👁 eye/preview (`.sc-eye-wrap`, owner-only) | **not present** — no preview concept on the messages page |
 | Notifications | `.sc-hicon` bell → `/notifications` | same class, → `/notifications` |
@@ -7478,7 +7479,7 @@ inline SVG icon:
 
 | Item | Target |
 |---|---|
-| الرئيسية | `goMessengerHome()` — co → Talent Bank (`twTalentBankHref`); emp / edu → `/home` (`twHomeHref`) |
+| الرئيسية | `goMessengerHome()` → `twHomeHref()` (`/home` لكل الأنواع) |
 | الملف الشخصي | `goMessengerProfile()` — `/u/{tw_id}` |
 | الإشعارات | `/notifications` |
 | الإعدادات | `/settings` (single shared route for all account types, `server.py:630-634`) |
@@ -7543,8 +7544,8 @@ header icon button — `.sc-hicon.sc-hicon-bare` — with no text, icon only,
 ```
 `onclick`/`id="scHomeBtn"` and their JS wiring (`goMessengerHome()` /
 `profile-v2.render.js`'s `homeBtn.onclick`) are untouched — same route
-logic (messages page: co → Talent Bank via `twTalentBankHref()`, emp / edu →
-`/home` via `twHomeHref()` — PR-4; `/home` on the showcase page), confirmed via Playwright click test
+logic (messages page: `twHomeHref()` = `/home` for every account type —
+PR #544; `/home` on the showcase page), confirmed via Playwright click test
 (`/messages` → click → lands on `/home`).
 
 **CSS — one ghost-icon rule instead of two near-duplicates.** Previously

@@ -164,14 +164,12 @@ document.addEventListener('click', function(e) {
   if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
 });
 
-// ── Unified header nav buttons (.sc-header, Profile V2 source) — type-aware
-// since messages.html is shared by emp/co/edu, unlike profile-showcase.html
-// which always goes to /home regardless of account type ──
+// ── Unified header nav buttons (.sc-header, Profile V2 source) — home goes to
+// twHomeHref() (/home for every account type; Home V2 renders a per-type view) ──
 function goMessengerHome() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }
-  // co → Talent Bank inside its company page; emp / edu → Home V2 (twHomeHref)
-  window.location.href = _user.user_type === 'co' ? twTalentBankHref(_user) : twHomeHref(_user);
+  window.location.href = twHomeHref(_user);
 }
 
 function goMessengerProfile() {

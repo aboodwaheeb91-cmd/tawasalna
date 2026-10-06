@@ -612,8 +612,7 @@ function uploadCover(input){
 }
 
 function goHome(){
-  if(!_user){window.location.href='/';return;}
-  window.location.href='edu.html';
+  window.location.href=twHomeHref();
 }
 
 // ── Load profile from API ──

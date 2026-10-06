@@ -100,8 +100,15 @@ check('2. twTalentBankHref → /u/{tw_id}?cand=',
       "'/u/' + encodeURIComponent(u.tw_id) + '?cand='" in tws)
 check('2. home.nav.js co sidebar → twTalentBankHref (label "بنك المواهب")',
       "label: 'بنك المواهب',  href: twTalentBankHref(user)" in read('static/home/home.nav.js'))
-check('2. messages.render.js co home → twTalentBankHref',
-      "twTalentBankHref(_user)" in read('messages.render.js'))
+msg_js = read('messages.render.js')
+check('2. messages.render.js home → twHomeHref(_user) for every type (no Talent Bank exception)',
+      'window.location.href = twHomeHref(_user);' in msg_js and 'twTalentBankHref' not in msg_js)
+check('2. edu-profile.html goHome → twHomeHref()',
+      "window.location.href=twHomeHref();" in read('edu-profile.html'))
+st_html = read('settings.html')
+check('2. settings.html goBack → twAccountHref(_user), no hardcoded profile paths',
+      'window.location.href = twAccountHref(_user);' in st_html
+      and "?id=' + _pid" not in st_html)
 check('2. job-detail.js "أكمل مهاراتك الآن" → twAccountHref',
       'twAccountHref(_user)' in read('static/job/job-detail.js'))
 main_js = read('static/company/company.main.js')
@@ -132,6 +139,36 @@ for u in LEGACY:
     r = client.get(u, follow_redirects=False)
     check(f'3. GET {u} → 200 shared redirect page', r.status_code == 200 and r.text == page,
           r.status_code)
+
+# ?id= on every legacy URL → 302 /u/{tw_id} (any account type) via the single lookup
+from unittest.mock import patch
+check('3. single id → tw_id lookup (_get_co_tw_id merged)',
+      hasattr(server, '_tw_id_for_user_id') and not hasattr(server, '_get_co_tw_id'))
+_TW = {7: 'U00000007aa', 8: 'C00000008bb', 9: 'T00000009cc'}   # emp / co / edu
+_calls = []
+def _fake_lookup(uid):
+    _calls.append(uid)
+    return _TW.get(uid)
+with patch.object(server, '_tw_id_for_user_id', side_effect=_fake_lookup):
+    for u in LEGACY:
+        for uid, tw in _TW.items():
+            r = client.get(f'{u}?id={uid}', follow_redirects=False)
+            check(f'3. GET {u}?id={uid} → 302 /u/{tw}',
+                  r.status_code == 302 and r.headers.get('location') == f'/u/{tw}',
+                  (r.status_code, r.headers.get('location')))
+        r = client.get(f'{u}?id=999999', follow_redirects=False)
+        check(f'3. GET {u}?id=<unknown> → redirect page, no 302',
+              r.status_code == 200 and r.text == page, r.status_code)
+    n_before = len(_calls)
+    for bad in ('abc', 'U00000007aa', '-5', '1.5', ''):
+        r = client.get('/profile', params={'id': bad}, follow_redirects=False)
+        check(f'3. GET /profile?id={bad!r} (not numeric) → redirect page, no 302',
+              r.status_code == 200 and r.text == page, r.status_code)
+    check('3. non-numeric id never hits the DB lookup', len(_calls) == n_before)
+    n_before = len(_calls)
+    r = client.get('/profile.html', follow_redirects=False)
+    check('3. GET /profile.html without id → redirect page, no lookup',
+          r.status_code == 200 and r.text == page and len(_calls) == n_before)
 
 r = client.get('/home', follow_redirects=False)
 check('3. GET /home still serves Home V2', r.status_code == 200 and 'home.main.js' in r.text)

@@ -222,7 +222,7 @@ These rules are permanent and apply to all future AI sessions.
 
 7. **`/company-profile` is a legacy redirect only (PR #386).** It is NOT a canonical URL and must not appear as a final link in share buttons, "شركتي" buttons, "إدارة الصفحة" buttons, or copy-link flows.
    - `/company-profile` (no params): serves the shared legacy redirect page (`_LEGACY_REDIRECT_HTML` in `server.py`) — see rule 10 below.
-   - `/company-profile?id=123`: server-side 302 → `/u/{that_company_tw_id}`.
+   - `/company-profile?id=123`: server-side 302 → `/u/{tw_id}` of account 123 (any type) — see rule 10.
    - `/company-profile.html`: same as above.
    - **Owner mode is determined by `viewer_type` from the server via JWT** — never by which URL the user arrived at.
 
@@ -232,9 +232,12 @@ These rules are permanent and apply to all future AI sessions.
 
 9. **Future entity public IDs** (J/P/A/V/D/E/L/Q/S) must use one shared generator in `auth.py` with **entity prefix only + random unique code — no country code, no ISO code, no dial code inside the public_id**. Signature: `generate_public_id(prefix)` — NOT `generate_public_id(prefix, country_code)`. Country data lives in the DB on the entity/user record; it must never be baked into the ID. Do NOT create a separate generator per entity type.
 
-10. **One legacy redirect page for every retired page URL (PR-4).** `_LEGACY_REDIRECT_HTML` in `server.py` is the single source for `/profile`, `/profile.html`, `/company`, `/company.html`, `/edu`, `/edu.html`, `/home.html`, `/jobs.html` and `/company-profile(.html)` without `?id=`. It loads `tw_shared.js` → `auth-sync.js` and decides via `twEntryDestination()` (TwAuthSync snapshot only): authenticated → `twAccountHref(u)` = `/u/{tw_id}`; guest / expired / stale / invalid → `/login` (stale session invalidated first).
+10. **One legacy redirect page for every retired page URL (PR-4).** `_LEGACY_REDIRECT_HTML` in `server.py` is the single source for `/profile`, `/profile.html`, `/company`, `/company.html`, `/edu`, `/edu.html`, `/home.html`, `/jobs.html`, `/company-profile`, `/company-profile.html`.
+   - `?id=N` (numeric, existing account of any type) → server-side **302 → `/u/{tw_id}`** via `_tw_id_for_user_id()` — the only id → tw_id lookup for legacy routes (F7 / F14).
+   - No `?id=`, non-numeric id, or unknown id → the redirect page (no 302). It loads `tw_shared.js` → `auth-sync.js` and decides via `twEntryDestination()` (TwAuthSync snapshot only): authenticated → `twAccountHref(u)` = `/u/{tw_id}`; guest / expired / stale / invalid → `/login` (stale session invalidated first).
    - ❌ Re-creating a page file or a per-route redirect for any of these URLs.
    - ❌ Deciding the redirect from `tw_user` alone.
+   - ❌ A second id → tw_id lookup for legacy routes.
    - Test: `python test_legacy_routes_cleanup.py`.
 
 ---
