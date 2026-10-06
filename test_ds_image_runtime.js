@@ -7,7 +7,7 @@
  *   A3  the three profile-v2 sites (.sc-avatar · .sc-fl-avatar · employee cover) use the helpers
  *   B1  twAvatarHtml / twAvatarEl: sizes · types · letter · escaping · eager/lazy · invalid URL → fallback
  *   B2  one capture error listener flips [data-tw-ava] to data-fb="1"
- *   B3  no consumers: no page / module calls twAvatarHtml / twAvatarEl yet
+ *   B3  consumers = phase-C pages only (allowlist — one approved PR per page)
  *
  * Run: node test_ds_image_runtime.js
  */
@@ -159,7 +159,8 @@ check('B2 ignores img outside [data-tw-ava]', !other.hasAttribute('data-fb'));
 errL[0].fn({ target: makeEl('script') }); errL[0].fn({ target: null });
 check('B2 ignores non-img / null targets', true);
 
-// ── B3 — no consumers ───────────────────────────────────────────────
+// ── B3 — consumers = phase-C pages only ─────────────────────────────
+const PHASE_C = [path.join('static', 'job', 'job-detail.js')];
 const SKIP = new Set(['.git', 'node_modules', 'vendor', '__pycache__', 'docs']);
 const users = [];
 (function walk(dir) {
@@ -171,7 +172,8 @@ const users = [];
     if (/twAvatar(Html|El)|data-tw-ava|tw-ava/.test(fs.readFileSync(path.join(dir, f.name), 'utf8'))) users.push(rel);
   }
 })(ROOT);
-check('B3 no consumers of twAvatar* / .tw-ava yet', users.length === 0, users.join(', '));
+check('B3 twAvatar* / .tw-ava used only by phase-C pages',
+  JSON.stringify(users.slice().sort()) === JSON.stringify(PHASE_C.slice().sort()), users.join(', '));
 
 const css = fs.readFileSync(path.join(ROOT, 'tw_shared.css'), 'utf8');
 const avaCss = css.slice(css.indexOf('16. DS-IMAGE'));

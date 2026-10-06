@@ -47,23 +47,23 @@
 - [ ] **P1** — Unified Profile Settings Menu: توحيد زر وقائمة إعدادات البروفايل عبر employee/company/education — نفس الشكل والسلوك والخيارات المشتركة، مع إضافات حسب نوع الحساب. القائمة تُبنى حسب صلاحيات viewer من backend فقط — ممنوع الاعتماد على localStorage.
 - [ ] **P1** — Unified Profile UI Tokens: قواعد موحدة لأحجام الواجهة (أيقونات، خطوط، مسافات، border radius، أزرار هيدر، meta text) عبر صفحات employee/company/education. `tw-ui-tokens.css` استُبدل بـ DS-SIZE في `tw_shared.css` (F36 · `docs/design-system/SIZE-SYSTEM.md`) — Phase 1 tokens ✅؛ الـ migration بالبنود تحت.
   - **[2026-07-18] Design System Button System V1 documentation مكتمل** (`docs/design-system/BUTTONS.md` + `docs/DESIGN_SYSTEM.md`). هذا يُغطي الـ button contract فقط — لا يُعتبر تنفيذاً لـ Unified Profile UI Tokens. طبقة الـ CSS (`tw-ui-tokens.css`) استُبدل بـ DS-SIZE في `tw_shared.css` — **[2026-10-06] PR-5 / المرحلة B**.
-- [ ] **P1** — DS-SIZE Phase 2: migration صفحة صفحة إلى tokens الـ DS-SIZE — **المطابق وتحت البكسل فقط** (SIZE-05) + استثناء أيقونات 13px → `--size-icon-sm` (قرار 2). موافقة صريحة لكل صفحة؛ الاستثناءات المجمّدة (SIZE-08) خارجها. القيم المرئية بـ PR redesign معلن لكل صفحة.
+- [ ] **P1** — DS-SIZE Phase 2 (job-detail ✅): migration صفحة صفحة إلى tokens الـ DS-SIZE — **المطابق وتحت البكسل فقط** (SIZE-05) + استثناء أيقونات 13px → `--size-icon-sm` (قرار 2). موافقة صريحة لكل صفحة؛ الاستثناءات المجمّدة (SIZE-08) خارجها. القيم المرئية بـ PR redesign معلن لكل صفحة.
 - [ ] **P1** — توحيد أزرار الهيدر: `.sc-home-btn` / `.sc-hicon` / `.hdr-back` = 32 (بروفايل/شركة) · 34 (رسائل) · 34/36 (مواعيد) · 40 (الهيدر المشترك). الميل لـ 40 (`--size-control-icon-lg`). PR بصري منفصل مع screenshots — ما في قرار لسا.
-- [ ] **P1** — DS-SHELL Phase C (F39 · `docs/design-system/PAGE-SHELL.md` SHELL-08): تحويل الصفحات للـ markers — **PR لكل صفحة** مع screenshots قبل/بعد (موبايل + ديسكتوب). بالترتيب: **job-detail ← landing ← appointments ← appointment-room** (الصفحات اللي ما بتحمّل `tw_shared.*` — `home-v2` ✅ PR-8؛ قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments الـ shell قبل `<style>` المحلي) ← بعدها الباقي. شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات. ومعها:
+- [ ] **P1** — DS-SHELL Phase C (F39 · `docs/design-system/PAGE-SHELL.md` SHELL-08): تحويل الصفحات للـ markers — **PR لكل صفحة** مع screenshots قبل/بعد (موبايل + ديسكتوب). بالترتيب: **landing ← appointments ← appointment-room** (الصفحات اللي ما بتحمّل `tw_shared.*` — `home-v2` ✅ PR-8 · `job-detail` ✅ Phase C؛ قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments الـ shell قبل `<style>` المحلي) ← بعدها الباقي. شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات. ومعها:
   - guard موحّد عبر TwAuthSync: `<meta name="tw-page" content="auth|public|entry|admin">` بدل قراءة `tw_user` مباشرة بـ 5 صفحات؛ الزائر بالصفحات المحمية → `/login`.
-  - `alert()` بالمواعيد و `jd-toast` (job-detail) → `showToast` الموحّد (F34).
+  - `alert()` بالمواعيد → `showToast` الموحّد (F34).
   - `.tw-skeleton` معرّف 6 مرات (`tw_shared.css` · `static/shared/tw-skeleton.css` · `company.css` · `index.css` …) → نسخة وحدة (§35).
   - `.sc-*` منسوخ 3 مرات (`app-header.css` / `profile-v2.css` / `messages.css`) → مصدر واحد.
-  - `/tw_shared.js` برّا allowlist الـ SW (§32 — بس `/static/*`) — **قرار مطلوب:** ننقله لـ `/static/`؟
+  - route `/tw_shared.js` القديم (الـ shell صار على `/static/tw_shared.js`): بينشال لما ما يضل إله مستهلك (الصفحات غير المحوّلة + `_LEGACY_REDIRECT_HTML`).
   - `user-scalable=no` + `maximum-scale` بـ `profile-showcase.html` → بينشال وقت تحويلها.
 - [ ] **P1** — DS-ICON Phase C: تحويل صفحة صفحة لـ `twIcon` / `twIconEl` (`static/shared/tw-icons.js` · F37 · `docs/design-system/ICON-SYSTEM.md` ICON-13). موافقة صريحة لكل صفحة؛ كل تغيير مرئي (توحيد الأحجام 10/11/15/19/24 · stroke 1.5/1.8/2.2/2.5 → 2 · رسومات Lucide الأقدم بالـ SVG inline) يُذكر بوصف الـ PR.
-- [ ] **P1** — DS-IMAGE Phase C (F38 · `docs/design-system/IMAGE-SYSTEM.md` IMG-13): بالترتيب **messages ← company ← profile**، وبعدها **home** و **job-detail** (بعد تحميل `tw_shared.*` عندهم). كل صفحة: `twAvatarHtml` / `twAvatarEl` + شيل الـ escaping المحلي (IMG-12) + توحيد الأحجام (38/42 → 40 · 44 → 48 · 84–94 → الأقرب — مرئي) + screenshots. موافقة صريحة لكل صفحة.
+- [ ] **P1** — DS-IMAGE Phase C (F38 · `docs/design-system/IMAGE-SYSTEM.md` IMG-13): بالترتيب **messages ← company ← profile**، وبعدها **home** (job-detail ✅ Phase C). كل صفحة: `twAvatarHtml` / `twAvatarEl` + شيل الـ escaping المحلي (IMG-12) + توحيد الأحجام (38/42 → 40 · 44 → 48 · 84–94 → الأقرب — مرئي) + screenshots. موافقة صريحة لكل صفحة.
   - غلاف الموظف 4:1 ثابت (العرض + `profile-v2.cover.js` cropper) — بدل الديناميكي W×240 (IMG-10).
   - لوغو الشركة مربع بزوايا (العرض + `openLogoCrop` preview مربع) — IMG-03.
 - [ ] **P2** — حذف `[data-ah-av]` الميت من `static/app-header.js` (ما في عنصر بيستعمله).
   - **أول PR:** زر الرجوع بـ `profile-showcase.html:46` (`#scPreviewBackBtn` — سهم يدوي) → `twIcon('back')` + باقي أيقونات `profile-showcase.html` نفسها.
-  - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html` · `job-detail.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
-  - دمج `_lucideIcon()` المكرّرة (`static/job/job-detail.js` · `static/home/home.cards.js`) — تختفي لصالح `twIconEl`.
+  - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
+  - دمج `_lucideIcon()` المكرّرة (`static/home/home.cards.js`) — تختفي لصالح `twIconEl`.
   - تحويل `LINK_ICONS` (`profile-v2.links.js`) · `_FILTER_ICONS` (`company.main.js` — SVG inline) · قائمة الهيدر `_TW_HEADER_MENU_POLICY` (`tw_shared.js` — SVG inline) لأسماء registry (المقابلات مثبّتة بـ `test_ds_icon_registry.js`).
   - سهم القائمة المنسدلة بـ `static/company/company.css` (data-URI SVG بلون ثابت `#6b7686` / `#94a3b8` — سطور ~1298 و ~2152) → أيقونة `expand` بـ `currentColor`.
   - `_skillIconHtml` / `tw-select.js` / `company.jobs.js`: الاسم ما يدخل الـ HTML بعد التحويل (يسكّر الحقن الحالي بـ `data-lucide`).

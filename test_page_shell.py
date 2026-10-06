@@ -36,10 +36,16 @@ PAGE = ("<!DOCTYPE html><html><head>\n<!--tw:shell-head-->\n<title>t</title>\n"
 print("\nA — marker replacement (app)")
 out = apply_shell(PAGE, "t.html")
 check("A01 markers removed", "<!--tw:shell-" not in out)
-for asset in ("/static/tw_shared.css?v=", "/tw_shared.js?v=", "/static/shared/auth-sync.js?v=",
+for asset in ("/static/tw_shared.css?v=", "/static/tw_shared.js?v=", "/static/shared/auth-sync.js?v=",
               'rel="manifest"', 'charset="UTF-8"', 'name="viewport"', 'name="theme-color"',
               'rel="icon"', 'href="/apple-touch-icon.png"', "Cairo:wght@400;500;600;700;800;900"):
     check(f"A02 '{asset}' exactly once", out.count(asset) == 1, out.count(asset))
+APP_META = ('<meta name="mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
+            '<meta name="apple-mobile-web-app-title" content="تواصلنا">')
+for m in APP_META:
+    check(f"A09 PWA meta once: {m[12:50]}", out.count(m) == 1, out.count(m))
 check("A03 shared CSS before page CSS",
       out.index("/static/tw_shared.css") < out.index("/static/page.css"))
 check("A04 head block inside <head>", out.index("tw_shared.css") < out.index("</head>"))
@@ -61,8 +67,9 @@ adm = apply_shell(PAGE.replace("shell-head-->", "shell-head:admin-->")
 check("C01 markers removed", "<!--tw:shell-" not in adm)
 check("C02 no auth-sync", "auth-sync" not in adm)
 check("C03 no manifest", "manifest" not in adm)
+check("C04b no PWA app meta in admin", "mobile-web-app" not in adm)
 check("C04 SW opt-out meta", '<meta name="tw-sw" content="off">' in adm)
-check("C05 tw_shared.js + css once", adm.count("/tw_shared.js?v=") == 1 and adm.count("tw_shared.css?v=") == 1)
+check("C05 tw_shared.js + css once", adm.count("/static/tw_shared.js?v=") == 1 and adm.count("tw_shared.css?v=") == 1)
 check("C06 tw_shared.js honours tw-sw=off",
       'meta[name="tw-sw"][content="off"]' in read("tw_shared.js"))
 
@@ -113,6 +120,17 @@ check("F05 auth-sync.js before home.header.js",
       hv2.index("auth-sync.js") < hv2.index("home.header.js"))
 check("F06 charset is the first tag in <head>",
       hv2.index("<head>") < hv2.index('charset="UTF-8"') < hv2.index("<title>"))
+
+print("\nH — shell pages carry no copy of the PWA app meta")
+import glob
+for name in sorted(glob.glob("*.html")):
+    raw_p = read(name)
+    if "<!--tw:shell-" not in raw_p:
+        continue
+    check(f"H01 {name}: no hand-copied mobile-web-app meta", "mobile-web-app" not in raw_p)
+    served = apply_shell(raw_p, name)
+    check(f"H02 {name}: each PWA meta exactly once when served",
+          all(served.count(m) == 1 for m in APP_META))
 
 print("\nG — server.read_html wiring (static)")
 srv = read("server.py")

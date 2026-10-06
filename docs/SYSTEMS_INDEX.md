@@ -146,9 +146,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 14. Job Detail Page
 **Purpose:** Single job view with full description, skills, match section, similar jobs, apply action.
-**Source of Truth:** `GET /jobs/{job_id}` · `static/job/job-detail.js` + `job-detail.css`
-**Details:** `ARCHITECTURE.md §62`
-**Do not recreate:** Similar jobs use score-based filtering (profession_id + shared skills) — never show random unrelated jobs. Skill icons via `TW.getSkillIcon()` — no per-page icon mapping.
+**Source of Truth:** `GET /jobs/{job_id}` · `job-detail.html` · `static/job/job-detail.js` + `job-detail.css`
+**Details:** `ARCHITECTURE.md §62`. **Phase C ✅ (أول صفحة محوّلة):** Page Shell §58 (markers · `tw_shared.css` قبل CSS الصفحة · `/static/tw_shared.js`) · session من `TwAuthSync.getSessionSnapshot()` فقط — صفحة عامة، الزائر بيقرأ؛ تقديم / حفظ / إبلاغ للزائر → `/login`؛ الـ JWT عبر `getAuthHeaders()` · أيقونات `twIconEl` (DS-ICON §56 — `tw-icons.js` سكربت صفحة) · لوغو الشركة `twAvatarHtml` xl (هيدر، eager) / lg (كرت) — مربع بزوايا (DS-IMAGE §57) · DS-SIZE tokens (§55) · `showToast` الموحّد (F34). Test: `python test_job_detail_shell.py`.
+**Do not recreate:** Similar jobs use score-based filtering (profession_id + shared skills) — never show random unrelated jobs. Skill icons via `TW.getSkillIcon()` → `twIconEl` — no per-page icon mapping. لا `localStorage` مباشر · لا Lucide / `data-lucide` · لا toast محلي (`jd-toast`) · لا `<img>` لوغو يدوي.
 
 ---
 
@@ -991,28 +991,28 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Tiers** (SIZE-07): T1 عالمي · T2 alias محلي (`--r-sm: var(--radius-md)`) · T3 قيمة محلية موثقة.
 - **استثناءات مجمّدة** (SIZE-08): `.sc-actions` / `.sc-btn` (profile-v2) · post-comments (28px indent، avatar 32/22، max-height 280px).
 - **لا tokens** للمسافات الفردية (3/5/7/9/11/13px) ولا لارتفاع 36px (BTN-04 MD بدون مستهلك). أزرار الهيدر (32/34/40) بدون قرار — PR بصري منفصل.
-- **صفحات بدون `tw_shared.css`:** home-v2 · job-detail · landing · appointments · appointment-room — ممنوع نسخ الـ tokens لإلها.
+- **صفحات بدون `tw_shared.css`:** landing · appointments · appointment-room — ممنوع نسخ الـ tokens لإلها (home-v2 ✅ PR-8 · job-detail ✅ Phase C).
 **Do not recreate:** لا تعرّف `--size-*` / `--radius-*` / `--space-*` برّا `tw_shared.css`. لا `tw-ui-tokens.css` ولا ملف tokens ثاني. لا تبدّل قيمة مرئية ضمن migration. لا تلمس الاستثناءات المجمّدة. لا migration لصفحة بدون موافقة صريحة.
 **Cross-references:** DS-BTN §39 (BTN-02 `--radius-control` · BTN-04 sizes). DS-COLOR §50 (CLR-15 — الأبعاد المحلية تتبع SIZE-07). DS-INP §42 (حقول بدون `height` مفروض).
 **Test:** `python test_ds_size_tokens.py`
-**Status:** Phase A (audit) ✅ · Phase 1 (docs + tokens، بدون مستهلك) ✅ (2026-10-06 — PR-5 / المرحلة B) · Phase 2 (page-by-page migration) 🔜
+**Status:** Phase A (audit) ✅ · Phase 1 (docs + tokens، بدون مستهلك) ✅ (2026-10-06 — PR-5 / المرحلة B) · Phase 2 (page-by-page migration) 🔜 جاري — job-detail ✅
 
 ---
 
 ### 56. Icon System V1 [DS-ICON]
 **Purpose:** النظام الرسمي الوحيد لأيقونات الواجهة: registry واحد (أسماء + رسومات Lucide 0.460) ودالة رسم موحّدة، قلب RTL تلقائي للأيقونات الاتجاهية، ومنع الـ emoji والـ SVG اليدوي كأيقونات واجهة. يغطي كمان أيقونات الكتالوج (مهارات + مهن) — الهدف إلغاء مكتبة Lucide كاملة.
-**Source of Truth:** `static/shared/tw-icons.js` (Runtime — Phase B ✅، بدون مستهلك) · `docs/design-system/ICON-SYSTEM.md`
+**Source of Truth:** `static/shared/tw-icons.js` (Runtime — Phase B ✅ · Phase C: أول مستهلك `job-detail.html`) · `docs/design-system/ICON-SYSTEM.md`
 **Details:** `docs/design-system/ICON-SYSTEM.md` (ICON-00 → ICON-14) · `docs/rules/ds-icon.md` · `ARCHITECTURE_FOUNDATION.md` F37 · `THIRD_PARTY_NOTICES.md` → Lucide (ISC). أبرز قواعد:
 - **API:** `twIcon(name, opts)` → string SVG · `twIconEl(name, opts)` → عنصر SVG · `twIcon.has(name)`. مخرجات ثابتة: `viewBox 0 0 24 24` · `fill none` · `stroke currentColor` · `stroke-width 2` · class `tw-ico` · `aria-hidden="true"`.
 - **`opts.size`** = `xs`…`2xl` → `var(--size-icon-X, <px>)` (يشتغل بدون `tw_shared.css`) · بدون size → CSS الصفحة · `opts.filled` → `fill currentColor` · `opts.className` مفلتر.
-- **الأسماء:** 105 اسم واجهة (أفعال/تنقّل حسب المعنى: `back` · `forward` · `prev` · `next` · `close` · `delete`…) + 82 اسم كتالوج (القيمة المخزَّنة بالـ DB) + جدول `ALIASES` واحد (12).
+- **الأسماء:** 106 اسم واجهة (`report` = flag — Phase C job-detail) (أفعال/تنقّل حسب المعنى: `back` · `forward` · `prev` · `next` · `close` · `delete`…) + 82 اسم كتالوج (القيمة المخزَّنة بالـ DB) + جدول `ALIASES` واحد (12).
 - **الاتجاه:** `dir:true` (`back` · `forward` · `prev` · `next` · `send` · `log-in` · `log-out`) → class `tw-ico-dir` + قاعدة وحدة محقونة (`<style id="tw-ico-style">`). ممنوع `arrow-left/right` و `chevron-left/right` يدوي.
 - **الأمان:** الاسم مفتاح فقط — ما بيدخل الـ HTML؛ غير معروف → `help` + warning مرّة وحدة.
 - **استثناء مجمّد:** `.sc-btn .ico-sm` stroke 1.8 بالـ CSS.
 **Do not recreate:** لا مكتبة أيقونات ثانية ولا نسخة Lucide ثانية ولا CDN. لا SVG inline جديد ولا `<i data-lucide>` جديد. لا registry ثاني ولا خريطة أيقونات محلية ولا جدول aliases ثاني. لا emoji كأيقونة واجهة. لا أيقونة بدون مستهلك. لا تحميل `tw-icons.js` بصفحة خارج PR المرحلة C الخاص فيها.
 **Cross-references:** DS-SIZE §55 (`--size-icon-*` — SIZE-06) · DS-COLOR §50 (`currentColor` — CLR-33) · DS-BTN §39 (BTN-06 icon buttons) · Hybrid Skill Icon System (`ARCHITECTURE.md`) · Vendor Assets (`ARCHITECTURE.md`).
 **Test:** `node test_ds_icon_registry.js`
-**Status:** Phase A (audit) ✅ · Phase B (registry + docs + test، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-6 / المرحلة B) · Phase C (page-by-page conversion + إزالة Lucide) 🔜
+**Status:** Phase A (audit) ✅ · Phase B (registry + docs + test، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-6 / المرحلة B) · Phase C (page-by-page conversion + إزالة Lucide) 🔜 جاري — job-detail ✅
 
 ---
 
@@ -1029,7 +1029,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Do not recreate:** لا markup أفاتار / لوغو بصفحة بدل `twAvatar*`. لا regex محلي لرابط صورة ولا `background-image` بدون `twCssUrl`. لا `esc(url)` كتحقق رابط. لا `onerror` inline ولا listener ثاني. لا px / hex خام للأحجام والألوان. لا تحويل صفحة (المرحلة C) بدون موافقة صريحة.
 **Cross-references:** §54 Safe Rendering · DS-SIZE §55 · DS-COLOR §50 · §29a Upload · §29b Cropper · App Header §28 (`[data-ah-av]` ميت — Roadmap).
 **Test:** `node test_ds_image_runtime.js`
-**Status:** Phase A (فحص) ✅ · Phase B (helper + CSS + tokens + توثيق + إصلاح §54 بـ profile-v2، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-7b) · Phase C (messages ← company ← profile ← home / job-detail) 🔜
+**Status:** Phase A (فحص) ✅ · Phase B (helper + CSS + tokens + توثيق + إصلاح §54 بـ profile-v2، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-7b) · Phase C 🔜 جاري — job-detail ✅ (أول صفحة) · الباقي: messages ← company ← profile ← home
 
 ---
 
@@ -1038,15 +1038,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `page_shell.py` (`apply_shell` · `build_shell` · `asset_hash` · `SHELL_ASSETS` · `SHELL_VARIANTS`) · `partials/shell-head.html` · `partials/shell-scripts.html` · `partials/shell-head.admin.html` · `partials/shell-scripts.admin.html` · `read_html()` بـ `server.py` · `docs/design-system/PAGE-SHELL.md`
 **Details:** `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08) · `docs/rules/page-shell.md` · `ARCHITECTURE_FOUNDATION.md` F39. أبرز قواعد:
 - **Markers:** `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (app + entry) · `<!--tw:shell-head:admin-->` / `<!--tw:shell-scripts:admin-->`. بدون markers → الصفحة مطابقة بالبايت. ناقصة / مكرّرة / مخلوطة → `ValueError`.
-- **head:** charset · viewport عادي · theme-color `#00c896` · manifest · `/favicon.ico` + `/apple-touch-icon.png` (§32) · Cairo 400–900 · `/static/tw_shared.css?v=H`. **scripts:** `/tw_shared.js?v=H` ← `/static/shared/auth-sync.js?v=H`.
+- **head:** charset · viewport عادي · theme-color `#00c896` · manifest · `mobile-web-app-capable` + `apple-mobile-web-app-*` (capable · status-bar `black-translucent` · title — app فقط) · `/favicon.ico` + `/apple-touch-icon.png` (§32) · Cairo 400–900 · `/static/tw_shared.css?v=H`. **scripts:** `/static/tw_shared.js?v=H` (داخل allowlist الـ SW §32؛ `/tw_shared.js` القديم بيضل للصفحات غير المحوّلة — نفس الملف) ← `/static/shared/auth-sync.js?v=H`.
 - **الترتيب:** المشترك أولاً — يُطبَّق صفحة صفحة (المرحلة C) مع فحص بصري.
 - **`H`:** أول 10 hex من sha256 للملف، مرة وحدة عند بدء السيرفر.
 - **admin:** بدون manifest / auth-sync · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل SW.
-- **مستهلكين:** `home-v2.html` (Phase B — تجريبية).
+- **مستهلكين:** `home-v2.html` (Phase B — تجريبية) · `job-detail.html` (Phase C).
 **Do not recreate:** لا آلية حقن ثانية ولا partial ثاني. لا نسخ tags الـ shell يدوياً بصفحة محوّلة. لا `?v=` يدوي لملف مشترك. لا بيانات مستخدم بالحقن (§54). لا `tw-icons.js` ولا `user-scalable=no` بالـ shell. لا تحويل صفحة بدون screenshots.
 **Cross-references:** §32 SW / PWA (icons · manifest · allowlist) · §54 · VM-10 / TwAuthSync (guard المرحلة C) · DS-ICON §56 (F37) · DS-COLOR §50.
 **Test:** `python test_page_shell.py`
-**Status:** Phase A (فحص) ✅ · Phase B (النظام + home-v2 تجريبية، screenshots مطابقة) ✅ (2026-10-06 — PR-8) · Phase C (job-detail ← landing ← appointments ← appointment-room ← الباقي) 🔜
+**Status:** Phase A (فحص) ✅ · Phase B (النظام + home-v2 تجريبية، screenshots مطابقة) ✅ (2026-10-06 — PR-8) · Phase C 🔜 جاري — job-detail ✅ ← landing ← appointments ← appointment-room ← الباقي
 
 ---
 
@@ -1093,4 +1093,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — PR-8 (DS-SHELL) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — Phase C / job-detail · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

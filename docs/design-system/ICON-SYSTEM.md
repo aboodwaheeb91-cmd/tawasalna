@@ -3,7 +3,7 @@
 > النظام الرسمي الوحيد لأيقونات الواجهة في تواصلنا: مصدر الرسومات، الأسماء، طريقة الرسم (render)، الاتجاه بالـ RTL، والممنوعات.
 >
 > **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F37.
-> **Runtime Source of Truth:** `static/shared/tw-icons.js` (registry — Phase B ✅، بدون مستهلك).
+> **Runtime Source of Truth:** `static/shared/tw-icons.js` (registry — Phase B ✅ · Phase C: أول مستهلك `job-detail.html`).
 > **قوانين الـ AI:** `docs/rules/ds-icon.md`.
 > **الاختبار:** `node test_ds_icon_registry.js`.
 > **المرجع:** تقرير المرحلة A (PR-6 / المرحلة A — جرد الأيقونات) + القرارات المعتمدة من صاحب المشروع (1–7).
@@ -95,14 +95,14 @@ twIcon.has('briefcase');                        // true / false — بدون war
 3. **أيقونات الكتالوج = الاسم المخزَّن بالـ DB حرفياً** (ICON-04.3).
 4. اسم واحد لكل معنى. معنيين مختلفين بنفس الرسمة = اسمين (`collapse` و `move-up` كلاهما chevron-up).
 
-### ICON-04.2 — أسماء الواجهة (105)
+### ICON-04.2 — أسماء الواجهة (106)
 
 | المجموعة | الأسماء (`اسم` (رسمة Lucide) إذا مختلفة) |
 |----------|----------------------------------------|
 | اتجاهية — `dir:true` (ICON-08) | `back` (arrow-left) · `forward` (arrow-right) · `prev` (chevron-left) · `next` (chevron-right) · `send` · `log-in` · `log-out` |
 | فتح / ترتيب | `expand` (chevron-down) · `collapse` (chevron-up) · `move-up` (chevron-up) · `move-down` (chevron-down) · `show-more` (circle-arrow-down) · `show-less` (circle-arrow-up) |
 | هيكل التطبيق | `home` · `notifications` (bell) · `messages` (message-circle-more) · `chat` (message-circle) · `comment` (message-square) · `menu` · `more` (ellipsis-vertical) · `list` · `settings` · `search` · `zoom-in` · `zoom-out` |
-| أفعال | `add` (plus) · `add-circle` (plus-circle) · `edit` (square-pen) · `pencil` · `delete` (trash-2) · `close` (x) · `check` · `copy` · `share` (share-2) · `download` · `upload` (upload-cloud) · `refresh` (refresh-cw) · `camera` |
+| أفعال | `add` (plus) · `add-circle` (plus-circle) · `edit` (square-pen) · `pencil` · `delete` (trash-2) · `close` (x) · `check` · `copy` · `share` (share-2) · `report` (flag — إبلاغ عن محتوى؛ أول مستهلك job-detail) · `download` · `upload` (upload-cloud) · `refresh` (refresh-cw) · `camera` |
 | حالات | `success` (check-circle) · `error` (circle-x) · `alert` (circle-alert) · `info` · `help` (circle-help — **الـ fallback**) · `circle-check` (fallback المهارة المخصّصة) · `verified` (badge-check) · `shield-check` · `wifi-off` |
 | أشخاص | `user` · `user-round` · `users` · `user-plus` · `user-check` · `user-minus` |
 | تبديل (outline؛ المفعّل بـ `filled`) | `bookmark` · `bookmark-check` · `star` · `heart` · `eye` · `eye-off` |
@@ -225,12 +225,12 @@ twIcon.has('briefcase');                        // true / false — بدون war
 |---------|--------|
 | A — جرد الأيقونات + القرارات | ✅ |
 | B — registry + توثيق + اختبار، **بدون مستهلك وبدون تغيير بصري** | ✅ PR-6 / المرحلة B (2026-10-06) |
-| C — تحويل صفحة صفحة | 🔜 — `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
+| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail.html` (أول مستهلك: `data-lucide` + emoji → `twIconEl`، `_lucideIcon` انحذفت، Lucide ما عاد ينحمّل بالصفحة، زر الرجوع `prev`) · الباقي: `docs/FUTURE_ROADMAP.md` → DS-ICON Phase C |
 
 **المرحلة C (ملخّص — التفاصيل بالـ roadmap):**
 1. أول PR: زر الرجوع بـ `profile-showcase.html:46` → `twIcon('back')` + باقي أيقونات الصفحة نفسها.
 2. صفحة صفحة: `data-lucide` + SVG inline + emoji → `twIcon`؛ توحيد الأحجام والسماكة (ICON-05/07) مع ذكر التغيير المرئي.
-3. دمج `_lucideIcon` المكرّرة (job-detail وغيرها) · تحويل `LINK_ICONS` / `_FILTER_ICONS` / قائمة الهيدر لأسماء registry · سهم القائمة المنسدلة بـ `company.css`.
+3. دمج `_lucideIcon` المكرّرة (job-detail ✅ · home.cards.js) · تحويل `LINK_ICONS` / `_FILTER_ICONS` / قائمة الهيدر لأسماء registry · سهم القائمة المنسدلة بـ `company.css`.
 4. بالآخر: إزالة `static/vendor/lucide/lucide.min.js` + unpkg CDN (`index.html` · `profile-showcase.html`) + `lucide.createIcons()`؛ فحص "رسمة = Lucide 0.460" بالاختبار بيتحوّل لمقارنة مع snapshot ثابت.
 5. admin بالآخر.
 

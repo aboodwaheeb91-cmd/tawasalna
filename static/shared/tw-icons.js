@@ -22,7 +22,7 @@
 //     use the meaning names back / forward / prev / next.
 //   - New icon → registry entry + consumer in the same PR + `node test_ds_icon_registry.js`.
 //
-// No consumers yet (PR-6 / phase B). Pages switch to it one by one in phase C.
+// Phase C: pages switch to it one by one (first consumer: job-detail.html). Never in the Page Shell (F39).
 (function () {
   'use strict';
 
@@ -67,6 +67,7 @@
     'check': [0, '<path d="M20 6 9 17l-5-5"/>'],
     'copy': [0, '<rect rx="2" ry="2" x="8" y="8" width="14" height="14"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'],
     'share': [0, '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>'],  // share-2
+    'report': [0, '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>'],  // flag
     'download': [0, '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'],
     'upload': [0, '<path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/>'],  // upload-cloud
     'refresh': [0, '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'],  // refresh-cw
