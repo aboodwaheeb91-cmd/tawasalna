@@ -8,7 +8,51 @@
 > **This file has higher priority than feature-level documentation.**
 > **If a feature document conflicts with ARCHITECTURE_FOUNDATION.md, the foundation file wins.**
 >
-> **إلزامي القراءة قبل أي تعديل أو ميزة جديدة.**
+> **طريقة القراءة الإلزامية (بروتوكول المهام — `CLAUDE.md` البند 1):** اقرأ "فهرس القواعد" أدناه أولاً، ثم `docs/SYSTEMS_INDEX.md` كفهرس، ثم فقط نص القواعد والأنظمة المرتبطة بالمهمة. لا حاجة لقراءة هذا الملف كاملاً في كل مهمة.
+
+---
+
+## فهرس القواعد (Rule Index)
+
+> اقرأ هذا الجدول أولاً في كل مهمة، ثم افتح فقط القاعدة (أو القواعد) المرتبطة بالمهمة. السطر هنا ملخّص للتوجيه فقط — **النص الملزِم هو قسم القاعدة نفسه أدناه**.
+
+| # | الأولوية | القاعدة (سطر واحد) |
+|---|---------|-------------------|
+| F1 | **P0** | منصة متعددة العملاء (Web / Mobile / Admin) — نفس Backend ونفس Database ونفس REST API؛ الفرق في الواجهة فقط. |
+| F2 | **P0** | API-first — أي ميزة تحمل بيانات أو منطقاً تُبنى عبر API قابلة لإعادة الاستخدام، لا داخل HTML/JS فقط. |
+| F3 | **P0** | Backend واحد (FastAPI في `server.py`) وقاعدة بيانات واحدة — ممنوع app أو DB أو Supabase project ثانٍ. |
+| F4 | **P0** | Shared System First — افحص `static/shared/` و SYSTEMS_INDEX و CLAUDE.md قبل إنشاء أي helper/system جديد. |
+| F5 | **P0** | لكل معلومة مهمة مصدر حقيقة واحد؛ localStorage cache فقط. |
+| F6 | **P0** | الصلاحيات يفرضها Backend (JWT + ملكية + نوع حساب)؛ الواجهة تُخفي للـ UX فقط. |
+| F7 | **P0** | `/u/{tw_id}` هو المسار العام الوحيد لكل أنواع الحسابات؛ الروابط القديمة redirects فقط. |
+| F8 | **P1** | كل ميزة جاهزة للجوال: JSON نظيف، pagination، error shapes ثابتة، JWT فقط. |
+| F9 | **P0** | No Silent Failures — ممنوع `except: pass`؛ كل خطأ مهم يُسجَّل ويُعاد بوضوح. |
+| F10 | **P1** | لا حلول مؤقتة — السبب الجذري أولاً، ثم الإصلاح، ثم منع التكرار. |
+| F11 | **P1** | أي PR يعدّل نظاماً مهماً يضيف أو يحدّث static checks/اختبارات بحدود مضبوطة. |
+| F12 | **P1** | التوثيق يتبع المعمارية — يُحدَّث في نفس الـ PR، لا في وصف الـ PR فقط. |
+| F13 | **P0** | Pre-push GitHub State Check قبل أي commit / push / PR؛ PR مدموج → branch جديد من main. |
+| F14 | **P0** | Backward Compatibility — ممنوع كسر API أو route مستخدم بدون migration وموافقة. |
+| F15 | **P1** | شكل رد API موحَّد: `{ok, data}` / `{ok:false, error}` مع HTTP status صحيح. |
+| F16 | **P1** | أي تغيير DB عبر دالة `_migrate_*()` idempotent وموثَّقة. |
+| F17 | **P0** | Security by Default — كل endpoint جديد يحدد security model (JWT/owner/type/rate limit/validation) قبل التنفيذ. |
+| F18 | **P1** | العمليات المهمة تُنفَّذ بشكل قابل للمراجعة (audit log) — على الأقل log واضح الآن. |
+| F19 | **P2** | الميزات التي قد تولّد إشعاراً تُبنى مع نقطة hook واضحة للإشعارات. |
+| F20 | **P1** | مصفوفة الصلاحيات حسب نوع الحساب مركزية وتُحدَّث مع كل صلاحية جديدة. |
+| F21 | **P0** | No Client-only Trust — إخفاء الزر ليس حماية؛ Backend يمنع التنفيذ فعلياً. |
+| F22 | **P1** | العمليات القابلة للتكرار idempotent (`ON CONFLICT DO NOTHING` / get-or-create). |
+| F23 | **P1** | Observability — logs واضحة + أخطاء واضحة + رد موحَّد في كل نظام مهم. |
+| F24 | **P1** | كل ملف مرفوع له مالك ومسار يعكس الملكية وسياسة عرض/حذف واضحة. |
+| F25 | **P2** | البيانات المهمة تُخزَّن قابلة للبحث (indexes)؛ ممنوع `ORDER BY RANDOM()` على Feed. |
+| F26 | **P2** | النصوص الثابتة لا تُربط بالمنطق بطريقة تمنع الترجمة لاحقاً. |
+| F27 | **P1** | Soft Delete للبيانات المهمة؛ Hard delete فقط بموافقة صريحة. |
+| F28 | **P2** | كل ميزة عامة قابلة للإدارة لاحقاً من لوحة الأدمن (status fields + admin endpoints). |
+| F29 | **P0** | مفهوم واحد = مصدر Canonical واحد في Backend و Frontend (نماذج + UI + Validation). |
+| F30 | **P0** | لا يوجد نظام موثَّق يغطي الحاجة (أو تغطية جزئية) → STOP واشرح قبل البناء. |
+| F31 | **P0** | قبل كتابة أي كود حدّد النظام الذي ينتمي له عبر جدول التوجيه الرسمي. |
+| F32 | **P0** | DS-DATE هو النظام الوحيد لكل حقول التاريخ والوقت. |
+| F33 | **P0** | DS-OVL هو النظام الوحيد لكل Overlays (Modal / Drawer / Sheet / Confirmation / Dialog). |
+| F34 | **P0** | DS-FEEDBACK هو النظام الوحيد لـ Toast / Snackbar. |
+| F35 | **P0** | DS-COLOR هو النظام الوحيد لكل color tokens؛ `--color-*` في `tw_shared.css` فقط. |
 
 ---
 
@@ -19,48 +63,6 @@
 | **P0** | غير قابل للكسر. لا استثناء إلا بوثيقة معمارية معتمدة. |
 | **P1** | قابل للاستثناء بموافقة صريحة + تسجيل في ARCHITECTURE.md §C |
 | **P2** | توجيه مفضّل. مقبول الانحراف إذا كان مبرراً. |
-
----
-
-## القواعد العليا (Foundation Rules)
-
-| # | القاعدة | Priority |
-|---|---------|----------|
-| F1 | Platform, Not Website | **P0** |
-| F2 | API-first Rule | **P0** |
-| F3 | Single Backend / Single Database | **P0** |
-| F4 | Shared System First | **P0** |
-| F5 | One Source of Truth | **P0** |
-| F6 | Backend Owns Permissions | **P0** |
-| F7 | Public Routes Contract | **P0** |
-| F8 | Mobile-ready Architecture | **P1** |
-| F9 | No Silent Failures | **P0** |
-| F10 | No Patch-first Development | **P1** |
-| F11 | Tests / Static Checks Required | **P1** |
-| F12 | Documentation Must Follow Architecture | **P1** |
-| F13 | Pre-push GitHub State Check | **P0** |
-| F14 | Backward Compatibility Rule | **P0** |
-| F15 | Standard API Response Rule | **P1** |
-| F16 | Database Migration Rule | **P1** |
-| F17 | Security by Default | **P0** |
-| F18 | Important Actions Audit-ready Rule | **P1** |
-| F19 | Notification-ready Rule | **P2** |
-| F20 | Role and Permission Matrix Rule | **P1** |
-| F21 | No Client-only Trust | **P0** |
-| F22 | Idempotency Rule | **P1** |
-| F23 | Observability Rule | **P1** |
-| F24 | Storage Ownership Rule | **P1** |
-| F25 | Search-ready Data Rule | **P2** |
-| F26 | Multi-language Ready Rule | **P2** |
-| F27 | Soft Delete Rule | **P1** |
-| F28 | Admin-ready Rule | **P2** |
-| F29 | One Concept = One Source of Truth (Form & UI) | **P0** |
-| F30 | No Matching System = Stop and Report | **P0** |
-| F31 | System Routing Before Implementation | **P0** |
-| F32 | Date & Time Fields System (DS-DATE) | **P0** |
-| F33 | Overlay System (DS-OVL) | **P0** |
-| F34 | Operational Feedback System (DS-FEEDBACK) | **P0** |
-| F35 | Color System V1 (DS-COLOR) | **P0** |
 
 ---
 
@@ -1245,3 +1247,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F35`
 *حُدِّث في PR docs/ds-ovl-v1 — 2026-07-24 — أُضيفت القاعدة F33: Overlay System (DS-OVL). F31 جدول التوجيه: صف Overlay/Modal/Drawer أُضيف للإشارة إلى `docs/design-system/OVERLAY-SYSTEM.md`؛ تعارض Routing أُصلح: Popover حُذف من صف DS-OVL (OVL-00 + OVL-37 يُصرِّحان أنه خارج DS-OVL V1)؛ صف Tooltip/Popover/Floating label/Context menu أُضيف → STOP. المجموع: 33 قاعدة عليا.*
 *حُدِّث في PR docs/ds-feedback-v1 — 2026-07-24 — أُضيفت القاعدة F34: Operational Feedback System (DS-FEEDBACK). F31 جدول التوجيه: صف Toast/Snackbar/Operational Feedback أُضيف للإشارة إلى `docs/design-system/FEEDBACK-SYSTEM.md`. المجموع: 34 قاعدة عليا.*
 *حُدِّث في PR #520 (DS-COLOR Phase 1 Final Documentation Sync) — 2026-07-26 — F35 قاعدة 9 حُدِّثت: Phase 0 ✅ + Phase 1 ✅ (Runtime Tokens Foundation مكتمل). ممنوعات F35 حُدِّثت: Phase 1 Runtime restriction أُزيلت (مكتملة)؛ Phase 2 page migration restriction أُضيفت.*
+*حُدِّث في PR-3 (docs/protocol-conflicts) — 2026-10-06 — أُضيف "فهرس القواعد" (F1–F35 بسطر واحد لكل قاعدة) بأول الملف بدلاً من جدول "القواعد العليا" (نفس الأرقام والأولويات)؛ سطر "إلزامي القراءة" عُدِّل ليطابق بروتوكول المهام (CLAUDE.md البند 1). لم يتغيّر نص أي قاعدة.*

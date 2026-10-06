@@ -102,14 +102,12 @@
 
 ### Messaging
 
-- [ ] **P0** — WebSocket Security Hardening (P0 Security Debt): تحقق JWT على `/ws/{user_id}` — موثَّق في SYSTEMS_INDEX §18
 - [ ] **P2** — Message read receipts UI: عرض "تمت القراءة" في واجهة المحادثة
 
 ---
 
 ### Admin Dashboard
 
-- [ ] **P1** — Reports review panel: واجهة أدمن لمراجعة البلاغات (`reports` table موجود)
 - [ ] **P1** — Verification requests review: واجهة أدمن لمراجعة طلبات توثيق الشركات والمؤسسات (مرتبط بـ Verification Badge & Flow)
 - [ ] **P2** — News posts management: إنشاء وتعديل وحذف `news_posts` من لوحة الأدمن
 
@@ -140,14 +138,12 @@
 
 ### Security
 
-- [ ] **P0** — WebSocket auth hardening (مكرر من Messaging — مذكور للأولوية)
-- [ ] **P1** — `POST /auth/verify-token` endpoint: التحقق من صلاحية JWT من client قبل الاعتماد على localStorage (موثَّق في CLAUDE.md §Auth Gateway Rules §6)
 - [ ] **P2** — Rate limiting audit: مراجعة rate limits على endpoints الحساسة (تعليق، تقدير، متابعة)
 
 > **ملاحظة — مراجعة أمنية شاملة مؤجلة:**
 > مراجعة الأمن الشاملة للمنصة (security audit كامل للـ endpoints والـ auth flow والـ permissions) مؤجلة إلى ما بعد اكتمال ميزات المنصة الأساسية.
 > الأولوية الآن هي بناء الوظائف. بعد الانتهاء من الـ core features يُفتح PR مستقل بعنوان واضح للمراجعة الأمنية.
-> ليس معنى التأجيل إهمال الأمن — الـ P0 Security Debt (WebSocket) لا يزال مفتوحاً ويجب حله.
+> ليس معنى التأجيل إهمال الأمن — الـ P0 Security Debt (WebSocket) أُغلق (انظر [Done](#done)).
 
 ---
 
@@ -790,7 +786,7 @@ archive group
 
 ```
 NEXT ACTIVE DEVELOPMENT PHASE:
-rating notification hook
+الخطة الحالية بالتسلسل PR-3 → PR-11 (يبدأ بـ PR-3: بروتوكول المهام + فهرس القواعد + تصحيح تعارضات التوثيق).
 ```
 
 **Missing Priority Queue المتبقي من `docs/NOTIFICATIONS_PLAN.md`:**
@@ -806,7 +802,7 @@ P2: job_expiring_soon notification
     — يحتاج scheduler أو cron job — مؤجل بسبب غياب infrastructure.
 
 Phase 11: Realtime / Push
-    — مؤجل حتى قرار صريح + حل P0 Security Debt على WebSocket.
+    — مؤجل حتى قرار صريح (P0 Security Debt على WebSocket أُغلق — انظر Done).
 ```
 
 **لا تنفيذ لأي Future Product Note** في هذا الملف — هذا توثيق رؤية فقط.
@@ -1026,7 +1022,7 @@ Phase 11: Realtime / Push
 | Post media (صور في المنشورات) | يحتاج قرار: storage bucket + حد الحجم + CDN policy |
 | Unify follows tables (`profile_follows` + `company_follows`) | يحتاج migration plan كامل + backward compat test |
 | Flutter vs React Native | قرار platform قبل بدء أي mobile work |
-| Real-time notifications via WebSocket | يتوقف على حل P0 Security Debt في WebSocket أولاً |
+| Real-time notifications via WebSocket | P0 Security Debt في WebSocket أُغلق — يبقى قرار معماري صريح (CLAUDE.md: الإشعارات HTTP polling فقط) |
 | Employee Polls — السماح للموظفين بإنشاء Polls | الميزة قد تزيد social noise إذا فُتحت مبكراً. يُقيَّم بعد إطلاق Polls للشركات والمؤسسات أولاً. |
 | Poll choice type — single vs multi-choice | هل النسخة الأولى تدعم اختياراً واحداً فقط أم متعدداً؟ قرار يُحسم وقت التنفيذ. |
 | Poll audience — من يحق له التصويت؟ | followers فقط أم كل المستخدمين المسجّلين؟ يؤثر على DB schema والـ privacy model. |
@@ -1220,7 +1216,11 @@ draft → sent → viewed → under_negotiation → countered → accepted
 | Public profile error and retry state (employee + company) | #427 | 2026-07-09 |
 | iOS PWA meta tags for `profile-showcase.html` | #428 | 2026-07-09 |
 | Architecture Foundation (`ARCHITECTURE_FOUNDATION.md`) — 28 rules | #420 | 2026-07-09 |
+| WebSocket Security Hardening — First-Message JWT auth on `/ws/{user_id}`, fail-closed origin policy, close codes 4001–4007 (SYSTEMS_INDEX §18) | `security/ws-auth-hardening` | — |
+| `POST /auth/verify-token` endpoint (`server.py`) | — | — |
+| Reports review panel — admin «بلاغات» tab (`GET /admin/reports` + `PUT /admin/reports/{id}/resolve`) | — | — |
 
 ---
 
 *أُنشئ: 2026-07-09 — آخر تحديث: 2026-07-10 — أُضيف قسم "Future Product Notes" بعد اكتمال Notifications V2 (PR #453): 13 قسماً يغطي i18n / Global Countries / World Directory / Institution Naming / Smart Selection / Education Platform / Education Roles / Courses & Training Offers / Content Safety / Verification Gate / Monetization / Admin Support / Company Internal Groups / Next Phase Marker. حُدِّث: 2026-07-10 — PR #456: أُضيف §15 Appointments & Interview Rooms System (11 قسماً: فكرة عامة / زر المواعيد / بطاقات / غرفة الموعد / حالات / مهلة الرد / محادثة الموعد / سجل الأحداث / إشعارات / الأمن / العلاقة مع Messenger). تحديث Next Phase Marker إلى rating notification hook.*
+*حُدِّث: 2026-10-06 — PR-3 (docs/protocol-conflicts): WebSocket hardening + `POST /auth/verify-token` + Reports review panel نُقلت إلى Done (موجودة في الكود)؛ Next Phase Marker يشير للتسلسل PR-3 → PR-11.*
