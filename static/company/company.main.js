@@ -562,9 +562,13 @@
 
     var dataUrl = cropper.export();
 
-    TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'cover', dataUrl: dataUrl, jwt: jwt })
+    TW.uploadImage({ kind: 'company-cover', dataUrl: dataUrl, jwt: jwt })
     .then(function (res) {
-      if (!res.ok || !res.data || !res.data.url) throw new Error('no_url');
+      if (!res.ok || !res.data || !res.data.url) {
+        var err = new Error('no_url');
+        err.userMsg = TW.uploadErrorText(res, 'تعذّر رفع الغلاف، حاول مرة أخرى');
+        throw err;
+      }
       var url = res.data.url;
       return fetch('/company/cover/' + userId, {
         method:  'PUT',
@@ -584,8 +588,8 @@
       if (window.showToast) showToast('تم حفظ صورة الغلاف ✓');
       closeCoverCrop();
     })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
+    .catch(function (e) {
+      if (window.showToast) showToast((e && e.userMsg) || 'تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
     })
     .finally(function () {
       isUploadingCover = false;
@@ -669,10 +673,15 @@
     if (camBtn)  camBtn.disabled = true;
     if (logoEl)  logoEl.style.opacity = '0.5';
 
-    TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'logo', dataUrl: dataUrl, jwt: jwt })
+    TW.uploadImage({ kind: 'company-logo', dataUrl: dataUrl, jwt: jwt })
     .then(function (res) {
-      if (!res.ok) throw new Error('upload_fail');
-      var url = (res.data && res.data.url) ? res.data.url : dataUrl;
+      if (!res.ok || !res.data || !res.data.url) {
+        // PR-7a: never save the data URL — surface the upload error
+        var err = new Error('upload_fail');
+        err.userMsg = TW.uploadErrorText(res, 'تعذر رفع الصورة، حاول مرة أخرى');
+        throw err;
+      }
+      var url = res.data.url;
       return fetch('/profile/' + userId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
@@ -691,8 +700,8 @@
       if (window.showToast) showToast('تم حفظ الشعار ✓');
       closeLogoCrop();
     })
-    .catch(function () {
-      if (window.showToast) showToast('تعذر رفع الصورة، حاول مرة أخرى', 'error');
+    .catch(function (e) {
+      if (window.showToast) showToast((e && e.userMsg) || 'تعذر رفع الصورة، حاول مرة أخرى', 'error');
     })
     .finally(function () {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الشعار'; }

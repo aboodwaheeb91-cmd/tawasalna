@@ -67,6 +67,7 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
 | `DEV_OTP_LOG` | Optional (dev) | Logs OTP events (never the code) |
+| `TW_DEV_UPLOAD` | Optional (dev) | `1` + missing Supabase keys → `/upload/image` returns the data URL (`dev_mode`). Never set in production (PR-7a) |
 | `PORT` | Yes (auto on Railway) | Server port |
 
 ---

@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
+
+- السيرفر: `kind` → bucket map ثابت (`_UPLOAD_KINDS`)، اسم ملف يولّده السيرفر، user_id من الـ JWT فقط، JPEG/PNG/WebP + فحص magic bytes (لا SVG)، حدود حجم 7MB نص / 5MB، لا fallback لـ data URL بالإنتاج (502/503؛ dev فقط بـ `TW_DEV_UPLOAD=1`). `/admin/logo` نفس الفحص.
+- الواجهة: `TW.uploadImage({ kind, dataUrl, jwt })` + `TW.uploadErrorText()`؛ المستدعين (profile-v2 avatar/cover · company logo/cover · KYC بـ settings.html · admin logo) ما عاد يحفظوا data URL.
+- توثيق: SYSTEMS_INDEX §29a · `docs/rules/upload.md` · `ARCHITECTURE.md → Image Upload Security Contract` · `CLAUDE.md` جدول المتغيرات (`TW_DEV_UPLOAD`). اختبار: `test_upload_security.py`.
+
 ## PR-6c — 2026-10-06 — docs: changelog split
 
 - سطر `*Last updated*` بـ `docs/SYSTEMS_INDEX.md` (~22KB) + قسم "التحديثات" بـ `ARCHITECTURE_FOUNDATION.md` + تذييلَي `VIEWER-MODES.md` و`BUTTONS.md` نُقلت حرفياً لهذا الملف؛ كل ملف بقي فيه سطر واحد قصير.

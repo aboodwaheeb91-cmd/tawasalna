@@ -1722,7 +1722,7 @@ GET /profile = قراءة كاملة → يُستدعى من frontend عند ا�
 | الملف | المسؤولية |
 |-------|-----------|
 | `profile-v2.cover.js` | كامل منطق cover upload + crop |
-| `profile-v2.api.js` | `uploadCover()` — POST /upload/image bucket=covers |
+| `profile-v2.api.js` | `uploadCover()` — POST /upload/image kind=employee-cover (→ bucket covers) |
 | `profile-v2.css` | `.cv-edit-btn` + `.cv-crop-overlay` styles |
 | `profile-showcase.html` | HTML: زر + file input + crop overlay |
 
@@ -1735,8 +1735,8 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT;
 
 ### Bucket
 ```
-bucket: "covers"
-filename: "cover"
+kind: "employee-cover"  → bucket "covers" (server-side map, PR-7a)
+filename: server-generated {user_id}_employee-cover_{random}.{ext}
 endpoint: POST /upload/image
 ```
 
@@ -1994,7 +1994,7 @@ drop.style.zIndex   = '600';  // فوق modal z-index:300
 | الملف | المسؤولية |
 |-------|-----------|
 | `profile-v2.avatar.js` | كامل منطق avatar upload + crop |
-| `profile-v2.api.js` | `uploadAvatar()` — POST /upload/image bucket=avatars |
+| `profile-v2.api.js` | `uploadAvatar()` — POST /upload/image kind=employee-avatar (→ bucket avatars) |
 | `profile-v2.css` | `.av-edit-btn` + `.av-crop-overlay` styles |
 | `profile-showcase.html` | HTML: زر + file input + crop overlay |
 
@@ -2005,7 +2005,7 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 ### Bucket
 ```
-bucket: "avatars"  |  filename: "avatar"  |  endpoint: POST /upload/image
+kind: "employee-avatar" → bucket "avatars" (server-side map, PR-7a)  |  filename: server-generated  |  endpoint: POST /upload/image
 ```
 
 ### Crop
@@ -6252,7 +6252,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | POST | `/admin/news` | `admin_create_news` | Create news post |
 | PUT | `/admin/news/{news_id}` | `admin_update_news` | Update news post |
 | DELETE | `/admin/news/{news_id}` | `admin_delete_news` | Delete news post |
-| POST | `/admin/logo` | `upload_logo` | Upload platform logo |
+| POST | `/admin/logo` | `upload_logo` | Upload platform logo — `{filename: logo_wide\|logo_tall, data_url}`; JPEG/PNG/WebP only, no SVG (PR-7a → Image Upload Security Contract) |
 | GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
 | POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
 | POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c). `?dry_run=true` for analysis only; `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)` |
@@ -6272,6 +6272,29 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 ❌ لا تُطبع قيمة أي secret في logs
 ❌ لا تُضف admin endpoints بدون check_admin dependency
 ```
+
+### Image Upload Security Contract (PR-7a — §29a)
+
+`POST /upload/image` (JWT) و `POST /admin/logo` (`check_admin`) — `server.py → _validate_image_data_url()` + `_store_image()` مشتركين بين الاثنين.
+
+| البند | العقد |
+|------|-------|
+| bucket | يقرّره السيرفر من `kind` عبر `_UPLOAD_KINDS` الثابت: `employee-avatar→avatars` · `employee-cover→covers` · `company-logo→avatars` · `company-cover→avatars` · `kyc-id-front→kyc-docs` · `kyc-selfie→kyc-docs`. `kind` غير معروف → **400**. `bucket` / `filename` بالـ body تُتجاهل. |
+| user_id | من الـ JWT فقط؛ `user_id` بالـ body يُتجاهل (باقٍ للتوافق). |
+| اسم الملف | السيرفر يولّده: `{user_id}_{kind}_{token_hex(6)}.{ext}` — بدون `x-upsert` (اسم جديد بكل رفع = لا مشاكل cache). اللوغو: `{logo_wide\|logo_tall}_{token_hex(6)}.{ext}` بـ bucket `site`؛ slot غير معروف → 400. |
+| الأنواع | `image/jpeg` · `image/png` · `image/webp` فقط (data URL بصيغة `data:<mime>;base64,`). magic bytes للمحتوى لازم تطابق الـ mime المعلن، غير هيك → **400**. SVG ممنوع (حتى للّوغو). |
+| الحجم | طول الـ data URL > 7MB → **413** قبل الـ decode · بعد الـ decode > 5MB → **413** · base64 غير صالح (`validate=True`) → **400**. |
+| فشل التخزين | Supabase رجّع غير 200/201 أو exception → **502** برسالة عامة؛ مفاتيح Supabase ناقصة → **503**. التفاصيل بالـ log فقط (ممنوع `str(e)` بالـ response). **ممنوع أي fallback لـ data URL بالإنتاج.** |
+| وضع التطوير | فقط `TW_DEV_UPLOAD=1` **و** مفاتيح Supabase ناقصة → يرجّع الـ data URL مع `dev_mode: true`. غياب المفاتيح وحده ≠ وضع تطوير. |
+| الواجهة | `TW.uploadImage({ kind, dataUrl, jwt })`؛ عند `!ok` المستدعي يعرض `TW.uploadErrorText(res, fallback)` عبر toast الصفحة ولا يحفظ الـ data URL أبداً. |
+
+```
+❌ bucket أو filename أو user_id من العميل
+❌ قبول mime بدون فحص magic bytes · SVG
+❌ رجوع data URL كـ "success" عند فشل التخزين (إنتاج)
+❌ str(e) أو رد Supabase بالـ response
+```
+Test: `python -m pytest test_upload_security.py -q`.
 
 ### Safe Rendering (PR security/admin-safe-rendering — §54)
 
