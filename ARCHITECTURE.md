@@ -4331,6 +4331,8 @@ function loadGlobalBadges() {
 All badge `<span>` elements in nav menus use `data-badge="msgs"` or `data-badge="notif"` attribute.
 `loadGlobalBadges()` finds all matching elements and sets their textContent + visibility.
 
+**Notifications cap (PR #559):** label = `twNotifBadgeLabel(count)` in `tw_shared.js` — the only cap rule: `5 → "5"`, `99 → "99"`, `100 → "99+"`. ❌ inline `count > 9 ? '9+'` for the notifications badge. (Messages badges keep their own `9+` cap — unchanged.)
+
 ### Auth Requirements for Badges
 
 | Endpoint | Auth |
@@ -6000,6 +6002,7 @@ Replaces all native `<select>` inside `#coCandidatesModal` with inline-expanding
 | Sort | `.co-cand-sort-dp` | Filter bar in saved tab shell |
 | Status | `.co-cand-dp-status` | Manage panel per card |
 | Job (if open jobs exist) | `.co-cand-dp-job` | Manage panel per card |
+| Per-job classification (PR #559) | `.co-cand-job-status-dp` (+ `.co-cand-status--{cs}`) | Saved card body — section «تصنيف المرشح لكل وظيفة», one per `job_links[]` entry; auto-saves via `PATCH /company/saved-candidates/{id}/jobs/{job_id}` (SYSTEMS_INDEX §20c) |
 
 **How it works:**
 - Trigger: `<button class="co-dp-btn">` shows current label + chevron SVG

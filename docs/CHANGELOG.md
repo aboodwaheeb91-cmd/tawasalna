@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR #559 — 2026-10-06 — picker «تصنيف المرشح لكل وظيفة» بكارت بنك المواهب + سقف عدّاد الإشعارات `99+`
+
+- `static/company/company.main.js`: section «تصنيف المرشح لكل وظيفة» بكارت المرشح المحفوظ — picker `co-cand-job-status-dp` (`.co-dp-*` §55g) لكل `job_links[]`: «غير مصنّف» (`null`) + القيم الست. الـ handlers الموجودة (`_handleJobStatusDpSelect` · `_jobStatusInFlight` · rollback من `data-job-links`) صارت حيّة بدون تغيير. builders مشتركة: `_buildChip` + `_jobChipSectionsHTML` + `_jobStatusSectionHTML` — `_savedCardHTML` و `_renderCandidateJobLinksUI` بيبنوا نفس الـ DOM (كان الـ re-render يدمج chips «تقدّم إلى» و«مرتبط بوظيفة» بقسم واحد ويضيفها لـ `.co-cand-info` غير الموجود). حدث `tw:candidate-job-classification-updated` بيحدّث الـ picker؛ الـ picker ما بيلمس `job_applications.status`.
+- `static/company/company.css`: لون الـ picker من palette الحالات (`.co-cand-status--*` على الـ wrap) · قواعد الحجم صارت على `.co-cand-job-status-row` (كانت على manage panel).
+- `tw_shared.js`: `twNotifBadgeLabel(count)` — المكان الوحيد لسقف عدّاد الإشعارات (`> 99` → `99+`؛ رجع لـ `9+` بالغلط مع VM-10 #532). عدّاد الرسائل ما تغيّر (`9+`).
+- `static/app-header.css`: `.ah-bell--active` انشال (ما إله مستهلك من VM-10).
+- اختبارات: `node test_candidate_job_status_picker_runtime.js` (جديد — Playwright، 27 فحص) · `test_post_comments.py` 1896/1896: 486-16 · 490-03 خضر بدون تعديل؛ 488-07 · 489-07 · 185-09 · 185-10 · 484-05 · 484-06 صاروا يفحصوا الـ builder المشترك بدل مكان الكود داخل الدالة؛ 154f · 155j · 155k حسب `99+` وشيل الـ class.
+- توثيق: SYSTEMS_INDEX §20c (picker مكتمل + تصحيح سطر Option B) · §53 (سقف العدّاد) · ARCHITECTURE §52 · §55g · FUTURE_ROADMAP (3 بنود انشالت).
+
 ## PR #558 — 2026-10-06 — F30 من #557 (job-detail) + تنظيف `test_post_comments.py`
 
 - `auth.py get_job`: `u.user_type AS company_user_type` → `GET /jobs/{id}` بيرجّع نوع حساب الجهة الناشرة. `job-detail.js` بيمرّره لـ `twAvatarHtml` (`edu` → لون fallback الـ edu؛ غيابه → `co`). الوظائف المشابهة (`GET /jobs` — مصدر ثاني) ما بتعرض لوغو → ما تغيّرت.

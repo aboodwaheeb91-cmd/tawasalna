@@ -3295,6 +3295,88 @@
   // Follow-up status labels
   var _FU_STATUS_LABELS = { pending: 'قيد المتابعة', done: 'تمت المتابعة', none: '' };
 
+  // ── Job link sections on a saved card ─────────────────────────
+  // Shared by _savedCardHTML (first build) and _renderCandidateJobLinksUI (re-render from
+  // data-job-links) so both paths produce the same DOM.
+  function _buildChip(jl, idx, maxVisible) {
+    var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+    var hiddenCls   = idx >= maxVisible ? ' co-cand-job-chip--hidden' : '';
+    var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
+    var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
+    var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
+    var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
+    var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
+    var extraCls    = appId ? ' co-cand-job-chip--applied' : '';
+    return '<button class="co-cand-job-chip' + hiddenCls + extraCls + '" type="button"'
+         + ' data-jid="' + _esc(String(jl.job_id)) + '"'
+         + ' data-title="' + _esc(jl.title || '') + '"'
+         + ' data-apply-date="' + _esc(applyDate) + '"'
+         + ' data-app-status="' + _esc(jl.application_status || '') + '"'
+         + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
+         + ' data-pe-id="' + _esc(peId) + '"'
+         + ' data-app-id="' + _esc(appId) + '"'
+         + ' data-notes-count="' + _esc(notesCount) + '"'
+         + ' data-next-appt-id="' + _esc(nextApptId) + '"'
+         + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
+         + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
+  }
+
+  // Chip strip split: "تقدّم إلى:" (real applications) vs "مرتبط بوظيفة:" (pipeline-only links)
+  function _jobChipSectionsHTML(jobLinks) {
+    var html = '';
+    if (!jobLinks.length) return html;
+    var appliedLinks = jobLinks.filter(function (jl) { return jl.application_id != null; });
+    var linkedOnly   = jobLinks.filter(function (jl) { return jl.application_id == null; });
+
+    if (appliedLinks.length) {
+      html += '<div class="co-cand-job-section">';
+      html += '<span class="co-cand-job-section-title">تقدّم إلى:</span>';
+      html += '<div class="co-cand-job-chips">';
+      appliedLinks.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
+      if (appliedLinks.length > 2) {
+        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+              + (appliedLinks.length - 2) + '</button>';
+      }
+      html += '</div></div>';
+    }
+
+    if (linkedOnly.length) {
+      html += '<div class="co-cand-job-section">';
+      html += '<span class="co-cand-job-section-title">مرتبط بوظيفة:</span>';
+      html += '<div class="co-cand-job-chips">';
+      linkedOnly.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
+      if (linkedOnly.length > 2) {
+        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+              + (linkedOnly.length - 2) + '</button>';
+      }
+      html += '</div></div>';
+    }
+    return html;
+  }
+
+  // Per-job classification pickers (§20c) — one co-cand-job-status-dp per job_links[] entry.
+  // Value = company_candidate_job_refs.candidate_status; '' = غير مصنّف (PATCH sends null).
+  // Picks go to _handleJobStatusDpSelect → PATCH /company/saved-candidates/{id}/jobs/{job_id} only
+  // (never job_applications.status). Wrap carries the status palette class (.co-cand-status--*).
+  function _jobStatusSectionHTML(cid, jobLinks, meta) {
+    if (!jobLinks.length) return '';
+    var jsOpts = [{ value: '', label: 'غير مصنّف' }].concat(_STATUS_ORDER.map(function (s) {
+      return { value: s, label: _STATUS_LABELS[s] };
+    }));
+    var rows = jobLinks.map(function (jl) {
+      var cs    = _STATUS_LABELS[jl.candidate_status] ? jl.candidate_status : '';
+      var title = jl.title || ('وظيفة #' + jl.job_id);
+      return '<div class="co-cand-job-status-row">'
+        + '<span class="co-cand-job-status-title" title="' + twEscAttr(title) + '">' + twEscHtml(title) + '</span>'
+        + _dpHTML('co-cand-job-status-dp' + (cs ? ' co-cand-status--' + cs : ''), jsOpts, cs,
+                  { cid: cid, jid: jl.job_id, locked: !!(meta && meta.locked) })
+        + '</div>';
+    }).join('');
+    return '<div class="co-cand-job-section co-cand-job-status-section">'
+      + '<span class="co-cand-job-section-title">تصنيف المرشح لكل وظيفة:</span>'
+      + '<div class="co-cand-job-status-list">' + rows + '</div></div>';
+  }
+
   // Build compact expandable card (V3: single-column, no left/right split)
   function _savedCardHTML(item) {
     var status       = item.status        || 'saved';
@@ -3403,58 +3485,10 @@
     // Row 5: Notes (only if non-empty)
     if (notes) html += '<div class="co-csc-notes">' + _esc(notes) + '</div>';
 
-    // Row 6: Job chips — split: real applications vs pipeline-only links
-    function _buildChip(jl, idx, maxVisible) {
-      var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-      var hiddenCls   = idx >= maxVisible ? ' co-cand-job-chip--hidden' : '';
-      var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
-      var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
-      var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
-      var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
-      var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
-      var extraCls    = appId ? ' co-cand-job-chip--applied' : '';
-      return '<button class="co-cand-job-chip' + hiddenCls + extraCls + '" type="button"'
-           + ' data-jid="' + _esc(String(jl.job_id)) + '"'
-           + ' data-title="' + _esc(jl.title || '') + '"'
-           + ' data-apply-date="' + _esc(applyDate) + '"'
-           + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
-           + ' data-pe-id="' + _esc(peId) + '"'
-           + ' data-app-id="' + _esc(appId) + '"'
-           + ' data-notes-count="' + _esc(notesCount) + '"'
-           + ' data-next-appt-id="' + _esc(nextApptId) + '"'
-           + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
-           + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
-    }
-
-    if (jobLinks.length) {
-      var appliedLinks = jobLinks.filter(function (jl) { return jl.application_id != null; });
-      var linkedOnly   = jobLinks.filter(function (jl) { return jl.application_id == null; });
-
-      if (appliedLinks.length) {
-        html += '<div class="co-cand-job-section">';
-        html += '<span class="co-cand-job-section-title">تقدّم إلى:</span>';
-        html += '<div class="co-cand-job-chips">';
-        appliedLinks.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
-        if (appliedLinks.length > 2) {
-          html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
-                + (appliedLinks.length - 2) + '</button>';
-        }
-        html += '</div></div>';
-      }
-
-      if (linkedOnly.length) {
-        html += '<div class="co-cand-job-section">';
-        html += '<span class="co-cand-job-section-title">مرتبط بوظيفة:</span>';
-        html += '<div class="co-cand-job-chips">';
-        linkedOnly.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
-        if (linkedOnly.length > 2) {
-          html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
-                + (linkedOnly.length - 2) + '</button>';
-        }
-        html += '</div></div>';
-      }
-    }
+    // Row 6: Job chips (applied vs pipeline-only) + per-job classification pickers (§20c)
+    html += _jobChipSectionsHTML(jobLinks);
+    html += _jobStatusSectionHTML(item.candidate_id, jobLinks,
+                                  { locked: !!_jobStatusInFlight[String(item.candidate_id)] });
 
     // Row 7: Action buttons (stacked vertically, same right-aligned edge)
     html += '<div class="co-csc-actions">';
@@ -3914,11 +3948,11 @@
   // Unified helper: syncs all job-link UI on a card from a canonical links array.
   // Responsibilities:
   //   1. Updates data-job-links (single client-side source of truth)
-  //   2. Rebuilds job chip strip (preserves candidate_status per chip)
+  //   2. Rebuilds the job chip sections (preserves candidate_status per chip)
   //   3. Rebuilds "تصنيف المرشح لكل وظيفة" section (custom pickers, not native selects)
-  //   4. Updates job picker disabled/linked states
-  //   5. Adds or removes the status section when links appear / disappear
-  //   6. Renders picker buttons as disabled when card has data-job-status-saving lock
+  //   4. Adds or removes both sections when links appear / disappear
+  //   5. Renders picker buttons as disabled while a PATCH is in flight (_jobStatusInFlight /
+  //      data-job-status-saving lock)
   function _renderCandidateJobLinksUI(card, links) {
     // Registry-based lock check: a candidate in _jobStatusInFlight gets pickers rebuilt
     // as disabled even when the card DOM was replaced by a list rebuild mid-flight.
@@ -3929,43 +3963,17 @@
     // 1. Canonical store
     card.setAttribute('data-job-links', JSON.stringify(links));
 
-    // 2. Chip strip
-    var chipsHtml = links.map(function (jl, idx) {
-      var applyDate  = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-      var hiddenCls  = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
-      var peId       = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
-      var appId      = jl.application_id    != null ? String(jl.application_id)    : '';
-      var notesCount = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
-      var nextApptId = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
-      var nextApptSt = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
-      return '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
-           + ' data-jid="' + _esc(String(jl.job_id)) + '"'
-           + ' data-title="' + _esc(jl.title || '') + '"'
-           + ' data-apply-date="' + _esc(applyDate) + '"'
-           + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
-           + ' data-pe-id="' + _esc(peId) + '"'
-           + ' data-app-id="' + _esc(appId) + '"'
-           + ' data-notes-count="' + _esc(notesCount) + '"'
-           + ' data-next-appt-id="' + _esc(nextApptId) + '"'
-           + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
-           + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
-    }).join('');
-    if (links.length > 3) {
-      chipsHtml += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
-                 + (links.length - 3) + '</button>';
-    }
-    var chipsWrap = card.querySelector('.co-cand-job-chips');
-    if (chipsWrap) {
-      chipsWrap.innerHTML = chipsHtml;
-    } else if (chipsHtml) {
-      var wrap = document.createElement('div');
-      wrap.className = 'co-cand-job-chips';
-      wrap.innerHTML = chipsHtml;
-      var infoDiv = card.querySelector('.co-cand-info');
-      if (infoDiv) infoDiv.appendChild(wrap);
-    }
-
+    // 2–3. Chip sections + per-job classification pickers — rebuilt from the same shared
+    // builders as _savedCardHTML. Pickers are built locked while a PATCH is in flight.
+    var body = card.querySelector('.co-csc-body');
+    if (!body) return;
+    body.querySelectorAll('.co-cand-job-section').forEach(function (el) { el.remove(); });
+    var html = _jobChipSectionsHTML(links)
+             + _jobStatusSectionHTML(cidStr, links, { locked: isLocked });
+    if (!html) return;
+    var actions = body.querySelector('.co-csc-actions');
+    if (actions) actions.insertAdjacentHTML('beforebegin', html);
+    else body.insertAdjacentHTML('beforeend', html);
   }
 
   // Thin wrapper kept for any external callers — delegates to unified helper

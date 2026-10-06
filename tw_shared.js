@@ -332,6 +332,13 @@ function safeText(el, text){
 // the current account's badge counts after a cross-tab or within-tab account switch.
 var _badgeGeneration = 0;
 
+// twNotifBadgeLabel: the ONLY cap rule for the notifications badge (§52) — 1..99 → "N", > 99 → "99+".
+function twNotifBadgeLabel(count) {
+  var n = Number(count) || 0;
+  return n > 99 ? '99+' : String(n);
+}
+window.twNotifBadgeLabel = twNotifBadgeLabel;
+
 function loadGlobalBadges() {
   // TwAuthSync is mandatory — never fall back to raw localStorage
   if (!window.TwAuthSync) return;
@@ -382,7 +389,7 @@ function loadGlobalBadges() {
       var count = d.unread || 0;
       // Write to both selectors (data-badge="notif" and legacy data-ah-notif-badge)
       document.querySelectorAll('[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
-        el.textContent = count > 9 ? '9+' : String(count);
+        el.textContent = twNotifBadgeLabel(count);
         el.style.display = count > 0 ? 'inline-block' : 'none';
       });
     }).catch(function() {});
