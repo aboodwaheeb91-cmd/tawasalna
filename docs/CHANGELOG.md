@@ -16,6 +16,7 @@
 - (أ) `GET /admin/kyc/{submission_id}/docs` (`check_admin`): روابط Supabase مؤقتة (300s) للهوية والسيلفي، بس لمسار `kyc-docs/{user_id الطلب}_{kind}_{12hex}.{ext}`؛ غير هيك `null` + سبب. `Cache-Control: no-store`، الرابط ممنوع بالـ log. `GET /admin/kyc` ما عاد يرجّع `id_front_url` / `selfie_url`. `admin.html`: زر "عرض المستندات" → modal بالصورتين + قبول/رفض.
 - (ب) `POST /admin/maintenance/migrate-data-images?dry_run=1`: ترحيل `data:` من `profiles.avatar_url` / `cover_url` · `company_profiles.cover_url` · `kyc_submissions` · `site_settings` logos إلى Storage بنفس قواعد PR-7a؛ UPDATE مشروط بالقيمة القديمة؛ غير الصالح بينترك ويتذكر؛ idempotent. `admin.html`: قسم صيانة (فحص + ترحيل بتأكيد).
 - توثيق: SYSTEMS_INDEX §23 + §29a · `docs/rules/upload.md` (بنود 8–9) · `ARCHITECTURE.md` (Admin Endpoints · KYC · Image Upload Security Contract) · `docs/FUTURE_ROADMAP.md` (شيل P0 KYC + بند تنظيف ملفات Storage اليتيمة). اختبار: `test_kyc_docs_migration.py`.
+- تصحيح (نفس الـ PR): `GET /admin/kyc` كان بيرجّع `email_code` / `phone_code` (`SELECT ks.*` — مخالف Tier 4 Never-Returned) → allowlist صريح (`auth._ADMIN_KYC_LIST_COLUMNS`): `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at` — ممنوع `email_code` / `phone_code` / `id_front_url` / `selfie_url` / `ks.*`.
 
 ## PR-7a — 2026-10-06 — upload security (`POST /upload/image` · `POST /admin/logo`)
 

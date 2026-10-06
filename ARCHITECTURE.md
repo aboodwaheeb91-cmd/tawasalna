@@ -4799,7 +4799,7 @@ CREATE TABLE verify_requests (
 | POST | `/kyc/phone/verify` | JWT | يتحقق من الـ OTP |
 | POST | `/kyc/docs` | JWT | رفع صور الهوية |
 | POST | `/verify-request` | JWT | طلب توثيق بيانة فردية |
-| GET | `/admin/kyc` | Admin | قائمة كل الطلبات — بدون `id_front_url` / `selfie_url` (PR-7c) |
+| GET | `/admin/kyc` | Admin | قائمة كل الطلبات — allowlist صريح (`auth._ADMIN_KYC_LIST_COLUMNS`): `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at` — ممنوع `email_code` / `phone_code` / `id_front_url` / `selfie_url` / `ks.*` (PR-7c) |
 | GET | `/admin/kyc/{submission_id}/docs` | Admin | روابط مؤقتة (signed URL، 300s) للهوية والسيلفي — PR-7c → Image Upload Security Contract |
 | PUT | `/admin/kyc/{user_id}/approve` | Admin | موافقة + تفعيل الشارة |
 | PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب |
@@ -6241,7 +6241,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | POST | `/admin/message` | `admin_send_message` | Send message to user |
 | GET | `/admin/verify-requests` | `admin_verify_requests` | List verification requests |
 | PUT | `/admin/verify/{req_id}` | `admin_update_verify` | Approve / reject verification |
-| GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions — never `id_front_url` / `selfie_url` (PR-7c) |
+| GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions — allowlist `auth._ADMIN_KYC_LIST_COLUMNS` only; never OTP codes / `id_front_url` / `selfie_url` (PR-7c) |
 | GET | `/admin/kyc/{submission_id}/docs` | `admin_kyc_docs` | Short-lived Supabase signed URLs for the submission's ID + selfie (PR-7c); `Cache-Control: no-store` |
 | POST | `/admin/maintenance/migrate-data-images?dry_run=1` | `admin_migrate_data_images` | Move legacy `data:` images to Storage (PR-7c); `dry_run=1` default = count only |
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |

@@ -87,11 +87,26 @@ def test_docs_legacy_values_null_with_reason(monkeypatch):
     assert FakeStorage.calls == []
 
 
-def test_admin_kyc_list_has_no_doc_paths(monkeypatch):
-    monkeypatch.setattr(server, "get_all_kyc_submissions", lambda: [
-        {"id": 1, "user_id": 5, "step": "review", "id_front_url": "kyc-docs/a", "selfie_url": "kyc-docs/b"}])
+def test_admin_kyc_list_allowlist_only(monkeypatch):
+    """Real get_all_kyc_submissions with a fake connection: explicit columns,
+    never OTP codes / document paths; the fields admin.html reads remain."""
+    import auth
+    seen = []
+
+    class Conn:
+        def run(self, sql, **p):
+            seen.append(sql)
+            return [[1, 5, "Ali", "a@x.com", "emp", "review", "pending",
+                     True, False, None, None, None]]
+    monkeypatch.setattr(auth, "get_conn", lambda: Conn())
+    monkeypatch.setattr(auth, "release_conn", lambda c: None)
     s = client.get("/admin/kyc", headers=ADMIN).json()["submissions"][0]
-    assert "id_front_url" not in s and "selfie_url" not in s and s["id"] == 1
+    for banned in ("email_code", "phone_code", "id_front_url", "selfie_url", "ks.*"):
+        assert banned not in seen[0] and banned not in s
+    assert set(s) == {name for name, _ in auth._ADMIN_KYC_LIST_COLUMNS}
+    # admin.html → renderKYC / renderVerify / updateStats / openKYCDocs
+    assert (s["id"], s["user_id"], s["full_name"], s["email"], s["step"], s["status"]) == \
+        (1, 5, "Ali", "a@x.com", "review", "pending")
 
 
 # ── (b) data: image migration ────────────────────────────────────────────────

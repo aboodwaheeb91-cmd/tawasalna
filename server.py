@@ -4379,12 +4379,9 @@ def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
 def admin_get_kyc(request: Request):
     check_admin(request)
     try:
+        # PR-7c: allowlisted fields only (auth._ADMIN_KYC_LIST_COLUMNS) — no OTP
+        # codes, no document paths (those → GET /admin/kyc/{submission_id}/docs).
         submissions = get_all_kyc_submissions()
-        # PR-7c: document paths are never listed — the admin views them only via
-        # GET /admin/kyc/{submission_id}/docs (short-lived signed URLs).
-        for s in submissions:
-            s.pop("id_front_url", None)
-            s.pop("selfie_url", None)
         return {"status": "success", "submissions": submissions, "count": len(submissions)}
     except Exception as e:
         raise HTTPException(500, str(e))
