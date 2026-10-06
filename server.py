@@ -351,7 +351,7 @@ def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
     # Only rate limit auth endpoints
-    if request.url.path in ["/auth/login", "/auth/register", "/kyc/email/send", "/kyc/phone/send"]:
+    if request.url.path in ["/auth/login", "/auth/register", "/kyc/email/send", "/kyc/phone/send", "/tw-ctrl-login"]:
         ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
         now = _time.time()
         _rate_store[ip] = [t for t in _rate_store[ip] if now - t < 60]
@@ -1361,9 +1361,6 @@ def settings(): return read_html("settings.html")
 
 @app.get("/settings.html", response_class=HTMLResponse)
 def settings_html(): return read_html("settings.html")
-
-@app.get("/admin.html", response_class=HTMLResponse)
-def admin_html(): return read_html("admin.html")
 
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")

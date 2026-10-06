@@ -6215,6 +6215,27 @@ def check_admin(request: Request):
 ❌ لا تُضف admin endpoints بدون check_admin dependency
 ```
 
+### Safe Rendering (PR security/admin-safe-rendering)
+
+All API data rendered inside `admin.html` and `admin-view.html` template literals is now escaped via the shared helpers in `tw_shared.js`:
+
+- `twEscHtml(v)` — escapes `& < > "` for HTML content (text nodes)
+- `twEscAttr(v)` — escapes `& < > " '` for attribute values
+- Image/URL `src` attributes are validated: only `http://`, `https://`, or `/`-relative paths accepted; all other schemes (javascript:, data:, etc.) are rejected
+- Inline `onclick` with non-numeric string interpolation replaced by `data-*` attribute + event delegation
+
+**Route change:** `GET /admin.html` public route removed from `server.py`. Admin panel is served exclusively via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
+
+**Rate limiting:** `/tw-ctrl-login` added to `rate_limit_middleware` list alongside `/auth/login`.
+
+```
+❌ ممنوع استخدام ${apiData} مباشرة داخل innerHTML — استخدم twEscHtml()
+❌ ممنوع استخدام ${apiData} في attribute values بدون twEscAttr()
+❌ ممنوع src="${url}" بدون التحقق من البروتوكول أولاً
+❌ ممنوع onclick="fn('${stringData}')" — استخدم data-* + event delegation
+❌ GET /admin.html route — محذوف نهائياً
+```
+
 ---
 
 ## [P2] 58. Reports System

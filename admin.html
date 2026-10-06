@@ -360,9 +360,9 @@ async function uploadLogo(btn){
 // ── Load Logo on init ──
 (function(){
   fetch('/admin/logo').then(r=>r.json()).then(d=>{
-    if(d.logo_wide){
+    if(d.logo_wide&&/^(https?:\/\/|\/)/.test(d.logo_wide)){
       var p=document.getElementById('prevWide');
-      if(p){p.innerHTML='<img src="'+d.logo_wide+'" style="max-height:38px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
+      if(p){p.innerHTML='<img src="'+twEscAttr(d.logo_wide)+'" style="max-height:38px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
     }
   }).catch(()=>{});
 })();
@@ -634,9 +634,9 @@ async function loadErrors(){
     tb.innerHTML='<div style="font-size:.7rem;color:var(--t3);margin-bottom:8px">آخر '+data.count+' خطأ</div>'+
       data.errors.map(e=>
         '<div style="padding:8px 12px;border-bottom:1px solid var(--bdr);font-size:.72rem">'+
-        '<span style="color:#f87171">'+e.type+'</span> · <span style="color:var(--t2)">'+e.page+'</span>'+
+        '<span style="color:#f87171">'+twEscHtml(e.type)+'</span> · <span style="color:var(--t2)">'+twEscHtml(e.page)+'</span>'+
         (e.line?' · line '+e.line:'')+
-        '<div style="color:var(--t3);margin-top:2px">'+e.msg+'</div></div>'
+        '<div style="color:var(--t3);margin-top:2px">'+twEscHtml(e.msg)+'</div></div>'
       ).join('');
   }catch(e){console.error(e);}
 }
