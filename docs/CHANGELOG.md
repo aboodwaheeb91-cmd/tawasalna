@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## landing F30 close-out (بعد PR #560) — 2026-10-06 — أزرار التسجيل · لوغو offline · `?v=` لأصول الصفحة · صورة المشاركة
+
+- `landing.html`: «ابدأ مجاناً» (nav · hero · CTA) و«تسجيل» (footer) → `/login#register` · «كموظف / كشركة / كجهة تعليمية» → `/login#register-emp|co|edu` (hash router الموجود بـ `index.ui.js`). «دخول» بيضل `/login`.
+- `page_shell.py`: `PAGE_ASSETS` (allowlist ثابتة — `tw-icons.js`) · `apply_shell` بيبدّل `{{v:<name>}}` بنص الصفحة كمان؛ اسم مش معروف أو placeholder بصفحة بدون markers → `ValueError`. `landing.html` + `job-detail.html` → `/static/shared/tw-icons.js?v={{v:tw-icons.js}}`.
+- `sw.js`: `/static/33333.svg` بالـ precache (لوغو صفحة الـ offline) · `BUILD_TIME` → `20261006_2100`.
+- `scripts/gen_app_icons.py` بيولّد كمان `static/og-image.png` (1200×630 — الشعار كامل بالنص على `--color-surface-page` من `tw_shared.css`) · landing: `og:site_name` · `og:image` (+ width / height / type / alt) · `twitter:card=summary_large_image` · `twitter:image` — بدون نص جديد.
+- اختبار: `python test_landing_shell.py` (قسم H جديد — 12 فحص؛ 47/47).
+- توثيق: PAGE-SHELL (SHELL-02 · SHELL-05 · SHELL-07) · `docs/rules/page-shell.md` · SYSTEMS_INDEX §32 · §58 · FUTURE_ROADMAP.
+
 ## Phase C / landing — 2026-10-06 — ثاني صفحة محوّلة: Shell + DS-ICON + DS-SIZE + DS-COLOR + offline fallback
 
 - `landing.html` (`/` · `/landing.html`): markers `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — انشالت charset / viewport / preconnect + dns-prefetch الخطوط / Cairo (300–900 → 400–900 من الـ shell) / manifest / theme-color / `apple-mobile-web-app-*` (صارت بالـ shell — H01) / apple-touch-icon (`/icon-192.png` → `/apple-touch-icon.png`) / `/tw_shared.js` → `/static/tw_shared.js?v=H`. صارت تحمّل `tw_shared.css` قبل `<style>` الصفحة. SEO (title · description · OG · twitter · robots · canonical) بيضل بالصفحة مرة وحدة. الدخول بيضل عبر `twEntryDestination()` (TwAuthSync) — بدون guard.

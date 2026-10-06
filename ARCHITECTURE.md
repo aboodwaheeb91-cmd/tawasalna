@@ -6451,7 +6451,7 @@ setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 - **Shell (F39):** `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — `tw_shared.css` قبل `<style>` الصفحة · `/static/tw_shared.js` ← `auth-sync.js` ← `static/shared/tw-icons.js` ← السكربت الـ inline. الـ SEO (title · description · OG · twitter · robots · canonical) بالصفحة نفسها، مرة وحدة.
 - **الأيقونات (F37):** `<i data-tw-icon="name" data-tw-size="…">` + `twIcon.hydrate(document.body)` مرة وحدة بعد فحص التحويل. ما في Lucide بالصفحة.
 - **الألوان / الأحجام (F35 / F36):** tokens الـ DS-COLOR / DS-SIZE (المطابق وتحت البكسل). محلي موثّق: `--lp-text` (.87) · `--lp-text-2` (.5 ≠ `--t2` .7) · `--lp-text-3` (.28 ≠ `--t3` .4) · ألوان فئات المميزات (`#f59e0b` · `#ec4899` · `#eab308`) · عناوين `clamp()` · مسافات الأقسام 48–100px · الـ mock (أفاتار 56 · QR) — تصميم تسويقي، مش DS-IMAGE.
-- **Offline (§32):** هي صفحة الـ offline fallback — ملفات الـ shell + `tw-icons.js` بالـ precache. اختبار: `python test_landing_shell.py`.
+- **Offline (§32):** هي صفحة الـ offline fallback — ملفات الـ shell + `tw-icons.js` + اللوغو `/static/33333.svg` بالـ precache. أزرار التسجيل → `/login#register` / `#register-emp|co|edu` · صورة المشاركة `static/og-image.png` (§32). اختبار: `python test_landing_shell.py`.
 - **الكاش:** `/` = `max-age=300` · `/static/*` = `max-age=86400`. الـ `?v=` (hash المحتوى عند بدء السيرفر) بيتغيّر مع كل deploy بيغيّر ملف مشترك → أقصى تأخير 5 دقايق (عمر الـ HTML)، والكاش اليومي لـ `/static/` ما بيعلّق نسخة قديمة.
 
 ### Animations

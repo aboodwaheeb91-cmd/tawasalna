@@ -14,9 +14,14 @@ fixed (partials + content hashes) — never user data (§54).
 {{v:<asset>}} in a partial → short sha256 of that asset file, computed once when
 this module is imported (server start). Changing the file changes the hash →
 browsers and the service worker fetch the new version (no manual ?v=).
+
+{{v:<asset>}} inside a shell page itself → same hash, for the page-owned assets in
+PAGE_ASSETS only (fixed allowlist — e.g. tw-icons.js, which must not be in the
+shell, F37). Any other {{v:...}} in a page raises ValueError (same rule as partials).
 """
 import hashlib
 import os
+import re
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -26,6 +31,14 @@ SHELL_ASSETS = {
     "tw_shared.js":  "tw_shared.js",
     "auth-sync.js":  os.path.join("static", "shared", "auth-sync.js"),
 }
+
+# Page-owned assets a shell page may version with {{v:<name>}} (never shell files —
+# those come from the partials). Add an entry here before using a new placeholder.
+PAGE_ASSETS = {
+    "tw-icons.js": os.path.join("static", "shared", "tw-icons.js"),
+}
+
+_PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")
 
 # variant → (head marker, head partial, scripts marker, scripts partial)
 SHELL_VARIANTS = {
@@ -61,15 +74,25 @@ def build_shell(root: str = _ROOT) -> dict:
     return shell
 
 
+def build_page_hashes(root: str = _ROOT) -> dict:
+    """{placeholder name: hash} for PAGE_ASSETS. Fails loudly when a file is missing (F9)."""
+    return {name: asset_hash(os.path.join(root, rel)) for name, rel in PAGE_ASSETS.items()}
+
+
 _SHELL = build_shell()
+_PAGE_HASHES = build_page_hashes()
 
 
-def apply_shell(content: str, name: str = "", shell: dict = None) -> str:
-    """Replace the shell markers of one page. No markers → content unchanged.
+def apply_shell(content: str, name: str = "", shell: dict = None, page_hashes: dict = None) -> str:
+    """Replace the shell markers of one page, then its {{v:<asset>}} placeholders
+    (PAGE_ASSETS only). No markers → content unchanged.
     A page must use exactly one variant, with each of its two markers once —
     anything else raises ValueError (a half-converted page is a bug, not a page)."""
     shell = _SHELL if shell is None else shell
+    page_hashes = _PAGE_HASHES if page_hashes is None else page_hashes
     if "<!--tw:shell-" not in content:
+        if "{{v:" in content:
+            raise ValueError(f"[page_shell] {name}: {{{{v:...}}}} needs a shell page (markers)")
         return content
     used = []
     for variant, (head_m, _hf, scripts_m, _sf) in SHELL_VARIANTS.items():
@@ -83,4 +106,12 @@ def apply_shell(content: str, name: str = "", shell: dict = None) -> str:
     if len(used) != 1:
         raise ValueError(f"[page_shell] {name}: unknown or mixed shell markers")
     head_m, _hf, scripts_m, _sf = SHELL_VARIANTS[used[0]]
+
+    def _page_v(m):
+        if m.group(1) not in page_hashes:
+            raise ValueError(f"[page_shell] {name}: unknown placeholder {{{{v:{m.group(1)}}}}}"
+                             " (add it to PAGE_ASSETS)")
+        return page_hashes[m.group(1)]
+
+    content = _PAGE_PLACEHOLDER.sub(_page_v, content)   # page text only, before the partials go in
     return content.replace(head_m, shell[head_m]).replace(scripts_m, shell[scripts_m])

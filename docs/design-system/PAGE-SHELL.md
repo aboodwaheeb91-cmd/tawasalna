@@ -57,7 +57,8 @@
 - صفحة **بدون** markers → بترجع **مطابقة للملف بالبايت** (التحويل صفحة صفحة).
 - صفحة فيها markers → لازم نسخة وحدة (app أو admin)، وكل marker مرة وحدة، والـ head قبل الـ scripts. غير هيك → `ValueError` (F9 — صفحة نص محوّلة = bug، مش صفحة).
 - الحقن **نص ثابت فقط** (partials + hashes) — ما في أي بيانات مستخدم ولا request (§54).
-- `{{v:<asset>}}` بالـ partial هو الـ placeholder الوحيد؛ placeholder مش معروف → خطأ عند بدء السيرفر.
+- `{{v:<asset>}}` بالـ partial: أسماء `SHELL_ASSETS` فقط؛ placeholder مش معروف → خطأ عند بدء السيرفر.
+- `{{v:<asset>}}` **جوّا الصفحة** (صفحة فيها markers فقط): أسماء `PAGE_ASSETS` فقط — allowlist ثابتة بـ `page_shell.py` (حالياً `tw-icons.js`). `apply_shell` بيبدّلها بنص الصفحة قبل ما يحط الـ partials. اسم مش بالـ allowlist (ولا اسم من `SHELL_ASSETS`) أو `{{v:` بصفحة بدون markers → `ValueError` (نفس قاعدة الـ partials). أصل جديد → سطر بـ `PAGE_ASSETS` أولاً.
 
 ---
 
@@ -84,7 +85,7 @@
 
 - `H` = أول 10 أحرف hex من `sha256` لمحتوى الملف (`asset_hash`) — لـ `tw_shared.css` · `tw_shared.js` · `static/shared/auth-sync.js` (`SHELL_ASSETS`).
 - بينحسب **مرة وحدة عند بدء السيرفر** (import `page_shell`) → تغيير الملف + deploy = hash جديد = المتصفح والـ SW بيجيبوا النسخة الجديدة.
-- بيبدّل `?v=` اليدوي **للملفات المشتركة فقط**. ملفات الصفحة (`messages.css?v=v22` …) خارج النطاق.
+- بيبدّل `?v=` اليدوي **للملفات المشتركة** (`SHELL_ASSETS` — بالـ partials) **ولأصول `PAGE_ASSETS`** اللي بتحطها صفحة shell بنفسها (`/static/shared/tw-icons.js?v={{v:tw-icons.js}}` — landing · job-detail). ملفات الصفحة الباقية (`messages.css?v=v22` …) خارج النطاق.
 - ملف مشترك ناقص → السيرفر ما بيقوم (F9).
 
 ---
@@ -115,7 +116,8 @@
 
 ```
 ❌ نسخ charset / viewport / theme-color / manifest / icons / Cairo / tw_shared.* / auth-sync.js يدوياً بصفحة فيها markers
-❌ ?v= يدوي لـ tw_shared.css / tw_shared.js / auth-sync.js
+❌ ?v= يدوي لـ tw_shared.css / tw_shared.js / auth-sync.js / tw-icons.js (بصفحة shell → {{v:tw-icons.js}})
+❌ {{v:<name>}} بصفحة لاسم مش بـ PAGE_ASSETS، أو لملف shell (بيجي من الـ partials)
 ❌ partial ثاني أو آلية حقن ثانية (template engine / JS include) — page_shell.py هو الوحيد
 ❌ أي بيانات مستخدم أو request بالـ partials أو الحقن (§54)
 ❌ tw-icons.js بالـ shell (DS-ICON Phase C بيقرّر — F37)

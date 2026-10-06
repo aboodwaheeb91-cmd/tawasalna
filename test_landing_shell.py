@@ -6,10 +6,12 @@ Static checks on the page as served by read_html (apply_shell), plus sw.js and s
 Run: python test_landing_shell.py
 """
 import re
+import struct
 import subprocess
 import sys
 
-from page_shell import apply_shell
+import page_shell
+from page_shell import apply_shell, asset_hash
 
 failures = []
 _run = 0
@@ -146,6 +148,51 @@ check("G02 / keeps Cache-Control max-age=300", 'headers={"Cache-Control": "publi
 check("G03 shared assets carry the content hash ?v= (busts the 1-day /static cache)",
       all(re.search(re.escape(a) + r"\?v=[0-9a-f]{10}\"", HTML)
           for a in ("/static/tw_shared.css", "/static/tw_shared.js", "/static/shared/auth-sync.js")))
+
+print("\nH — F30 close-out of PR #560 (signup links · offline logo · page ?v= · share image)")
+UI = read("index.ui.js")
+links = dict((t.strip(), h) for h, t in re.findall(r'<a href="(/login[^"]*)" class="[^"]+"[^>]*>\s*([^<]+)', RAW))
+check("H01 signup links open the register form (exact hash per role)",
+      links.get("ابدأ مجاناً") == "/login#register" and links.get("تسجيل") == "/login#register"
+      and links.get("كموظف") == "/login#register-emp" and links.get("كشركة") == "/login#register-co"
+      and links.get("كجهة تعليمية") == "/login#register-edu" and links.get("دخول") == "/login", links)
+check("H02 index.ui.js hash router maps each hash to the right form",
+      "hash === '#register-emp')      { showRegister(); selectType('emp'); }" in UI
+      and "hash === '#register-co')  { showRegister(); selectType('co');  }" in UI
+      and "hash === '#register-edu') { showRegister(); selectType('edu'); }" in UI
+      and "hash === '#register')     { showRegister(); }" in UI)
+page_imgs = set(re.findall(r'<img src="(/static/[^"?]+)"', RAW))
+check("H03 every page <img> (logo) is precached for offline", page_imgs and page_imgs <= precache,
+      page_imgs - precache)
+th = asset_hash("static/shared/tw-icons.js")
+check("H04 tw-icons.js carries its content hash (landing + job-detail, {{v:}} in the page)",
+      f'/static/shared/tw-icons.js?v={th}"' in HTML and "{{" not in HTML
+      and f'tw-icons.js?v={th}"' in apply_shell(read("job-detail.html"), "job-detail.html"))
+check("H05 tw-icons.js is a page asset, never a shell asset (F37)",
+      "tw-icons.js" in page_shell.PAGE_ASSETS and "tw-icons.js" not in page_shell.SHELL_ASSETS)
+_pg = "<head>\n<!--tw:shell-head-->\n{}\n<!--tw:shell-scripts-->\n</html>"
+for case, bad in (("unknown asset", _pg.format('<script src="/x.js?v={{v:x.js}}">')),
+                  ("shell asset via page", _pg.format('<link href="/a?v={{v:tw_shared.css}}">')),
+                  ("path-like name", _pg.format("{{v:../server.py}}")),
+                  ("no markers", '<script src="/x.js?v={{v:tw-icons.js}}">')):
+    try:
+        apply_shell(bad, "bad.html")
+        check(f"H06 {case} placeholder raises ValueError", False, "no error")
+    except ValueError:
+        check(f"H06 {case} placeholder raises ValueError", True)
+check("H07 page placeholders resolve before the partials go in (partials never re-scanned)",
+      apply_shell(_pg.format("ok"), "t.html", page_hashes={}).count("{{") == 0)
+OG = "https://tawasolna.com/static/og-image.png"
+SHARE = {'property="og:site_name" content="تواصلنا"', f'property="og:image" content="{OG}"',
+         'property="og:image:width" content="1200"', 'property="og:image:height" content="630"',
+         'property="og:image:type" content="image/png"', 'name="twitter:card" content="summary_large_image"',
+         f'name="twitter:image" content="{OG}"'}
+check("H08 share tags present exactly once", all(HTML.count(t) == 1 for t in SHARE),
+      [t for t in SHARE if HTML.count(t) != 1])
+with open("static/og-image.png", "rb") as f:
+    head = f.read(24)
+check("H09 static/og-image.png is a 1200×630 PNG",
+      head[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", head[16:24]) == (1200, 630))
 
 print(f"\n{_run - len(failures)}/{_run} passed")
 sys.exit(1 if failures else 0)

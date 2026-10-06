@@ -10,9 +10,16 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://tawasolna.com">
 <meta property="og:locale" content="ar_AR">
-<meta name="twitter:card" content="summary">
+<meta property="og:site_name" content="تواصلنا">
+<meta property="og:image" content="https://tawasolna.com/static/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="تواصلنا">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
 <meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta name="twitter:image" content="https://tawasolna.com/static/og-image.png">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://tawasolna.com">
 <noscript><style>body{opacity:1!important}</style></noscript>
@@ -281,7 +288,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
   </div>
   <div class="nav-btns">
     <a href="/login" class="btn-ghost">دخول</a>
-    <a href="/login" class="btn-primary">ابدأ مجاناً</a>
+    <a href="/login#register" class="btn-primary">ابدأ مجاناً</a>
   </div>
 </nav>
 
@@ -303,7 +310,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       </h1>
       <p class="hero-sub">تواصلنا تجمع الموظفين والشركات والجهات التعليمية. ابنِ ملفك المهني، وثّق خبراتك وشهاداتك، وانطلق نحو فرصتك.</p>
       <div class="hero-actions">
-        <a href="/login" class="btn-hero-primary" id="heroCta">ابدأ مجاناً <i data-tw-icon="forward" data-tw-size="md"></i></a>
+        <a href="/login#register" class="btn-hero-primary" id="heroCta">ابدأ مجاناً <i data-tw-icon="forward" data-tw-size="md"></i></a>
         <a href="#who" class="btn-hero-ghost">تعرّف على المنصة</a>
       </div>
       <div class="hero-pills">
@@ -577,16 +584,16 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
   <div class="cta-box reveal">
     <h2 class="cta-title">جاهز لتبدأ رحلتك المهنية؟</h2>
     <p class="cta-sub">سجّل الآن مجاناً وابنِ ملفك الموثوق.<br>الموظف مجاني دائماً.</p>
-    <a href="/login" class="cta-btn" id="ctaMainBtn">
+    <a href="/login#register" class="cta-btn" id="ctaMainBtn">
       <i data-tw-icon="forward" data-tw-size="lg"></i>
       ابدأ مجاناً
     </a>
     <div class="cta-links">
-      <a href="/login" class="cta-link">كموظف</a>
+      <a href="/login#register-emp" class="cta-link">كموظف</a>
       <span class="cta-divider">/</span>
-      <a href="/login" class="cta-link">كشركة</a>
+      <a href="/login#register-co" class="cta-link">كشركة</a>
       <span class="cta-divider">/</span>
-      <a href="/login" class="cta-link">كجهة تعليمية</a>
+      <a href="/login#register-edu" class="cta-link">كجهة تعليمية</a>
     </div>
   </div>
 </section>
@@ -602,12 +609,12 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
   <div class="footer-copy">© 2025 تواصلنا. جميع الحقوق محفوظة.</div>
   <div class="footer-links">
     <a href="/login" class="footer-link">دخول</a>
-    <a href="/login" class="footer-link">تسجيل</a>
+    <a href="/login#register" class="footer-link">تسجيل</a>
   </div>
 </footer>
 
 <!--tw:shell-scripts-->
-<script src="/static/shared/tw-icons.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
 <script>
 (function () {
   'use strict';
