@@ -201,6 +201,29 @@ function sanitize(str){
     .replace(/\//g,'&#x2F;');
 }
 
+// HTML content escaping — null/undefined → ''
+function twEscHtml(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+window.twEscHtml = twEscHtml;
+
+// Attribute value escaping — null/undefined → ''
+function twEscAttr(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+window.twEscAttr = twEscAttr;
+
 // Safe text setter
 function safeText(el, text){
   if(!el) return;

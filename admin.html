@@ -453,11 +453,11 @@ function renderUsers(list){
     <div class="tr" style="${colors[u.user_type]||''};cursor:pointer" onclick="openUserDetail(${u.id})">
       <div class="user-info">
         <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
-        <div><div class="u-nm">${u.full_name||'—'}</div><div class="u-em">${u.email}</div></div>
+        <div><div class="u-nm">${twEscHtml(u.full_name)||'—'}</div><div class="u-em">${twEscHtml(u.email)}</div></div>
       </div>
       <span style="padding:2px 8px;border-radius:20px;font-size:.65rem;${u.user_type==='co'?'background:rgba(37,99,255,.15);color:#60a5fa':u.user_type==='edu'?'background:rgba(124,58,237,.15);color:#a78bfa':'background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)'}">${typeLabel(u.user_type)}</span>
       <div style="display:flex;gap:5px">
-        <button class="ab" onclick="event.stopPropagation();openMsg(${u.id},'${(u.full_name||'المستخدم').replace(/'/g,'\\')}')" title="رسالة">✉️</button>
+        <button class="ab" data-action="msg" data-uid="${u.id}" data-uname="${twEscAttr(u.full_name||'المستخدم')}" title="رسالة">✉️</button>
         <button class="ab" onclick="event.stopPropagation();verifyUser(${u.id})" title="توثيق">✅</button>
         <button class="ab" style="color:#f87171" onclick="event.stopPropagation();deleteUser(${u.id})" title="حذف">🗑</button>
       </div>
@@ -485,8 +485,8 @@ function renderVerify(list){
     html+='<div style="margin-bottom:10px"><div style="font-size:.72rem;font-weight:700;color:var(--ac);margin-bottom:6px">🪪 KYC قيد المراجعة ('+kycPending.length+')</div>'+
       kycPending.map(k=>
         '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,200,150,.2);margin-bottom:5px;background:rgba(0,200,150,.04)">'+
-        '<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+k.full_name+'</div>'+
-        '<div style="font-size:.68rem;color:var(--t3)">'+k.email+'</div></div>'+
+        '<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+twEscHtml(k.full_name)+'</div>'+
+        '<div style="font-size:.68rem;color:var(--t3)">'+twEscHtml(k.email)+'</div></div>'+
         '<div style="display:flex;gap:5px">'+
         '<button class="ab" style="background:rgba(0,200,150,.1);color:#00c896;font-size:.68rem" onclick="approveKYC('+k.user_id+')">✅ قبول</button>'+
         '<button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;font-size:.68rem" onclick="rejectKYC('+k.user_id+')">❌ رفض</button>'+
@@ -499,7 +499,7 @@ function renderVerify(list){
   }
   tb.innerHTML=html+list.map(v=>`
     <div class="tr">
-      <div><div class="u-nm">${v.user_name||'—'}</div><div class="u-em">${v.item_title||v.item_type||'—'}</div></div>
+      <div><div class="u-nm">${twEscHtml(v.user_name)||'—'}</div><div class="u-em">${twEscHtml(v.item_title||v.item_type)||'—'}</div></div>
       <span class="statu pending">معلق</span>
       <div style="display:flex;gap:5px">
         <button class="ab" style="color:#00c896" onclick="approveVerify(${v.id})">✅</button>
@@ -530,7 +530,7 @@ function renderJobs(list){
   if(!list||!list.length){tb.innerHTML='<div class="empty-state">لا توجد وظائف</div>';return;}
   tb.innerHTML=list.map(j=>`
     <div class="tr">
-      <div><div class="u-nm">${j.title||'—'}</div><div class="u-em">${j.company_name||'—'}</div></div>
+      <div><div class="u-nm">${twEscHtml(j.title)||'—'}</div><div class="u-em">${twEscHtml(j.company_name)||'—'}</div></div>
       <span class="statu ${j.status==='active'?'active':'pending'}">${j.status==='active'?'نشط':'متوقف'}</span>
       <button class="ab" style="color:#f87171" onclick="deleteJob(${j.id})">🗑</button>
     </div>`).join('');
@@ -553,7 +553,7 @@ function renderKYC(list){
   if(!list||!list.length){tb.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">🪪</span><div class="tw-empty-title">لا توجد طلبات KYC</div></div>';return;}
   tb.innerHTML=list.map(k=>`
     <div class="tr">
-      <div><div class="u-nm">${k.full_name||'—'}</div><div class="u-em">${k.email||'—'} · ${k.step||'—'}</div></div>
+      <div><div class="u-nm">${twEscHtml(k.full_name)||'—'}</div><div class="u-em">${twEscHtml(k.email)||'—'} · ${twEscHtml(k.step)||'—'}</div></div>
       <span class="statu ${k.step==='review'?'pending':'active'}">${k.step==='review'?'قيد المراجعة':k.step==='approved'?'موافق':'رفض'}</span>
       <div style="display:flex;gap:5px">
         <button class="ab" style="color:#00c896" onclick="approveKYC(${k.user_id})">✅</button>
@@ -584,16 +584,16 @@ async function loadReports(){
       <div class="tr" style="grid-template-columns:1fr auto;gap:8px;border-radius:10px;margin-bottom:5px;border:1px solid var(--bdr);${rep.status==='pending'?'border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.03)':''}">
         <div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-            <span style="font-size:.7rem;font-weight:700;color:#f87171">🚨 ${rep.report_type||'بلاغ'}</span>
-            <span style="font-size:.62rem;color:var(--t3)">${rep.created_at?.substring(0,10)||''}</span>
+            <span style="font-size:.7rem;font-weight:700;color:#f87171">🚨 ${twEscHtml(rep.report_type)||'بلاغ'}</span>
+            <span style="font-size:.62rem;color:var(--t3)">${twEscHtml(rep.created_at?.substring(0,10)||'')}</span>
             ${rep.status==='resolved'?'<span style="font-size:.6rem;background:rgba(0,200,150,.1);color:var(--ac);padding:1px 6px;border-radius:10px">محلول</span>':'<span style="font-size:.6rem;background:rgba(239,68,68,.1);color:#f87171;padding:1px 6px;border-radius:10px">جديد</span>'}
           </div>
-          <div style="font-size:.75rem;font-weight:700">${rep.reported_name||'مجهول'}</div>
-          <div style="font-size:.68rem;color:var(--t3);margin-top:1px">${rep.reason||'—'}</div>
-          <div style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px">بلاغ من: ${rep.reporter_name||'مجهول'}</div>
+          <div style="font-size:.75rem;font-weight:700">${twEscHtml(rep.reported_name)||'مجهول'}</div>
+          <div style="font-size:.68rem;color:var(--t3);margin-top:1px">${twEscHtml(rep.reason)||'—'}</div>
+          <div style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px">بلاغ من: ${twEscHtml(rep.reporter_name)||'مجهول'}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
-          ${rep.target_url?`<a href="${rep.target_url}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
+          ${rep.target_url&&/^(https?:\/\/|\/)/.test(rep.target_url)?`<a href="${twEscAttr(rep.target_url)}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
           <button class="ab" style="color:#f87171;font-size:.65rem" onclick="deleteReportedUser(${rep.reported_id})">🗑 حذف</button>
           ${rep.status==='pending'?`<button class="ab" style="color:#00c896;font-size:.65rem" onclick="resolveReport(${rep.id})">✅ حل</button>`:''}
         </div>
@@ -776,6 +776,14 @@ function goUsersPage(p){_usersPage=p;filterUsers();}
 
 document.getElementById('admin-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('admin-pass').focus();});
 document.getElementById('admin-pass').addEventListener('keydown',e=>{if(e.key==='Enter')adminLogin();});
+
+// Event delegation for message button (data-action="msg") — replaces unsafe onclick string interpolation
+document.getElementById('usersTable').addEventListener('click', function(e){
+  var btn = e.target.closest('[data-action="msg"]');
+  if(!btn) return;
+  e.stopPropagation();
+  openMsg(parseInt(btn.dataset.uid, 10), btn.dataset.uname);
+});
 </script>
 </body>
 </html>
