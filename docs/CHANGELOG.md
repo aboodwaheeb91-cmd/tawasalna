@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR #558 — 2026-10-06 — F30 من #557 (job-detail) + تنظيف `test_post_comments.py`
+
+- `auth.py get_job`: `u.user_type AS company_user_type` → `GET /jobs/{id}` بيرجّع نوع حساب الجهة الناشرة. `job-detail.js` بيمرّره لـ `twAvatarHtml` (`edu` → لون fallback الـ edu؛ غيابه → `co`). الوظائف المشابهة (`GET /jobs` — مصدر ثاني) ما بتعرض لوغو → ما تغيّرت.
+- `tw_shared.js`: `twSafeNext(next)` + `twLoginHref(next)` (NAV-07). `index.auth.js` (`auth-gw-v11`): `?next=` آمن بيغلب `twAccountHref(u)` بعد login/register وبالـ entry check (authenticated بس). `job-detail`: تقديم / حفظ / إبلاغ للزائر → `/login?next=<الوظيفة>`.
+- `static/shared/tw-icons.js`: `twIcon.hydrate(root)` (ICON-03.1). `job-detail.html`: 24 أيقونة ثابتة صارت `<i data-tw-icon>`؛ `_paintStaticIcons` / `_prependIcon` / `_setApplyLabels` انحذفوا. نفس الـ SVG ونفس الـ DOM — بدون تغيير مرئي.
+- `test_post_comments.py`: 45 فحص فاشل على main → 41 صاروا خضر (6 بيئية: `JWT_SECRET` < 32 حرف · 35 قديمة: VM-10 #532 · PR-7a #549 · PR-5 §69 · job_links #481 · محاذاة مسافات · slices غير محدودة)؛ **4 حمر = خلل فعلي** (picker التصنيف لكل وظيفة — FUTURE_ROADMAP). ولا فحص انحذف.
+- اختبارات: `node test_auth_next_icon_hydrate_runtime.js` (جديد) · `test_job_detail_shell.py` B06 · B10 · C04.
+- توثيق: NAVIGATION NAV-07 / NAV-08 · ICON-SYSTEM ICON-03.1 · `docs/rules/ds-icon.md` · CLAUDE.md Auth Gateway rule 13 · SYSTEMS_INDEX §1 · §41 · §56 · ARCHITECTURE (job-detail backend + session) · FUTURE_ROADMAP.
+
 ## Phase C / job-detail — 2026-10-06 — أول صفحة محوّلة: Shell + DS-ICON + DS-IMAGE + DS-SIZE + DS-FEEDBACK
 
 - `job-detail.html`: markers `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — انشالت charset / viewport / preconnect / Cairo / manifest / theme-color / apple-touch-icon (`/icon-192.png` → `/apple-touch-icon.png` من الـ shell) + `apple-mobile-web-app-*` (صارت بالـ shell — انظر التصحيح تحت). صارت تحمّل `tw_shared.css` (قبل `app-header.css` و `job-detail.css`) + `tw_shared.js` + `auth-sync.js` لأول مرة. Lucide انشال؛ `tw-icons.js` سكربت صفحة (أول مستهلك). `#jdToast` انشال.

@@ -2437,6 +2437,7 @@ def get_job(job_id: int) -> dict:
         rows = conn.run(
             "SELECT j.*, "
             "u.full_name AS company_name, u.tw_id AS company_tw_id, "
+            "u.user_type AS company_user_type, "
             "COALESCE(cp.avatar_url,'') AS company_logo, "
             "COALESCE(cp.is_verified,false) AS company_verified, "
             "COALESCE(pc.name_ar,'') AS profession_name_ar, "

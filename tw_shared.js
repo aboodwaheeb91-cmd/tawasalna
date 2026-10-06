@@ -489,6 +489,30 @@ function twEntryDestination() {
   return null;
 }
 
+// ══ Auth Return Destination — ?next= (NAV-07 · Auth Gateway rule 13) ══
+// twSafeNext(next) → next when it is an internal path, else '' (open-redirect guard).
+// Internal = one leading "/" (not "//", not "/\"), no backslash / whitespace / control
+// character anywhere (the URL parser drops tabs/newlines: "/\t/evil.com" → "//evil.com"),
+// at most 512 chars, and not /login itself (no login loop). Scheme / host can't appear:
+// "https://…", "javascript:…" and "//host" all fail the first rule.
+var _TW_NEXT_MAX = 512;
+function twSafeNext(next) {
+  if (typeof next !== 'string' || !next || next.length > _TW_NEXT_MAX) return '';
+  if (!/^\/(?![\/\\])/.test(next)) return '';
+  if (/[\\\s\u0000-\u001f\u007f]/.test(next)) return '';
+  if (/^\/login(?:[\/?#.]|$)/i.test(next)) return '';
+  return next;
+}
+window.twSafeNext = twSafeNext;
+
+// twLoginHref(next) → '/login?next=<encoded>' — the ONLY way a page sends a visitor to the
+// login page with a way back. Unsafe / empty next → plain '/login'.
+function twLoginHref(next) {
+  var n = twSafeNext(next);
+  return n ? '/login?next=' + encodeURIComponent(n) : '/login';
+}
+window.twLoginHref = twLoginHref;
+
 function twLogout() {
   if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
     TwAuthSync.invalidateSession('logout', { redirect: '/login' });

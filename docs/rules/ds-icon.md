@@ -7,7 +7,7 @@
 
 1. **ابدأ من ICON-00.** أي أيقونة → ICON-00 (Routing Protocol) أولاً.
 
-2. **Registry واحد:** `static/shared/tw-icons.js` هو المصدر الوحيد — `twIcon(name, opts)` (string) و `twIconEl(name, opts)` (عنصر). مستقل عن `tw_shared.js` / `tw_shared.css`.
+2. **Registry واحد:** `static/shared/tw-icons.js` هو المصدر الوحيد — `twIcon(name, opts)` (string) و `twIconEl(name, opts)` (عنصر). مستقل عن `tw_shared.js` / `tw_shared.css`. أيقونات الـ HTML الثابتة = `<i data-tw-icon="name" data-tw-size="sm">` + `twIcon.hydrate(root)` مرّة وحدة بالـ init (ICON-03.1) — ممنوع دالة محلية تلزّقها. اختبار: `node test_auth_next_icon_hydrate_runtime.js` (C).
 
 3. **الرسومات من Lucide 0.460.0 فقط** (ISC — `THIRD_PARTY_NOTICES.md`). لا مكتبة ثانية، لا رسم يدوي، لا نسخة ثانية.
 

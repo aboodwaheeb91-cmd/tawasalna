@@ -12,7 +12,7 @@
 
 <!-- Navigation -->
 <div class="sc-header jd-header-bar" role="navigation" aria-label="التنقل الرئيسي">
-  <button class="sc-hicon sc-home-btn" id="jdBackBtn" aria-label="رجوع"></button>
+  <button class="sc-hicon sc-home-btn" id="jdBackBtn" aria-label="رجوع"><i data-tw-icon="prev" data-tw-size="xl"></i></button>
   <div class="sc-logo">
     <img src="/static/33333.svg" alt="تواصلنا"
          onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
@@ -43,7 +43,7 @@
       <div class="jd-hd-top">
         <div class="jd-logo-wrap">
           <div class="jd-logo" id="jdLogo" aria-hidden="true"></div>
-          <span class="jd-logo-badge" id="jdLogoBadge" style="display:none" title="شركة موثقة"></span>
+          <span class="jd-logo-badge" id="jdLogoBadge" style="display:none" title="شركة موثقة"><i data-tw-icon="star" data-tw-size="xs" data-tw-filled></i></span>
         </div>
         <div class="jd-info">
           <h1 class="jd-title" id="jdTitle"></h1>
@@ -71,25 +71,25 @@
 
         <!-- Description -->
         <div class="jd-section hidden" id="jdDescSection">
-          <div class="jd-sec-title">وصف الوظيفة</div>
+          <div class="jd-sec-title"><i data-tw-icon="file-text" data-tw-size="md"></i>وصف الوظيفة</div>
           <div class="jd-body-text" id="jdDesc"></div>
         </div>
 
         <!-- Skills required -->
         <div class="jd-section hidden" id="jdSkillsSection">
-          <div class="jd-sec-title">المهارات المطلوبة</div>
+          <div class="jd-sec-title"><i data-tw-icon="wrench" data-tw-size="md"></i>المهارات المطلوبة</div>
           <div class="jd-skill-chips" id="jdSkillChips" aria-label="المهارات"></div>
         </div>
 
         <!-- Accepted professions -->
         <div class="jd-section hidden" id="jdAccProfSection">
-          <div class="jd-sec-title">التخصصات المقبولة</div>
+          <div class="jd-sec-title"><i data-tw-icon="users" data-tw-size="md"></i>التخصصات المقبولة</div>
           <div class="jd-skill-chips" id="jdAccProfChips" aria-label="التخصصات المقبولة"></div>
         </div>
 
         <!-- Similar jobs — mobile only -->
         <div class="jd-section jd-mobile-only">
-          <div class="jd-sec-title">وظائف مشابهة</div>
+          <div class="jd-sec-title"><i data-tw-icon="briefcase" data-tw-size="md"></i>وظائف مشابهة</div>
           <div id="jdSimilarListMobile"></div>
         </div>
 
@@ -102,46 +102,46 @@
         <div class="jd-apply-card">
           <div class="jd-apply-title" id="jdApplyCardTitle">هل أنت مهتم؟</div>
           <div class="jd-apply-actions">
-            <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن</button>
-            <button type="button" class="jd-save-btn jd-save-trigger" id="jdSaveBtn" aria-label="حفظ الوظيفة">حفظ</button>
+            <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن<i data-tw-icon="forward" data-tw-size="sm"></i></button>
+            <button type="button" class="jd-save-btn jd-save-trigger" id="jdSaveBtn" aria-label="حفظ الوظيفة"><i data-tw-icon="bookmark" data-tw-size="md"></i>حفظ</button>
           </div>
-          <button type="button" class="jd-share-btn jd-share-trigger">مشاركة الوظيفة</button>
-          <button type="button" class="jd-report-link" id="jdReportBtn">إبلاغ عن هذه الوظيفة</button>
+          <button type="button" class="jd-share-btn jd-share-trigger"><i data-tw-icon="share" data-tw-size="sm"></i>مشاركة الوظيفة</button>
+          <button type="button" class="jd-report-link" id="jdReportBtn"><i data-tw-icon="report" data-tw-size="sm"></i>إبلاغ عن هذه الوظيفة</button>
         </div>
 
         <!-- Job info -->
         <div class="jd-side-card">
           <div class="jd-sc-title">معلومات الوظيفة</div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="building-2" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">الشركة</div><div class="jd-sc-val" id="jdSiCo"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="map-pin" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">الموقع</div><div class="jd-sc-val" id="jdSiLoc"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="clock" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">نوع العمل</div><div class="jd-sc-val" id="jdSiType"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="laptop" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">طريقة العمل</div><div class="jd-sc-val" id="jdSiMode"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="bar-chart-2" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">سنوات الخبرة</div><div class="jd-sc-val" id="jdSiExp"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="circle-dollar-sign" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">الراتب</div><div class="jd-sc-val" id="jdSiSal"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="eye" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">المشاهدات</div><div class="jd-sc-val" id="jdSiViews"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico"></div>
+            <div class="jd-sc-ico"><i data-tw-icon="calendar" data-tw-size="md"></i></div>
             <div><div class="jd-sc-lbl">تاريخ النشر</div><div class="jd-sc-val" id="jdSiDate"></div></div>
           </div>
         </div>
@@ -175,9 +175,9 @@
 <!-- Sticky apply bar — mobile only -->
 <div class="jd-sticky-bar" id="jdStickyBar" role="toolbar" aria-label="تقديم على الوظيفة">
   <div class="jd-sticky-inner">
-    <button type="button" class="jd-sticky-apply jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن</button>
-    <button type="button" class="jd-sticky-save jd-save-trigger" id="jdStickySaveBtn" aria-label="حفظ الوظيفة"></button>
-    <button type="button" class="jd-sticky-share jd-share-trigger" aria-label="مشاركة الوظيفة"></button>
+    <button type="button" class="jd-sticky-apply jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن<i data-tw-icon="forward" data-tw-size="sm"></i></button>
+    <button type="button" class="jd-sticky-save jd-save-trigger" id="jdStickySaveBtn" aria-label="حفظ الوظيفة"><i data-tw-icon="bookmark" data-tw-size="lg"></i></button>
+    <button type="button" class="jd-sticky-share jd-share-trigger" aria-label="مشاركة الوظيفة"><i data-tw-icon="share" data-tw-size="lg"></i></button>
   </div>
 </div>
 
@@ -191,7 +191,7 @@
       <textarea id="jdCoverLetter" placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
     </div>
     <div class="jd-mact">
-      <button type="button" class="jd-mbtn jd-mbtn-ok" id="jdApplyConfirm">إرسال الطلب</button>
+      <button type="button" class="jd-mbtn jd-mbtn-ok" id="jdApplyConfirm">إرسال الطلب<i data-tw-icon="check" data-tw-size="sm"></i></button>
       <button type="button" class="jd-mbtn jd-mbtn-no" id="jdApplyCancel">إلغاء</button>
     </div>
   </div>
@@ -200,7 +200,7 @@
 <!-- Report sheet -->
 <div id="jdReportSheet" class="jd-report-sheet" role="dialog" aria-modal="true">
   <div class="jd-report-panel">
-    <div class="jd-report-title" id="jdReportTitle">إبلاغ عن محتوى مخالف</div>
+    <div class="jd-report-title" id="jdReportTitle"><i data-tw-icon="report" data-tw-size="md"></i>إبلاغ عن محتوى مخالف</div>
     <div class="jd-rfield">
       <label for="jdReportType">نوع البلاغ</label>
       <select id="jdReportType">
@@ -216,7 +216,7 @@
       <textarea id="jdReportReason" placeholder="اشرح سبب البلاغ..." rows="3"></textarea>
     </div>
     <div class="jd-rbtns">
-      <button id="jdReportSubmitBtn" class="jd-rbtn-submit">إرسال البلاغ</button>
+      <button id="jdReportSubmitBtn" class="jd-rbtn-submit"><i data-tw-icon="report" data-tw-size="sm"></i>إرسال البلاغ</button>
       <button id="jdReportClose" class="jd-rbtn-cancel">إلغاء</button>
     </div>
   </div>

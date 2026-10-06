@@ -4,6 +4,7 @@
 //   el.innerHTML = twIcon('back', { size: 'md' });   // SVG string (static markup only)
 //   btn.appendChild(twIconEl('delete'));              // SVG element
 //   twIcon.has('briefcase')                           // true / false (no warning)
+//   twIcon.hydrate(root)                              // <i data-tw-icon="x" data-tw-size="sm"> → SVG
 //
 // Rules (ICON-01…ICON-12):
 //   - Drawings come ONLY from Lucide 0.460.0 (ISC license — see THIRD_PARTY_NOTICES.md).
@@ -320,6 +321,29 @@
     t.innerHTML = twIcon(name, opts);
     return t.content.firstChild;
   }
+
+  // twIcon.hydrate(root): every <i data-tw-icon="name" [data-tw-size="sm"] [data-tw-filled]>
+  // inside root is REPLACED by twIconEl(name, { size, filled }) — same SVG (and same DOM) as
+  // building it in JS. The name stays a map key only (unknown / hostile → FALLBACK, never in
+  // the HTML). Replacing (not filling) keeps page CSS unchanged and makes a second call a no-op.
+  // Returns the number of icons hydrated.
+  twIcon.hydrate = function (root) {
+    root = root || (typeof document !== 'undefined' ? document : null);
+    if (!root || typeof root.querySelectorAll !== 'function') return 0;
+    var list = root.querySelectorAll('i[data-tw-icon]');
+    var n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var ph = list[i];
+      if (!ph.parentNode) continue;
+      var opts = {};
+      var size = ph.getAttribute('data-tw-size');
+      if (size) opts.size = size;
+      if (ph.hasAttribute('data-tw-filled')) opts.filled = true;
+      ph.parentNode.replaceChild(twIconEl(ph.getAttribute('data-tw-icon'), opts), ph);
+      n++;
+    }
+    return n;
+  };
 
   window.twIcon = twIcon;
   window.twIconEl = twIconEl;

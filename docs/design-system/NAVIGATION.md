@@ -394,7 +394,7 @@ context.from يُقبَل فقط إذا تحقق كل ما يلي:
 |--------|--------|---------|
 | `history.back()` مباشر بدون back-trust check | `static/job/job-detail.js:729` | Deep Link يخرج من الموقع |
 | `popstate` listener مزدوج | `company.main.js:1975` و `:4624` | قد يتعارضان |
-| `redirect()` لا تحفظ `?next=` | `index.auth.js` | ضياع وجهة العودة بعد login |
+| ~~`redirect()` لا تحفظ `?next=`~~ ✅ PR #558 (`twSafeNext` / `twLoginHref`) | `index.auth.js` | — |
 
 ---
 
@@ -470,25 +470,25 @@ context.from يُقبَل فقط إذا تحقق كل ما يلي:
 مثال مرفوض: /login (لا تُعيد المستخدم إلى login)
 ```
 
-### خوارزمية التحقق (للتنفيذ المستقبلي)
+### التنفيذ (PR #558) — `tw_shared.js`
 
-```js
-function isValidNext(next) {
-  if (!next) return false
-  if (!next.startsWith('/')) return false
-  if (next.startsWith('//')) return false
-  if (next.startsWith('/login')) return false // لا loop
-  try {
-    const url = new URL(next, window.location.origin)
-    return url.origin === window.location.origin
-  } catch { return false }
-}
-```
+| الدالة | العمل |
+|--------|-------|
+| `twSafeNext(next)` | بترجع `next` إذا مسار داخلي، غير هيك `''` — **فحص التحقق الوحيد** |
+| `twLoginHref(next)` | `'/login?next=' + encodeURIComponent(next)` إذا آمن، غير هيك `'/login'` — **الطريقة الوحيدة** لإرسال زائر للـ login مع رجعة |
 
-### الحالة الحالية
+"آمن" (`twSafeNext`):
+1. string غير فاضي، طوله ≤ 512.
+2. بيبلش بـ `/` مفردة — مش `//` ولا `/\` (فما في scheme ولا host: `https://…` · `javascript:` · `//host` كلها بتفشل هون).
+3. ما فيه `\` ولا مسافة ولا control character بأي مكان (الـ URL parser بيشيل tab/newline: `/\t/evil.com` → `//evil.com`).
+4. مش `/login` نفسها (لا loop).
 
-`redirect()` في `index.auth.js` **لا تقرأ `?next=`** حالياً.
-هذه ثغرة موثَّقة (NAV-05) — لا تُصلح في هذا الـ PR.
+**بعد الدخول (`index.auth.js`):** `redirect(u)` → `twSafeNext(?next=) || twAccountHref(u)` (login و register). الـ on-load entry check: إذا الجلسة authenticated → `twSafeNext(?next=) || twEntryDestination()`؛ الزائر بيضل على الفورم. `?next=` غير آمن → بيتجاهل بصمت.
+
+**المستهلكين:** `job-detail` — تقديم / حفظ / إبلاغ للزائر → `twLoginHref(location.pathname + location.search)`.
+
+- ❌ بناء `'/login?next=' + …` يدوي بأي صفحة · ❌ نسخة ثانية من فحص الـ next · ❌ قراءة `?next=` برّا `index.auth.js`.
+- اختبار: `node test_auth_next_icon_hydrate_runtime.js` (A · B).
 
 ---
 
@@ -604,8 +604,8 @@ const _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null')
 if (!_u) { location.href = '/login' }
 ```
 
-> **ثغرة موثَّقة:** الـ pattern الحالي لا يحفظ الـ `?next=` عند redirect إلى login.
-> لا يُصلح في هذا الـ PR — موثَّق في NAV-05 وNAV-07.
+> **ثغرة موثَّقة:** الـ pattern القديم لا يحفظ الـ `?next=` عند redirect إلى login.
+> الحل موجود (`twLoginHref` — NAV-07، PR #558)؛ الصفحات المحمية بتتحوّل له ضمن الـ guard الموحّد (FUTURE_ROADMAP → DS-SHELL Phase C).
 
 ### قواعد إلزامية
 

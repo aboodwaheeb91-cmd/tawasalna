@@ -2,8 +2,8 @@
  * Security: all fetch calls use Authorization: Bearer {jwt} only — via getAuthHeaders() (tw_shared.js).
  * XSS safety: all API data set via textContent, never innerHTML.
  * Shared systems (Phase C — PAGE-SHELL / ICON / IMAGE / FEEDBACK):
- *   session  → TwAuthSync.getSessionSnapshot() (public page; guest actions → /login)
- *   icons    → twIcon / twIconEl (DS-ICON registry — loaded by job-detail.html)
+ *   session  → TwAuthSync.getSessionSnapshot() (public page; guest actions → twLoginHref(this job))
+ *   icons    → twIcon.hydrate (static <i data-tw-icon> in the HTML) / twIconEl (dynamic) — DS-ICON
  *   logos    → twAvatarHtml (tw_shared.js)
  *   feedback → showToast (tw_shared.js — F34)
  */
@@ -14,7 +14,7 @@
   // Public page: visitors read the job without login. The session is decided by
   // TwAuthSync.getSessionSnapshot() only (VM-10) — never by tw_user alone.
   // Not authenticated (guest / expired / stale / invalid) → guest view; actions that
-  // need an account send the visitor to /login (_toLogin).
+  // need an account send the visitor to /login?next=<this job> (_toLogin — NAV-07).
   var _snap   = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
     ? TwAuthSync.getSessionSnapshot() : null;
   var _authed = !!(_snap && _snap.isAuthenticated);
@@ -26,7 +26,8 @@
     return json ? { 'Content-Type': 'application/json' } : {};
   }
 
-  function _toLogin() { location.href = '/login'; }
+  // twLoginHref (tw_shared.js) validates the internal path and encodes it as ?next=.
+  function _toLogin() { location.href = twLoginHref(location.pathname + location.search); }
 
   var _jobId   = null;
   var _job     = null;
@@ -50,7 +51,8 @@
     return s.skill || s.name_ar || s.name_en || s.slug || '';
   }
 
-  // DS-ICON (F37): every icon is twIconEl(name, { size }) — size = DS-SIZE token name.
+  // DS-ICON (F37): static icons are <i data-tw-icon> in the HTML (twIcon.hydrate at init);
+  // icons built at runtime are twIconEl(name, { size }) — size = DS-SIZE token name.
   function _skillIconName(skillName) {
     return (window.TW && TW.getSkillIcon) ? (TW.getSkillIcon(skillName) || 'tag') : 'tag';
   }
@@ -63,41 +65,6 @@
     if (ico && iconFirst) el.appendChild(ico);
     el.appendChild(document.createTextNode(text));
     if (ico && !iconFirst) el.appendChild(ico);
-  }
-
-  function _setApplyLabels(text, icon, iconFirst) {
-    document.querySelectorAll('.jd-apply-trigger').forEach(function (b) { _label(b, text, icon, iconFirst); });
-  }
-
-  function _prependIcon(el, name, size) {
-    if (el) el.insertBefore(twIconEl(name, { size: size }), el.firstChild);
-  }
-
-  // Static page icons (header, section titles, sidebar rows, action buttons).
-  function _paintStaticIcons() {
-    _prependIcon(_el('jdBackBtn'), 'prev', 'xl');
-    _prependIcon(document.querySelector('#jdDescSection .jd-sec-title'), 'file-text', 'md');
-    _prependIcon(document.querySelector('#jdSkillsSection .jd-sec-title'), 'wrench', 'md');
-    _prependIcon(document.querySelector('#jdAccProfSection .jd-sec-title'), 'users', 'md');
-    _prependIcon(document.querySelector('.jd-mobile-only .jd-sec-title'), 'briefcase', 'md');
-    [['jdSiCo', 'building-2'], ['jdSiLoc', 'map-pin'], ['jdSiType', 'clock'], ['jdSiMode', 'laptop'],
-     ['jdSiExp', 'bar-chart-2'], ['jdSiSal', 'circle-dollar-sign'], ['jdSiViews', 'eye'], ['jdSiDate', 'calendar']
-    ].forEach(function (r) {
-      var v = _el(r[0]);
-      var row = v && v.closest('.jd-sc-row');
-      if (row) _prependIcon(row.querySelector('.jd-sc-ico'), r[1], 'md');
-    });
-    _setApplyLabels('تقديم الآن', 'forward', false);
-    _prependIcon(_el('jdSaveBtn'), 'bookmark', 'md');
-    _prependIcon(document.querySelector('.jd-share-btn'), 'share', 'sm');
-    _prependIcon(_el('jdReportBtn'), 'report', 'sm');
-    _prependIcon(_el('jdStickySaveBtn'), 'bookmark', 'lg');
-    _prependIcon(document.querySelector('.jd-sticky-share'), 'share', 'lg');
-    _label(_el('jdApplyConfirm'), 'إرسال الطلب', 'check', false);
-    _prependIcon(_el('jdReportTitle'), 'report', 'md');
-    _label(_el('jdReportSubmitBtn'), 'إرسال البلاغ', 'report', true);
-    var badge = _el('jdLogoBadge');
-    if (badge) badge.appendChild(twIconEl('star', { size: 'xs', filled: true }));
   }
 
   function _timeAgo(iso) {
@@ -248,8 +215,10 @@
     document.title = 'تواصلنا — ' + (job.title || 'وظيفة');
 
     // Company logo — DS-IMAGE (F38): org = rounded square; URL checked by twSafeImageUrl inside.
-    // The job API carries no company user_type → 'co' (fallback letter colour only).
-    var _coEntity = { full_name: job.company_name, avatar_url: job.company_logo, user_type: 'co' };
+    // company_user_type (GET /jobs/{id}) = users.user_type of the publisher (co | edu) → fallback colour;
+    // missing on an old cached response → 'co'.
+    var _coEntity = { full_name: job.company_name, avatar_url: job.company_logo,
+                      user_type: job.company_user_type === 'edu' ? 'edu' : 'co' };
     var logoEl = _el('jdLogo');
     if (logoEl) {
       logoEl.innerHTML = twAvatarHtml(_coEntity, 'xl', { eager: true });
@@ -728,7 +697,7 @@
 
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
-    _paintStaticIcons();
+    twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
     if (window.initAppHeader) initAppHeader(_user);
 
     var backBtn = _el('jdBackBtn');

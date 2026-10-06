@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v10
+// Version: auth-gw-v11
 
 'use strict';
 
@@ -14,9 +14,15 @@ var curType = 'emp';
 // Destination comes from twAccountHref() in tw_shared.js (shared with landing.html):
 // account with tw_id → /u/{tw_id} (Smart Router), otherwise /login.
 // P0 rules: no legacy ?id= URLs, no redirect to /messages or /notifications.
+// Auth Return Destination (NAV-07): a safe ?next= (twSafeNext — internal path only)
+// wins over the account destination; an unsafe one is ignored.
+function _authNext(){
+  try { return twSafeNext(new URLSearchParams(window.location.search).get('next') || ''); }
+  catch(e){ return ''; }
+}
 function redirect(u){
   if(!u) return;
-  window.location.href = twAccountHref(u);
+  window.location.href = _authNext() || twAccountHref(u);
 }
 
 // ── Single on-load session check ─────────────────────────────────────────────
@@ -29,7 +35,7 @@ function redirect(u){
 ;(function(){
   function _entryCheck(){
     var dest = twEntryDestination();
-    if(dest) window.location.replace(dest);
+    if(dest) window.location.replace(_authNext() || dest);
   }
   _entryCheck();
   if(window.TwAuthSync && typeof TwAuthSync.onSessionChange === 'function'){
