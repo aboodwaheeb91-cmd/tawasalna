@@ -4446,8 +4446,8 @@ Browsers served cached old content for up to 24h after deploy.
 Current versions: `?v=v4` (bumped after mobile default view fix — PR that fixed conv-list hidden on mobile).
 
 ### Service Worker
-`sw.js` `BUILD_TIME` must be updated on each deploy to trigger SW refresh and clear old caches.
-Current: `20260615_1900`.
+`sw.js` `BUILD_TIME` must be bumped whenever `sw.js` changes (triggers SW refresh; `activate` deletes old caches).
+Current: `20261006_1200`. Cache policy: see §71 (Service Worker Cache Allowlist).
 
 **Forbidden:**
 - ممنوع: تغيير محتوى ملف JS بدون bump للـ version string في الـ HTML الذي يستدعيه
@@ -12451,3 +12451,38 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 ❌ Using city/country/date/q filters on the membership aggregate query — tab counters must stay job-wide
 ❌ Accepting company_id from the frontend — always fetch from DB via job ownership lookup
 ```
+
+---
+
+## §71 — Service Worker Cache Allowlist (security/sw-cache-allowlist)
+
+**Problem:** the old `sw.js` used a `NO_CACHE` blocklist — every successful GET not in the list was written to Cache Storage, including private API JSON (`/home/feed`, `/company/saved-candidates/*`, `/api/appointments/*`, `/my/applications`, …). It survived logout and was served offline to anyone on the same device. Root cause: blocklist instead of allowlist.
+
+**Cache policy (`sw.js` → `isCacheableRequest()`) — allowlist, fail-closed:**
+
+| Condition (ALL required to cache) | Value |
+|---|---|
+| Method | `GET` |
+| Origin | same-origin only |
+| `Authorization` header | absent (any request with it is never cached) |
+| `request.destination` | `style` · `script` · `font` · `image` · `manifest` |
+| Path | `/static/*` · `/manifest.json` · `/icon-*.png` |
+
+- Everything else (API/JSON, fetch/XHR with empty destination, cross-origin) → no `respondWith`, browser default network, **no `cache.put`**.
+- HTML navigations (`request.mode === 'navigate'`) → network only; offline → one fixed public fallback (`/landing.html`, precached). A private page is never served from cache.
+- Static assets are network-first; cache is offline fallback only.
+- `notificationclick` opens `data.url` only if it starts with `/` and not `//` or `/\` — otherwise `/`.
+
+**Session-end cache wipe:** `twClearAppCaches()` in `tw_shared.js` (single implementation, `window.twClearAppCaches`) deletes all `caches.keys()`. Best-effort, fire-and-forget (never delays redirect), `console.warn` on failure. Called from:
+- `TwAuthSync.invalidateSession()` in `static/shared/auth-sync.js` — covers logout, 401, expiry, `stale_entry`.
+- `twLogout()` fallback branch (no TwAuthSync).
+
+**Rules:**
+- New API endpoints need no change in `sw.js` — the API is not cached by default.
+- Bump `BUILD_TIME` whenever `sw.js` changes.
+- `NoCacheMiddleware` in `server.py` is unchanged and independent.
+
+**Forbidden:** ❌ blocklist (`NO_CACHE`) style caching · ❌ caching any API/JSON or `Authorization` request · ❌ caching HTML navigations · ❌ a second cache-wipe helper · ❌ awaiting cache clear before redirect · ❌ a second service worker file.
+
+**Test:** `node test_sw_cache_allowlist_runtime.js` (vm, real code — 23 checks).
+

@@ -1591,6 +1591,16 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## Service Worker Cache Rules (mandatory for all AI sessions)
+
+1. **`sw.js` caches by allowlist only** (`isCacheableRequest()`): same-origin + GET + no `Authorization` + destination style/script/font/image/manifest + path `/static/*` · `/manifest.json` · `/icon-*.png`. API/JSON and HTML navigations are never cached.
+2. **Any new endpoint needs NO change to `sw.js`** — the API is not cached by default. Do not reintroduce a `NO_CACHE` blocklist.
+3. **Session-end cache wipe = `twClearAppCaches()` in `tw_shared.js` only**, called from `TwAuthSync.invalidateSession()` and the `twLogout()` fallback. Best-effort, never delays redirect. Do not write a second helper.
+4. **Bump `BUILD_TIME` in `sw.js` on every change to `sw.js`.**
+5. Full spec: `ARCHITECTURE.md §71` · `docs/SYSTEMS_INDEX.md §32`.
+
+---
+
 ## Image Cropper System Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.
