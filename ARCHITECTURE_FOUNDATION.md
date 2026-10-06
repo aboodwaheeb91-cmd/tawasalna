@@ -55,6 +55,7 @@
 | F35 | **P0** | DS-COLOR هو النظام الوحيد لكل color tokens؛ `--color-*` في `tw_shared.css` فقط. |
 | F36 | **P0** | DS-SIZE هو النظام الوحيد لأحجام الخط/الزوايا/المسافات/الأيقونات/ارتفاعات العناصر؛ `--size-*` / `--radius-*` / `--space-*` في `tw_shared.css` فقط. |
 | F37 | **P0** | DS-ICON هو النظام الوحيد لأيقونات الواجهة؛ registry واحد `static/shared/tw-icons.js` (Lucide 0.460 فقط)، أسماء حسب المعنى، قلب RTL تلقائي، ممنوع emoji كأيقونة. |
+| F38 | **P0** | DS-IMAGE هو النظام الوحيد لعرض صور الأفاتار/اللوغو (`twAvatarHtml` / `twAvatarEl` + `.tw-ava`)؛ رابط الصورة يمر فقط على `twSafeImageUrl` (§54). |
 
 ---
 
@@ -1021,6 +1022,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | color token / `--color-*` / palette / لون / تعريف لون جديد | DS-COLOR → `docs/design-system/COLOR-SYSTEM.md` — اقرأ CLR-00 (Routing Protocol) ثم القسم المناسب |
 | font-size / border-radius / padding / margin / gap / حجم أيقونة / ارتفاع زر / `--size-*` / `--radius-*` / `--space-*` | DS-SIZE → `docs/design-system/SIZE-SYSTEM.md` — اقرأ SIZE-00 (Routing Protocol) ثم القسم المناسب |
 | أيقونة واجهة / SVG icon / `data-lucide` / سهم رجوع أو تقدّم / emoji كأيقونة / أيقونة مهارة أو مهنة | DS-ICON → `docs/design-system/ICON-SYSTEM.md` — اقرأ ICON-00 (Routing Protocol) ثم القسم المناسب |
+| صورة أفاتار / لوغو جهة / حرف بديل / `<img>` لصورة حساب / `background-image` لغلاف / رابط صورة من الـ API | DS-IMAGE → `docs/design-system/IMAGE-SYSTEM.md` — اقرأ IMG-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1062,7 +1064,7 @@ async function handleSave() {
 إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
 → انظر `docs/CHANGE_ROUTER.md` (CRS). CRS يُطبِّق F30/F31 على مستوى الطلب — ليس طبقة فوقهما.
 Workflow order: `ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime`
-Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F37`
+Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F38`
 
 ---
 
@@ -1266,6 +1268,38 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F37`
 
 ---
 
+## F38 — [P0] Image Display System V1 (DS-IMAGE)
+
+**DS-IMAGE هو النظام الرسمي الوحيد لعرض صور الحسابات في منصة تواصلنا:** أفاتار الموظف، لوغو الشركة / الجهة التعليمية، الحرف البديل، وأمان رابط الصورة. (الرفع = §29a · القص = §29b — أنظمة منفصلة.)
+
+### القواعد الأساسية
+
+1. **دالة واحدة:** `twAvatarHtml(entity, size, opts)` → string و `twAvatarEl(entity, size, opts)` → عنصر DOM في `tw_shared.js`؛ الاثنين من `_twAvatarSpec` واحد. `entity = { full_name, avatar_url, user_type }`.
+2. **سلّم الأحجام** (IMG-02): `--size-avatar-md` 40 · `lg` 48 · `xl` 88 · `2xl` 106 — بقسم DS-SIZE بـ `tw_shared.css`. 22 / 32 (post-comments) مجمّدة محلياً (SIZE-08).
+3. **الشكل** (IMG-03): الموظف (`emp`) دائرة `--radius-circle`؛ الجهات (`co` / `edu`) مربع بزوايا مدوّرة بكل مكان — md `--radius-md` · lg `--radius-lg` · xl / 2xl `--radius-3xl`.
+4. **الحرف البديل** (IMG-04/05): `Array.from(name.trim())[0]` بدون `toUpperCase`، فارغ → `؟`؛ لونه حسب نوع الحساب من DS-COLOR categorical (emp teal · co blue · edu purple) — بدون hex.
+5. **الأمان** (IMG-08 · §54): رابط الصورة يمر فقط على `twSafeImageUrl` (`https://` أو مسار `/` نسبي — مش `//` ولا `/\`)؛ `background-image` فقط عبر `twCssUrl`؛ النص عبر `twEscHtml` / `twEscAttr`.
+6. **الفشل** (IMG-06/07): رابط غير صالح → fallback مباشرة (`data-fb="1"`)؛ فشل التحميل → listener واحد (capture، `error`) على `document` بيحط `data-fb="1"`. ممنوع `onerror` inline.
+7. **التحميل** (IMG-09): `loading="lazy"` افتراضياً؛ `opts.eager` للـ hero فقط. دائماً `alt=""` + `decoding="async"` + `width` / `height`.
+8. **الغلاف** (IMG-10): نسبة 4:1 ثابتة للموظف والشركة (التنفيذ بالمرحلة C).
+9. **Phase B ✅** (PR-7b): helper + CSS + tokens + توثيق، بدون مستهلك وبدون تغيير بصري. **Phase C** = تحويل صفحة صفحة بموافقة صريحة + screenshots.
+
+### ممنوعات F38
+
+```
+❌ markup أفاتار / لوغو جديد بصفحة بدل twAvatarHtml / twAvatarEl
+❌ فحص رابط صورة بـ regex محلي بدل twSafeImageUrl · background-image بدون twCssUrl
+❌ img.src = esc(url) أو src="' + esc(url) + '" (escaping HTML ≠ تحقق رابط)
+❌ onerror inline · fallback emoji · حرف بـ toUpperCase أو charAt(0)
+❌ حجم أفاتار / لون fallback / زاوية بقيمة خام بدل token
+❌ دائرة للوغو جهة (co / edu) · مربع لأفاتار موظف
+❌ DS-IMAGE Phase C (تحويل صفحة) بدون موافقة صريحة لكل صفحة
+```
+
+**المرجع التفصيلي:** `docs/design-system/IMAGE-SYSTEM.md` (IMG-00 → IMG-13) · `docs/rules/ds-image.md`
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1306,4 +1340,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F37`
 
 ---
 
-*آخر تحديث: 2026-10-06 — PR-6 / المرحلة B (DS-ICON) — F37 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*
+*آخر تحديث: 2026-10-06 — PR-7b (DS-IMAGE) — F38 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*

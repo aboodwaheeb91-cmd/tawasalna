@@ -187,6 +187,12 @@
   --size-control-sm:      28px;  /* text button */
   --size-control-md:      40px;
   --size-touch-min:       44px;  /* minimum touch target */
+
+  /* Avatar / logo box (DS-IMAGE IMG-02 · F38) — 22/32 stay local (post-comments, SIZE-08) */
+  --size-avatar-md:  40px;
+  --size-avatar-lg:  48px;
+  --size-avatar-xl:  88px;
+  --size-avatar-2xl: 106px;
 }
 
 /* ══════════════════════════════════════
@@ -681,6 +687,54 @@ body {
   border-radius: 2px;
   margin: 14px 0;
 }
+
+/* ══════════════════════════════════════
+   16. DS-IMAGE — Avatar / Logo (F38 · IMAGE-SYSTEM.md)
+   Markup comes only from twAvatarHtml / twAvatarEl (tw_shared.js).
+   emp = circle · org (co / edu) = rounded square, radius by size (IMG-03).
+   Fallback letter color by account type — categorical (IMG-04 · CLR-11/13).
+   data-fb="1" (no / invalid / failed image) → letter shown, img hidden (IMG-06).
+   ══════════════════════════════════════ */
+.tw-ava {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--color-surface-card-solid);
+  border-radius: var(--radius-circle);
+  vertical-align: middle;
+}
+.tw-ava > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.tw-ava__fb {
+  display: none;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+.tw-ava[data-fb="1"] > img { display: none; }
+.tw-ava[data-fb="1"] > .tw-ava__fb { display: inline; }
+
+.tw-ava--md  { width: var(--size-avatar-md); height: var(--size-avatar-md);  font-size: var(--size-font-2xl); }
+.tw-ava--lg  { width: var(--size-avatar-lg); height: var(--size-avatar-lg);  font-size: var(--size-font-3xl); }
+.tw-ava--xl  { width: var(--size-avatar-xl); height: var(--size-avatar-xl);  font-size: var(--size-font-display); }
+.tw-ava--2xl { width: var(--size-avatar-2xl); height: var(--size-avatar-2xl); font-size: var(--size-font-display); }
+
+.tw-ava--org.tw-ava--md  { border-radius: var(--radius-md); }
+.tw-ava--org.tw-ava--lg  { border-radius: var(--radius-lg); }
+.tw-ava--org.tw-ava--xl  { border-radius: var(--radius-3xl); }
+.tw-ava--org.tw-ava--2xl { border-radius: var(--radius-3xl); }
+
+.tw-ava[data-tw-ava="emp"] > .tw-ava__fb { color: var(--color-categorical-teal); }
+.tw-ava[data-tw-ava="co"]  > .tw-ava__fb { color: var(--color-categorical-blue); }
+.tw-ava[data-tw-ava="edu"] > .tw-ava__fb { color: var(--color-categorical-purple); }
 
 /*
   ══════════════════════════════════════

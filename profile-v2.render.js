@@ -518,20 +518,22 @@ window.renderProfile = function renderProfile(res){
   // Cover image — use cover_url from API if available, else keep CSS default
   var coverEl = document.getElementById('scCover');
   if(coverEl){
-    if(p.cover_url){
-      coverEl.style.backgroundImage = 'url(' + esc(p.cover_url) + ')';
+    var coverCss = twCssUrl(p.cover_url);  // §54: validated + CSS-escaped
+    if(coverCss){
+      coverEl.style.backgroundImage = coverCss;
     }
-    // if no cover_url: CSS default (Cover.png) remains untouched
+    // if no / invalid cover_url: CSS default (Cover.png) remains untouched
   }
 
   // Avatar image
   var av=document.getElementById('scAvatar');
-  if(av && p.avatar_url){
+  var avatarSrc=twSafeImageUrl(p.avatar_url);  // §54: https / root-relative only
+  if(av && avatarSrc){
     var img=new Image();
     img.alt='';
     img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
     img.onload=function(){ av.innerHTML=''; av.appendChild(img); };
-    img.src=esc(p.avatar_url);
+    img.src=avatarSrc;
   }
 
   // Availability dot — reads from avail (single source of truth)
@@ -1250,8 +1252,9 @@ window._scOwnerHydrationGeneration = 0;
     items.forEach(function(item){
       var profHtml = item.profession && item.profession.name_ar
         ? '<span class="sc-fl-prof">' + esc(item.profession.name_ar) + '</span>' : '';
-      var avatarHtml = item.avatar_url
-        ? '<img class="sc-fl-avatar" src="' + esc(item.avatar_url) + '" alt="">'
+      var flAvatarSrc = twSafeImageUrl(item.avatar_url);  // §54: validated + attribute-escaped
+      var avatarHtml = flAvatarSrc
+        ? '<img class="sc-fl-avatar" src="' + twEscAttr(flAvatarSrc) + '" alt="">'
         : '<div class="sc-fl-avatar sc-fl-avatar-ph"><i data-lucide="user" class="ico-sm"></i></div>';
       var followBtn = item.can_follow
         ? '<button class="sc-fl-follow-btn' + (item.is_following ? ' active' : '') + '" data-uid="' + item.id + '">'
@@ -1259,7 +1262,7 @@ window._scOwnerHydrationGeneration = 0;
       var el = document.createElement('div');
       el.className = 'sc-fl-item';
       el.innerHTML =
-        '<a class="sc-fl-info" href="/u/' + esc(item.tw_id) + '">'
+        '<a class="sc-fl-info" href="/u/' + twEscAttr(item.tw_id) + '">'
         + avatarHtml
         + '<div class="sc-fl-meta">'
         + '<span class="sc-fl-name">' + esc(item.display_name || '') + '</span>'

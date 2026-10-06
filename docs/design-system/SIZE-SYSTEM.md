@@ -193,6 +193,17 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 
 - **`.sc-btn` بـ 27px مجمّد** — برّا السلّم (SIZE-08).
 - **BTN-04 MD = 36px ما إله أي مستهلك فعلي كارتفاع زر** (36 موجود بس كارتفاع لوغو). لهيك **ما في token لـ 36** (نفس مبدأ CLR-28: no token without real consumer).
+### أفاتار / لوغو (DS-IMAGE — PR-7b)
+
+| Token | القيمة | المالك |
+|-------|--------|--------|
+| `--size-avatar-md` | 40px | DS-IMAGE IMG-02 (`.tw-ava--md`) |
+| `--size-avatar-lg` | 48px | DS-IMAGE IMG-02 (`.tw-ava--lg`) |
+| `--size-avatar-xl` | 88px | DS-IMAGE IMG-02 (`.tw-ava--xl`) |
+| `--size-avatar-2xl` | 106px | DS-IMAGE IMG-02 (`.tw-ava--2xl`) |
+
+- المستهلك الوحيد هلّق `.tw-ava` بـ `tw_shared.css` (بدون صفحة). 22 / 32 (post-comments) مجمّدة (SIZE-08). توحيد 38/42/44/84–94 = مرئي → DS-IMAGE المرحلة C. التفاصيل: `docs/design-system/IMAGE-SYSTEM.md`.
+
 - **الحقول ما إلها `height` صريح** — ارتفاعها من الـ padding والـ line-height (`.ep-input` / `.sc-sel-trg`: `10px 13px` / `.84rem` · `.tw-input`: `10px 12px` / `.82rem` · company: `9px 12px` / `.78rem` · appointments: `10px 14px` / `14px`). التوحيد بيصير عبر tokens الـ padding والخط — **ممنوع فرض `height`** على الحقول.
 
 ---
@@ -304,4 +315,5 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 
 | التاريخ | الـ PR | التغيير |
 |---------|-------|---------|
+| 2026-10-06 | PR-7b | `--size-avatar-md/lg/xl/2xl` (40/48/88/106) لـ DS-IMAGE (SIZE-06) |
 | 2026-10-06 | PR-5 / المرحلة B | إنشاء النظام: SIZE-00 → SIZE-12 · قسم `1b. DS-SIZE` بـ `tw_shared.css` · F36 · `docs/rules/ds-size.md` · `test_ds_size_tokens.py` |

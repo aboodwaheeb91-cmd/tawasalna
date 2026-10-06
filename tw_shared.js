@@ -227,6 +227,94 @@ window.twEscAttr = twEscAttr;
 function twEscHtml(v) { return twEscAttr(v); }
 window.twEscHtml = twEscHtml;
 
+// twSafeImageUrl: the ONLY image-URL check (§54 rule 4 · DS-IMAGE IMG-08).
+// Accepts https:// or a root-relative path ("/x" — not "//x" and not "/\x").
+// Anything else (javascript:, data:, vbscript:, http:, blob:, leading space…) → ''.
+function twSafeImageUrl(url) {
+  if (typeof url !== 'string' || !url) return '';
+  return /^(https:\/\/|\/(?![\/\\]))/i.test(url) ? url : '';
+}
+window.twSafeImageUrl = twSafeImageUrl;
+
+// twCssUrl: CSS url("…") for background-image — validated + CSS-string escaped.
+// Invalid URL → '' (caller keeps its default background).
+function twCssUrl(url) {
+  var u = twSafeImageUrl(url);
+  if (!u) return '';
+  return 'url("' + u.replace(/[\\"\n\r\f]/g, function(c) {
+    return '\\' + c.charCodeAt(0).toString(16) + ' ';
+  }) + '")';
+}
+window.twCssUrl = twCssUrl;
+
+// ══ DS-IMAGE — Avatar / Logo (F38 · docs/design-system/IMAGE-SYSTEM.md) ══
+// twAvatarHtml(entity, size, opts) → string · twAvatarEl(entity, size, opts) → element.
+// entity: { full_name, avatar_url, user_type } · size: md | lg | xl | 2xl · opts.eager (hero).
+// Both build from _twAvatarSpec — one source for classes, URL check and fallback letter.
+var _TW_AVA_PX = { md: 40, lg: 48, xl: 88, '2xl': 106 };
+
+function _twAvatarSpec(entity, size, opts) {
+  var e = entity || {};
+  var t = (e.user_type === 'co' || e.user_type === 'edu') ? e.user_type : 'emp';
+  var s = Object.prototype.hasOwnProperty.call(_TW_AVA_PX, size) ? size : 'md';
+  var name = typeof e.full_name === 'string' ? e.full_name.trim() : '';
+  return {
+    type: t,
+    size: s,
+    px: _TW_AVA_PX[s],
+    cls: 'tw-ava tw-ava--' + s + ' tw-ava--' + (t === 'emp' ? 'emp' : 'org'),
+    src: twSafeImageUrl(e.avatar_url),
+    letter: name ? Array.from(name)[0] : '؟',
+    loading: (opts && opts.eager) ? 'eager' : 'lazy',
+  };
+}
+
+function twAvatarHtml(entity, size, opts) {
+  var p = _twAvatarSpec(entity, size, opts);
+  var img = p.src
+    ? '<img src="' + twEscAttr(p.src) + '" alt="" decoding="async" loading="' + p.loading
+      + '" width="' + p.px + '" height="' + p.px + '">'
+    : '';
+  return '<span class="' + p.cls + '" data-tw-ava="' + p.type + '"' + (p.src ? '' : ' data-fb="1"') + '>'
+    + img + '<span class="tw-ava__fb" aria-hidden="true">' + twEscHtml(p.letter) + '</span></span>';
+}
+window.twAvatarHtml = twAvatarHtml;
+
+function twAvatarEl(entity, size, opts) {
+  var p = _twAvatarSpec(entity, size, opts);
+  var root = document.createElement('span');
+  root.className = p.cls;
+  root.setAttribute('data-tw-ava', p.type);
+  if (p.src) {
+    var img = document.createElement('img');
+    img.setAttribute('alt', '');
+    img.setAttribute('decoding', 'async');
+    img.setAttribute('loading', p.loading);
+    img.setAttribute('width', String(p.px));
+    img.setAttribute('height', String(p.px));
+    img.setAttribute('src', p.src);
+    root.appendChild(img);
+  } else {
+    root.setAttribute('data-fb', '1');
+  }
+  var fb = document.createElement('span');
+  fb.className = 'tw-ava__fb';
+  fb.setAttribute('aria-hidden', 'true');
+  fb.textContent = p.letter;
+  root.appendChild(fb);
+  return root;
+}
+window.twAvatarEl = twAvatarEl;
+
+// One capture listener for every avatar: image error (does not bubble) → fallback letter.
+// No inline onerror anywhere (IMG-07).
+document.addEventListener('error', function(e) {
+  var t = e.target;
+  if (!t || t.tagName !== 'IMG' || !t.parentNode) return;
+  var host = t.parentNode;
+  if (host.hasAttribute && host.hasAttribute('data-tw-ava')) host.setAttribute('data-fb', '1');
+}, true);
+
 // Safe text setter
 function safeText(el, text){
   if(!el) return;

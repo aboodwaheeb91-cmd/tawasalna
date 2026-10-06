@@ -113,7 +113,8 @@
       .then(function(coverUrl){
         // Update cover DOM immediately
         var coverEl = document.getElementById('scCover');
-        if(coverEl) coverEl.style.backgroundImage = 'url(' + coverUrl + ')';
+        var coverCss = twCssUrl(coverUrl);  // §54: validated + CSS-escaped
+        if(coverEl && coverCss) coverEl.style.backgroundImage = coverCss;
         if(window._scProfile) window._scProfile.cover_url = coverUrl;
         closeCrop();
         toast('تم تحديث الكفر');

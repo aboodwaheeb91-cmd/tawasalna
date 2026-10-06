@@ -112,7 +112,7 @@ Server starts at `http://localhost:8000`.
 هذا الملف هو الدستور المعماري للمشروع. له أولوية على جميع التوثيقات التفصيلية.
 إذا تعارض أي توثيق مع `ARCHITECTURE_FOUNDATION.md` — يُعتمد `ARCHITECTURE_FOUNDATION.md`.
 
-القواعد العليا (F1–F37) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
+القواعد العليا (F1–F38) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
 
 ---
 
@@ -345,7 +345,7 @@ These rules are permanent and apply to all future AI sessions.
 
 3. **All API data inserted into HTML attribute values MUST be wrapped in `twEscAttr()`.** Raw `${u.email}` in `href`, `data-*`, or other attributes is a permanent violation.
 
-4. **Image/URL src attributes must be validated before use.** Accept only `http://`, `https://`, or `/`-relative paths (not protocol-relative `//`). Pattern: `/^(https?:\/\/|\/(?!\/))/.test(url||'')`. Reject all other schemes (javascript:, data:, `//`, etc.).
+4. **Image/URL src attributes must be validated before use — via `twSafeImageUrl(url)` in `tw_shared.js` (PR-7b, the only check).** Accepts only `https://` or a `/`-relative path (not `//` and not `/\`); everything else (javascript:, data:, vbscript:, http:, …) → `''`. CSS `background-image` only via `twCssUrl(url)` (validated + CSS-escaped). HTML string → `twEscAttr(twSafeImageUrl(url))`; DOM → `img.src = twSafeImageUrl(url)` (never `esc(url)`). The old inline regex `/^(https?:\/\/|\/(?!\/))/` is legacy — do not add new copies. Known debt: 8 local escaping functions on image paths (messages / company / profile-v2) — removed in DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-12).
 
 5. **Inline `onclick` with string interpolation of non-numeric user data is permanently forbidden.** Use `data-*` attributes + event delegation instead.
 
@@ -409,6 +409,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Color System V1 (DS-COLOR) Rules | `docs/rules/ds-color.md` |
 | Size System V1 (DS-SIZE) Rules | `docs/rules/ds-size.md` |
 | Icon System V1 (DS-ICON) Rules | `docs/rules/ds-icon.md` |
+| Image Display System V1 (DS-IMAGE) Rules — أفاتار / لوغو / رابط صورة | `docs/rules/ds-image.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |
