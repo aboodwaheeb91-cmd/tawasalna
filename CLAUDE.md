@@ -110,7 +110,7 @@ Server starts at `http://localhost:8000`.
 هذا الملف هو الدستور المعماري للمشروع. له أولوية على جميع التوثيقات التفصيلية.
 إذا تعارض أي توثيق مع `ARCHITECTURE_FOUNDATION.md` — يُعتمد `ARCHITECTURE_FOUNDATION.md`.
 
-القواعد العليا (F1–F36) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
+القواعد العليا (F1–F37) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
 
 ---
 
@@ -406,6 +406,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Post Comments System Rules · Post Comments — Mention Atomicity Rules | `docs/rules/post-comments.md` |
 | Color System V1 (DS-COLOR) Rules | `docs/rules/ds-color.md` |
 | Size System V1 (DS-SIZE) Rules | `docs/rules/ds-size.md` |
+| Icon System V1 (DS-ICON) Rules | `docs/rules/ds-icon.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |

@@ -547,22 +547,21 @@ Surface Architecture [Conceptual]:
 
 ### الوضع الحالي في Canonical V1
 
-**Canonical DS-FEEDBACK Runtime (`tw_shared.js`) لا يعرض icons في V1.** لا Emoji ولا SVG. الـ Snackbar يعرض نص الرسالة فقط داخل `<span>`. هذا القرار المعماري لـ V1 ولا يُعتبر نقصاً — Icon System مؤجَّل لـ DS-ASSET.
+**Canonical DS-FEEDBACK Runtime (`tw_shared.js`) لا يعرض icons في V1.** لا Emoji ولا SVG. الـ Snackbar يعرض نص الرسالة فقط داخل `<span>`. هذا القرار المعماري لـ V1 ولا يُعتبر نقصاً — أيقونات الـ Snackbar خارج V1؛ أي أيقونة مستقبلية تأتي من DS-ICON (`ICON-SYSTEM.md`).
 
 **Local legacy copies** (M9 — settings.html وغيرها) قد ما زالت تستخدم Emoji كـ placeholder داخل `showToast()` محلية. هذه مرشحة للمحو في PRs Migration، ولا تُمثِّل Architecture Contract.
 
-### Icon System المستقبلي (DS-ASSET — مؤجل)
+### Icon System (DS-ICON)
 
-**المطلوب عند توثيق DS-ASSET:**
-- استخدام Icon System الرسمي للمشروع.
-- إذا لم يُوثَّق DS-ASSET: استخدم SVG icons مضمَّنة بـ `aria-hidden="true"`.
-- ممنوع تعريف Icon Contract محلي داخل DS-FEEDBACK — يُدخَّر لـ DS-ASSET.
+**عند إضافة أيقونات للـ Feedback (خارج V1 — يحتاج قرار):**
+- الأيقونة من DS-ICON فقط: `twIcon(name, opts)` (`static/shared/tw-icons.js` — `docs/design-system/ICON-SYSTEM.md`)، `aria-hidden="true"`، لون `currentColor`.
+- ممنوع تعريف Icon Contract محلي داخل DS-FEEDBACK — DS-ICON يملكه.
 
 ### ممنوعات دائمة
 
 ```
 ❌ إضافة Emoji كـ Architecture Contract في Canonical Runtime
-❌ اختراع SVG Icon Contract محلي داخل DS-FEEDBACK قبل DS-ASSET
+❌ اختراع SVG Icon Contract محلي داخل DS-FEEDBACK (DS-ICON يملكه)
 ❌ التوثيق بأن Canonical V1 يستخدم Emoji — لم يعد صحيحاً
 ```
 
@@ -976,7 +975,7 @@ Canonical Runtime V1 (`tw_shared.js`) يُطبِّق جميع هذه البنو�
 | Loading State داخل Snackbar | Loading يبقى في الزر/Component V1 |
 | `critical: true` + `role="alert"` / `aria-live="assertive"` | نادر الاستخدام V1 |
 | Global Layer Tokens (رقم z-index نهائي) | ينتظر بناء Global Layer System |
-| DS-ASSET Icon System (SVG icons للـ Feedback) | ينتظر توثيق DS-ASSET |
+| أيقونات الـ Feedback (من DS-ICON) | DS-ICON موثَّق (PR-6 / المرحلة B) — إضافة الأيقونات للـ Snackbar تحتاج قرار منفصل |
 | Rich message (icon + title + description) | Snackbar يبقى compact في V1 |
 | `env(keyboard-inset-bottom)` | لا دعم كافٍ في المتصفحات بعد |
 | History/Log للرسائل السابقة | لا حاجة واقعية |

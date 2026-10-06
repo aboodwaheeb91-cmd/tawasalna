@@ -54,6 +54,7 @@
 | F34 | **P0** | DS-FEEDBACK هو النظام الوحيد لـ Toast / Snackbar. |
 | F35 | **P0** | DS-COLOR هو النظام الوحيد لكل color tokens؛ `--color-*` في `tw_shared.css` فقط. |
 | F36 | **P0** | DS-SIZE هو النظام الوحيد لأحجام الخط/الزوايا/المسافات/الأيقونات/ارتفاعات العناصر؛ `--size-*` / `--radius-*` / `--space-*` في `tw_shared.css` فقط. |
+| F37 | **P0** | DS-ICON هو النظام الوحيد لأيقونات الواجهة؛ registry واحد `static/shared/tw-icons.js` (Lucide 0.460 فقط)، أسماء حسب المعنى، قلب RTL تلقائي، ممنوع emoji كأيقونة. |
 
 ---
 
@@ -1019,6 +1020,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | Toast / Snackbar / Operational Feedback | DS-FEEDBACK → `docs/design-system/FEEDBACK-SYSTEM.md` — اقرأ FBK-00 (Routing Protocol) ثم القسم المناسب |
 | color token / `--color-*` / palette / لون / تعريف لون جديد | DS-COLOR → `docs/design-system/COLOR-SYSTEM.md` — اقرأ CLR-00 (Routing Protocol) ثم القسم المناسب |
 | font-size / border-radius / padding / margin / gap / حجم أيقونة / ارتفاع زر / `--size-*` / `--radius-*` / `--space-*` | DS-SIZE → `docs/design-system/SIZE-SYSTEM.md` — اقرأ SIZE-00 (Routing Protocol) ثم القسم المناسب |
+| أيقونة واجهة / SVG icon / `data-lucide` / سهم رجوع أو تقدّم / emoji كأيقونة / أيقونة مهارة أو مهنة | DS-ICON → `docs/design-system/ICON-SYSTEM.md` — اقرأ ICON-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1060,7 +1062,7 @@ async function handleSave() {
 إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
 → انظر `docs/CHANGE_ROUTER.md` (CRS). CRS يُطبِّق F30/F31 على مستوى الطلب — ليس طبقة فوقهما.
 Workflow order: `ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime`
-Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F36`
+Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F37`
 
 ---
 
@@ -1232,6 +1234,38 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F36`
 
 ---
 
+## F37 — [P0] Icon System V1 (DS-ICON)
+
+**DS-ICON هو النظام الرسمي الوحيد لأيقونات الواجهة في منصة تواصلنا:** مصدر الرسومات، الأسماء، دالة الرسم، والاتجاه بالـ RTL.
+
+### القواعد الأساسية
+
+1. **Registry واحد:** `static/shared/tw-icons.js` — `twIcon(name, opts)` يرجّع string SVG و `twIconEl(name, opts)` يرجّع عنصر DOM. ملف مستقل (مش داخل `tw_shared.js`) ويشتغل بدون `tw_shared.css`.
+2. **المصدر:** رسومات Lucide **0.460.0** فقط (ISC — `THIRD_PARTY_NOTICES.md`). أيقونات الكتالوج (`skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG`) داخل الـ registry — الهدف إلغاء مكتبة Lucide كاملة بالمرحلة C.
+3. **الأسماء حسب المعنى** للأفعال والتنقّل (`back` / `forward` / `next` / `prev` / `send` / `log-in` / `log-out` / `close` / `delete`…)؛ أسماء الكتالوج = القيمة المخزَّنة بالـ DB. الأسماء القديمة → جدول `ALIASES` واحد.
+4. **الاتجاه:** أيقونات `dir:true` بتنقلب تلقائياً بالـ RTL (class `tw-ico-dir` + قاعدة وحدة بيحقنها الملف). ممنوع `arrow-left` / `arrow-right` / `chevron-left` / `chevron-right` يدوي بالصفحات.
+5. **الحجم من DS-SIZE** (`opts.size` = `xs`…`2xl` → `var(--size-icon-X, <px>)`) · **اللون `currentColor` فقط** (DS-COLOR) · **stroke-width 2** (استثناء `.sc-btn .ico-sm` 1.8 مجمّد بالـ CSS).
+6. **الأمان:** الاسم مفتاح بالـ map فقط — ما بيدخل الـ HTML أبداً؛ اسم غير معروف → fallback ثابت + warning مرّة وحدة.
+7. **emoji ممنوعة كأيقونة واجهة.**
+8. **لا أيقونات بدون مستهلك.** **Phase B ✅** (PR-6 / المرحلة B): registry + توثيق + اختبار، بدون مستهلك وبدون تغيير بصري. **Phase C** = تحويل صفحة صفحة بموافقة صريحة لكل صفحة، ثم إزالة Lucide و unpkg CDN.
+
+### ممنوعات F37
+
+```
+❌ مكتبة أيقونات ثانية / نسخة Lucide غير 0.460 / CDN أيقونات جديد
+❌ SVG inline جديد أو <i data-lucide> جديد بأي صفحة
+❌ اسم أيقونة يُدمج بالـ HTML (data-lucide="' + name + '")
+❌ arrow-left / arrow-right / chevron-left / chevron-right يدوي
+❌ لون غير currentColor · stroke-width بالاستدعاء
+❌ emoji كأيقونة واجهة
+❌ registry ثاني / خريطة أيقونات محلية بصفحة / جدول aliases ثاني
+❌ DS-ICON Phase C (تحويل صفحة) بدون موافقة صريحة لكل صفحة
+```
+
+**المرجع التفصيلي:** `docs/design-system/ICON-SYSTEM.md` (ICON-00 → ICON-14) · `docs/rules/ds-icon.md`
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1282,3 +1316,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F36`
 *حُدِّث في PR #520 (DS-COLOR Phase 1 Final Documentation Sync) — 2026-07-26 — F35 قاعدة 9 حُدِّثت: Phase 0 ✅ + Phase 1 ✅ (Runtime Tokens Foundation مكتمل). ممنوعات F35 حُدِّثت: Phase 1 Runtime restriction أُزيلت (مكتملة)؛ Phase 2 page migration restriction أُضيفت.*
 *حُدِّث في PR-3 (docs/protocol-conflicts) — 2026-10-06 — أُضيف "فهرس القواعد" (F1–F35 بسطر واحد لكل قاعدة) بأول الملف بدلاً من جدول "القواعد العليا" (نفس الأرقام والأولويات)؛ سطر "إلزامي القراءة" عُدِّل ليطابق بروتوكول المهام (CLAUDE.md البند 1). لم يتغيّر نص أي قاعدة.*
 *حُدِّث في PR-5 / المرحلة B (DS-SIZE) — 2026-10-06 — أُضيفت القاعدة F36: Size System (DS-SIZE). فهرس القواعد: سطر F36. F31 جدول التوجيه: صف font-size/radius/spacing/icon/control height → `docs/design-system/SIZE-SYSTEM.md`. المجموع: 36 قاعدة عليا.*
+*حُدِّث في PR-6 / المرحلة B (DS-ICON) — 2026-10-06 — أُضيفت القاعدة F37: Icon System (DS-ICON). فهرس القواعد: سطر F37. F31 جدول التوجيه: صف أيقونة واجهة / SVG / `data-lucide` / emoji كأيقونة → `docs/design-system/ICON-SYSTEM.md`. المجموع: 37 قاعدة عليا.*

@@ -175,7 +175,7 @@ DS-SEL هو الـ contract المعماري الرسمي لكل عناصر ال
   disabled: boolean,          // اختياري — الافتراضي false
   meta: {                     // اختياري — بيانات مساعدة
     keywords: string[],       // كلمات بحث إضافية تتجاوز label (للـ matching)
-    icon:     any,            // أيقونة الخيار — DS-ASSET يملك القيم الحقيقية
+    icon:     any,            // أيقونة الخيار — اسم DS-ICON (ICON-SYSTEM.md)
     flag:     any,            // علم الدولة — DS-ASSET + flags/*.svg
     parentValue: string | number  // قيمة الـ parent picker (للـ Dependent Selects)
   }
@@ -189,7 +189,7 @@ DS-SEL هو الـ contract المعماري الرسمي لكل عناصر ال
 3. **`disabled: true`** — يمنع الاختيار UI-side؛ منطق الرفض يُؤكَّد server-side.
 4. **`meta.keywords`** — تُستخدم في البحث جانب DS-SEL فقط — لا تُرسَل في payload.
 5. **`meta.parentValue`** — تُستخدم لفلترة الـ Dependent Selects (SEL-20).
-6. **`meta.icon` و `meta.flag`** — DS-ASSET يملك القيم الحقيقية؛ DS-SEL يعرضها فقط.
+6. **`meta.icon` و `meta.flag`** — `meta.icon` = اسم DS-ICON (`ICON-SYSTEM.md`)؛ `meta.flag` يملكه DS-ASSET؛ DS-SEL يعرضها فقط.
 
 ---
 
@@ -1460,7 +1460,7 @@ Backend response
 | z-index hierarchy العالمي | DS-OVL | (غير موثَّق بعد) |
 | Bottom Sheet mechanics (mobile) | DS-OVL | (غير موثَّق بعد) |
 | Flag images | DS-ASSET | flags/*.svg |
-| Skill icons | DS-ASSET | TW.getSkillIcon() |
+| Skill icons | DS-ICON | `TW.getSkillIcon()` → اسم registry (`ICON-SYSTEM.md` ICON-04.3) |
 | Visual assets داخل الـ Options | DS-ASSET | — |
 | omit/value/null semantics في payload | API-MUT | API-MUT-03 |
 | Mutation response shapes | API-MUT | API-MUT-08 + API-MUT-10 |

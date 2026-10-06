@@ -227,9 +227,10 @@
 
 ### مصدر الأيقونات
 
-استخدم نظام الأيقونات الرسمي عند وجوده.
-إذا لم يوجد نظام: SVG inline مقبول.
-ممنوع: font-icon، emoji كأيقونة احترافية.
+نظام الأيقونات الرسمي: **DS-ICON** → [`ICON-SYSTEM.md`](ICON-SYSTEM.md) (ICON-00). الأيقونة من `twIcon(name, opts)` / `twIconEl(name, opts)` في `static/shared/tw-icons.js`؛ الحجم `opts.size` (DS-SIZE)، اللون `currentColor`، وأسهم الرجوع/التقدّم بأسماء المعنى (`back` / `forward` / `prev` / `next`) مع قلب RTL تلقائي.
+الأيقونة زخرفية (`aria-hidden`) — الـ `aria-label` على الزر نفسه.
+SVG inline الموجود يبقى لحد تحويل صفحته (DS-ICON المرحلة C) — ممنوع SVG inline جديد.
+ممنوع: font-icon، emoji كأيقونة، `data-lucide` جديد.
 
 ### أزرار بأيقونة + نص
 
