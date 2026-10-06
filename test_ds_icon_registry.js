@@ -151,7 +151,7 @@ check('every drawing is a Lucide 0.460 drawing', notLucide.length === 0, notLuci
 check('registry names are unique', new Set(entries.map(e => e.name)).size === entries.length);
 
 // ── 6. consumers = phase-C pages only (one PR per page adds itself here) ──
-const PHASE_C_PAGES = ['job-detail.html'];
+const PHASE_C_PAGES = ['job-detail.html', 'landing.html'];
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {
@@ -160,6 +160,7 @@ const consumers = [];
     if (f.isDirectory()) { if (!SKIP_DIRS.has(f.name)) walk(p); continue; }
     if (!/\.(html|js|mjs|css|py|json)$/.test(f.name) || /^test_/.test(f.name)) continue;
     if (p === path.join('static', 'shared', 'tw-icons.js')) continue;
+    if (p === 'sw.js') continue;  // §32 precache list for the offline page (landing) — not a consumer
     if (read(p).includes('tw-icons')) consumers.push(p);
   }
 }('.'));

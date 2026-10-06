@@ -3446,7 +3446,7 @@ window._scCheckProfessional(text)
 ### الحالة الحالية (قبل DS-ICON المرحلة C)
 
 - **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) **v0.460.0** — مصدرين للتحميل اليوم (تناقض موروث، يُزال بالمرحلة C):
-  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `landing.html` · `home-v2.html` · `company-profile.html` · `notifications.html`.
+  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `home-v2.html` · `company-profile.html` · `notifications.html`.
   - unpkg CDN `https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js`: `profile-showcase.html` · `index.html` (مخالف لقاعدة Vendor Assets — مسجّل بـ FUTURE_ROADMAP → DS-ICON Phase C).
 - **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM.
 - **الحقل في الكتالوج:** `skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG[].icon` (fallback) — اسم Lucide بصيغة kebab-case.
@@ -6420,11 +6420,10 @@ CREATE TABLE reports (
 // السبب: /auth/users يتطلب X-Admin-Token (ممنوع من الصفحة العامة)
 //         /jobs يعيد 0 لعدم وجود بيانات كافية حالياً
 
-// إذا كان المستخدم مسجّلاً (localStorage key: tw_user):
-emp  + tw_id → /u/{tw_id}       ← الملف العام الكنوني
-emp  بدون tw_id → /home
-co           → /company-profile  ← بدون ?id= query params
-edu          → /edu-profile      ← بدون ?id= query params
+// الزائر المسجّل: twEntryDestination() (tw_shared.js) من TwAuthSync.getSessionSnapshot() فقط
+// (Auth Gateway rule 6) — authenticated → location.replace(twAccountHref(u)) = /u/{tw_id};
+// expired / stale / invalid → TwAuthSync.invalidateSession('stale_entry') بدون تحويل؛ guest → بيضل.
+// ما في guard (صفحة entry) ولا localStorage مباشر.
 ```
 
 ### Forbidden Patterns (Landing Page)
@@ -6447,16 +6446,13 @@ edu          → /edu-profile      ← بدون ?id= query params
 setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 ```
 
-### Icons
+### Page Shell + أنظمة التصميم (المرحلة C — ثاني صفحة محوّلة)
 
-Lucide icons مُحمَّلة من vendor محلي (انظر قسم Vendor Assets أدناه):
-```html
-<script src="/static/vendor/lucide/lucide.min.js"></script>
-```
-Guard إلزامي قبل الاستخدام:
-```javascript
-if (window.lucide) { lucide.createIcons(); }
-```
+- **Shell (F39):** `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — `tw_shared.css` قبل `<style>` الصفحة · `/static/tw_shared.js` ← `auth-sync.js` ← `static/shared/tw-icons.js` ← السكربت الـ inline. الـ SEO (title · description · OG · twitter · robots · canonical) بالصفحة نفسها، مرة وحدة.
+- **الأيقونات (F37):** `<i data-tw-icon="name" data-tw-size="…">` + `twIcon.hydrate(document.body)` مرة وحدة بعد فحص التحويل. ما في Lucide بالصفحة.
+- **الألوان / الأحجام (F35 / F36):** tokens الـ DS-COLOR / DS-SIZE (المطابق وتحت البكسل). محلي موثّق: `--lp-text` (.87) · `--lp-text-2` (.5 ≠ `--t2` .7) · `--lp-text-3` (.28 ≠ `--t3` .4) · ألوان فئات المميزات (`#f59e0b` · `#ec4899` · `#eab308`) · عناوين `clamp()` · مسافات الأقسام 48–100px · الـ mock (أفاتار 56 · QR) — تصميم تسويقي، مش DS-IMAGE.
+- **Offline (§32):** هي صفحة الـ offline fallback — ملفات الـ shell + `tw-icons.js` بالـ precache. اختبار: `python test_landing_shell.py`.
+- **الكاش:** `/` = `max-age=300` · `/static/*` = `max-age=86400`. الـ `?v=` (hash المحتوى عند بدء السيرفر) بيتغيّر مع كل deploy بيغيّر ملف مشترك → أقصى تأخير 5 دقايق (عمر الـ HTML)، والكاش اليومي لـ `/static/` ما بيعلّق نسخة قديمة.
 
 ### Animations
 
@@ -12514,6 +12510,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 - Everything else (API/JSON, fetch/XHR with empty destination, cross-origin) → no `respondWith`, browser default network, **no `cache.put`**.
 - HTML navigations (`request.mode === 'navigate'`) → network only; offline → one fixed public fallback (`/landing.html`, precached). A private page is never served from cache.
 - Static assets are network-first; cache is offline fallback only.
+- **Precache (`STATIC_ASSETS`):** `/landing.html` · `/manifest.json` + the Page Shell's shared CSS / JS (`/static/tw_shared.css` · `/static/tw_shared.js` · `/static/shared/auth-sync.js`) + `/static/shared/tw-icons.js` — the offline page is served through the shell (Phase C). Stored without `?v=`; offline a static asset is matched by exact URL first, then `caches.match(request, { ignoreSearch: true })`. Keep the list in sync with `partials/shell-*.html` (`test_landing_shell.py` F02/F03).
 - `notificationclick` opens `data.url` only if it starts with `/` and not `//` or `/\` — otherwise `/`.
 
 **Session-end cache wipe:** `twClearAppCaches()` in `tw_shared.js` (single implementation, `window.twClearAppCaches`) deletes all `caches.keys()`. Best-effort, fire-and-forget (never delays redirect), `console.warn` on failure. Called from:

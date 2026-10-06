@@ -542,7 +542,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 32. Service Worker / PWA (Cache Allowlist)
 **Purpose:** PWA installation + caching of public static assets only. Private data is never stored in Cache Storage.
 **Source of Truth:** `sw.js` → `isCacheableRequest()` (allowlist) · `manifest.json` · `twClearAppCaches()` in `tw_shared.js` (session-end cache wipe)
-**Allowlist (all required):** same-origin + `GET` + no `Authorization` header + `request.destination` ∈ {`style`,`script`,`font`,`image`,`manifest`} + path `/static/*` · `/manifest.json` · `/icon-*.png`. Everything else (API/JSON, HTML navigations) → network only, never `cache.put`. Offline navigation → fixed public fallback `/landing.html`.
+**Allowlist (all required):** same-origin + `GET` + no `Authorization` header + `request.destination` ∈ {`style`,`script`,`font`,`image`,`manifest`} + path `/static/*` · `/manifest.json` · `/icon-*.png`. Everything else (API/JSON, HTML navigations) → network only, never `cache.put`. Offline navigation → fixed public fallback `/landing.html` (served through the Page Shell — its shared CSS/JS + `tw-icons.js` are precached without `?v=` and matched offline with `ignoreSearch`; Phase C landing).
 **App icons (PWA + favicon):** real files in `static/icons/` — `icon-192.png` · `icon-512.png` (purpose `any`, ~11% margin) · `icon-maskable-512.png` (purpose `maskable`, ~20% margin) · `apple-touch-icon.png` (180) · `favicon.ico` (16+32). Generated **only** by `python scripts/gen_app_icons.py` from the official logo `33333.svg` (symbol only, no wordmark; white background). Served at root URLs by one fixed allowlist `_APP_ICON_FILES` in `server.py` (`/icon-*.png`, `/apple-touch-icon.png`, `/favicon.ico`). Manifest colors = DS-COLOR: `theme_color` `#00c896` = `--color-brand-primary` (`--color-prim-teal`) · `background_color` `#070b18` = `--color-surface-page` (`--color-prim-dark-950`). Logo changes → re-run the script; never generate icons/favicon inline in code. Test `test_app_icons.py`.
 **Session end:** `TwAuthSync.invalidateSession()` (logout · 401 · expiry · `stale_entry`) and the `twLogout()` fallback call the single helper `twClearAppCaches()` — best-effort, never delays redirect.
 **Rules:** New API endpoints need no `sw.js` change (API not cached by default). Bump `BUILD_TIME` whenever `sw.js` changes so `activate` deletes old caches. `notificationclick` opens only `/`-relative URLs (not `//`).
@@ -992,17 +992,17 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Tiers** (SIZE-07): T1 عالمي · T2 alias محلي (`--r-sm: var(--radius-md)`) · T3 قيمة محلية موثقة.
 - **استثناءات مجمّدة** (SIZE-08): `.sc-actions` / `.sc-btn` (profile-v2) · post-comments (28px indent، avatar 32/22، max-height 280px).
 - **لا tokens** للمسافات الفردية (3/5/7/9/11/13px) ولا لارتفاع 36px (BTN-04 MD بدون مستهلك). أزرار الهيدر (32/34/40) بدون قرار — PR بصري منفصل.
-- **صفحات بدون `tw_shared.css`:** landing · appointments · appointment-room — ممنوع نسخ الـ tokens لإلها (home-v2 ✅ PR-8 · job-detail ✅ Phase C).
+- **صفحات بدون `tw_shared.css`:** appointments · appointment-room — ممنوع نسخ الـ tokens لإلها (home-v2 ✅ PR-8 · job-detail ✅ · landing ✅ Phase C).
 **Do not recreate:** لا تعرّف `--size-*` / `--radius-*` / `--space-*` برّا `tw_shared.css`. لا `tw-ui-tokens.css` ولا ملف tokens ثاني. لا تبدّل قيمة مرئية ضمن migration. لا تلمس الاستثناءات المجمّدة. لا migration لصفحة بدون موافقة صريحة.
 **Cross-references:** DS-BTN §39 (BTN-02 `--radius-control` · BTN-04 sizes). DS-COLOR §50 (CLR-15 — الأبعاد المحلية تتبع SIZE-07). DS-INP §42 (حقول بدون `height` مفروض).
 **Test:** `python test_ds_size_tokens.py`
-**Status:** Phase A (audit) ✅ · Phase 1 (docs + tokens، بدون مستهلك) ✅ (2026-10-06 — PR-5 / المرحلة B) · Phase 2 (page-by-page migration) 🔜 جاري — job-detail ✅
+**Status:** Phase A (audit) ✅ · Phase 1 (docs + tokens، بدون مستهلك) ✅ (2026-10-06 — PR-5 / المرحلة B) · Phase 2 (page-by-page migration) 🔜 جاري — job-detail ✅ · landing ✅
 
 ---
 
 ### 56. Icon System V1 [DS-ICON]
 **Purpose:** النظام الرسمي الوحيد لأيقونات الواجهة: registry واحد (أسماء + رسومات Lucide 0.460) ودالة رسم موحّدة، قلب RTL تلقائي للأيقونات الاتجاهية، ومنع الـ emoji والـ SVG اليدوي كأيقونات واجهة. يغطي كمان أيقونات الكتالوج (مهارات + مهن) — الهدف إلغاء مكتبة Lucide كاملة.
-**Source of Truth:** `static/shared/tw-icons.js` (Runtime — Phase B ✅ · Phase C: أول مستهلك `job-detail.html`) · `docs/design-system/ICON-SYSTEM.md`
+**Source of Truth:** `static/shared/tw-icons.js` (Runtime — Phase B ✅ · Phase C: `job-detail.html` · `landing.html`) · `docs/design-system/ICON-SYSTEM.md`
 **Details:** `docs/design-system/ICON-SYSTEM.md` (ICON-00 → ICON-14) · `docs/rules/ds-icon.md` · `ARCHITECTURE_FOUNDATION.md` F37 · `THIRD_PARTY_NOTICES.md` → Lucide (ISC). أبرز قواعد:
 - **API:** `twIcon(name, opts)` → string SVG · `twIconEl(name, opts)` → عنصر SVG · `twIcon.has(name)` · `twIcon.hydrate(root)` → يبدّل كل `<i data-tw-icon="name" data-tw-size="sm" [data-tw-filled]>` جوّا root بالـ SVG (أيقونات HTML الثابتة — ICON-03.1، PR #558؛ نداء ثاني no-op). مخرجات ثابتة: `viewBox 0 0 24 24` · `fill none` · `stroke currentColor` · `stroke-width 2` · class `tw-ico` · `aria-hidden="true"`.
 - **`opts.size`** = `xs`…`2xl` → `var(--size-icon-X, <px>)` (يشتغل بدون `tw_shared.css`) · بدون size → CSS الصفحة · `opts.filled` → `fill currentColor` · `opts.className` مفلتر.
@@ -1013,7 +1013,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Do not recreate:** لا مكتبة أيقونات ثانية ولا نسخة Lucide ثانية ولا CDN. لا SVG inline جديد ولا `<i data-lucide>` جديد. لا registry ثاني ولا خريطة أيقونات محلية ولا جدول aliases ثاني. لا emoji كأيقونة واجهة. لا أيقونة بدون مستهلك. لا تحميل `tw-icons.js` بصفحة خارج PR المرحلة C الخاص فيها.
 **Cross-references:** DS-SIZE §55 (`--size-icon-*` — SIZE-06) · DS-COLOR §50 (`currentColor` — CLR-33) · DS-BTN §39 (BTN-06 icon buttons) · Hybrid Skill Icon System (`ARCHITECTURE.md`) · Vendor Assets (`ARCHITECTURE.md`).
 **Test:** `node test_ds_icon_registry.js`
-**Status:** Phase A (audit) ✅ · Phase B (registry + docs + test، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-6 / المرحلة B) · Phase C (page-by-page conversion + إزالة Lucide) 🔜 جاري — job-detail ✅
+**Status:** Phase A (audit) ✅ · Phase B (registry + docs + test، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-6 / المرحلة B) · Phase C (page-by-page conversion + إزالة Lucide) 🔜 جاري — job-detail ✅ · landing ✅
 
 ---
 
@@ -1043,11 +1043,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **الترتيب:** المشترك أولاً — يُطبَّق صفحة صفحة (المرحلة C) مع فحص بصري.
 - **`H`:** أول 10 hex من sha256 للملف، مرة وحدة عند بدء السيرفر.
 - **admin:** بدون manifest / auth-sync · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل SW.
-- **مستهلكين:** `home-v2.html` (Phase B — تجريبية) · `job-detail.html` (Phase C).
+- **مستهلكين:** `home-v2.html` (Phase B — تجريبية) · `job-detail.html` · `landing.html` (Phase C — entry، صفحة الـ offline fallback: ملفات الـ shell بالـ precache §32).
 **Do not recreate:** لا آلية حقن ثانية ولا partial ثاني. لا نسخ tags الـ shell يدوياً بصفحة محوّلة. لا `?v=` يدوي لملف مشترك. لا بيانات مستخدم بالحقن (§54). لا `tw-icons.js` ولا `user-scalable=no` بالـ shell. لا تحويل صفحة بدون screenshots.
 **Cross-references:** §32 SW / PWA (icons · manifest · allowlist) · §54 · VM-10 / TwAuthSync (guard المرحلة C) · DS-ICON §56 (F37) · DS-COLOR §50.
 **Test:** `python test_page_shell.py`
-**Status:** Phase A (فحص) ✅ · Phase B (النظام + home-v2 تجريبية، screenshots مطابقة) ✅ (2026-10-06 — PR-8) · Phase C 🔜 جاري — job-detail ✅ ← landing ← appointments ← appointment-room ← الباقي
+**Status:** Phase A (فحص) ✅ · Phase B (النظام + home-v2 تجريبية، screenshots مطابقة) ✅ (2026-10-06 — PR-8) · Phase C 🔜 جاري — job-detail ✅ ← landing ✅ ← appointments ← appointment-room ← الباقي
 
 ---
 
@@ -1094,4 +1094,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — PR #559 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — Phase C / landing · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
