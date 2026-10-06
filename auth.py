@@ -3537,33 +3537,6 @@ def get_unread_count(user_id: int) -> int:
     finally:
         release_conn(conn)
 
-def get_profile_style(tw_id: str) -> str:
-    """Lightweight: get only profile_style for a given tw_id. Used for SSR theme injection.
-    Uses _cache to avoid re-querying on repeated page views (TTL 60s).
-    """
-    cache_key = f"theme:{tw_id}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return str(cached)
-    try:
-        conn = get_conn()
-        try:
-            rows = conn.run(
-                "SELECT p.profile_style FROM profiles p "
-                "JOIN users u ON u.id = p.user_id "
-                "WHERE u.tw_id = :tw_id",
-                tw_id=tw_id
-            )
-            style = str(rows[0][0]) if rows and rows[0][0] else "1"
-            _cache_set(cache_key, style, ttl=60)
-            return style
-        finally:
-            release_conn(conn)
-    except Exception:
-        pass
-    return "1"
-
-
 # ══ Notifications System ══
 
 def _migrate_notifications_schema_v2():
@@ -4442,32 +4415,6 @@ def record_company_post_view(post_id: int, viewer_user_id=None, visitor_key=None
         return True
     except Exception:
         return False
-    finally:
-        release_conn(conn)
-
-
-def toggle_company_post_appreciation(post_id: int, user_id: int) -> dict:
-    """Toggle appreciation for a post. Returns {appreciated, appreciations_count}.
-    Uniqueness enforced via uq_post_appr_user index."""
-    conn = get_conn()
-    try:
-        existing = conn.run(
-            "SELECT 1 FROM company_post_appreciations WHERE post_id=:pid AND user_id=:uid",
-            pid=post_id, uid=user_id)
-        if existing:
-            conn.run(
-                "DELETE FROM company_post_appreciations WHERE post_id=:pid AND user_id=:uid",
-                pid=post_id, uid=user_id)
-            appreciated = False
-        else:
-            conn.run(
-                "INSERT INTO company_post_appreciations (post_id, user_id) VALUES (:pid, :uid)",
-                pid=post_id, uid=user_id)
-            appreciated = True
-        cnt_rows = conn.run(
-            "SELECT COUNT(*) FROM company_post_appreciations WHERE post_id=:pid", pid=post_id)
-        count = int(cnt_rows[0][0]) if cnt_rows else 0
-        return {"appreciated": appreciated, "appreciations_count": count}
     finally:
         release_conn(conn)
 

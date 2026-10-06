@@ -83,7 +83,7 @@ from auth import (
     update_application_status, promote_application_to_shortlist, archive_job,
     get_company_jobs_all, set_job_status,
     get_site_setting, set_site_setting, release_conn,
-    _cache_del, get_profile_style,
+    _cache_del,
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
@@ -94,7 +94,7 @@ from auth import (
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, toggle_company_post_appreciation, set_company_post_appreciation, set_company_post_save,
+    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, set_company_post_appreciation, set_company_post_save,
     get_company_post_comments, create_company_post_comment, update_company_post_comment, delete_company_post_comment,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
@@ -693,9 +693,6 @@ def login_html(): return read_html("index.html")
 @app.get("/home", response_class=HTMLResponse)
 def home(): return read_html("home-v2.html")
 
-@app.get("/home.html", response_class=HTMLResponse)
-def home_html(): return read_html("home-v2.html")
-
 # ── Taxonomy-aware feed helpers ──────────────────────────────────────────────
 
 _FEED_JOB_POOL = 200  # jobs fetched for scoring; top N returned after sort
@@ -941,62 +938,30 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     return {"items": items, "filter": filter, "total": len(items), "next_cursor": None}
 
 
-@app.get("/profile", response_class=HTMLResponse)
-def profile(id: str = ""):
-    """Serve profile.html with SSR theme injection to prevent FOUC.
-    read_html() uses cache — we modify after reading (cache stores base HTML).
-    """
-    html = read_html("profile.html")  # base HTML from cache
-    if id:
-        style = get_profile_style(id)  # 1 lightweight DB query
-        # True fast path: only inject if non-default theme
-        # s1 = default, already in base HTML → no replacement needed
-        if style not in ("1", "", None):
-            html = html.replace(
-                'class="profile-loading"',
-                f'class="profile-loading s{style}"',
-                1
-            )
-    return html
-
-@app.get("/profile.html", response_class=HTMLResponse)
-def profile_html(id: str = ""):
-    """Serve profile.html with SSR theme injection to prevent FOUC."""
-    html = read_html("profile.html")
-    if id:
-        style = get_profile_style(id)
-        if style not in ("1", "", None):
-            html = html.replace(
-                'class="profile-loading"',
-                f'class="profile-loading s{style}"',
-                1
-            )
-    return html
-
-@app.get("/company", response_class=HTMLResponse)
-def company(): return read_html("company.html")
-
-@app.get("/company.html", response_class=HTMLResponse)
-def company_html(): return read_html("company.html")
-
-# Minimal client-side redirect page for legacy /company-profile route.
-# Only company owners (user_type === "co") go to /u/{tw_id}.
-# Non-co users go to /home (they're logged in but not a company).
-# No JWT at all → /login.
-_COMPANY_PROFILE_REDIRECT_HTML = (
+# ── Legacy redirect page (single source for every retired page URL) ─────────
+# Served by: /profile, /profile.html, /company, /company.html, /edu, /edu.html,
+# /home.html, /jobs.html, and /company-profile(.html) without ?id=.
+# Decides from TwAuthSync (twEntryDestination() in tw_shared.js) — never tw_user alone:
+#   authenticated → twAccountHref(u) = /u/{tw_id}
+#   guest / expired / stale / invalid → /login (stale session invalidated first)
+_LEGACY_REDIRECT_HTML = (
     '<!doctype html><html dir="rtl"><head><meta charset="utf-8">'
-    '<title>جاري التوجيه…</title></head><body><script>'
-    '(function(){'
-    'var jwt=localStorage.getItem("tw_jwt");'
-    'if(!jwt){location.replace("/login");return;}'
-    'try{'
-    'var u=JSON.parse(localStorage.getItem("tw_user")||"null");'
-    'if(u&&u.user_type==="co"&&u.tw_id){location.replace("/u/"+u.tw_id);}'
-    'else{location.replace("/home");}'
-    '}catch(e){location.replace("/home");}'
-    '})();'
-    '</script></body></html>'
+    '<title>جاري التوجيه…</title></head><body>'
+    '<script src="/tw_shared.js"></script>'
+    '<script src="/static/shared/auth-sync.js"></script>'
+    '<script>(function(){'
+    'var d=(typeof twEntryDestination==="function")?twEntryDestination():null;'
+    'location.replace(d||"/login");'
+    '})();</script></body></html>'
 )
+
+def _legacy_redirect_page():
+    return HTMLResponse(content=_LEGACY_REDIRECT_HTML)
+
+for _legacy_path in ("/profile", "/profile.html", "/company", "/company.html",
+                     "/edu", "/edu.html", "/home.html", "/jobs.html"):
+    app.add_api_route(_legacy_path, _legacy_redirect_page, methods=["GET"],
+                      response_class=HTMLResponse, include_in_schema=False)
 
 def _get_co_tw_id(user_id: int):
     """Return tw_id for a company user by numeric id, or None if not found."""
@@ -1011,11 +976,11 @@ def _get_co_tw_id(user_id: int):
 def company_profile(id: Optional[int] = None):
     """Legacy redirect — canonical URL is /u/{tw_id} for all viewers.
     /company-profile?id=123 → /u/{tw_id}  (server-side 302)
-    /company-profile         → minimal JS page that reads localStorage → /u/{tw_id}"""
+    /company-profile         → shared legacy redirect page (_LEGACY_REDIRECT_HTML)"""
     if id is not None:
         tw = _get_co_tw_id(id)
         return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
-    return HTMLResponse(content=_COMPANY_PROFILE_REDIRECT_HTML)
+    return _legacy_redirect_page()
 
 @app.get("/company-profile.html")
 def company_profile_html(id: Optional[int] = None):
@@ -1023,7 +988,7 @@ def company_profile_html(id: Optional[int] = None):
     if id is not None:
         tw = _get_co_tw_id(id)
         return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
-    return HTMLResponse(content=_COMPANY_PROFILE_REDIRECT_HTML)
+    return _legacy_redirect_page()
 
 @app.get("/profile-showcase", response_class=HTMLResponse)
 def profile_showcase(): return read_html("profile-showcase.html")
@@ -1313,12 +1278,6 @@ def put_branches(company_id: int, data: BranchesInput, token=Depends(verify_toke
     return {"status": "success", "branches": saved}
 
 
-@app.get("/edu", response_class=HTMLResponse)
-def edu(): return read_html("edu.html")
-
-@app.get("/edu.html", response_class=HTMLResponse)
-def edu_html(): return read_html("edu.html")
-
 @app.get("/edu-profile", response_class=HTMLResponse)
 def edu_profile(): return read_html("edu-profile.html")
 
@@ -1336,15 +1295,6 @@ def messages(): return read_html("messages.html")
 
 @app.get("/messages.html", response_class=HTMLResponse)
 def messages_html(): return read_html("messages.html")
-
-@app.get("/employees-group", response_class=HTMLResponse)
-def employees_group(): return read_html("employees-group.html")
-
-@app.get("/employees-group.html", response_class=HTMLResponse)
-def employees_group_html(): return read_html("employees-group.html")
-
-@app.get("/jobs.html", response_class=HTMLResponse)
-def jobs_page(): return read_html("jobs.html")
 
 @app.get("/job-detail", response_class=HTMLResponse)
 def job_detail(): return read_html("job-detail.html")
@@ -1556,13 +1506,6 @@ class VerifyRequestInput(BaseModel):
     document_url: Optional[str] = None
     notes: Optional[str] = None
 
-class FeedbackInput(BaseModel):
-    cv_text: str
-    job_id: int
-    score: float
-    action: str
-    user_id: Optional[str] = None
-
 class AdminLoginInput(BaseModel):
     password: str
 
@@ -1578,35 +1521,10 @@ class AdminMessageInput(BaseModel):
 # Health
 # ══════════════════════════════════════════
 
-@app.get("/jobs/match/{user_id}")
-def match_jobs_for_user(user_id: int):
-    """Match jobs based on user skills"""
-    try:
-        profile = get_full_profile(user_id)
-        if not profile:
-            return {"jobs": [], "count": 0}
-        user_skills = set(s.lower() for s in (profile.get("skills") or []))
-        all_jobs = get_jobs({}).get("jobs", [])
-        scored = []
-        for job in all_jobs:
-            job_skills = set(s.lower() for s in (job.get("skills") or []))
-            if not job_skills:
-                score = 10
-            else:
-                common = user_skills & job_skills
-                score = int(len(common) / len(job_skills) * 100) if job_skills else 0
-            job["match_score"] = score
-            scored.append(job)
-        scored.sort(key=lambda x: x["match_score"], reverse=True)
-        return {"jobs": scored[:20], "count": len(scored)}
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
 @app.get("/sitemap.xml")
 def sitemap():
     urls = [
         "https://tawasolna.com/",
-        "https://tawasolna.com/jobs.html",
         "https://tawasolna.com/index.html",
     ]
     xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -1628,16 +1546,6 @@ def tw_shared_js():
                        headers={"Cache-Control":"public, max-age=3600"})
     except:
         return Response(content="", media_type="application/javascript")
-
-@app.get("/company-profile.js")
-def company_profile_js():
-    """Serve company-profile.js action layer — Rule #21"""
-    try:
-        with open("company-profile.js","r") as f: content=f.read()
-        return Response(content=content, media_type="application/javascript",
-                       headers={"Cache-Control":"no-cache, must-revalidate"})
-    except:
-        return Response(content="// company-profile.js not found", media_type="application/javascript")
 
 @app.get("/sw.js")
 def service_worker():
@@ -2294,23 +2202,6 @@ def company_post_record_view(post_id: int, data: PostViewInput, request: Request
         recorded = record_company_post_view(post_id, visitor_key=vk)
 
     return {"status": "success", "recorded": recorded}
-
-
-@app.post("/company/posts/{post_id}/appreciate")
-def company_post_appreciate(post_id: int, token=Depends(verify_token)):
-    """Toggle appreciation on a post. Auth required. Owner cannot appreciate own post."""
-    user_id = token.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول لتقدير المنشور")
-    if not _check_appr_rate(int(user_id), post_id):
-        raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
-    owner_id = get_post_owner(post_id)
-    if not owner_id:
-        raise HTTPException(status_code=404, detail="المنشور غير موجود")
-    if int(owner_id) == int(user_id):
-        raise HTTPException(status_code=403, detail="لا يمكنك تقدير منشورك")
-    result = toggle_company_post_appreciation(post_id, int(user_id))
-    return {"status": "success", **result}
 
 
 class AppreciationStateInput(BaseModel):
@@ -4783,10 +4674,6 @@ def admin_delete_job(job_id: int, request: Request):
         release_conn(conn)
 
 
-@app.post("/feedback")
-def log_feedback(data: FeedbackInput, token=Depends(verify_token)):
-    return {"status": "logged"}
-
 @app.get("/stats")
 def stats():
     conn = get_conn()
@@ -5602,7 +5489,7 @@ def api_create_appointment_message(appointment_id: int,
 # ── Scheduler Internal Endpoint — S3 ─────────────────────────────────────────
 # Machine-to-machine only. No JWT, no user session, no X-User-Id.
 # Auth: X-Scheduler-Secret header verified with hmac.compare_digest.
-# Secret: SCHEDULER_SECRET env var (Heroku Config Vars — never in source).
+# Secret: SCHEDULER_SECRET env var (Railway Variables — never in source).
 # Caller: external cron (GitHub Actions / cron-job.org) per S0 decision.
 
 @app.post("/internal/run-due-jobs")

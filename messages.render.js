@@ -36,7 +36,7 @@ function accentClass(type) {
 }
 
 // Line-2 profession/specialty caption — profiles.headline (falling back to
-// the older profiles.title column, same convention as profile.html /
+// the older profiles.title column, same convention as
 // profile-v2.render.js: `prof.headline || prof.title`). The account type
 // already shows as the line-1 badge, so when neither field is set, render
 // no line at all rather than repeating the type.
@@ -170,10 +170,8 @@ document.addEventListener('click', function(e) {
 function goMessengerHome() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }
-  var dest = _user.user_type === 'co'  ? '/company'
-           : _user.user_type === 'edu' ? '/edu'
-           : '/home';
-  window.location.href = dest;
+  // co → Talent Bank inside its company page; emp / edu → Home V2 (twHomeHref)
+  window.location.href = _user.user_type === 'co' ? twTalentBankHref(_user) : twHomeHref(_user);
 }
 
 function goMessengerProfile() {

@@ -227,10 +227,6 @@ window.twEscAttr = twEscAttr;
 function twEscHtml(v) { return twEscAttr(v); }
 window.twEscHtml = twEscHtml;
 
-// sanitize: @deprecated — alias for twEscAttr. Kept while profile.html migrates (PR cleanup).
-// Behavioral note: old sanitize returned '' for 0; twEscAttr returns "0" (correct).
-function sanitize(str) { return twEscAttr(str); }
-
 // Safe text setter
 function safeText(el, text){
   if(!el) return;
@@ -359,13 +355,13 @@ function getTwUser() {
   try { return JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e) { return null; }
 }
 
-// Type-aware "home" destination — single source of truth (previously
-// duplicated as goMessengerHome() in messages.render.js and hardcoded to
-// '/home' for every account type in profile-v2.render.js).
+// "Home" (feed/dashboard) destination — single source of truth for header
+// home buttons. Home V2 (/home) renders a view per account type (emp/co/edu,
+// static/home/home.nav.js), so every logged-in account goes to /home.
 function twHomeHref(u) {
   u = u || getTwUser();
   if (!u) return '/';
-  return u.user_type === 'co' ? '/company' : u.user_type === 'edu' ? '/edu' : '/home';
+  return '/home';
 }
 
 // "My account" destination — single source of truth for post-login /
@@ -374,6 +370,15 @@ function twHomeHref(u) {
 // Account with tw_id → /u/{tw_id} (Smart Router, all user types); else /login.
 function twAccountHref(u) {
   return (u && u.tw_id) ? '/u/' + encodeURIComponent(u.tw_id) : '/login';
+}
+
+// Talent Bank (بنك المواهب) destination for a company account — the candidates
+// modal inside its own company page, opened by the ?cand deep-link
+// (company.main.js). Empty ?cand= opens the bank without a selected candidate.
+// Company without tw_id → /company-profile (legacy redirect resolves it).
+function twTalentBankHref(u) {
+  u = u || getTwUser();
+  return (u && u.tw_id) ? '/u/' + encodeURIComponent(u.tw_id) + '?cand=' : '/company-profile';
 }
 
 // Entry-page session gate (landing.html + Auth Gateway on-load/bfcache check).
@@ -450,7 +455,7 @@ function twShareProfile() {
 var _TW_HEADER_MENU_POLICY = [
   { key: 'settings', label: 'الإعدادات', href: '/settings', show: 'auth',
     icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
-  { key: 'candidates', label: 'بحث عن موظفين', href: '/company', show: 'auth',
+  { key: 'candidates', label: 'بنك المواهب', href: twTalentBankHref, show: 'auth',
     accountTypes: ['co'],
     icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' },
   { key: 'contact', label: 'تواصل معنا', disabled: true, show: 'all',
@@ -501,14 +506,15 @@ function _twHeaderMenuItemHtml(item) {
     + 'stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true">' + item.icon + '</svg>';
   if (item.disabled) {
     return '<div class="sc-menu-item disabled" title="قريباً">'
-      + svg + sanitize(item.label)
+      + svg + twEscHtml(item.label)
       + '<span class="sc-menu-soon">قريباً</span></div>';
   }
   var cls = 'sc-menu-item' + (item.danger ? ' danger' : '');
   if (item.action) {
-    return '<button type="button" class="' + cls + '" data-menu-action="' + item.action + '">' + svg + sanitize(item.label) + '</button>';
+    return '<button type="button" class="' + cls + '" data-menu-action="' + item.action + '">' + svg + twEscHtml(item.label) + '</button>';
   }
-  return '<a class="' + cls + '" href="' + item.href + '" data-key="' + item.key + '">' + svg + sanitize(item.label) + '</a>';
+  var href = typeof item.href === 'function' ? item.href() : item.href;
+  return '<a class="' + cls + '" href="' + twEscAttr(href) + '" data-key="' + item.key + '">' + svg + twEscHtml(item.label) + '</a>';
 }
 
 // ── Declarative Session Visibility (VM-10D) ──────────────────────

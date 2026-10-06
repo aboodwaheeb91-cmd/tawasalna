@@ -462,7 +462,8 @@
         p.className = 'jd-match-noskills';
         p.textContent = 'أضف مهاراتك في ملفك الشخصي لرؤية نسبة التطابق. ';
         var lnk = document.createElement('a');
-        lnk.href = '/profile'; lnk.textContent = 'أكمل مهاراتك الآن';
+        // twAccountHref (tw_shared.js) when loaded; else /profile — the shared legacy redirect resolves it
+        lnk.href = (typeof twAccountHref === 'function') ? twAccountHref(_user) : '/profile'; lnk.textContent = 'أكمل مهاراتك الآن';
         p.appendChild(lnk);
         body.appendChild(p);
       }

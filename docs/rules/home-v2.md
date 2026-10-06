@@ -7,7 +7,7 @@
 
 These rules are permanent and apply to all future AI sessions:
 
-1. **`/home` serves `home-v2.html`** — `home.html` (القديم) لم يعد production route. لا تعيده لـ `/home`.
+1. **`/home` serves `home-v2.html`** — `home.html` القديم حُذف (PR-4)؛ `/home.html` صار redirect عبر صفحة التحويل المشتركة (`_LEGACY_REDIRECT_HTML`). `/home` هو وجهة `twHomeHref()` لكل أنواع الحسابات (emp / co / edu).
 
 2. **Feed-first is mandatory.** أي تعديل على Home V2 يجب أن يبدأ بـ filter tabs ثم feed. ممنوع إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة).
 
@@ -16,7 +16,6 @@ These rules are permanent and apply to all future AI sessions:
    - `static/app-header.css` — CSS vars + `.sc-header` / `.sc-*` shared header classes
    - `static/app-header.js` — `initAppHeader(user)` — layout-only (VM-10 compliant): avatar + logout delegation; no polling, no setInterval, no session resolution
    - `static/home-v2.css` — أنماط الصفحة (`.hw-*` namespace)
-   - `static/home-v2.js` — **DEPRECATED** — placeholder فقط، لا تضيف code هنا
    - `static/home/home.utils.js` — constants + DOM helpers
    - `static/home/home.state.js` — shared state (`window.Home.state`)
    - `static/home/home.api.js` — feed fetch (`Home.api.loadFeed`)
@@ -27,7 +26,6 @@ These rules are permanent and apply to all future AI sessions:
    - `static/home/home.nav.js` — bottom nav + sidebar + per-user-type setup
    - `static/home/home.main.js` — bootstrap only (auth guard + init + load)
    - ممنوع دمج CSS/JS الكبير داخل HTML
-   - **ممنوع** إضافة logic في `static/home-v2.js`
    - **ممنوع** إضافة feature جديدة قبل تحديد module المناسب لها
 
 4. **`/preview/home-v2` is deleted.** لا تعيد إضافته. Route المعاينة المؤقت أُزيل عند shipping Home V2.
@@ -47,7 +45,7 @@ These rules are permanent and apply to all future AI sessions:
 
 9. **CSS offset is single-source:** `body { padding-top: var(--flt) }` — `.sc-header` هو `position:sticky` (في التدفق الطبيعي)، لا يحتاج padding. `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
 
-10. **`home.html` is legacy.** يمكن الاحتفاظ به كملف احتياطي لكنه ليس route. ممنوع حذفه أو تعديله دون سبب واضح.
+10. **`home.html` و `static/home-v2.js` محذوفان (PR-4).** ممنوع إعادتهما. Auth guard في `home.main.js` يقرر من `TwAuthSync.getSessionSnapshot()` فقط (expired/stale/invalid → `invalidateSession('home_guard')` ثم `/login`؛ guest أو TwAuthSync غير موجود → `/login`).
 
 11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
 

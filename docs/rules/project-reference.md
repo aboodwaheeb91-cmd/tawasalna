@@ -9,8 +9,6 @@
 tawasalna/
 ├── server.py              # FastAPI app — routes, JWT, WebSocket, middleware, migrations
 ├── auth.py                # DB data layer + business logic (users, profiles, jobs, comments, pipeline, bcrypt, tw_id)
-├── auto_sync.py           # File watcher that auto-commits changes to GitHub
-├── test.py                # Legacy live-server smoke tests (see Testing)
 ├── requirements.txt       # Python dependencies
 ├── Procfile               # Deployment: uvicorn server:app --host 0.0.0.0 --port $PORT
 ├── README.md              # Quick-start guide
@@ -20,16 +18,13 @@ tawasalna/
 ├── index.auth.js          # Auth logic: redirect(), doLogin(), doRegister(), on-load check
 ├── index.ui.js            # UI logic: selectType(), form switching, toast, utilities
 ├── landing.html           # Public marketing page
-├── home.html              # Employee feed (jobs, courses, news)
-├── profile.html           # Employee profile editor (largest page ~147KB)
-├── company.html           # Company: candidate search
-├── company-profile.html   # Company: profile & job posting
-├── edu.html               # Education institution: course dashboard
+├── home-v2.html           # Home V2 feed (/home) — per-account-type view
+├── profile-showcase.html  # Employee profile (served by /u/{tw_id})
+├── company-profile.html   # Company: profile, jobs, Talent Bank (served by /u/{tw_id})
 ├── edu-profile.html       # Education institution: profile
 ├── job-detail.html        # Single job posting view
 ├── messages.html          # Direct messaging
 ├── notifications.html     # User notifications
-├── employees-group.html   # Company: team member management
 ├── settings.html          # Account settings
 ├── admin.html             # Admin control panel
 └── admin-view.html        # Admin analytics dashboard
@@ -62,7 +57,6 @@ tawasalna/
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/jobs` | List all jobs |
-| POST | `/feedback` | Log user feedback (stub — returns `{"status":"logged"}`) |
 | GET | `/stats` | Platform-wide statistics |
 
 ---
@@ -115,20 +109,6 @@ var jwt = localStorage.getItem('tw_jwt');   // snapshot has no jwt field — nev
 
 ---
 
-## auto_sync.py
-
-Watches all project files and auto-commits to GitHub on save:
-- Polls every **3 seconds**, waits **5 seconds** of inactivity before committing
-- Watches extensions: `.py .html .txt .json .md .sh .toml .cfg .ini .yaml .yml`
-- Requires `GITHUB_TOKEN` env var
-
-Run in the background during development if you want auto-commits:
-```bash
-python auto_sync.py &
-```
-
----
-
 ## Testing
 
 Focused tests live at the repo root (`test_*.py`, `test_*_runtime.js`) and in `tests/`. Run only the one relevant to your change, e.g.:
@@ -137,8 +117,6 @@ Focused tests live at the repo root (`test_*.py`, `test_*_runtime.js`) and in `t
 python -m pytest test_post_comments.py -q
 node test_stale_session_entry_runtime.js
 ```
-
-`test.py` is a legacy smoke script against a running server (`uvicorn server:app`); its `test_match()` calls `POST /match`, which no longer exists.
 
 ---
 
