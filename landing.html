@@ -629,24 +629,19 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32
 
 <!-- Lucide Icons — vendored locally, v0.460.0 -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
+<script src="/tw_shared.js"></script>
+<script src="/static/shared/auth-sync.js"></script>
 <script>
 (function () {
   'use strict';
   /* Safety: reveal page even if anything below throws */
   setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 
-  /* ── Logged-in redirect ── */
-  var _raw = null;
-  try { _raw = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
-  if (_raw && _raw.user_type) {
-    var _dest = '/home';
-    if (_raw.user_type === 'co') {
-      _dest = '/company-profile';
-    } else if (_raw.user_type === 'edu') {
-      _dest = '/edu-profile';
-    } else if (_raw.tw_id) {
-      _dest = '/u/' + _raw.tw_id;
-    }
+  /* ── Logged-in redirect ──
+     Decided by TwAuthSync snapshot (twEntryDestination in tw_shared.js), never
+     tw_user alone. Expired/stale/invalid session → cleared, page stays here. */
+  var _dest = (typeof twEntryDestination === 'function') ? twEntryDestination() : null;
+  if (_dest) {
     /* Update CTA button text before redirect so there's no flash */
     var _h = document.getElementById('heroCta');
     var _c = document.getElementById('ctaMainBtn');

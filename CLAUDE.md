@@ -645,17 +645,22 @@ These rules are permanent and apply to all future AI sessions.
 
 2. **`/login` (index.html) is the Auth Gateway only.** It contains the login form and registration form. It is not a full Landing Page. The page is split into three files: `index.html` (HTML), `index.auth.js` (auth logic), `index.ui.js` (UI effects). Do not merge them back.
 
-3. **`redirect(u)` in `index.auth.js` is the single authority for post-login routing.** Rules:
-   - `emp` → `/u/{tw_id}` (canonical employee public profile)
-   - `co` → `/company-profile`
-   - `edu` → `/edu-profile`
-   - `admin` → `/admin` (defensive; admin auth uses separate flow)
+3. **`redirect(u)` in `index.auth.js` is the single authority for post-login routing.** It delegates the destination to **`twAccountHref(u)` in `tw_shared.js`** — the ONLY "my account" destination function (also used by `landing.html` via `twEntryDestination()`):
+   - account with `tw_id` (emp / co / edu) → `/u/{tw_id}` (Smart Router decides the page by `users.user_type`)
+   - no `tw_id` → `/login`
+   - Do NOT re-add per-type branches (`/company-profile`, `/edu-profile`, `/admin`, `/profile-showcase`) in `redirect()` or `landing.html`.
+   - `twHomeHref()` is a different concept — the type-aware **feed/dashboard** (`/home` · `/company` · `/edu`) used by header home buttons. Never use it as the post-login destination, and never merge it with `twAccountHref()`.
 
 4. **`profile.html?id=` is a forbidden redirect target for new code.** Use `/u/{tw_id}` for employees. The legacy URL `profile.html?id=` must not appear in any new redirect, link, or button.
 
 5. **`company-profile.html?id=` and `edu-profile.html?id=` are forbidden as new redirect targets.** Use `/company-profile` and `/edu-profile` (modern routes without query params).
 
 6. **localStorage is a session cache, not the authority for roles.** `localStorage.tw_user` is populated by the API after login and used as a convenience cache. Never gate security-sensitive behaviour on it. TODO (P1 next): validate the session with `POST /auth/verify-token` before trusting localStorage data.
+   - **Entry pages decide from `TwAuthSync.getSessionSnapshot()` only (fix/stale-session-entry-redirect).** `landing.html` and the Auth Gateway (`index.auth.js` on-load + bfcache) call `twEntryDestination()` in `tw_shared.js`: redirect **only** when `isAuthenticated === true`; `expired` / `stale` / `invalid` → `TwAuthSync.invalidateSession('stale_entry')` with **no redirect**; `guest` or TwAuthSync missing → no redirect (fail-closed).
+   - Both entry pages load `tw_shared.js` → `static/shared/auth-sync.js` before their entry check.
+   - bfcache re-check in `index.auth.js` goes through `TwAuthSync.onSessionChange` (`reason === 'pageshow'`) — no direct `pageshow` listener.
+   - ❌ Redirecting from an entry page because `tw_user` exists (this caused the expired-JWT login ↔ profile loop).
+   - Test: `node test_stale_session_entry_runtime.js` (vm, real code).
 
 7. **Exactly one on-load redirect check — in `index.auth.js`.** One IIFE only. Do not re-add redirect checks in `index.ui.js` or inline in `index.html`.
 

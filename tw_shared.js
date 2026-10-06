@@ -348,6 +348,33 @@ function twHomeHref(u) {
   return u.user_type === 'co' ? '/company' : u.user_type === 'edu' ? '/edu' : '/home';
 }
 
+// "My account" destination — single source of truth for post-login /
+// logged-in entry routing (redirect(u) in index.auth.js + landing.html).
+// Distinct from twHomeHref() above, which is the type-aware feed/dashboard.
+// Account with tw_id → /u/{tw_id} (Smart Router, all user types); else /login.
+function twAccountHref(u) {
+  return (u && u.tw_id) ? '/u/' + encodeURIComponent(u.tw_id) : '/login';
+}
+
+// Entry-page session gate (landing.html + Auth Gateway on-load/bfcache check).
+// Decides from TwAuthSync.getSessionSnapshot() only — never from tw_user alone.
+//   authenticated               → returns twAccountHref(tw_user) (caller redirects)
+//   expired / stale / invalid   → TwAuthSync.invalidateSession('stale_entry'), no redirect → null
+//   guest / no TwAuthSync       → null (fail-closed: no redirect)
+// Never returns '/login' — an entry page must not redirect to the login page.
+function twEntryDestination() {
+  if (!window.TwAuthSync || typeof TwAuthSync.getSessionSnapshot !== 'function') return null;
+  var snap = TwAuthSync.getSessionSnapshot();
+  if (snap && snap.isAuthenticated) {
+    var dest = twAccountHref(getTwUser());
+    return dest === '/login' ? null : dest;
+  }
+  if (snap && snap.state !== 'guest' && typeof TwAuthSync.invalidateSession === 'function') {
+    TwAuthSync.invalidateSession('stale_entry');
+  }
+  return null;
+}
+
 function twLogout() {
   if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
     TwAuthSync.invalidateSession('logout', { redirect: '/login' });

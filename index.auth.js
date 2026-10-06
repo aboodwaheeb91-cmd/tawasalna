@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v9
+// Version: auth-gw-v10
 
 'use strict';
 
@@ -11,40 +11,33 @@ var curType = 'emp';
 // ── Post-login redirect ───────────────────────────────────────────────────────
 // Single authority for where users land after login or register.
 // Source of truth: user object from API response, NOT localStorage.
+// Destination comes from twAccountHref() in tw_shared.js (shared with landing.html):
+// account with tw_id → /u/{tw_id} (Smart Router), otherwise /login.
 // P0 rules: no legacy ?id= URLs, no redirect to /messages or /notifications.
 function redirect(u){
   if(!u) return;
-  if(u.user_type === 'co')    { window.location.href = u.tw_id ? '/u/' + u.tw_id : '/company-profile'; return; }
-  if(u.user_type === 'edu')   { window.location.href = '/edu-profile';     return; }
-  // Defensive: admin normally uses a separate auth flow.
-  if(u.user_type === 'admin') { window.location.href = '/admin';           return; }
-  // Employee: canonical public profile. Fallback for legacy accounts missing tw_id.
-  window.location.href = u.tw_id ? '/u/' + u.tw_id : '/profile-showcase';
+  window.location.href = twAccountHref(u);
 }
 
 // ── Single on-load session check ─────────────────────────────────────────────
-// Exactly one check. If a valid cached session exists, redirect immediately.
-// TODO (P1): call POST /auth/verify-token before trusting the cached session.
+// Exactly one check (Auth Gateway Rule 7). Decision comes from
+// TwAuthSync.getSessionSnapshot() via twEntryDestination() — never tw_user alone.
+// authenticated → redirect; expired/stale/invalid → invalidateSession('stale_entry')
+// with no redirect (breaks the stale-session login ↔ profile loop).
+// The same check is re-run on bfcache restore through TwAuthSync.onSessionChange
+// (VM-01: no direct pageshow listener) — it is not a second on-load check.
 ;(function(){
-  try {
-    var _cached = JSON.parse(localStorage.getItem('tw_user'));
-    if(_cached && _cached.id) redirect(_cached);
-  } catch(e){}
+  function _entryCheck(){
+    var dest = twEntryDestination();
+    if(dest) window.location.replace(dest);
+  }
+  _entryCheck();
+  if(window.TwAuthSync && typeof TwAuthSync.onSessionChange === 'function'){
+    TwAuthSync.onSessionChange(function(info){
+      if(info && info.reason === 'pageshow') _entryCheck();
+    });
+  }
 }());
-
-// ── bfcache session revalidation ─────────────────────────────────────────────
-// The on-load IIFE above runs only once on initial page load and is NOT re-run
-// on bfcache restore (pageshow with e.persisted=true). This listener closes that
-// gap: when the browser restores the login page from bfcache, if the user is
-// still authenticated they are redirected away immediately.
-// This is NOT a second on-load check — pageshow/bfcache is a distinct event.
-window.addEventListener('pageshow', function(ev) {
-  if (!ev.persisted) return;
-  try {
-    var _cached = JSON.parse(localStorage.getItem('tw_user'));
-    if (_cached && _cached.id) redirect(_cached);
-  } catch(e) {}
-});
 
 // ── DS-VAL helpers (login form — not used outside login) ─────────────────────
 var _submitting       = false;
