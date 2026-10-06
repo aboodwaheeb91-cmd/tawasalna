@@ -49,6 +49,17 @@
 - [ ] **P1** — DS-SIZE Phase 2: migration صفحة صفحة إلى tokens الـ DS-SIZE — **المطابق وتحت البكسل فقط** (SIZE-05) + استثناء أيقونات 13px → `--size-icon-sm` (قرار 2). موافقة صريحة لكل صفحة؛ الاستثناءات المجمّدة (SIZE-08) خارجها. القيم المرئية بـ PR redesign معلن لكل صفحة.
 - [ ] **P1** — توحيد أزرار الهيدر: `.sc-home-btn` / `.sc-hicon` / `.hdr-back` = 32 (بروفايل/شركة) · 34 (رسائل) · 34/36 (مواعيد) · 40 (الهيدر المشترك). الميل لـ 40 (`--size-control-icon-lg`). PR بصري منفصل مع screenshots — ما في قرار لسا.
 - [ ] **P1** — إضافة `tw_shared.css` للصفحات الخمس اللي ما بتحمّله: `home-v2.html` · `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`. PR منفصل مع فحص بصري (قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments لازم الرابط قبل `<style>` المحلي). شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات.
+- [ ] **P1** — DS-ICON Phase C: تحويل صفحة صفحة لـ `twIcon` / `twIconEl` (`static/shared/tw-icons.js` · F37 · `docs/design-system/ICON-SYSTEM.md` ICON-13). موافقة صريحة لكل صفحة؛ كل تغيير مرئي (توحيد الأحجام 10/11/15/19/24 · stroke 1.5/1.8/2.2/2.5 → 2 · رسومات Lucide الأقدم بالـ SVG inline) يُذكر بوصف الـ PR.
+  - **أول PR:** زر الرجوع بـ `profile-showcase.html:46` (`#scPreviewBackBtn` — سهم يدوي) → `twIcon('back')` + باقي أيقونات `profile-showcase.html` نفسها.
+  - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html` · `job-detail.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
+  - دمج `_lucideIcon()` المكرّرة (`static/job/job-detail.js` · `static/home/home.cards.js`) — تختفي لصالح `twIconEl`.
+  - تحويل `LINK_ICONS` (`profile-v2.links.js`) · `_FILTER_ICONS` (`company.main.js` — SVG inline) · قائمة الهيدر `_TW_HEADER_MENU_POLICY` (`tw_shared.js` — SVG inline) لأسماء registry (المقابلات مثبّتة بـ `test_ds_icon_registry.js`).
+  - سهم القائمة المنسدلة بـ `static/company/company.css` (data-URI SVG بلون ثابت `#6b7686` / `#94a3b8` — سطور ~1298 و ~2152) → أيقونة `expand` بـ `currentColor`.
+  - `_skillIconHtml` / `tw-select.js` / `company.jobs.js`: الاسم ما يدخل الـ HTML بعد التحويل (يسكّر الحقن الحالي بـ `data-lucide`).
+  - emoji الواجهة تُستبدل ضمن تحويل كل صفحة؛ **admin بالآخر**.
+  - **بالآخر:** إزالة `static/vendor/lucide/lucide.min.js` + unpkg CDN (`index.html` · `profile-showcase.html`) + كل `lucide.createIcons()` + قواعد `i[data-lucide]` بالـ CSS؛ فحص "رسمة = Lucide 0.460" بـ `test_ds_icon_registry.js` يتحوّل لمقارنة مع snapshot ثابت؛ تحديث جدول Vendor Assets.
+- [ ] **P2** — أيقونات PWA (`/icon-192.png` · `/icon-512.png`): اليوم placeholder (بكسل واحد بـ `server.py`) — **بانتظار ملفات رسمية** من صاحب المشروع ثم تُخدم كملفات ثابتة + `manifest.json`.
+- [ ] **P2** — favicon (`/favicon.ico` بـ `server.py`) لونه ثابت `#2563ff` → يتبع DS-COLOR (لون العلامة الرسمي) — PR منفصل بقرار لون.
 - [ ] **P1** — Unified Profile Media Sizing: توحيد قواعد عرض الصور في صفحات البروفايل (avatar دائري للموظف، rounded square logo للشركة والمؤسسة، نظام موحد للكفر). لا يعني تعديل upload/cropper الآن.
 - [ ] **P1** — First-time Profile Setup Wizard: flow إعداد أولي خطوة بخطوة لحسابات جديدة بدلاً من صفحة فارغة. يختلف حسب نوع الحساب. يفرّق بين Required وRecommended. يدعم حفظ جزئي. لا يعتمد على frontend فقط — يحتاج backend support.
 - [ ] **P1** — Unified section IDs: تعريف section IDs موحدة (`#posts`, `#jobs`, `#courses`, `#experience`, `#skills`, `#followers`) لدعم clickable stats وguided tour بشكل متسق وغير هش.

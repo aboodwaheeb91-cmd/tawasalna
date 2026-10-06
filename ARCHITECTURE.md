@@ -3439,30 +3439,31 @@ window._scCheckProfessional(text)
 
 ## Hybrid Skill Icon System
 
-> **نظام الأيقونات للمهارات** — توثيق الهندسة والقانونيات والمراحل.
+> **نظام الأيقونات للمهارات والمهن** — الحالة الحالية + الانتقال لـ DS-ICON. النظام الحاكم لكل أيقونات الواجهة: **DS-ICON** (`docs/design-system/ICON-SYSTEM.md` · F37).
 
-### المرحلة الحالية: Phase 1 — Lucide Only
+### الحالة الحالية (قبل DS-ICON المرحلة C)
 
-- **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) v0.460.0 (CDN مُحمَّل مسبقاً في profile-showcase.html)
-- **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM
-- **الحقل في CATALOG:** `icon: 'lucide-icon-name'` — اسم الأيقونة بالصيغة kebab-case
-- **الـ fallback للمهارات المخصصة:** `circle-check` (ثابت: `_CUSTOM_FALLBACK_ICON`)
-- **Helper:** `_skillIconHtml(iconName)` — تُنتج `<i data-lucide="..." class="sk-ic"></i>`
-- **مواضع الظهور:** داخل chip المهارة (قبل الاسم) + داخل قائمة autocomplete
+- **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) **v0.460.0** — مصدرين للتحميل اليوم (تناقض موروث، يُزال بالمرحلة C):
+  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `landing.html` · `job-detail.html` · `home-v2.html` · `company-profile.html` · `notifications.html`.
+  - unpkg CDN `https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js`: `profile-showcase.html` · `index.html` (مخالف لقاعدة Vendor Assets — مسجّل بـ FUTURE_ROADMAP → DS-ICON Phase C).
+- **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM.
+- **الحقل في الكتالوج:** `skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG[].icon` (fallback) — اسم Lucide بصيغة kebab-case.
+- **الـ fallback للمهارات المخصّصة:** `circle-check` (`_CUSTOM_FALLBACK_ICON` بـ `profile-v2.skills.js` · `_FALLBACK_ICON` بـ `tw-skills.js` ← `TW.getSkillIcon()`).
+- **Helper:** `_skillIconHtml(iconName)` — تُنتج `<i data-lucide="..." class="sk-ic"></i>` (الاسم يدخل الـ HTML — يُسكَّر بالتحويل لـ `twIcon`).
+- **مواضع الظهور:** chip المهارة + قائمة autocomplete + chips المهن/المهارات بـ job-detail و company jobs.
 
-### Phase 2 — Font Awesome (مؤجّلة)
+### الانتقال لـ DS-ICON
 
-- Font Awesome Free سيُضاف فقط كـ CDN إضافي في مرحلة لاحقة
-- سيُستخدم **فقط** لأيقونات العلامات التجارية التقنية (Python, Docker, GitHub, إلخ) حين يكون التطابق دقيقاً
-- سيُعرَّف `FA_BRAND_ALLOWLIST` ويُضاف حقل `icon_provider` للكتالوج
-- **لا تُطبَّق Phase 2 قبل موافقة صريحة**
+- كل أسماء الكتالوج المستعملة فعلاً (82 اسم إضافي + المشتركة مع أسماء الواجهة) **موجودة بـ registry** `static/shared/tw-icons.js` — الاسم المخزَّن بالـ DB هو المفتاح (ICON-04.3). الاسم `tool` (بـ `TW.SKILL_CATALOG`، غير موجود بـ Lucide 0.460) → alias لـ `wrench`.
+- المرحلة C: `_skillIconHtml` / `TW.getSkillIcon` consumers → `twIcon(name)`؛ بعد آخر صفحة تُزال مكتبة Lucide كاملة.
+- مهارة/مهنة جديدة بالـ seed → أيقونتها لازم تكون بالـ registry بنفس الـ PR (`node test_ds_icon_registry.js`).
+- **Font Awesome مرفوض** (Phase 2 القديمة أُلغيت — PR-6 / المرحلة B): مصدر الرسومات Lucide 0.460 فقط (F37). ما في `icon_provider` ولا `FA_BRAND_ALLOWLIST`.
 
 ### القواعد القانونية وحقوق الملكية الفكرية
 
 ```
-✅ Lucide — مرخّص MIT — مناسب للاستخدام التجاري بلا قيود
-✅ Font Awesome Free (Phase 2) — مرخّص SIL OFL + MIT — مناسب للاستخدام التجاري
-⚠️  شعارات العلامات التجارية (Python, Docker, AWS...) مملوكة لأصحابها
+✅ Lucide 0.460.0 — مرخّص ISC (أجزاء من Feather — MIT) — النص بـ THIRD_PARTY_NOTICES.md
+⚠️  شعارات العلامات التجارية (LinkedIn, GitHub...) مملوكة لأصحابها
 ⚠️  الاستخدام لأغراض تعريفية فقط — لا يُفيد بأي شراكة أو تأييد
 ❌  لا تستخدم صوراً خارجية أو Google Images داخل الكود
 ❌  لا تستخدم أيقونة علامة تجارية لمهارة عامة (لا تضع شعار Python على "البرمجة")
@@ -3472,9 +3473,10 @@ window._scCheckProfessional(text)
 ### ممنوعات
 
 ```
-❌ لا تُضيف Font Awesome أو CDN جديد دون موافقة صريحة
-❌ لا تستخدم emoji كأيقونات للمهارات
+❌ لا تُضيف Font Awesome أو أي مكتبة أيقونات ثانية أو CDN جديد
+❌ لا تستخدم emoji كأيقونات (مهارات أو واجهة — ICON-11)
 ❌ لا تستخدم صور خارجية أو URLs للأيقونات
+❌ اسم أيقونة كتالوج غير موجود بـ registry DS-ICON
 ❌ لا تغيّر منطق الحفظ أو الـ validation بسبب تغييرات الأيقونات
 ```
 
@@ -6422,6 +6424,7 @@ if (window.lucide) { lucide.createIcons(); }
 | المكتبة | النسخة | المسار المحلي | الترخيص |
 |---------|--------|--------------|---------|
 | Lucide | 0.460.0 | `static/vendor/lucide/lucide.min.js` | ISC |
+| Lucide (رسومات مختارة — DS-ICON registry) | 0.460.0 | `static/shared/tw-icons.js` (187 رسمة منسوخة حرفياً من نفس الإصدار) | ISC |
 | circle-flags (HatScripts) | gh-pages @ 2026-06-26 | `static/shared/flags/*.svg` (18 ملف) | MIT |
 
 ### قواعد Vendor Assets
@@ -6429,7 +6432,8 @@ if (window.lucide) { lucide.createIcons(); }
 - **ممنوع** تحديث نسخة vendor دون تحديث هذا الجدول
 - عند إضافة مكتبة جديدة: نزّل UMD bundle، ضعه في `static/vendor/{lib}/`، وثّق النسخة هنا
 - FastAPI يخدم المسار عبر `@app.get("/static/{filename:path}")` — يدعم subdirectories تلقائياً
-- الصفحات التي تستخدم Lucide عبر CDN خارجي (مثل `index.html`): يُنقل تدريجياً للـ vendor في PRs مستقلة
+- الصفحات التي تستخدم Lucide عبر CDN خارجي (`index.html` · `profile-showcase.html`): يُزال الـ CDN ضمن DS-ICON المرحلة C (تحويل الصفحة لـ `twIcon`) — لا يُنقل للـ vendor
+- **Lucide bundle كامل مؤقت:** الهدف إزالة `static/vendor/lucide/` بعد آخر صفحة بالمرحلة C؛ الرسومات تبقى بـ `tw-icons.js` (`THIRD_PARTY_NOTICES.md` → Lucide)
 
 ---
 
