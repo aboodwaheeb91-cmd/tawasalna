@@ -1212,6 +1212,9 @@ def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verif
     payload = data.dict(exclude_none=True)
     if not payload.get("industry"):
         raise HTTPException(400, "يجب تحديد تصنيف الجهة")
+    if payload.get("cover_url"):
+        _validate_stored_image_url(payload["cover_url"], "company-cover", company_id,
+                                   get_company_profile_row(company_id).get("cover_url"))
     updated = update_company_profile(company_id, payload)
     if not updated:
         raise HTTPException(400, "لا توجد بيانات للحفظ")
@@ -1230,6 +1233,9 @@ def update_co_cover(company_id: int, data: CoverUrlInput, token=Depends(verify_t
     tok_utype = token.get("user_type")
     if str(tok_uid) != str(company_id) or tok_utype != "co":
         raise HTTPException(403, "غير مصرح")
+    if data.cover_url:
+        _validate_stored_image_url(data.cover_url, "company-cover", company_id,
+                                   get_company_profile_row(company_id).get("cover_url"))
     updated = update_company_profile(company_id, {"cover_url": data.cover_url})
     if not updated:
         raise HTTPException(500, "تعذّر حفظ الغلاف")
@@ -3663,6 +3669,15 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
     payload = data.dict(exclude_unset=True)
     user_type = token.get('user_type')
+    # PR-7a: image URLs must come from /upload/image for this user (company logo = avatar_url of a co)
+    _img_kinds = {"avatar_url": "company-logo" if user_type == "co" else "employee-avatar",
+                  "cover_url": "employee-cover"}
+    _img_pending = {f: k for f, k in _img_kinds.items() if payload.get(f)}
+    if _img_pending:
+        _cur = _current_image_urls(
+            "SELECT avatar_url, cover_url FROM profiles WHERE user_id = :uid", user_id)
+        for _f, _k in _img_pending.items():
+            _validate_stored_image_url(payload[_f], _k, user_id, _cur.get(_f))
     try:
         # Validate profession_id only when it is explicitly set to a non-null value
         if payload.get("profession_id") is not None:
@@ -4151,6 +4166,51 @@ def _validate_image_data_url(data_url: str):
     return mime, _UPLOAD_EXT[mime], file_bytes
 
 
+_STORED_IMAGE_TAIL_RE = re.compile(r"[0-9a-f]{12}\.(?:jpg|png|webp)")
+
+
+def _validate_stored_image_url(url, kind, uid: int, current=None):
+    """PR-7a — gate for every endpoint that SAVES an image URL (avatar / cover /
+    logo / KYC). Raises 400 unless the value is:
+      • None or ""  (clear — existing behaviour), or
+      • exactly the currently stored value (legacy values keep saving), or
+      • {SUPABASE_URL}/storage/v1/object/public/{bucket of kind}/{uid}_{kind}_{12 hex}.{jpg|png|webp}
+        — i.e. a name /upload/image generated for this user (no ../, no query), or
+      • a valid image data URL only when TW_DEV_UPLOAD=1.
+    `kind` is one key of _UPLOAD_KINDS."""
+    if url is None or url == "":
+        return url
+    if not isinstance(url, str):
+        raise HTTPException(400, "رابط الصورة غير صالح")
+    if current is not None and url == current:
+        return url
+    if url.startswith("data:"):
+        if os.environ.get("TW_DEV_UPLOAD") == "1":
+            _validate_image_data_url(url)
+            return url
+        raise HTTPException(400, "رابط الصورة غير صالح")
+    base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    bucket = _UPLOAD_KINDS.get(kind)
+    if base and bucket:
+        prefix = f"{base}/storage/v1/object/public/{bucket}/{int(uid)}_{kind}_"
+        if url.startswith(prefix) and _STORED_IMAGE_TAIL_RE.fullmatch(url[len(prefix):]):
+            return url
+    raise HTTPException(400, "رابط الصورة غير صالح")
+
+
+def _current_image_urls(sql: str, uid: int) -> dict:
+    """Currently stored image URL columns for one row (constant SQL from callers)."""
+    conn = get_conn()
+    try:
+        rows = conn.run(sql, uid=uid)
+        if not rows:
+            return {}
+        cols = [c["name"] for c in conn.columns]
+        return dict(zip(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
 async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
                        data_url: str, log_tag: str) -> str:
     """Upload to Supabase Storage → public URL. Never falls back to a data URL
@@ -4289,6 +4349,11 @@ def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
 def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
     try:
         uid = int(token.get("user_id"))
+        if data.id_front_url or data.selfie_url:
+            _cur = _current_image_urls(
+                "SELECT id_front_url, selfie_url FROM kyc_submissions WHERE user_id = :uid", uid)
+            _validate_stored_image_url(data.id_front_url, "kyc-id-front", uid, _cur.get("id_front_url"))
+            _validate_stored_image_url(data.selfie_url, "kyc-selfie", uid, _cur.get("selfie_url"))
         result = upload_kyc_docs(uid, data.id_front_url, data.selfie_url)
         return {"status": "success", **result}
     except HTTPException:

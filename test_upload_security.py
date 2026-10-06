@@ -155,3 +155,90 @@ def test_admin_logo_validation(storage):
     storage.status = 500
     r = client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/png", PNG)}, headers=h)
     assert r.status_code == 502 and "data:" not in r.text
+
+
+# ── Stored image URL gate (_validate_stored_image_url) — every endpoint that saves an image URL ──
+
+SB = "https://sb.example/storage/v1/object/public"
+GOOD_AVATAR = f"{SB}/avatars/7_employee-avatar_0123456789ab.jpg"
+LEGACY = "https://old.cdn.example/whatever.png"
+
+
+@pytest.fixture
+def db(monkeypatch):
+    """Stub DB: current stored values + capture of what endpoints try to save."""
+    saved = {}
+    current = {"avatar_url": LEGACY, "cover_url": None,
+               "id_front_url": "data:image/png;base64,AAAA", "selfie_url": None}
+    monkeypatch.setattr(server, "_current_image_urls", lambda sql, uid: dict(current))
+    monkeypatch.setattr(server, "update_profile",
+                        lambda uid, data, user_type=None: saved.update(data) or {"id": uid})
+    monkeypatch.setattr(server, "get_company_profile_row", lambda cid: {"cover_url": LEGACY})
+    monkeypatch.setattr(server, "update_company_profile", lambda cid, d: saved.update(d) or True)
+    monkeypatch.setattr(server, "upload_kyc_docs",
+                        lambda uid, a, b: saved.update(id_front_url=a, selfie_url=b) or {"step": "review"})
+    return saved
+
+
+def put_profile(body, uid=7, utype="emp"):
+    h = {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": utype})}
+    return client.put(f"/profile/{uid}", json=body, headers=h)
+
+
+@pytest.mark.parametrize("bad", [
+    "https://evil.example/x.jpg",                                   # external
+    "data:image/png;base64," + base64.b64encode(PNG).decode(),     # data:
+    "javascript:alert(1)",                                          # scheme
+    f"{SB}/covers/7_employee-avatar_0123456789ab.jpg",             # wrong bucket
+    f"{SB}/avatars/8_employee-avatar_0123456789ab.jpg",            # another uid
+    f"{SB}/avatars/7_company-logo_0123456789ab.jpg",               # wrong kind
+    f"{SB}/avatars/7_employee-avatar_0123456789ab.jpg?x=1",        # query
+    f"{SB}/avatars/7_employee-avatar_../../site/logo_wide.png",    # traversal
+    f"{SB}/avatars/7_employee-avatar_0123456789ab.svg",            # extension
+])
+def test_profile_avatar_rejects_bad_urls(db, bad):
+    r = put_profile({"avatar_url": bad})
+    assert r.status_code == 400, (bad, r.text)
+    assert "avatar_url" not in db
+
+
+def test_profile_valid_url_legacy_value_and_clear_pass(db):
+    assert put_profile({"avatar_url": GOOD_AVATAR}).status_code == 200
+    assert db["avatar_url"] == GOOD_AVATAR
+    assert put_profile({"avatar_url": LEGACY}).status_code == 200      # unchanged legacy value
+    assert put_profile({"avatar_url": None}).status_code == 200        # clear
+    assert put_profile({"cover_url": ""}).status_code == 200
+    ok_cover = f"{SB}/covers/7_employee-cover_abcdef012345.webp"
+    assert put_profile({"cover_url": ok_cover}).status_code == 200
+
+
+def test_company_logo_and_cover(db):
+    logo = f"{SB}/avatars/9_company-logo_abcdef012345.png"
+    assert put_profile({"avatar_url": logo}, uid=9, utype="co").status_code == 200
+    assert put_profile({"avatar_url": GOOD_AVATAR}, uid=9, utype="co").status_code == 400
+    h = {"Authorization": "Bearer " + server._jwt_encode({"user_id": 9, "user_type": "co"})}
+    cover = f"{SB}/avatars/9_company-cover_abcdef012345.jpg"
+    assert client.put("/company/cover/9", json={"cover_url": cover}, headers=h).status_code == 200
+    assert client.put("/company/cover/9", json={"cover_url": "https://evil.example/c.jpg"}, headers=h).status_code == 400
+    assert client.put("/company/cover/9", json={"cover_url": LEGACY}, headers=h).status_code == 200
+    body = {"industry": "tech", "cover_url": "data:image/jpeg;base64,/9j/"}
+    assert client.put("/company/profile/9", json=body, headers=h).status_code == 400
+
+
+def test_kyc_urls(db):
+    h = auth(7)
+    good = f"{SB}/kyc-docs/7_kyc-id-front_abcdef012345.jpg"
+    assert client.post("/kyc/docs", json={"id_front_url": good}, headers=h).status_code == 200
+    bad = f"{SB}/kyc-docs/7_kyc-selfie_abcdef012345.jpg"                 # selfie kind in id field
+    assert client.post("/kyc/docs", json={"id_front_url": bad}, headers=h).status_code == 400
+    assert client.post("/kyc/docs", json={"id_front_url": good, "selfie_url": "https://evil.example/s.jpg"},
+                       headers=h).status_code == 400
+    # unchanged legacy data: value already stored → still accepted
+    assert client.post("/kyc/docs", json={"id_front_url": "data:image/png;base64,AAAA"}, headers=h).status_code == 200
+
+
+def test_stored_data_url_only_in_dev(db, monkeypatch):
+    d = "data:image/png;base64," + base64.b64encode(PNG).decode()
+    assert put_profile({"avatar_url": d}).status_code == 400
+    monkeypatch.setenv("TW_DEV_UPLOAD", "1")
+    assert put_profile({"avatar_url": d}).status_code == 200

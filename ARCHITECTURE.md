@@ -6286,12 +6286,14 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compar
 | الحجم | طول الـ data URL > 7MB → **413** قبل الـ decode · بعد الـ decode > 5MB → **413** · base64 غير صالح (`validate=True`) → **400**. |
 | فشل التخزين | Supabase رجّع غير 200/201 أو exception → **502** برسالة عامة؛ مفاتيح Supabase ناقصة → **503**. التفاصيل بالـ log فقط (ممنوع `str(e)` بالـ response). **ممنوع أي fallback لـ data URL بالإنتاج.** |
 | وضع التطوير | فقط `TW_DEV_UPLOAD=1` **و** مفاتيح Supabase ناقصة → يرجّع الـ data URL مع `dev_mode: true`. غياب المفاتيح وحده ≠ وضع تطوير. |
+| حفظ الرابط | كل endpoint بيحفظ رابط صورة بيمرّ بـ `_validate_stored_image_url(url, kind, uid, current)`: فاضي/`null` = حذف (مسموح) · نفس القيمة المحفوظة حالياً = مسموح (صور قديمة) · غير هيك لازم يكون بالضبط `{SUPABASE_URL}/storage/v1/object/public/{bucket الـ kind}/{uid}_{kind}_{12 hex}.{jpg\|png\|webp}` (بدون `../` أو query) · `data:` مرفوض إلا بـ `TW_DEV_UPLOAD=1` · غير هيك **400**. المستعملين: `PUT /profile/{id}` (`avatar_url` = `employee-avatar`، أو `company-logo` لحساب `co` · `cover_url` = `employee-cover`) · `PUT /company/profile/{id}` + `PUT /company/cover/{id}` (`company-cover`) · `POST /kyc/docs` (`kyc-id-front` / `kyc-selfie`). |
 | الواجهة | `TW.uploadImage({ kind, dataUrl, jwt })`؛ عند `!ok` المستدعي يعرض `TW.uploadErrorText(res, fallback)` عبر toast الصفحة ولا يحفظ الـ data URL أبداً. |
 
 ```
 ❌ bucket أو filename أو user_id من العميل
 ❌ قبول mime بدون فحص magic bytes · SVG
 ❌ رجوع data URL كـ "success" عند فشل التخزين (إنتاج)
+❌ endpoint جديد بيحفظ رابط صورة بدون `_validate_stored_image_url`
 ❌ str(e) أو رد Supabase بالـ response
 ```
 Test: `python -m pytest test_upload_security.py -q`.
