@@ -4649,6 +4649,8 @@ def public_profile_short_url(tw_id: str):
 
 Every page path also answers at its `.html` variant unless noted.
 
+**Page Shell (PR-8 · F39 · `docs/design-system/PAGE-SHELL.md`):** every page is read through `read_html()`, which calls `page_shell.apply_shell()` once per file (then cached): `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (or `:admin`) → the fixed partials in `partials/` (not servable — `.html` is outside the `/static` allowlist), with `?v=` = 10-hex sha256 of `tw_shared.css` / `tw_shared.js` / `auth-sync.js` computed at startup. A page without markers is served byte-for-byte; half / mixed markers raise. Admin variant: no manifest, no `auth-sync.js`, `<meta name="tw-sw" content="off">` (tw_shared.js skips SW registration). Converted: `home-v2.html`.
+
 | Path | Serves | Audience / note |
 |------|--------|-----------------|
 | `/` | `landing.html` | Public landing (Auth Gateway Rules §1) |

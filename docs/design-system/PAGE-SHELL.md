@@ -1,0 +1,132 @@
+# Page Shell V1 (DS-SHELL)
+
+> القالب الموحّد لكل صفحة HTML بتواصلنا: كتلة `<head>` المشتركة وسكربتات آخر `<body>` المشتركة — مصدر واحد بدل نسخها بكل صفحة.
+>
+> **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F39.
+> **Runtime Source of Truth:** `page_shell.py` (`apply_shell` · `build_shell` · `asset_hash`) + `partials/shell-*.html` · مستدعى من `read_html()` بـ `server.py`.
+> **قوانين الـ AI:** `docs/rules/page-shell.md`.
+> **الاختبار:** `python test_page_shell.py`.
+> **المرجع:** تقرير فحص Page Shell (المرحلة A) + القرارات المعتمدة (1–6) — PR-8 / المرحلة B.
+
+---
+
+## SHELL-00 — Routing Protocol
+
+| إذا كنت… | اذهب إلى |
+|----------|----------|
+| بتبني صفحة HTML جديدة | SHELL-06 (خطوتين) |
+| بدك تضيف meta / font / CSS / JS لكل الصفحات | SHELL-02 (عدّل الـ partial — مش الصفحات) |
+| بتحوّل صفحة قديمة للـ shell | SHELL-08 (المرحلة C) |
+| صفحة أدمن | SHELL-03 (`:admin`) |
+| بدك `?v=` لملف مشترك | SHELL-05 (تلقائي — ممنوع يدوي) |
+| ترتيب CSS المشترك مقابل CSS الصفحة | SHELL-04 |
+| أيقونات / `tw-icons.js` | **مش هون** — DS-ICON Phase C (F37) |
+
+---
+
+## SHELL-01 — Scope & Ownership
+
+**DS-SHELL يملك:** `charset` · `viewport` · `theme-color` · `manifest` · `rel="icon"` + `apple-touch-icon` · preconnect + خط Cairo · `tw_shared.css` · `tw_shared.js` · `auth-sync.js` — وترتيبهم ونسختهم (`?v=`).
+
+| الشي | مالكه |
+|------|-------|
+| `<title>` + CSS / JS الخاص بالصفحة + `<body>` | الصفحة نفسها |
+| ملفات الأيقونات + `manifest.json` + SW | §32 |
+| ألوان `theme-color` | DS-COLOR (`--color-brand-primary` = `#00c896`) |
+| قرار الدخول (guest → `/login`) | TwAuthSync (§VM-10) — guard موحّد بالمرحلة C |
+
+---
+
+## SHELL-02 — Markers & Partials
+
+الصفحة بتحط markers صريحة، و `read_html()` بيبدّلهم وقت القراءة (مرة وحدة، بعدين cache):
+
+| Marker | Partial (برّا `static/` — مش منخدم مباشرة) | المكان |
+|--------|---------------------------------------------|--------|
+| `<!--tw:shell-head-->` | `partials/shell-head.html` | أول سطر بعد `<head>` |
+| `<!--tw:shell-scripts-->` | `partials/shell-scripts.html` | قبل أول `<script>` خاص بالصفحة بآخر `<body>` |
+| `<!--tw:shell-head:admin-->` | `partials/shell-head.admin.html` | نفس المكان |
+| `<!--tw:shell-scripts:admin-->` | `partials/shell-scripts.admin.html` | نفس المكان |
+
+**head (app):** `charset UTF-8` · `viewport width=device-width, initial-scale=1.0` (zoom مسموح) · `theme-color #00c896` · `manifest` · `rel="icon"` → `/favicon.ico` · `apple-touch-icon` → `/apple-touch-icon.png` (§32) · preconnect `fonts.googleapis.com` + `fonts.gstatic.com` · Cairo **400–900** · `/static/tw_shared.css?v=H`.
+**scripts (app):** `/tw_shared.js?v=H` ← `/static/shared/auth-sync.js?v=H`.
+
+**القواعد:**
+- صفحة **بدون** markers → بترجع **مطابقة للملف بالبايت** (التحويل صفحة صفحة).
+- صفحة فيها markers → لازم نسخة وحدة (app أو admin)، وكل marker مرة وحدة، والـ head قبل الـ scripts. غير هيك → `ValueError` (F9 — صفحة نص محوّلة = bug، مش صفحة).
+- الحقن **نص ثابت فقط** (partials + hashes) — ما في أي بيانات مستخدم ولا request (§54).
+- `{{v:<asset>}}` بالـ partial هو الـ placeholder الوحيد؛ placeholder مش معروف → خطأ عند بدء السيرفر.
+
+---
+
+## SHELL-03 — النسخ (Variants)
+
+| النسخة | Markers | الفرق |
+|--------|---------|-------|
+| **app** — صفحات الحساب (محمية) | `shell-head` / `shell-scripts` | الكامل |
+| **entry** — `landing` · `/login` · الصفحات العامة | نفس markers الـ app | نفس الـ partials؛ الفرق بالـ guard (`<meta name="tw-page">` — المرحلة C) مش بالـ shell |
+| **admin** — `admin-view` · لوحة `/tw-ctrl-*` | `shell-head:admin` / `shell-scripts:admin` | بدون `manifest` · بدون `auth-sync.js` · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل الـ SW |
+
+---
+
+## SHELL-04 — عقد الترتيب
+
+1. **المشترك أولاً:** `tw_shared.css` قبل CSS الصفحة → الصفحة بتقدر تعدّل فوق المشترك، والمشترك ما بيكسر الصفحة.
+2. `tw_shared.js` ← `auth-sync.js` ← سكربتات الصفحة.
+3. `charset` أول tag بالـ `<head>` (جوّا أول 1024 byte).
+4. العقد بيتطبّق على كل صفحة **وقت تحويلها فقط** (المرحلة C) مع فحص بصري — مش على الكل مرة وحدة.
+
+---
+
+## SHELL-05 — الـ hash (`?v=H`)
+
+- `H` = أول 10 أحرف hex من `sha256` لمحتوى الملف (`asset_hash`) — لـ `tw_shared.css` · `tw_shared.js` · `static/shared/auth-sync.js` (`SHELL_ASSETS`).
+- بينحسب **مرة وحدة عند بدء السيرفر** (import `page_shell`) → تغيير الملف + deploy = hash جديد = المتصفح والـ SW بيجيبوا النسخة الجديدة.
+- بيبدّل `?v=` اليدوي **للملفات المشتركة فقط**. ملفات الصفحة (`messages.css?v=v22` …) خارج النطاق.
+- ملف مشترك ناقص → السيرفر ما بيقوم (F9).
+
+---
+
+## SHELL-06 — صفحة جديدة (خطوتين)
+
+```html
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head-->                       <!-- 1 -->
+<title>… — تواصلنا</title>
+<link rel="stylesheet" href="/static/my-page.css">
+</head>
+<body>
+…
+<!--tw:shell-scripts-->                    <!-- 2 -->
+<script src="/static/my-page.js"></script>
+</body>
+</html>
+```
+
+والصفحة تنخدم عبر `read_html("my-page.html")` (أي route HTML بـ `server.py`).
+
+---
+
+## SHELL-07 — الممنوعات
+
+```
+❌ نسخ charset / viewport / theme-color / manifest / icons / Cairo / tw_shared.* / auth-sync.js يدوياً بصفحة فيها markers
+❌ ?v= يدوي لـ tw_shared.css / tw_shared.js / auth-sync.js
+❌ partial ثاني أو آلية حقن ثانية (template engine / JS include) — page_shell.py هو الوحيد
+❌ أي بيانات مستخدم أو request بالـ partials أو الحقن (§54)
+❌ tw-icons.js بالـ shell (DS-ICON Phase C بيقرّر — F37)
+❌ user-scalable=no / maximum-scale بالـ shell
+❌ تحويل صفحة للـ shell بدون screenshots قبل/بعد (موبايل + ديسكتوب)
+❌ خدمة partials/ مباشرة (برّا static/ عن قصد)
+❌ manifest أو auth-sync.js بنسخة الأدمن
+```
+
+---
+
+## SHELL-08 — المرحلة C (التحويل)
+
+- **B ✅ (PR-8):** `page_shell.py` + partials + `read_html` + الصفحة التجريبية `home-v2.html` (screenshots قبل/بعد مطابقة بالبكسل بالـ sandbox).
+- **C 🔜:** PR لكل صفحة مع فحص بصري، بالترتيب: `job-detail` ← `landing` ← `appointments` ← `appointment-room` (الصفحات اللي ما بتحمّل `tw_shared.*`) ← الباقي. التفاصيل + البنود المرافقة: `docs/FUTURE_ROADMAP.md` → Platform / Architecture.
+- كل تحويل: شيل الـ tags المكرّرة + markers + تحديث أي اختبار بيقرأ الملف الخام ليقرأ ناتج `apply_shell` (مثال: `read_page()` بـ `test_global_ui_visibility.py`).

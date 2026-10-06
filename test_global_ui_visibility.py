@@ -29,6 +29,12 @@ def read(path):
     with open(path, encoding="utf-8") as f:
         return f.read()
 
+# PR-8 Page Shell: pages are checked as read_html() serves them (markers → shell).
+from page_shell import apply_shell
+
+def read_page(path):
+    return apply_shell(read(path), path)
+
 
 # ═══════════════════════════════════════════════════════
 # A — auth-sync.js V2 contract
@@ -292,7 +298,7 @@ check("J06 — initGlobalHeaderMenu wired in messages.render.js",
 # ═══════════════════════════════════════════════════════
 print("\nK — home-v2.html")
 
-hv2       = read("home-v2.html")
+hv2       = read_page("home-v2.html")
 hv2_hdr   = read("static/home/home.header.js")
 
 check("K01 — tw_shared.js loaded in home-v2.html",
@@ -415,7 +421,7 @@ for f in html_files:
     if bn in _LEGACY_ALLOWED:
         continue
     try:
-        content = read(f)
+        content = read_page(f)
     except Exception:
         continue
     if "localStorage.removeItem" in content and "Object.keys(localStorage)" in content:
@@ -442,7 +448,7 @@ for f in html_files:
     if bn not in _VM10_PAGES:
         continue
     try:
-        content = read(f)
+        content = read_page(f)
     except Exception:
         continue
     if "localStorage.removeItem" in content and "Object.keys(localStorage)" in content:
@@ -463,7 +469,7 @@ for f in html_files:
     if bn not in _VM10_PAGES:
         continue
     try:
-        content = read(f)
+        content = read_page(f)
     except Exception:
         continue
     if "initGlobalHeaderMenu" in content:
@@ -493,7 +499,7 @@ for f in html_files:
     if bn in _LEGACY_ALLOWED:
         continue
     try:
-        content = read(f)
+        content = read_page(f)
     except Exception:
         continue
     if 'sc-menu-dropdown' in content and 'auth-sync.js' not in content:

@@ -11,7 +11,7 @@
 
 ```
 Workflow:  ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime
-Authority: ARCHITECTURE_FOUNDATION F1–F38 > كل ما عداه دائماً
+Authority: ARCHITECTURE_FOUNDATION F1–F39 > كل ما عداه دائماً
 ```
 
 CRS لا يُقدَّم على F30/F31 — بل يُطبِّقهما:

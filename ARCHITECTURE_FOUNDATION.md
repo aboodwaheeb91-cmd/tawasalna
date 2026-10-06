@@ -56,6 +56,7 @@
 | F36 | **P0** | DS-SIZE هو النظام الوحيد لأحجام الخط/الزوايا/المسافات/الأيقونات/ارتفاعات العناصر؛ `--size-*` / `--radius-*` / `--space-*` في `tw_shared.css` فقط. |
 | F37 | **P0** | DS-ICON هو النظام الوحيد لأيقونات الواجهة؛ registry واحد `static/shared/tw-icons.js` (Lucide 0.460 فقط)، أسماء حسب المعنى، قلب RTL تلقائي، ممنوع emoji كأيقونة. |
 | F38 | **P0** | DS-IMAGE هو النظام الوحيد لعرض صور الأفاتار/اللوغو (`twAvatarHtml` / `twAvatarEl` + `.tw-ava`)؛ رابط الصورة يمر فقط على `twSafeImageUrl` (§54). |
+| F39 | **P0** | DS-SHELL هو المصدر الوحيد لكتلة `<head>` والسكربتات المشتركة لكل صفحة — markers `<!--tw:shell-*-->` يبدّلها `read_html` من `partials/`؛ المشترك أولاً؛ `?v=` = hash المحتوى. |
 
 ---
 
@@ -1023,6 +1024,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | font-size / border-radius / padding / margin / gap / حجم أيقونة / ارتفاع زر / `--size-*` / `--radius-*` / `--space-*` | DS-SIZE → `docs/design-system/SIZE-SYSTEM.md` — اقرأ SIZE-00 (Routing Protocol) ثم القسم المناسب |
 | أيقونة واجهة / SVG icon / `data-lucide` / سهم رجوع أو تقدّم / emoji كأيقونة / أيقونة مهارة أو مهنة | DS-ICON → `docs/design-system/ICON-SYSTEM.md` — اقرأ ICON-00 (Routing Protocol) ثم القسم المناسب |
 | صورة أفاتار / لوغو جهة / حرف بديل / `<img>` لصورة حساب / `background-image` لغلاف / رابط صورة من الـ API | DS-IMAGE → `docs/design-system/IMAGE-SYSTEM.md` — اقرأ IMG-00 (Routing Protocol) ثم القسم المناسب |
+| صفحة HTML جديدة / `<head>` مشترك / meta · viewport · manifest · favicon · خط Cairo / تحميل `tw_shared.*` أو `auth-sync.js` / `?v=` لملف مشترك | DS-SHELL → `docs/design-system/PAGE-SHELL.md` — اقرأ SHELL-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1064,7 +1066,7 @@ async function handleSave() {
 إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
 → انظر `docs/CHANGE_ROUTER.md` (CRS). CRS يُطبِّق F30/F31 على مستوى الطلب — ليس طبقة فوقهما.
 Workflow order: `ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime`
-Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F38`
+Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F39`
 
 ---
 
@@ -1300,6 +1302,36 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F38`
 
 ---
 
+## F39 — [P0] Page Shell V1 (DS-SHELL)
+
+**DS-SHELL هو المصدر الرسمي الوحيد لكتلة `<head>` المشتركة وسكربتات آخر `<body>` المشتركة لكل صفحة HTML.**
+
+### القواعد الأساسية
+
+1. **مصدر واحد:** `page_shell.py` (`apply_shell`) + `partials/shell-*.html` (برّا `static/` — مش منخدمة مباشرة)، مستدعى من `read_html()` بـ `server.py`.
+2. **Markers صريحة:** `<!--tw:shell-head-->` + `<!--tw:shell-scripts-->` (app / entry) أو `:admin`. صفحة بدون markers ما بتتغيّر أبداً. markers ناقصة / مكرّرة / مخلوطة → خطأ (F9).
+3. **المحتوى:** charset · viewport عادي · theme-color · manifest · `rel="icon"` + `apple-touch-icon` (§32) · Cairo 400–900 · `tw_shared.css` — ثم بآخر body: `tw_shared.js` ← `auth-sync.js`.
+4. **عقد الترتيب:** المشترك أولاً (`tw_shared.css` قبل CSS الصفحة) — بيتطبّق على كل صفحة وقت تحويلها فقط (المرحلة C) مع فحص بصري.
+5. **النسخة:** `?v=H` = hash قصير لمحتوى الملف، بينحسب مرة وحدة عند بدء السيرفر — بدل `?v=` اليدوي للملفات المشتركة.
+6. **الأدمن:** نسخة `:admin` — بدون manifest، بدون `auth-sync.js`، بدون تسجيل SW (`<meta name="tw-sw" content="off">`).
+7. **الأمان (§54):** الحقن نص ثابت فقط — ما في بيانات مستخدم.
+8. **Phase B ✅** (PR-8): النظام + `home-v2.html` كصفحة تجريبية. **Phase C** = صفحة لكل PR مع screenshots.
+
+### ممنوعات F39
+
+```
+❌ نسخ tags الـ shell يدوياً بصفحة محوّلة · ?v= يدوي لملف مشترك
+❌ آلية حقن ثانية أو partial ثاني
+❌ بيانات مستخدم بالـ partials · خدمة partials/ مباشرة
+❌ tw-icons.js أو user-scalable=no بالـ shell
+❌ manifest أو auth-sync.js بنسخة الأدمن
+❌ تحويل صفحة بدون screenshots قبل/بعد
+```
+
+**المرجع التفصيلي:** `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08) · `docs/rules/page-shell.md`
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1340,4 +1372,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F38`
 
 ---
 
-*آخر تحديث: 2026-10-06 — PR-7b (DS-IMAGE) — F38 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*
+*آخر تحديث: 2026-10-06 — PR-8 (DS-SHELL) — F39 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*

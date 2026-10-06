@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR-8 — 2026-10-06 — Page Shell (DS-SHELL) المرحلة B + home-v2 تجريبية (F39)
+
+- `page_shell.py` (جديد): `apply_shell` · `build_shell` · `asset_hash` — markers `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (+ `:admin`) → `partials/shell-*.html` (4 ملفات جديدة، برّا `static/`). `?v=` = أول 10 hex من sha256 لـ `tw_shared.css` / `tw_shared.js` / `auth-sync.js`، مرة وحدة عند بدء السيرفر.
+- `server.py read_html`: بيمرّر كل صفحة على `apply_shell` (قبل الـ cache). صفحة بدون markers → مطابقة بالبايت.
+- `tw_shared.js`: ما بيسجّل الـ SW إذا الصفحة فيها `<meta name="tw-sw" content="off">` (نسخة الأدمن فقط).
+- `home-v2.html`: شيل charset / viewport / preconnect / Cairo / `tw_shared.js` / `auth-sync.js` → markers. صار يحمّل `tw_shared.css` (قبل CSS الصفحة) + manifest + theme-color + icons + Cairo 800/900. screenshots قبل/بعد (390×844 + 1366×900) مطابقة بالبكسل.
+- توثيق: `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08) · `docs/rules/page-shell.md` · F39 + صف F31 + فهرس القواعد (F1–F39) · CLAUDE.md (جدول) · SYSTEMS_INDEX §58 · `DESIGN_SYSTEM.md` · `ARCHITECTURE.md` (HTML Page Routes) · `CHANGE_ROUTER.md` · `FUTURE_ROADMAP.md` (Phase C).
+- اختبار: `python test_page_shell.py` (جديد) · `test_global_ui_visibility.py` صار يقرأ الصفحات عبر `apply_shell` (`read_page`) — K01–K03 + I01–I04.
+
 ## fix/page-shell-security — 2026-10-06 — Page Shell أمني قبل PR-8/B
 
 - `admin-view.html`: شيل HTML محشور جوّا `<!DOCTYPE` (كان بيحط الصفحة بـ quirks mode — قسمين ميتين ما بينادوا) · شيل slug الأدمن المكتوب بالكود (`/tw-ctrl-…`) والـ redirect لـ `admin.html` المحذوف → رسالة "افتح لوحة الإدارة" + `history.back()`. (الـ slug القديم موجود بتاريخ git — انغيّر بالإنتاج.)

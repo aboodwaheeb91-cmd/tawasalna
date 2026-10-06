@@ -606,6 +606,7 @@ async def on_startup():
     await _init_asyncpg_pool()
 
 # ── Helpers ──
+from page_shell import apply_shell
 _html_cache = {}
 
 def read_html(name: str) -> str:
@@ -614,6 +615,9 @@ def read_html(name: str) -> str:
     try:
         with open(name, "r", encoding="utf-8") as f:
             content = f.read()
+        # Page Shell (PR-8 · PAGE-SHELL.md): <!--tw:shell-*--> markers → shared
+        # head/scripts partials. A page without markers is returned unchanged.
+        content = apply_shell(content, name)
         _html_cache[name] = content
         return content
     except FileNotFoundError:

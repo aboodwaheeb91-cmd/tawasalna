@@ -157,8 +157,9 @@ window.addEventListener('load', function(){
   document.documentElement.style.opacity = '1';
 });
 
-// Service Worker
-if ('serviceWorker' in navigator) {
+// Service Worker — not on pages served with the admin Page Shell
+// (<meta name="tw-sw" content="off"> — PAGE-SHELL.md SHELL-03).
+if ('serviceWorker' in navigator && !document.querySelector('meta[name="tw-sw"][content="off"]')) {
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('/sw.js').catch(function(){});
   });
