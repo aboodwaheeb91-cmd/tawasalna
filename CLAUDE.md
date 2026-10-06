@@ -234,7 +234,7 @@ These rules are permanent and apply to all future AI sessions.
 
 10. **One legacy redirect page for every retired page URL (PR-4).** `_LEGACY_REDIRECT_HTML` in `server.py` is the single source for `/profile`, `/profile.html`, `/company`, `/company.html`, `/edu`, `/edu.html`, `/home.html`, `/jobs.html`, `/company-profile`, `/company-profile.html`.
    - `?id=N` (numeric, existing account of any type) → server-side **302 → `/u/{tw_id}`** via `_tw_id_for_user_id()` — the only id → tw_id lookup for legacy routes (F7 / F14).
-   - No `?id=`, non-numeric id, or unknown id → the redirect page (no 302). It loads `tw_shared.js` → `auth-sync.js` and decides via `twEntryDestination()` (TwAuthSync snapshot only): authenticated → `twAccountHref(u)` = `/u/{tw_id}`; guest / expired / stale / invalid → `/login` (stale session invalidated first).
+   - No `?id=`, id that is not 1–18 ASCII digits (`id.isascii() and id.isdigit() and len(id) <= 18`), or unknown id → the redirect page (no 302, no lookup for invalid ids). It loads `tw_shared.js` → `auth-sync.js` and decides via `twEntryDestination()` (TwAuthSync snapshot only): authenticated → `twAccountHref(u)` = `/u/{tw_id}`; guest / expired / stale / invalid → `/login` (stale session invalidated first).
    - ❌ Re-creating a page file or a per-route redirect for any of these URLs.
    - ❌ Deciding the redirect from `tw_user` alone.
    - ❌ A second id → tw_id lookup for legacy routes.

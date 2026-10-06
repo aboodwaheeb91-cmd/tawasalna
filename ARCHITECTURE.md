@@ -4671,7 +4671,7 @@ Retired page files (`profile.html`, `company.html`, `edu.html`, `home.html`, `jo
 | URLs | Behaviour |
 |------|-----------|
 | `/profile` · `/profile.html` · `/company` · `/company.html` · `/edu` · `/edu.html` · `/home.html` · `/jobs.html` · `/company-profile` · `/company-profile.html` **with `?id=N`** (N numeric, account exists — any `user_type`) | Server-side **302 → `/u/{tw_id}`** of that account (F7 / F14). Lookup: `_tw_id_for_user_id()` in `server.py` — the only id → tw_id lookup for legacy redirects |
-| Same URLs **without `?id=`**, or `id` not numeric, or no such account | `_LEGACY_REDIRECT_HTML`: loads `/tw_shared.js` → `/static/shared/auth-sync.js`, then `location.replace(twEntryDestination() \|\| "/login")` (no 302) |
+| Same URLs **without `?id=`**, or `id` not 1–18 ASCII digits (rejects `"²"`, `"١٢"`, over-long values — never reaches `int()` or the DB), or no such account | `_LEGACY_REDIRECT_HTML`: loads `/tw_shared.js` → `/static/shared/auth-sync.js`, then `location.replace(twEntryDestination() \|\| "/login")` (no 302) |
 
 - Decision comes from `TwAuthSync.getSessionSnapshot()` via `twEntryDestination()` — never `tw_user` alone.
 - authenticated → `twAccountHref(u)` = `/u/{tw_id}` (all account types; previously `/company-profile` sent non-co users to `/home`).

@@ -943,7 +943,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
 # /home.html, /jobs.html, /company-profile, /company-profile.html.
 #   ?id=<numeric user id> of an existing account (any user_type)
 #       → server-side 302 → /u/{tw_id} of that account (F7 / F14)
-#   no id / id not numeric / id not found
+#   no id / id not 1–18 ASCII digits / id not found
 #       → _LEGACY_REDIRECT_HTML, which decides from TwAuthSync
 #         (twEntryDestination() in tw_shared.js) — never tw_user alone:
 #           authenticated → twAccountHref(u) = /u/{tw_id}
@@ -972,7 +972,9 @@ def _tw_id_for_user_id(user_id: int):
 def _legacy_redirect_page(id: Optional[str] = None):
     """Legacy page URL → 302 /u/{tw_id} when ?id= names an existing account;
     otherwise the shared client-side redirect page."""
-    if id is not None and id.isdigit():
+    # ASCII digits only (str.isdigit() also accepts "²" / "١٢" → int() 500) and
+    # ≤ 18 digits so the value always fits users.id BIGINT (no DB overflow 500).
+    if id is not None and id.isascii() and id.isdigit() and len(id) <= 18:
         tw = _tw_id_for_user_id(int(id))
         if tw:
             return RedirectResponse(url=f'/u/{tw}', status_code=302)

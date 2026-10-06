@@ -160,11 +160,15 @@ with patch.object(server, '_tw_id_for_user_id', side_effect=_fake_lookup):
         check(f'3. GET {u}?id=<unknown> → redirect page, no 302',
               r.status_code == 200 and r.text == page, r.status_code)
     n_before = len(_calls)
-    for bad in ('abc', 'U00000007aa', '-5', '1.5', ''):
+    for bad in ('abc', 'U00000007aa', '-5', '1.5', '', '²', '١٢', '1' * 20, '9' * 19):
         r = client.get('/profile', params={'id': bad}, follow_redirects=False)
         check(f'3. GET /profile?id={bad!r} (not numeric) → redirect page, no 302',
               r.status_code == 200 and r.text == page, r.status_code)
-    check('3. non-numeric id never hits the DB lookup', len(_calls) == n_before)
+    check('3. non-numeric / unicode-digit / over-long id never hits the DB lookup',
+          len(_calls) == n_before)
+    r = client.get('/profile', params={'id': '9' * 18}, follow_redirects=False)
+    check('3. 18-digit id still reaches the lookup (unknown → redirect page)',
+          r.status_code == 200 and r.text == page and _calls[-1] == int('9' * 18))
     n_before = len(_calls)
     r = client.get('/profile.html', follow_redirects=False)
     check('3. GET /profile.html without id → redirect page, no lookup',
