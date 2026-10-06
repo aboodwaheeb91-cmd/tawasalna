@@ -8,7 +8,7 @@
 //   - New API endpoints need NO change here: the API is never cached by default.
 //
 // Bump BUILD_TIME whenever this file changes so `activate` deletes old caches.
-const BUILD_TIME = '20261006_1200';
+const BUILD_TIME = '20261006_1500';
 const CACHE_NAME = 'tawasolna-v6-' + BUILD_TIME;
 
 // Precached public pages. OFFLINE_FALLBACK is the single offline response for

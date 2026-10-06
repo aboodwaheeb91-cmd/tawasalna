@@ -369,16 +369,6 @@ app.add_middleware(
     allow_credentials=False,  # Must be False with allow_origins=["*"]
 )
 
-@app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-    from fastapi.responses import Response
-    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
-           '<circle cx="16" cy="16" r="16" fill="#2563ff"/>'
-           '<text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="sans-serif">ت</text>'
-           '</svg>')
-    return Response(content=svg, media_type="image/svg+xml",
-                    headers={"Cache-Control": "public, max-age=86400"})
-
 # ── asyncpg pool — single-RTT INSERT pipeline ──────────────────────────────
 _asyncpg_pool = None  # None until startup; fallback to pg8000 if unavailable
 
@@ -1564,15 +1554,32 @@ def manifest():
     except:
         return Response(content="{}", media_type="application/json")
 
-@app.get("/icon-192.png")
-@app.get("/icon-512.png")
-def icon():
-    # Return a simple placeholder - replace with real icons
-    import base64
-    # 1x1 green pixel PNG
-    png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-    return Response(content=base64.b64decode(png_b64), media_type="image/png",
-                   headers={"Cache-Control": "public, max-age=604800"})
+# App icons (PWA + favicon) — real files in static/icons/, generated from the
+# official logo by scripts/gen_app_icons.py (SYSTEMS_INDEX §32). Fixed allowlist.
+_APP_ICON_FILES = {
+    "/icon-192.png":          ("icon-192.png",          "image/png"),
+    "/icon-512.png":          ("icon-512.png",          "image/png"),
+    "/icon-maskable-512.png": ("icon-maskable-512.png", "image/png"),
+    "/apple-touch-icon.png":  ("apple-touch-icon.png",  "image/png"),
+    "/favicon.ico":           ("favicon.ico",           "image/x-icon"),
+}
+
+@app.get("/icon-192.png", include_in_schema=False)
+@app.get("/icon-512.png", include_in_schema=False)
+@app.get("/icon-maskable-512.png", include_in_schema=False)
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
+def app_icon(request: Request):
+    filename, mime = _APP_ICON_FILES[request.url.path]
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icons", filename)
+    try:
+        with open(path, "rb") as f:
+            content = f.read()
+    except OSError as e:
+        print(f"[ERROR] app icon missing: {path} ({e})")
+        raise HTTPException(404, "Not found")
+    return Response(content=content, media_type=mime,
+                    headers={"Cache-Control": "public, max-age=604800"})
 
 
 # ── WebSocket Real-time Messages ──────────────────────────────────────────────

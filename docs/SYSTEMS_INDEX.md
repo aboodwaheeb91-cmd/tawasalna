@@ -534,10 +534,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** PWA installation + caching of public static assets only. Private data is never stored in Cache Storage.
 **Source of Truth:** `sw.js` → `isCacheableRequest()` (allowlist) · `manifest.json` · `twClearAppCaches()` in `tw_shared.js` (session-end cache wipe)
 **Allowlist (all required):** same-origin + `GET` + no `Authorization` header + `request.destination` ∈ {`style`,`script`,`font`,`image`,`manifest`} + path `/static/*` · `/manifest.json` · `/icon-*.png`. Everything else (API/JSON, HTML navigations) → network only, never `cache.put`. Offline navigation → fixed public fallback `/landing.html`.
+**App icons (PWA + favicon):** real files in `static/icons/` — `icon-192.png` · `icon-512.png` (purpose `any`, ~11% margin) · `icon-maskable-512.png` (purpose `maskable`, ~20% margin) · `apple-touch-icon.png` (180) · `favicon.ico` (16+32). Generated **only** by `python scripts/gen_app_icons.py` from the official logo `33333.svg` (symbol only, no wordmark; white background). Served at root URLs by one fixed allowlist `_APP_ICON_FILES` in `server.py` (`/icon-*.png`, `/apple-touch-icon.png`, `/favicon.ico`). Manifest colors = DS-COLOR: `theme_color` `#00c896` = `--color-brand-primary` (`--color-prim-teal`) · `background_color` `#070b18` = `--color-surface-page` (`--color-prim-dark-950`). Logo changes → re-run the script; never generate icons/favicon inline in code. Test `test_app_icons.py`.
 **Session end:** `TwAuthSync.invalidateSession()` (logout · 401 · expiry · `stale_entry`) and the `twLogout()` fallback call the single helper `twClearAppCaches()` — best-effort, never delays redirect.
 **Rules:** New API endpoints need no `sw.js` change (API not cached by default). Bump `BUILD_TIME` whenever `sw.js` changes so `activate` deletes old caches. `notificationclick` opens only `/`-relative URLs (not `//`).
 **Details:** `ARCHITECTURE.md §71` · `docs/rules/sw-cache.md` · test `test_sw_cache_allowlist_runtime.js`
-**Do not recreate:** Do not add a second service worker file. Do not reintroduce a `NO_CACHE` blocklist. Never cache API/JSON or any request with `Authorization`. Do not write a second cache-wipe helper.
+**Do not recreate:** Do not add a second service worker file. Do not reintroduce a `NO_CACHE` blocklist. Never cache API/JSON or any request with `Authorization`. Do not write a second cache-wipe helper. Do not return placeholder/inline-generated icons or favicon from `server.py`; do not hand-edit `static/icons/*` — re-run the generator.
 
 ---
 
