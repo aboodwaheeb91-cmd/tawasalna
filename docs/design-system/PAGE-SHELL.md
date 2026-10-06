@@ -26,7 +26,7 @@
 
 ## SHELL-01 — Scope & Ownership
 
-**DS-SHELL يملك:** `charset` · `viewport` · `theme-color` · `manifest` · `rel="icon"` + `apple-touch-icon` · preconnect + خط Cairo · `tw_shared.css` · `tw_shared.js` · `auth-sync.js` — وترتيبهم ونسختهم (`?v=`).
+**DS-SHELL يملك:** `charset` · `viewport` · `theme-color` · `manifest` · meta تطبيق الشاشة الرئيسية (`mobile-web-app-*` / `apple-mobile-web-app-*`) · `rel="icon"` + `apple-touch-icon` · preconnect + خط Cairo · `tw_shared.css` · `tw_shared.js` · `auth-sync.js` — وترتيبهم ونسختهم (`?v=`).
 
 | الشي | مالكه |
 |------|-------|
@@ -48,7 +48,7 @@
 | `<!--tw:shell-head:admin-->` | `partials/shell-head.admin.html` | نفس المكان |
 | `<!--tw:shell-scripts:admin-->` | `partials/shell-scripts.admin.html` | نفس المكان |
 
-**head (app):** `charset UTF-8` · `viewport width=device-width, initial-scale=1.0` (zoom مسموح) · `theme-color #00c896` · `manifest` · `rel="icon"` → `/favicon.ico` · `apple-touch-icon` → `/apple-touch-icon.png` (§32) · preconnect `fonts.googleapis.com` + `fonts.gstatic.com` · Cairo **400–900** · `/static/tw_shared.css?v=H`.
+**head (app):** `charset UTF-8` · `viewport width=device-width, initial-scale=1.0` (zoom مسموح) · `theme-color #00c896` · `manifest` · `mobile-web-app-capable=yes` + `apple-mobile-web-app-capable=yes` + `apple-mobile-web-app-status-bar-style=black-translucent` + `apple-mobile-web-app-title=تواصلنا` (تطبيق الشاشة الرئيسية standalone — مش بنسخة الأدمن) · `rel="icon"` → `/favicon.ico` · `apple-touch-icon` → `/apple-touch-icon.png` (§32) · preconnect `fonts.googleapis.com` + `fonts.gstatic.com` · Cairo **400–900** · `/static/tw_shared.css?v=H`.
 **scripts (app):** `/static/tw_shared.js?v=H` ← `/static/shared/auth-sync.js?v=H`.
 
 > **`/static/tw_shared.js` (المرحلة C — job-detail):** نفس الملف `tw_shared.js` بالجذر، منخدم عبر `/static/{filename}` (fallback الجذر) → جوّا allowlist الـ SW (§32 — `/static/*`). المسار القديم `/tw_shared.js` (route بـ `server.py`) **بيضل شغّال كما هو** (نفس الملف، بدون redirect) للصفحات غير المحوّلة و `_LEGACY_REDIRECT_HTML` — بينشال بس لما ما يضل إله مستهلك. نقل المسار = bump لـ `BUILD_TIME` بـ `sw.js`.
