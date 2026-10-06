@@ -19,6 +19,8 @@
 
 7. **`--radius-control` = `var(--radius-md)` (10px)** هو radius الأزرار والحقول (BTN-02).
 
+8a. **أحجام الأفاتار (PR-7b):** `--size-avatar-md/lg/xl/2xl` (40/48/88/106) — مالكها DS-IMAGE (`docs/rules/ds-image.md`)؛ مستهلكها `.tw-ava` فقط.
+
 8. **الاستثناءات المجمّدة (SIZE-08) ممنوع تنلمس:** `.sc-actions` / `.sc-btn` (profile-v2) وقيم post-comments (28px reply indent، avatar 32/22، max-height 280px) — حتى القيم المطابقة جوّاها.
 
 9. **ما في tokens للمسافات الفردية** (3/5/7/9/11/13px) — تبقى محلية لحد redesign معلن (قرار 5).

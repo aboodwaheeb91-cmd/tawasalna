@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR-7b — 2026-10-06 — إصلاح §54 بعرض الصور + تأسيس DS-IMAGE (F38)
+
+- (أ) أمني — السبب الجذري: `profile-v2` بيحط روابط الصور بـ `esc()` المحلي (escaping HTML، ما بيهرّب `"` ومش تحقق رابط): `.sc-avatar` (`img.src = esc(url)`) · مودال المتابعين `.sc-fl-avatar` + href `/u/{tw_id}` (innerHTML — كسر attribute ممكن) · غلاف الموظف (`'url(' + esc(url) + ')'` — بدون تحقق ولا تهريب CSS؛ وبعد الرفع بدون أي escaping). الإصلاح: `twSafeImageUrl` (https أو `/` نسبي فقط) + `twCssUrl` بـ `tw_shared.js`؛ الأماكن الأربعة صارت عليهم (+ `twEscAttr`). الـ 8 دوال المحلية = دين معروف (IMG-12).
+- (ب) DS-IMAGE Phase B: `twAvatarHtml` / `twAvatarEl` + listener `error` واحد (capture) · `.tw-ava` بـ `tw_shared.css` (قسم 16) · `--size-avatar-md/lg/xl/2xl` (40/48/88/106) بقسم DS-SIZE. بدون مستهلك وبدون تغيير بصري.
+- تغيير سلوك: رابط صورة / غلاف مش `https://` ولا `/` نسبي (مثلاً `http:` أو `data:` قديم، أو `data:` بوضع `TW_DEV_UPLOAD`) ما عاد ينعرض بالبروفايل → placeholder / الغلاف الافتراضي.
+- توثيق: `docs/design-system/IMAGE-SYSTEM.md` (IMG-00 → IMG-13) · `docs/rules/ds-image.md` · F38 + صف F31 + فهرس القواعد (F1–F38) · CLAUDE.md (جدول + Safe Rendering قاعدة 4) · SYSTEMS_INDEX §57 + §54 + §55 + §29b · `DESIGN_SYSTEM.md` · `SIZE-SYSTEM.md` · `docs/rules/ds-size.md` · `docs/rules/image-cropper.md` + `ARCHITECTURE.md` (Image Cropper: غلاف الموظف ديناميكي W×240 = دين + قرار 4:1 + لوغو مربع) · `ARCHITECTURE.md` Safe Rendering · `FUTURE_ROADMAP.md`.
+- اختبار: `node test_ds_image_runtime.js` (جديد) · `test_ds_size_tokens.py` (الـ tokens الجديدة + S4 صار يفحص "ما في مستهلك DS-SIZE جديد" بدل "ما في ملف HTML متغيّر").
+
 ## fix/supabase-settings-key-migration — 2026-10-06 — تقوية قراءة إعدادات Supabase + دعم مفاتيح `sb_secret_`
 
 - السبب الجذري: (1) `SUPABASE_URL` بالإنتاج كان فيه حرف اتجاه مخفي بأوله (لصق من موبايل) و `.strip()` ما بيشيله → httpx `UnsupportedProtocol`. (2) المفتاح كان غلط والكود بيبعته دايماً `Authorization: Bearer` → Storage 400 "Invalid Compact JWS"؛ ومفاتيح `sb_secret_` الجديدة مش JWT ولازم تنبعت بـ `apikey`.

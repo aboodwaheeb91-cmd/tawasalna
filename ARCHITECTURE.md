@@ -2035,11 +2035,13 @@ body.view-owner .av-edit-btn { display:flex; }
 | نوع الصورة | الملف المسؤول | Cropper | Zoom | Drag | Export |
 |------------|--------------|---------|------|------|--------|
 | صورة بروفايل الموظف (avatar) | `profile-v2.avatar.js` | ✅ `TW.createCropper` — circle preview | ✓ 1×–3× | ✓ mouse + touch | 260×260 JPEG q0.85 |
-| كفر الموظف (cover) | `profile-v2.cover.js` | ✅ `TW.createCropper` — rect 6:1 | ✓ 1×–3× | ✓ mouse + touch | 720×120 JPEG q0.88 |
-| شعار الشركة (logo) | `company.main.js` → `openLogoCrop` | ✅ `TW.createCropper` — rect 1:1 | ✓ 1×–3× | ✓ mouse + touch | 300×300 JPEG q0.85 |
+| كفر الموظف (cover) | `profile-v2.cover.js` | ✅ `TW.createCropper` — rect، **النسبة الفعلية ديناميكية** (`offsetWidth / 80`) ⚠️ | ✓ 1×–3× | ✓ mouse + touch | **W×240** JPEG q0.88 (الموثّق سابقاً 6:1 / 720×120) |
+| شعار الشركة (logo) | `company.main.js` → `openLogoCrop` | ✅ `TW.createCropper` — 1:1 (circle preview) | ✓ 1×–3× | ✓ mouse + touch | 300×300 JPEG q0.85 |
 | كفر الشركة (cover) | `company.main.js` → `openCoverCrop` | ✅ `TW.createCropper` — rect 4:1 | ✓ 1×–3× | ✓ mouse + touch | 800×200 JPEG q0.88 |
 
 **النتيجة:** جميع أنواع الصور تمر عبر `TW.createCropper` قبل الرفع. لا يوجد crop inline في أي page module.
+
+> **دين موثّق + قرارات (PR-7b — DS-IMAGE):** (1) كفر الموظف حالياً ديناميكي (ارتفاع العرض 80px ثابت، العرض حسب الشاشة → الإخراج W×240 بيختلف حسب جهاز الرفع). القرار: **4:1 ثابت** (نفس كفر الشركة) للعرض والـ cropper. (2) لوغو الشركة رح يصير **مربع بزوايا** (عرض + preview الـ cropper). التنفيذ للاثنين بـ DS-IMAGE المرحلة C — `docs/design-system/IMAGE-SYSTEM.md` IMG-10 / IMG-12.
 
 ---
 
@@ -6321,8 +6323,10 @@ All API data rendered inside `admin.html` and `admin-view.html` template literal
 - `twEscHtml(v)` — alias for `twEscAttr` (attr escaping is a safe superset for text content)
 - `sanitize(str)` — **deleted (PR-4)**: its last users (legacy `profile.html` + the header menu builder in `tw_shared.js`, now `twEscHtml`) are gone
 
-**URL/image src validation:** only `http://`, `https://`, or `/`-relative paths (not protocol-relative `//`).
-Regex: `/^(https?:\/\/|\/(?!\/))/.test(url)` — negative lookahead rejects `//evil.com`.
+**URL/image src validation — `twSafeImageUrl(url)` in `tw_shared.js` (PR-7b, the only check):** returns `url` only for `https://` (case-insensitive) or a `/`-relative path — not `//evil.com` and not `/\evil.com` (browsers read both as protocol-relative); otherwise `''` (javascript: · data: · vbscript: · http: · blob: · leading whitespace). `twCssUrl(url)` = `twSafeImageUrl` + `url("…")` with CSS-string escaping (`\` `"` newline → hex escape) — the only way to build a `background-image`. HTML string → `twEscAttr(twSafeImageUrl(url))`; DOM → `img.src = twSafeImageUrl(url)` (no HTML escaping on a DOM property).
+Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages are converted; no new copies.
+**PR-7b fixes (`profile-v2`):** `.sc-avatar` (`img.src = esc(url)` → `twSafeImageUrl`) · followers modal `.sc-fl-avatar` + `/u/{tw_id}` href (`esc()` did not escape `"` → `twEscAttr`) · employee cover render + post-upload update (`'url(' + esc(url) + ')'` → `twCssUrl`).
+**Known debt:** 8 local escaping functions on image paths — `messages.state.js → esc` · `profile-v2.utils.js → esc` · `company.main.js → _esc` ×3 · `company.jobs.js → _esc` · `company.render.js → _esc` + `_escapeHtml`; removed with DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-12).
 
 - Inline `onclick` with non-numeric string interpolation replaced by `data-*` attribute + event delegation
 

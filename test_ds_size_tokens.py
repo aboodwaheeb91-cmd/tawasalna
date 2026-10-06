@@ -4,7 +4,7 @@ DS-SIZE Phase 1 static checks — PR-5 / Phase B (F36 · docs/design-system/SIZE
   S1  every DS-SIZE token is defined exactly once in tw_shared.css, with its documented value
   S2  tw_shared.css defines no --size-* / --radius-* / --space-* outside the documented set
   S3  no other CSS / HTML / JS file defines --size-* / --radius-* / --space-*
-  S4  vs origin/main: no CSS / HTML file other than tw_shared.css changed (no migration)
+  S4  vs origin/main: no CSS / HTML file other than tw_shared.css adds a DS-SIZE consumer (no migration)
 
 Run:  python test_ds_size_tokens.py
 """
@@ -38,6 +38,9 @@ EXPECTED = {
     '--size-control-icon-xs': '28px', '--size-control-icon-sm': '30px',
     '--size-control-icon-md': '32px', '--size-control-icon-lg': '40px',
     '--size-control-sm': '28px', '--size-control-md': '40px', '--size-touch-min': '44px',
+    # avatar / logo box (DS-IMAGE IMG-02 · F38)
+    '--size-avatar-md': '40px', '--size-avatar-lg': '48px', '--size-avatar-xl': '88px',
+    '--size-avatar-2xl': '106px',
 }
 
 # A custom-property *definition* (not a var() reference)
@@ -89,17 +92,23 @@ for dirpath, dirnames, filenames in os.walk(_ROOT):
 check('S3 no --size-*/--radius-*/--space-* defined outside tw_shared.css', not outside,
       '; '.join(outside[:10]))
 
-# S4
+# S4 — no page migration: no CSS/HTML file other than tw_shared.css gains a DS-SIZE consumer
+# (a version-string bump or unrelated HTML change is not a migration)
+_USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,
                           capture_output=True, text=True, check=True).stdout.strip()
-    changed = subprocess.run(['git', 'diff', '--name-only', base], cwd=_ROOT,
-                             capture_output=True, text=True, check=True).stdout.split()
+    diff = subprocess.run(['git', 'diff', '-U0', base, '--', '*.css', '*.html', ':!tw_shared.css'],
+                          cwd=_ROOT, capture_output=True, text=True, check=True).stdout
     untracked = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard'], cwd=_ROOT,
                                capture_output=True, text=True, check=True).stdout.split()
-    touched = [f for f in changed + untracked
-               if f.endswith(('.css', '.html')) and f != 'tw_shared.css']
-    check('S4 no other CSS/HTML file changed vs origin/main', not touched, ', '.join(touched))
+    added = [l for l in diff.splitlines() if l.startswith('+') and not l.startswith('+++')]
+    for f in untracked:
+        if f.endswith(('.css', '.html')) and f != 'tw_shared.css':
+            added += open(os.path.join(_ROOT, f), encoding='utf-8').read().splitlines()
+    consumers = [l.strip()[:80] for l in added if _USE_RE.search(l)]
+    check('S4 no DS-SIZE consumer added outside tw_shared.css vs origin/main', not consumers,
+          '; '.join(consumers[:5]))
 except (subprocess.CalledProcessError, FileNotFoundError) as e:
     check('S4 git diff vs origin/main available', False, str(e))
 

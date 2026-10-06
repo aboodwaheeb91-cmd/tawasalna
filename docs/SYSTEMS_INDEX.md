@@ -468,6 +468,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 | company-logo | `company.main.js → openLogoCrop` | 1/1 | circle (preview only) | 300×300 JPEG q0.85 | #406 |
 | company-cover | `company.main.js → openCoverCrop` | 4/1 | rect | 800×200 JPEG q0.88 | #407 |
 
+**Actual state + decisions (PR-7b — DS-IMAGE):** employee-cover is really dynamic (`.sc-cover offsetWidth / 80` → export W×240), not 6/1 — documented debt. Decision: employee cover = fixed **4:1** (same as company). company-logo preview becomes a rounded square (org shape — IMG-03). Both land in DS-IMAGE phase C (§57).
+
 **Do not recreate:** Do not add inline crop/zoom/drag logic to any page module — `TW.createCropper` is the only approved cropper. Do not modify `tw-upload.js` to include crop logic — the two systems are permanently separate. Any new image type must use `TW.createCropper`. See `docs/rules/image-cropper.md` for permanent forbidden patterns.
 
 ---
@@ -510,8 +512,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ## G — Platform Infrastructure
 
 ### 30a. Architecture Foundation ✅
-**Purpose:** الدستور المعماري للمشروع — القواعد العليا F1–F37. أعلى أولوية من جميع التوثيقات التفصيلية.
-**Rule Index + Task Protocol (PR-3):** `ARCHITECTURE_FOUNDATION.md → فهرس القواعد` (جدول F1–F37: الرقم + الأولوية + سطر واحد) يُقرأ أولاً في كل مهمة، ثم هذا الفهرس، ثم فقط نص القواعد/الأنظمة المرتبطة — حسب `CLAUDE.md → بروتوكول المهام` (13 بنداً، إلزامي لكل جلسة ومهمة). لا قراءة كاملة للتوثيق بلا حاجة.
+**Purpose:** الدستور المعماري للمشروع — القواعد العليا F1–F38. أعلى أولوية من جميع التوثيقات التفصيلية.
+**Rule Index + Task Protocol (PR-3):** `ARCHITECTURE_FOUNDATION.md → فهرس القواعد` (جدول F1–F38: الرقم + الأولوية + سطر واحد) يُقرأ أولاً في كل مهمة، ثم هذا الفهرس، ثم فقط نص القواعد/الأنظمة المرتبطة — حسب `CLAUDE.md → بروتوكول المهام` (13 بنداً، إلزامي لكل جلسة ومهمة). لا قراءة كاملة للتوثيق بلا حاجة.
 **Changelog (PR-6c):** تاريخ تعديلات التوثيق بـ [`docs/CHANGELOG.md`](CHANGELOG.md) فقط (بند لكل PR، الأحدث فوق) — `CLAUDE.md → بروتوكول المهام` البند 13. ❌ تطويل سطر "Last updated" بأي ملف.
 **Source of Truth:** `ARCHITECTURE_FOUNDATION.md`
 **Details:** `ARCHITECTURE_FOUNDATION.md` · مرتبط من `ARCHITECTURE.md` (أول الصفحة) و `CLAUDE.md` (بروتوكول المهام + Architecture Foundation section)
@@ -980,7 +982,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** النظام الرسمي الوحيد لأحجام الواجهة: أحجام الخط، الزوايا، المسافات، أحجام الأيقونات، وارتفاعات العناصر التفاعلية. يحجز namespaces `--size-*` / `--radius-*` / `--space-*` ويحدّد قاعدة الـ migration (مطابق / تحت البكسل / مرئي).
 **Source of Truth:** `tw_shared.css` قسم `1b. DS-SIZE` (Runtime — Phase 1 ✅) · `docs/design-system/SIZE-SYSTEM.md`
 **Details:** `docs/design-system/SIZE-SYSTEM.md` (SIZE-00 → SIZE-12) · `docs/rules/ds-size.md` · `ARCHITECTURE_FOUNDATION.md` F36. أبرز قواعد:
-- **السلالم:** `--size-font-3xs..display` (12 درجة، `--size-font-xl` = .95rem) · `--radius-2xs..circle` (10) + `--radius-control: var(--radius-md)` · `--space-1..13` (2 → 40px) · `--size-icon-xs..2xl` (12 → 22px) · `--size-control-icon-xs..lg` (28/30/32/40) · `--size-control-sm/md` (28/40) · `--size-touch-min` (44).
+- **السلالم:** `--size-font-3xs..display` (12 درجة، `--size-font-xl` = .95rem) · `--radius-2xs..circle` (10) + `--radius-control: var(--radius-md)` · `--space-1..13` (2 → 40px) · `--size-icon-xs..2xl` (12 → 22px) · `--size-control-icon-xs..lg` (28/30/32/40) · `--size-control-sm/md` (28/40) · `--size-touch-min` (44) · `--size-avatar-md/lg/xl/2xl` (40/48/88/106 — DS-IMAGE §57، PR-7b).
 - **Migration = المطابق وتحت البكسل فقط** (SIZE-05)؛ المرئي (≥ 0.5px) بـ PR redesign معلن. استثناء معتمد وحيد: أيقونات 13px → `--size-icon-sm`.
 - **Tiers** (SIZE-07): T1 عالمي · T2 alias محلي (`--r-sm: var(--radius-md)`) · T3 قيمة محلية موثقة.
 - **استثناءات مجمّدة** (SIZE-08): `.sc-actions` / `.sc-btn` (profile-v2) · post-comments (28px indent، avatar 32/22، max-height 280px).
@@ -1007,6 +1009,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Cross-references:** DS-SIZE §55 (`--size-icon-*` — SIZE-06) · DS-COLOR §50 (`currentColor` — CLR-33) · DS-BTN §39 (BTN-06 icon buttons) · Hybrid Skill Icon System (`ARCHITECTURE.md`) · Vendor Assets (`ARCHITECTURE.md`).
 **Test:** `node test_ds_icon_registry.js`
 **Status:** Phase A (audit) ✅ · Phase B (registry + docs + test، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-6 / المرحلة B) · Phase C (page-by-page conversion + إزالة Lucide) 🔜
+
+---
+
+### 57. Image Display System V1 [DS-IMAGE]
+**Purpose:** النظام الرسمي الوحيد لعرض صور الحسابات: أفاتار الموظف، لوغو الشركة / الجهة التعليمية، الحرف البديل، حالة الفشل، وأمان رابط الصورة وقت العرض (§54). الرفع = §29a · القص = §29b.
+**Source of Truth:** `tw_shared.js` → `twSafeImageUrl(url)` · `twCssUrl(url)` · `twAvatarHtml(entity, size, opts)` · `twAvatarEl(entity, size, opts)` + listener `error` واحد (capture) · `tw_shared.css` → قسم `16. DS-IMAGE` (`.tw-ava`) + `--size-avatar-*` بقسم `1b. DS-SIZE` · `docs/design-system/IMAGE-SYSTEM.md`
+**Details:** `docs/design-system/IMAGE-SYSTEM.md` (IMG-00 → IMG-13) · `docs/rules/ds-image.md` · `ARCHITECTURE_FOUNDATION.md` F38. أبرز قواعد:
+- **Markup:** `<span class="tw-ava tw-ava--{md|lg|xl|2xl} tw-ava--{emp|org}" data-tw-ava="{emp|co|edu}">` + `<img alt="" decoding="async" loading="lazy|eager" width height>` + `<span class="tw-ava__fb">حرف</span>`؛ string و DOM من `_twAvatarSpec` واحد.
+- **الأحجام:** 40 / 48 / 88 / 106 (`--size-avatar-*`)؛ 22 / 32 post-comments مجمّدة. **الشكل:** emp دائرة · co / edu مربع بزوايا (md `--radius-md` · lg `--radius-lg` · xl / 2xl `--radius-3xl`).
+- **الحرف:** `Array.from(name.trim())[0]` بدون `toUpperCase`، وإلا `؟`؛ اللون categorical (emp teal · co blue · edu purple — CLR-11/13).
+- **الفشل:** رابط غير صالح → `data-fb="1"` مباشرة · فشل تحميل → listener واحد على `document` (capture) → `data-fb="1"`؛ ممنوع `onerror` inline. `opts.eager` للـ hero فقط.
+- **الأمان:** `twSafeImageUrl` = `https://` أو `/` نسبي (مش `//` ولا `/\`)؛ `twCssUrl` = نفس الفحص + تهريب CSS.
+- **الغلاف:** 4:1 ثابت للموظف والشركة (التنفيذ بالمرحلة C).
+**Do not recreate:** لا markup أفاتار / لوغو بصفحة بدل `twAvatar*`. لا regex محلي لرابط صورة ولا `background-image` بدون `twCssUrl`. لا `esc(url)` كتحقق رابط. لا `onerror` inline ولا listener ثاني. لا px / hex خام للأحجام والألوان. لا تحويل صفحة (المرحلة C) بدون موافقة صريحة.
+**Cross-references:** §54 Safe Rendering · DS-SIZE §55 · DS-COLOR §50 · §29a Upload · §29b Cropper · App Header §28 (`[data-ah-av]` ميت — Roadmap).
+**Test:** `node test_ds_image_runtime.js`
+**Status:** Phase A (فحص) ✅ · Phase B (helper + CSS + tokens + توثيق + إصلاح §54 بـ profile-v2، بدون مستهلك وبدون تغيير بصري) ✅ (2026-10-06 — PR-7b) · Phase C (messages ← company ← profile ← home / job-detail) 🔜
 
 ---
 
@@ -1037,8 +1056,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 54. Safe Rendering / Output Escaping
 **Purpose:** Shared HTML escaping helpers to prevent stored XSS across all pages.
 **Source of Truth:** `tw_shared.js` → `twEscAttr(v)` (canonical implementation) · `twEscHtml(v)` (alias for `twEscAttr`). Both exposed on `window.` — the old `sanitize()` alias was deleted (PR-4); do not re-add it.
-**Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Safe Rendering / Output Escaping Rules`
-**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. URL/image src must pass `/^(https?:\/\/|\/(?!\/))/.test(url)` — rejects `//evil.com` (protocol-relative). `sanitize` is deprecated; do not use in new code.
+**Image URL (PR-7b):** `twSafeImageUrl(url)` is the only image-URL check (`https://` or `/`-relative — not `//`, not `/\`; javascript: / data: / vbscript: / http: → `''`) · `twCssUrl(url)` for `background-image` (validated + CSS-escaped). Fixed in `profile-v2`: `.sc-avatar`, followers modal `.sc-fl-avatar` + href, employee cover. **Known debt:** 8 local escaping functions on image paths (messages / company / profile-v2) → DS-IMAGE phase C (§57).
+**Details:** `ARCHITECTURE.md → Safe Rendering (§54)` · `CLAUDE.md → Safe Rendering / Output Escaping Rules` · `docs/design-system/IMAGE-SYSTEM.md` IMG-08
+**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. Image URLs go through `twSafeImageUrl` (not a new inline regex; the legacy `/^(https?:\/\/|\/(?!\/))/` in admin pages is not to be copied). `sanitize` is deprecated; do not use in new code.
 
 ---
 
@@ -1052,4 +1072,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-06 — fix/supabase-settings-key-migration · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-06 — PR-7b (DS-IMAGE) · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

@@ -51,6 +51,10 @@
 - [ ] **P1** — توحيد أزرار الهيدر: `.sc-home-btn` / `.sc-hicon` / `.hdr-back` = 32 (بروفايل/شركة) · 34 (رسائل) · 34/36 (مواعيد) · 40 (الهيدر المشترك). الميل لـ 40 (`--size-control-icon-lg`). PR بصري منفصل مع screenshots — ما في قرار لسا.
 - [ ] **P1** — إضافة `tw_shared.css` للصفحات الخمس اللي ما بتحمّله: `home-v2.html` · `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`. PR منفصل مع فحص بصري (قواعد `body` و `*` بـ `tw_shared.css` بتأثر؛ بـ appointments لازم الرابط قبل `<style>` المحلي). شرط لـ migration DS-SIZE/DS-COLOR بهاي الصفحات.
 - [ ] **P1** — DS-ICON Phase C: تحويل صفحة صفحة لـ `twIcon` / `twIconEl` (`static/shared/tw-icons.js` · F37 · `docs/design-system/ICON-SYSTEM.md` ICON-13). موافقة صريحة لكل صفحة؛ كل تغيير مرئي (توحيد الأحجام 10/11/15/19/24 · stroke 1.5/1.8/2.2/2.5 → 2 · رسومات Lucide الأقدم بالـ SVG inline) يُذكر بوصف الـ PR.
+- [ ] **P1** — DS-IMAGE Phase C (F38 · `docs/design-system/IMAGE-SYSTEM.md` IMG-13): بالترتيب **messages ← company ← profile**، وبعدها **home** و **job-detail** (بعد تحميل `tw_shared.*` عندهم). كل صفحة: `twAvatarHtml` / `twAvatarEl` + شيل الـ escaping المحلي (IMG-12) + توحيد الأحجام (38/42 → 40 · 44 → 48 · 84–94 → الأقرب — مرئي) + screenshots. موافقة صريحة لكل صفحة.
+  - غلاف الموظف 4:1 ثابت (العرض + `profile-v2.cover.js` cropper) — بدل الديناميكي W×240 (IMG-10).
+  - لوغو الشركة مربع بزوايا (العرض + `openLogoCrop` preview مربع) — IMG-03.
+- [ ] **P2** — حذف `[data-ah-av]` الميت من `static/app-header.js` (ما في عنصر بيستعمله).
   - **أول PR:** زر الرجوع بـ `profile-showcase.html:46` (`#scPreviewBackBtn` — سهم يدوي) → `twIcon('back')` + باقي أيقونات `profile-showcase.html` نفسها.
   - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html` · `job-detail.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
   - دمج `_lucideIcon()` المكرّرة (`static/job/job-detail.js` · `static/home/home.cards.js`) — تختفي لصالح `twIconEl`.
@@ -94,6 +98,7 @@
 - [ ] **P1** — Company/Education Verification Badge & Flow: نفس نظام التوثيق المذكور في Company Profile — ينطبق على المؤسسات التعليمية بنفس الحالات والسلوك.
 - [ ] **P1** — Unified Settings Menu (Education extensions): نفس القائمة الموحدة مع إضافات خاصة بالمؤسسة: إدارة الدورات، إعدادات الاعتمادات أو التوثيق.
 - [ ] **P2** — Education profile public page: تحسين عرض الدورات والتحقق في الصفحة العامة
+- [ ] **P1** — رفع لوغو + غلاف الجهة التعليمية عبر §29a (`TW.uploadImage`) + §29b (`TW.createCropper`) بدل localStorage — PR مستقل؛ العرض عبر DS-IMAGE (مربع بزوايا · غلاف 4:1).
 
 ---
 
