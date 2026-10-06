@@ -1005,13 +1005,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
----
-
-### 53. Safe Rendering / Output Escaping
+### 54. Safe Rendering / Output Escaping
 **Purpose:** Shared HTML escaping helpers to prevent stored XSS across all pages.
-**Source of Truth:** `tw_shared.js` → `twEscHtml(v)` / `twEscAttr(v)` (exposed on `window.`)
-**Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Safe Rendering Rules`
-**Do not recreate:** Do not write a new fetch-and-render function that uses raw innerHTML with API data. Always use `twEscHtml` for text content and `twEscAttr` for attribute values. Image src attributes must be validated: accept only `http://`, `https://`, or `/`-relative paths.
+**Source of Truth:** `tw_shared.js` → `twEscAttr(v)` (canonical implementation) · `twEscHtml(v)` (alias for `twEscAttr`) · `sanitize(str)` (@deprecated alias — kept while profile.html migrates). All exposed on `window.`
+**Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Safe Rendering / Output Escaping Rules`
+**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. URL/image src must pass `/^(https?:\/\/|\/(?!\/))/.test(url)` — rejects `//evil.com` (protocol-relative). `sanitize` is deprecated; do not use in new code.
 
 ---
 

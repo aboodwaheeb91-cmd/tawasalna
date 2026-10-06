@@ -1017,13 +1017,13 @@ Every implementation plan or execution report must include a section named **"Sh
 
 These rules are permanent and apply to all future AI sessions.
 
-1. **`twEscHtml(v)` and `twEscAttr(v)` in `tw_shared.js` are the only approved escaping helpers.** Do NOT write a new escaping function in any page or module.
+1. **`twEscAttr(v)` in `tw_shared.js` is the canonical escaping implementation** (escapes `& < > " '`). `twEscHtml(v)` is an alias (safe superset). `sanitize(str)` is a @deprecated alias — do NOT use in new code. Do NOT write a new escaping function in any page or module. One implementation only (§54).
 
 2. **All API data inserted into `innerHTML` via template literals MUST be wrapped in `twEscHtml()`.** Raw `${u.full_name}` in innerHTML is a permanent violation.
 
 3. **All API data inserted into HTML attribute values MUST be wrapped in `twEscAttr()`.** Raw `${u.email}` in `href`, `data-*`, or other attributes is a permanent violation.
 
-4. **Image/URL src attributes must be validated before use.** Accept only `http://`, `https://`, or `/`-relative paths. Pattern: `/^(https?:\/\/|\/)/.test(url||'')`. Reject all other schemes (javascript:, data:, etc.).
+4. **Image/URL src attributes must be validated before use.** Accept only `http://`, `https://`, or `/`-relative paths (not protocol-relative `//`). Pattern: `/^(https?:\/\/|\/(?!\/))/.test(url||'')`. Reject all other schemes (javascript:, data:, `//`, etc.).
 
 5. **Inline `onclick` with string interpolation of non-numeric user data is permanently forbidden.** Use `data-*` attributes + event delegation instead.
 

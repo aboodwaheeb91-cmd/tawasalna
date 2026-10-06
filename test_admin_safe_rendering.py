@@ -72,6 +72,41 @@ def check_rate_limit(server_content):
     matches = pattern.findall(server_content)
     return matches
 
+
+def check_single_escaping_impl(tw_shared_content):
+    """
+    Check that tw_shared.js has exactly ONE full escaping implementation.
+    twEscAttr must have the replace chain; twEscHtml and sanitize must NOT
+    have their own (they must delegate to twEscAttr).
+    Returns list of violation descriptions.
+    """
+    violations = []
+    impl_blocks = re.findall(
+        r'function\s+(\w+)\s*\([^)]*\)\s*\{[^}]*\.replace\(/&/g',
+        tw_shared_content
+    )
+    if len(impl_blocks) > 1:
+        violations.append(f'multiple escaping implementations: {impl_blocks}')
+    elif len(impl_blocks) == 0:
+        violations.append('no escaping implementation found (twEscAttr replace chain missing)')
+    elif impl_blocks[0] != 'twEscAttr':
+        violations.append(f'canonical impl is {impl_blocks[0]}, expected twEscAttr')
+    return violations
+
+
+def check_url_regex_no_lookahead(admin_html, admin_view_html):
+    """
+    Check that no old /^(https?:\\/\\/|\\/)/ (without negative lookahead) remains.
+    Protocol-relative URLs like //evil.com must be rejected.
+    """
+    bad = re.compile(r'/\^[(]https\?:\\\/\\\/\|\\\/[)]/')
+    violations = []
+    for name, content in [('admin.html', admin_html), ('admin-view.html', admin_view_html)]:
+        if bad.search(content):
+            violations.append(f'{name}: old URL regex (no lookahead) still present')
+    return violations
+
+
 def main():
     all_pass = True
 
@@ -139,6 +174,27 @@ def main():
     else:
         print(f'[{FAIL}] server.py: /tw-ctrl-login NOT found in rate_limit_middleware list')
         all_pass = False
+
+    # Check 7: tw_shared.js has exactly one escaping implementation (twEscAttr)
+    tw_shared = read_file('tw_shared.js')
+    bad7 = check_single_escaping_impl(tw_shared)
+    if bad7:
+        print(f'[{FAIL}] tw_shared.js: escaping implementation issue:')
+        for b in bad7:
+            print(f'       {b}')
+        all_pass = False
+    else:
+        print(f'[{PASS}] tw_shared.js: single canonical escaping implementation (twEscAttr)')
+
+    # Check 8: URL validation regex uses negative lookahead (rejects //evil.com)
+    bad8 = check_url_regex_no_lookahead(admin_html, admin_view_html)
+    if bad8:
+        print(f'[{FAIL}] URL regex missing lookahead:')
+        for b in bad8:
+            print(f'       {b}')
+        all_pass = False
+    else:
+        print(f'[{PASS}] URL regex uses negative lookahead — rejects protocol-relative URLs')
 
     print('=' * 60)
     if all_pass:

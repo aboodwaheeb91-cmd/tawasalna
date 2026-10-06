@@ -360,7 +360,7 @@ async function uploadLogo(btn){
 // ── Load Logo on init ──
 (function(){
   fetch('/admin/logo').then(r=>r.json()).then(d=>{
-    if(d.logo_wide&&/^(https?:\/\/|\/)/.test(d.logo_wide)){
+    if(d.logo_wide&&/^(https?:\/\/|\/(?!\/))/.test(d.logo_wide)){
       var p=document.getElementById('prevWide');
       if(p){p.innerHTML='<img src="'+twEscAttr(d.logo_wide)+'" style="max-height:38px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
     }
@@ -593,7 +593,7 @@ async function loadReports(){
           <div style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px">بلاغ من: ${twEscHtml(rep.reporter_name)||'مجهول'}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
-          ${rep.target_url&&/^(https?:\/\/|\/)/.test(rep.target_url)?`<a href="${twEscAttr(rep.target_url)}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
+          ${rep.target_url&&/^(https?:\/\/|\/(?!\/))/.test(rep.target_url)?`<a href="${twEscAttr(rep.target_url)}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
           <button class="ab" style="color:#f87171;font-size:.65rem" onclick="deleteReportedUser(${rep.reported_id})">🗑 حذف</button>
           ${rep.status==='pending'?`<button class="ab" style="color:#00c896;font-size:.65rem" onclick="resolveReport(${rep.id})">✅ حل</button>`:''}
         </div>
