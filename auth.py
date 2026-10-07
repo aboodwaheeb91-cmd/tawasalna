@@ -8,6 +8,8 @@ import re
 import uuid
 import bcrypt
 import pg8000.native
+import pg8000.exceptions
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -279,7 +281,29 @@ def release_conn(conn):
             except Exception:
                 pass
     try: conn.close()
-    except: pass
+    except Exception as e:
+        print(f"[DB] release_conn close failed: {e!r}")
+
+
+@contextmanager
+def db_conn():
+    """`with db_conn() as conn:` — get_conn() + release_conn() in finally (CLAUDE.md
+    DB Connection Rules). Same pool semantics as the manual pair; never leaks.
+    A broken socket (pg8000 InterfaceError) is closed instead of returned to the pool."""
+    conn = get_conn()
+    broken = False
+    try:
+        yield conn
+    except pg8000.exceptions.InterfaceError:
+        broken = True
+        raise
+    finally:
+        if broken:
+            try: conn.close()
+            except Exception as e:
+                print(f"[DB] closing broken conn failed: {e!r}")
+        else:
+            release_conn(conn)
 
 
 def _ensure_async_commit(conn):
@@ -3893,20 +3917,20 @@ def get_unread_notifications(user_id: int) -> int:
 # ── Site Settings (logos, sizes) ──
 def get_site_setting(key: str) -> str:
     try:
-        conn = get_conn()
-        rows = conn.run("SELECT value FROM site_settings WHERE key=:k LIMIT 1", k=key)
-        release_conn(conn)
+        with db_conn() as conn:
+            rows = conn.run("SELECT value FROM site_settings WHERE key=:k LIMIT 1", k=key)
         return rows[0][0] if rows else ''
-    except: return ''
+    except Exception as e:
+        print(f"[Settings] get_site_setting({key!r}) failed: {e!r}")
+        return ''
 
 def set_site_setting(key: str, value: str):
     try:
-        conn = get_conn()
-        conn.run("""
-            INSERT INTO site_settings(key,value) VALUES(:k,:v)
-            ON CONFLICT(key) DO UPDATE SET value=:v, updated_at=NOW()
-        """, k=key, v=value)
-        release_conn(conn)
+        with db_conn() as conn:
+            conn.run("""
+                INSERT INTO site_settings(key,value) VALUES(:k,:v)
+                ON CONFLICT(key) DO UPDATE SET value=:v, updated_at=NOW()
+            """, k=key, v=value)
         return True
     except Exception as e:
         print(f"[Settings] Error: {e}")
@@ -3914,35 +3938,33 @@ def set_site_setting(key: str, value: str):
 
 def ensure_site_settings_table():
     try:
-        conn = get_conn()
-        conn.run('''
-            CREATE TABLE IF NOT EXISTS site_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        ''')
-        release_conn(conn)
+        with db_conn() as conn:
+            conn.run('''
+                CREATE TABLE IF NOT EXISTS site_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            ''')
     except Exception as e:
         print(f"[DB] site_settings: {e}")
 
 def ensure_reports_table():
     try:
-        conn = get_conn()
-        conn.run('''
-            CREATE TABLE IF NOT EXISTS reports (
-                id SERIAL PRIMARY KEY,
-                reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                reported_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                reported_type TEXT DEFAULT 'user',
-                report_type TEXT NOT NULL,
-                reason TEXT,
-                target_url TEXT,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        ''')
-        release_conn(conn)
+        with db_conn() as conn:
+            conn.run('''
+                CREATE TABLE IF NOT EXISTS reports (
+                    id SERIAL PRIMARY KEY,
+                    reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    reported_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    reported_type TEXT DEFAULT 'user',
+                    report_type TEXT NOT NULL,
+                    reason TEXT,
+                    target_url TEXT,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            ''')
     except Exception as e:
         print(f"[DB] reports table: {e}")
 
@@ -3955,6 +3977,7 @@ def ensure_company_tables():
     existing tables (users/jobs/profiles untouched). Rule: backward compatible.
     company identity = users.id everywhere (consistent with jobs.company_id).
     """
+    conn = None
     try:
         conn = get_conn()
         # ── company_profiles — 1:1 with users (user_id = PK + FK) ──
@@ -4093,10 +4116,12 @@ def ensure_company_tables():
             conn.run("CREATE INDEX IF NOT EXISTS idx_cpcm_comment ON company_post_comment_mentions(comment_id)")
         except Exception as _e_multiment:
             print(f"[DB] company_post_comment_mentions migration: {_e_multiment}")
-        release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
         print(f"[DB] company tables: {e}")
+    finally:
+        if conn is not None:
+            release_conn(conn)
 
 
 # ══ Phase 2: Company Profile Data Layer (Rule #5,#6 — Single Source) ══
@@ -4415,7 +4440,7 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
             cid=company_id, lim=limit) or []
         recent_comments = [
             {"score": r[0], "comment": r[1],
-             "created_at": _serialize(r[2]) if r[2] else None}
+             "created_at": r[2].isoformat() if r[2] else None}
             for r in c_rows
         ]
 

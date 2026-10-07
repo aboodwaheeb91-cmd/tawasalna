@@ -381,6 +381,15 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## DB Connection & Async Rules (mandatory for all AI sessions — PR 2A)
+
+1. **كل `get_conn()` لازم يقابله `release_conn(conn)` بـ `finally`** — أو `with db_conn() as conn:` من `auth.py` (المفضّل للكود الجديد). ❌ `release_conn` بمسار النجاح بس · ❌ `conn = get_conn()` بدون `try/finally`.
+2. **ممنوع `async def` لشغل sync** (DB · bcrypt · ملفات). endpoint ما فيه `await` حقيقي → `def` عادية (FastAPI بيشغّلها بـ threadpool). `await request.json()` مش سبب — استعمل `data: dict = Body(...)`. فيه `await` حقيقي (WS / storage) → الجزء الـ sync بـ `await asyncio.to_thread(fn, ...)`.
+3. ❌ `except:` عامة حول كود DB — `except Exception as e:` + log.
+- Spec: SYSTEMS_INDEX §54e · test `python -m pytest test_db_conn_async_safety.py -q`.
+
+---
+
 ## Documentation Completion Rule (mandatory for all AI sessions)
 
 This rule is permanent and applies to all future AI sessions.

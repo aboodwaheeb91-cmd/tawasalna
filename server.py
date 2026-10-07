@@ -5,7 +5,7 @@
 """
 
 import os
-from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -127,7 +127,7 @@ from auth import (
     get_job_applicants, get_user_applications,
     update_application_status, promote_application_to_shortlist, archive_job,
     get_company_jobs_all, set_job_status,
-    get_site_setting, set_site_setting, release_conn,
+    get_site_setting, set_site_setting, release_conn, db_conn,
     _cache_del,
     get_company_profile_row, get_company_extras,
     update_company_profile,
@@ -2664,6 +2664,7 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
                 results.append({"tw_id": tw_id, "name": name or "",
                                  "avatar": avatar or None, "user_type": utype or ""})
 
+    conn = None
     try:
         conn = get_conn()
 
@@ -2764,6 +2765,9 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     except Exception as _exc:
         print(f"[mention_search] ERROR viewer={viewer_id} type={viewer_type} q={q!r}: {_exc}")
         return {"ok": False, "candidates": []}
+    finally:
+        if conn is not None:
+            release_conn(conn)
 
     return {"ok": True, "candidates": results}
 
@@ -3153,7 +3157,7 @@ def company_candidate_suggestions(
 
 
 @app.post("/reports/submit")
-async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
+def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
     """Submit a report against a user or content"""
     try:
         ensure_reports_table()
@@ -3165,13 +3169,12 @@ async def submit_report(data: ReportInput, request: Request, token=Depends(verif
             payload = _jwt_decode(token)
             reporter_id = payload.get("user_id")
         
-        conn = get_conn()
-        conn.run("""
-            INSERT INTO reports (reporter_id, reported_id, reported_type, report_type, reason, target_url, status)
-            VALUES (:rid, :tid, :rtype, :rpt, :reason, :url, 'pending')
-        """, rid=reporter_id, tid=data.reported_id, rtype=data.reported_type,
-            rpt=data.report_type, reason=data.reason, url=data.target_url)
-        release_conn(conn)
+        with db_conn() as conn:
+            conn.run("""
+                INSERT INTO reports (reporter_id, reported_id, reported_type, report_type, reason, target_url, status)
+                VALUES (:rid, :tid, :rtype, :rpt, :reason, :url, 'pending')
+            """, rid=reporter_id, tid=data.reported_id, rtype=data.reported_type,
+                rpt=data.report_type, reason=data.reason, url=data.target_url)
         
         # No user notification: admins are not user accounts. The report stays in
         # `reports` (status 'pending') and appears in the admin panel → البلاغات tab
@@ -3320,8 +3323,8 @@ async def upload_logo(data: AdminLogoInput, request: Request):
     # Always cache in memory
     _html_cache[slot] = logo_url
     try:
-        ensure_site_settings_table()
-        set_site_setting(slot, logo_url)
+        await asyncio.to_thread(ensure_site_settings_table)
+        await asyncio.to_thread(set_site_setting, slot, logo_url)
     except Exception as db_err:
         print(f"[Logo] DB save failed: {db_err} - cached in memory only")
     return {"status": "success", "url": logo_url}
@@ -3386,11 +3389,11 @@ def health():
     # Test DB connection
     db_ok = False
     try:
-        conn = get_conn()
-        conn.run("SELECT 1")
-        release_conn(conn)
+        with db_conn() as conn:
+            conn.run("SELECT 1")
         db_ok = True
-    except: pass
+    except Exception as e:
+        print(f"[health] DB check failed: {e!r}")
     status = "ok" if db_ok else "degraded"
     return {
         "status": status,
@@ -3534,25 +3537,38 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
     print(f"[PUT /auth/password] changed user={uid} — older sessions invalidated")
     return {"ok": True, "status": "success", "token": new_token}
 
+# Display-name length cap — same 100-char limit as the other name input (/profession-suggestions).
+_FULL_NAME_MAX = 100
+
 @app.put("/auth/user/{user_id}/name")
-async def update_user_name(user_id: int, request: Request, token=Depends(verify_token)):
+def update_user_name(user_id: int, data: dict = Body(...), token=Depends(verify_token)):
+    """co / edu display-name change. emp names go through first/last (G-contract,
+    docs/rules/profile-v2.md) → same 422 emp_name_mutation_forbidden as PUT /profile."""
     # User can only update their own name
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    if token.get('user_type') == 'emp':
+        return JSONResponse(status_code=422, content={
+            "errors": [{"field": "full_name", "code": "emp_name_mutation_forbidden",
+                        "message": "لتغيير الاسم استخدم حقول الاسم الأول والعائلة"}],
+            "detail": {"ok": False, "field": "full_name", "code": "emp_name_mutation_forbidden",
+                       "error": "لتغيير الاسم استخدم حقول الاسم الأول والعائلة"}})
+    full_name = _norm_name(data.get("full_name") if isinstance(data.get("full_name"), str) else "")
+    if not full_name:
+        raise HTTPException(400, "الاسم مطلوب")
+    if len(full_name) > _FULL_NAME_MAX:
+        raise HTTPException(400, f"الاسم طويل جداً — {_FULL_NAME_MAX} حرف كحد أقصى")
     try:
-        data = await request.json()
-        full_name = data.get("full_name","").strip()
-        if not full_name:
-            raise HTTPException(400, "الاسم مطلوب")
-        conn = auth.get_conn()
-        try:
+        validate_professional_text(full_name, "full_name")
+    except ContentValidationError as e:
+        return JSONResponse(status_code=422, content={
+            "errors": [{"field": "full_name", "code": "content_violation", "message": e.message}],
+            "detail": {"status": "error", "message": e.message, "field": "full_name"}})
+    try:
+        with db_conn() as conn:
             conn.run("UPDATE users SET full_name=:name WHERE id=:uid",
                      name=full_name, uid=user_id)
-        finally:
-            release_conn(conn)
         return {"success": True}
-    except HTTPException:
-        raise
     except Exception as e:
         raise _server_error("update_user_name", e)
 
@@ -4413,7 +4429,7 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
     if int(token.get("user_id") or 0) != user_id:
         raise HTTPException(403, "غير مصرح")
     try:
-        msgs, newly_read_ids = get_messages(user_id, other_id)
+        msgs, newly_read_ids = await asyncio.to_thread(get_messages, user_id, other_id)
         if newly_read_ids:
             await ws_manager.send_to_user(other_id, {
                 "type": "status_update",
@@ -4951,7 +4967,8 @@ async def admin_kyc_docs(submission_id: int, request: Request):
     Only paths matching kyc-docs/{user_id}_{kind}_{12hex}.{ext} of the same
     submission's user are signed; anything else → url null + reason."""
     check_admin(request)
-    row = _current_image_urls(
+    row = await asyncio.to_thread(
+        _current_image_urls,
         "SELECT user_id, id_front_url, selfie_url FROM kyc_submissions WHERE id = :uid",
         submission_id)
     if not row:
@@ -5033,7 +5050,7 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
     report = {}
     for col, select_sql, update_sql, kind_of in _DATA_IMAGE_TARGETS:
         try:
-            rows = _mig_run(select_sql)
+            rows = await asyncio.to_thread(_mig_run, select_sql)
         except Exception as e:
             print(f"[Migrate images] select failed {col}: {type(e).__name__}")
             report[col] = {"found": 0, "migrated": 0, "would_migrate": 0, "skipped": 0,
@@ -5069,7 +5086,7 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
                 _skip("storage_failed")
                 continue
             try:
-                updated = _mig_run(update_sql, new=new, k=row_key, old=old)
+                updated = await asyncio.to_thread(_mig_run, update_sql, new=new, k=row_key, old=old)
             except Exception as e:
                 print(f"[Migrate images] update failed {col} key={row_key}: {type(e).__name__}")
                 _skip("update_failed")
@@ -5654,9 +5671,8 @@ def delete_user(user_id: int, request: Request):
         release_conn(conn)
 
 @app.put("/admin/user/{user_id}/type")
-async def change_user_type(user_id: int, request: Request):
+def change_user_type(user_id: int, request: Request, data: dict = Body(...)):
     check_admin(request)
-    data = await request.json()
     new_type = data.get("user_type","emp")
     if new_type not in ("emp","co","edu"):
         raise HTTPException(400, "نوع حساب غير صحيح")
@@ -5670,9 +5686,8 @@ async def change_user_type(user_id: int, request: Request):
         release_conn(conn)
 
 @app.put("/admin/user/{user_id}/verify")
-async def verify_user(user_id: int, request: Request):
+def verify_user(user_id: int, request: Request, data: dict = Body(...)):
     check_admin(request)
-    data = await request.json()
     is_v = data.get("is_verified", True)
     conn = get_conn()
     try:
@@ -5688,9 +5703,8 @@ async def verify_user(user_id: int, request: Request):
         release_conn(conn)
 
 @app.put("/admin/user/{user_id}/password")
-async def admin_reset_password(user_id: int, request: Request):
+def admin_reset_password(user_id: int, request: Request, data: dict = Body(...)):
     check_admin(request)
-    data = await request.json()
     pw = data.get("password","").strip()
     if not pw or len(pw) < 6:
         raise HTTPException(400, "كلمة المرور قصيرة جداً")

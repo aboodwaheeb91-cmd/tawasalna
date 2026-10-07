@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 2A — تسريب اتصالات DB + أعطال مؤكّدة + async بيوقف السيرفر — 2026-10-07
+
+- `auth.py`: **`db_conn()`** (جديد — SYSTEMS_INDEX §54e) — `with db_conn() as conn:` بيرجّع الاتصال بـ `finally`، والاتصال المكسور (`InterfaceError`) بيتسكّر بدل ما يرجع للـ pool. `get/set_site_setting` + `ensure_site_settings_table` + `ensure_reports_table` صاروا عليه (كان release بمسار النجاح بس + `except:` عامة). `ensure_company_tables`: release بـ `finally`. `release_conn`: `except:` → log.
+- `server.py`: `mention_search` (ما كان يرجّع الاتصال أبداً) · `submit_report` · `/health` → release بـ `finally`.
+- `PUT /auth/user/{id}/name`: كان دايماً 500 (`auth.get_conn` و `auth` مش مستورد). صار `def` + `_norm_name` + حد 100 حرف + `validate_professional_text`؛ `emp` → 422 `emp_name_mutation_forbidden` (G-contract).
+- `GET /company/{id}/ratings`: `created_at` بـ `isoformat()` (كان `_serialize(datetime)` → 500 لأي تقييم فيه تعليق).
+- async: `submit_report` · `update_user_name` · `change_user_type` · `verify_user` · `admin_reset_password` → `def`. `get_msgs` · `upload_logo` · `admin_kyc_docs` · `admin_migrate_data_images` → الجزء الـ DB بـ `asyncio.to_thread`.
+- قاعدة جديدة: `CLAUDE.md → DB Connection & Async Rules`. اختبار: `test_db_conn_async_safety.py` (جديد).
+
 ## PR 1.6 — منع تسريب تفاصيل السيرفر برسائل الخطأ — 2026-10-07
 
 - `server.py`: **`_server_error(where, e)`** (جديد — SYSTEMS_INDEX §54d) — log كامل + traceback، والعميل بياخد 500 «خطأ في الخادم، حاول مرة أخرى». استبدل 60 مكان `HTTPException(500, str(e))` / `detail=f"خطأ: {str(e)}"`.

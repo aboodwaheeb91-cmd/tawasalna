@@ -40,7 +40,7 @@ tawasalna/
 | POST | `/auth/register` | Create account (emp / co / edu) |
 | POST | `/auth/login` | Login, returns user object |
 | GET | `/auth/user/{user_id}` | Get user info |
-| PUT | `/auth/user/{user_id}/name` | Update display name |
+| PUT | `/auth/user/{user_id}/name` | Update display name — co / edu only (`_norm_name`, ≤ 100, `validate_professional_text`); emp → 422 `emp_name_mutation_forbidden` (PR 2A) |
 
 ### Profile
 | Method | Path | Description |
