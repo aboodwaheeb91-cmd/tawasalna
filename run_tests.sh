@@ -80,6 +80,7 @@ PY_DB=(
   test_talent_bank_quota.py
   pytest:test_otp_rate_limit_security.py
   pytest:test_pr2b_flow_fixes.py
+  pytest:test_schedule_interview.py
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────
@@ -91,6 +92,7 @@ NODE_TESTS=(
   test_ds_image_runtime.js
   test_ds_overlay_runtime.js
   test_pr2c_session_sockets_runtime.js
+  test_schedule_interview_runtime.js
   test_stale_session_entry_runtime.js
   test_sw_cache_allowlist_runtime.js
   test_tw_api_runtime.js

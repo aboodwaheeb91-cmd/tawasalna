@@ -8243,7 +8243,7 @@ def close_appointment(appointment_id: int, user_id: int) -> dict:
 
 
 # ── Schedule Interview System — read helpers (PR 3.10) ────────────────────────
-def list_schedule_jobs(company_id: int) -> list:
+def list_jobs_for_scheduling(company_id: int) -> list:
     """The company's active jobs for the scheduling job picker: [{id, title}], newest first.
     Active = not archived + effective status 'active' (_eff_status — paused / closed /
     expired are left out)."""

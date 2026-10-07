@@ -6983,7 +6983,8 @@ check(
     "171-77. server.py: AppointmentCreateInput job_id only as Path B (with candidate_id) — PR-5 §69",
     'job_id: Optional[int] = None' in _appt_create_cls
     and 'candidate_id: Optional[int] = None' in _appt_create_cls
-    and '"code": "ambiguous_appointment_context"' in _server171
+    # PR 3.10: {ok:false, error:{code}} contract (api_error)
+    and 'api_error(400, "ambiguous_appointment_context"' in _server171
 )
 check(
     "171-78. server.py: AppointmentCreateInput does NOT accept representative_user_id",
@@ -6992,7 +6993,7 @@ check(
 check(
     "171-79. server.py: AppointmentCreateInput application_id = Path A (optional; Path B uses candidate_id + job_id)",
     'application_id: Optional[int] = None' in _appt_create_cls
-    and '"code": "invalid_appointment_context"' in _server171
+    and 'api_error(400, "invalid_appointment_context"' in _server171   # PR 3.10 contract
 )
 check(
     "171-80. server.py: api_create_appointment does NOT pass applicant_id=body.applicant_id",
@@ -7062,13 +7063,20 @@ check(
     "171-95. appointments.html: old fApplicant (manual applicant_id input) is REMOVED",
     'fApplicant' not in _appthtml
 )
+# PR 3.10: «+» opens the shared Schedule Interview dialog — the person is picked by name, no
+# internal id typed by the user; the create body is candidate_id + job_id (server derives the rest).
+_sched171 = open('static/shared/tw-schedule.js', encoding='utf-8').read()
+_body171 = (_sched171.split("twApi('/api/appointments', { method: 'POST', body: {")[1].split('} });')[0]
+            if "twApi('/api/appointments', { method: 'POST', body: {" in _sched171 else '')
 check(
-    "171-96. appointments.html: fApplication input present (application_id based)",
-    'fApplication' in _appthtml
+    "171-96. appointments.html: no manual id field — «+» opens twScheduleInterview (person search by name)",
+    'fApplication' not in _appthtml and 'twScheduleInterview(' in _appthtml
+    and '/api/schedule/people?q=' in _sched171
 )
 check(
-    "171-97. appointments.html: POST body uses application_id not applicant_id",
-    'application_id,' in _appthtml and 'applicant_id,' not in _appthtml
+    "171-97. tw-schedule.js: POST body uses candidate_id + job_id, never applicant_id / application_id",
+    'candidate_id: st.cand.id, job_id: jobId' in _body171
+    and 'applicant_id' not in _body171 and 'application_id' not in _body171
 )
 
 # ── Mode-required field validation (send + reschedule) (98–107) ───────────
@@ -8657,7 +8665,8 @@ check("182-02. _CANDIDATE_STATUS_RANK defined with all non-rejected statuses",
 # Extract the function body once for all subsequent checks
 _promote_fn182 = ""
 if "def promote_application_to_shortlist(" in _auth182:
-    _start182 = _auth182.index("def promote_application_to_shortlist(")
+    # PR 3.10: the writes live in the shared core _shortlist_candidate_in_tx (right above promote)
+    _start182 = _auth182.index("def _shortlist_candidate_in_tx(")
     _end182   = _auth182.index("\ndef get_company_candidate_suggestions(", _start182)
     _promote_fn182 = _auth182[_start182:_end182]
 
@@ -8814,9 +8823,10 @@ check("183-02. co-classify-btn rendered in _renderApplicants with PR-3 label 'ت
       and 'حفظ وتصنيف' not in _main183)
 
 # 183-03: sched button rendered for interview status (replaces interview-btn on accepted)
-check("183-03. co-app-sched-btn rendered for interview status in _renderApplicants",
+# PR 3.10: shared schedule slot (tw-schedule.js) on every applicant not marked غير مناسب
+check("183-03. co-app-sched-btn slot rendered for every non-rejected applicant in _renderApplicants",
       'co-app-sched-btn' in _main183
-      and "isInterview" in _main183)
+      and "isRejected ? '' : _schedSlotHTML(" in _main183)
 
 # 183-04: rejected cards get co-app-card--rejected class and show reclassify btn
 check("183-04. rejected card gets co-app-card--rejected class and إعادة التصنيف",
@@ -8881,136 +8891,138 @@ with open("static/company/company.css", encoding="utf-8") as f:
 with open("company-profile.html", encoding="utf-8") as f:
     _html184 = f.read()
 
-# 184-01: new appointment-state vars declared
-check("184-01. _apptByAppId and _apptIndexLoaded declared",
-      '_apptByAppId' in _main184 and '_apptIndexLoaded' in _main184)
+# PR 3.10 — the page-specific modal (#coApptModal / _openApptModal / _submitApptForm /
+# _execSendStep / appointment index) was replaced by the shared Schedule Interview System
+# (static/shared/tw-schedule.js). The same behaviors are checked there now.
+with open("static/shared/tw-schedule.js", encoding="utf-8") as f:
+    _sched184 = f.read()
+_btn184    = (_sched184.split('function twScheduleButton')[1].split('function twScheduleMount')[0]
+              if 'function twScheduleButton' in _sched184 else '')
+_dialog184 = (_sched184.split('function twScheduleInterview')[1]
+              if 'function twScheduleInterview' in _sched184 else '')
+_submit184 = (_dialog184.split('function submit()')[1].split('twModal({')[0]
+              if 'function submit()' in _dialog184 else '')
+
+# 184-01: no page-local appointment index — open state comes from the shared lookup
+check("184-01. company.main.js keeps no own appointment index — tw-schedule.js looks up open appointments",
+      '_apptByAppId' not in _main184 and '_apptIndexLoaded' not in _main184
+      and "'/api/schedule/open?candidate_ids='" in _sched184)
 
 # 184-02: data-name attribute added to card div in _renderApplicants
 check("184-02. card div has data-name attribute in _renderApplicants",
       'data-name="' in _main184 and '_escApp(a.full_name' in _main184)
 
-# 184-03: sched button rendered for interview status in _renderApplicants
+# 184-03: sched slot rendered in _renderApplicants for every applicant not marked rejected
 _render184 = _main184.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0] if 'function _renderApplicants' in _main184 else ''
-check("184-03. co-app-sched-btn rendered in _renderApplicants for every pipeline candidate (PR-5 §69)",
-      'co-app-sched-btn' in _render184
-      and "var schedBtn = entryId" in _render184)
+check("184-03. schedule slot (co-app-sched-btn) rendered in _renderApplicants for every non-rejected applicant",
+      "var schedBtn = isRejected ? '' : _schedSlotHTML(" in _render184
+      and 'data-class="co-app-sched-btn co-app-act"' in _main184)
 
-# 184-04: _wireApplicantCards delegates co-app-sched-btn to _onSchedBtn
-_wire184 = _main184.split('function _wireApplicantCards')[1].split('function _onSchedBtn')[0] if 'function _wireApplicantCards' in _main184 else ''
-check("184-04. _wireApplicantCards delegates co-app-sched-btn to _onSchedBtn",
-      'co-app-sched-btn' in _wire184 and '_onSchedBtn' in _wire184)
+# 184-04: the slots are mounted by the shared helper (no page click delegation for scheduling)
+check("184-04. _renderApplicants mounts the shared button — twScheduleMount(list)",
+      'twScheduleMount(list)' in _render184 and '_onSchedBtn' not in _main184)
 
-# 184-05: _loadApptIndex function defined
-check("184-05. _loadApptIndex function defined",
-      'function _loadApptIndex' in _main184)
+# 184-05: open lookup is batched in the shared module
+check("184-05. tw-schedule.js batches the open-appointment lookup (lookupOpen + flush)",
+      'function lookupOpen' in _sched184 and 'function flush' in _sched184)
 
-# 184-06: _loadApptIndex calls GET /api/appointments with Bearer JWT
-_idx184 = _main184.split('function _loadApptIndex')[1].split('function _applyApptIndexToCards')[0] if 'function _loadApptIndex' in _main184 else ''
-check("184-06. _loadApptIndex calls GET /api/appointments with Bearer JWT",
-      "'/api/appointments'" in _idx184 and 'Bearer' in _idx184)
+# 184-06: open lookup through twApi (auth headers) — no direct fetch
+check("184-06. open-appointment lookup via twApi('/api/schedule/open…') — no direct fetch",
+      "twApi(url)" in _sched184 and 'fetch(' not in _sched184)
 
-# 184-07: _applyApptIndexToCards replaces interview btn with "فتح الموعد" link
-check("184-07. _applyApptIndexToCards swaps interview btn to open-appt link",
-      'function _applyApptIndexToCards' in _main184
-      and 'co-app-open-appt-btn' in _main184
-      and 'appointment-room?id=' in _main184)
+# 184-07: open appointment → «فتح الموعد» → the room
+check("184-07. open appointment swaps the button to «فتح الموعد» → /appointment-room?id=",
+      "btn.textContent = 'فتح الموعد'" in _btn184
+      and "'/appointment-room?id='" in _sched184
+      and 'location.href = roomHref(open.id)' in _btn184)
 
-# 184-08: _onSchedBtn function defined (renamed from _onInterviewBtn)
-check("184-08. _onSchedBtn function defined (replaces _onInterviewBtn)",
-      'function _onSchedBtn' in _main184)
+# 184-08: the one schedule button
+check("184-08. twScheduleButton defined and exported",
+      'function twScheduleButton' in _sched184 and 'window.twScheduleButton = twScheduleButton' in _sched184)
 
-# 184-09: _openApptModal function defined
-check("184-09. _openApptModal function defined",
-      'function _openApptModal' in _main184)
+# 184-09: the one schedule dialog
+check("184-09. twScheduleInterview defined and exported",
+      'function twScheduleInterview' in _sched184 and 'window.twScheduleInterview = twScheduleInterview' in _sched184)
 
-# 184-10: _closeApptModal function defined
-check("184-10. _closeApptModal function defined",
-      'function _closeApptModal' in _main184)
+# 184-10: dialog lifecycle (open / close / focus / Escape) owned by DS-OVL twModal
+check("184-10. dialog opened via twModal (DS-OVL owns close) — no hand-written overlay",
+      'twModal({' in _dialog184 and 'onClose:' in _dialog184 and 'co-fl-overlay' not in _sched184)
 
-# 184-11: _submitApptForm calls POST /api/appointments then POST /send
-_submit184 = _main184.split('function _submitApptForm')[1].split('function _isApptActive')[0] if 'function _submitApptForm' in _main184 else ''
-_submit184 = _main184.split('function _submitApptForm')[1] if 'function _submitApptForm' in _main184 else ''
-check("184-11. _submitApptForm calls POST /api/appointments then /send",
-      "'/api/appointments'" in _submit184
+# 184-11: submit = POST /api/appointments then POST /{id}/send
+check("184-11. submit calls POST /api/appointments then /send",
+      "twApi('/api/appointments', { method: 'POST'" in _submit184
       and "'/send'" in _submit184
-      and "method:  'POST'" in _submit184 or "method: 'POST'" in _submit184)
+      and _submit184.index("'/api/appointments', { method: 'POST'") < _submit184.index("'/send'"))
 
-# 184-12: _submitApptForm uses Bearer JWT only — no X-User-Id
-check("184-12. _submitApptForm uses Bearer JWT only — no X-User-Id",
-      'X-User-Id' not in _submit184 and 'Bearer' in _submit184)
+# 184-12: JWT via twApi only — no X-User-Id
+check("184-12. tw-schedule.js sends no X-User-Id (twApi adds the Bearer JWT)",
+      'X-User-Id' not in _sched184 and 'twApi(' in _submit184)
 
-# 184-13: duplicate appointment error shows specific Arabic message
-check("184-13. يوجد موعد نشط error message in _submitApptForm",
-      'يوجد موعد نشط' in _submit184)
+# 184-13: duplicate appointment → specific Arabic message
+check("184-13. يوجد موعد نشط message on appointment_exists",
+      "code === 'appointment_exists'" in _submit184 and 'يوجد موعد نشط' in _submit184)
 
 # 184-14: on success, navigates to /appointment-room?id=
 check("184-14. success navigates to /appointment-room?id=",
       "location.href = '/appointment-room?id=' + apptId" in _main184
-      or "/appointment-room?id='" in _main184)
+      or "/appointment-room?id='" in _main184
+      or 'location.href = roomHref(r.id)' in _dialog184)
 
 # 184-15: _execPromote calls _reRenderCardFoot on success (replaces manual interview-btn creation)
 _exec184 = _main184.split('function _execPromote')[1].split('function _onSaveApplicant')[0] if 'function _execPromote' in _main184 else ''
 check("184-15. _execPromote calls _reRenderCardFoot on success (no manual interview-btn DOM swap)",
       '_reRenderCardFoot' in _exec184 and 'interviewBtn' not in _exec184)
 
-# 184-16: appointment modal HTML exists in company-profile.html
-check("184-16. #coApptModal overlay exists in company-profile.html",
-      'id="coApptModal"' in _html184)
+# 184-16: company page loads the shared system (after tw-overlay.js); old modal markup gone
+check("184-16. company-profile.html loads tw-overlay.js → tw-schedule.js; no #coApptModal",
+      'id="coApptModal"' not in _html184
+      and 0 < _html184.find('tw-overlay.js') < _html184.find('tw-schedule.js'))
 
-# 184-17: required form fields in modal HTML
-check("184-17. coApptDate, coApptTime, coApptModeOnline, coApptSubmit in HTML",
-      'id="coApptDate"' in _html184
-      and 'id="coApptTime"' in _html184
-      and 'id="coApptModeOnline"' in _html184
-      and 'id="coApptSubmit"' in _html184)
+# 184-17: dialog fields — DS-DATE dropdowns (date + time), type, submit
+check("184-17. dialog has day/month/year + hour/minute/ص-م dropdowns, type buttons, «إرسال الدعوة»",
+      all(c in _sched184 for c in ("'tw-sch-day'", "'tw-sch-mon'", "'tw-sch-yr'",
+                                    "'tw-sch-hr'", "'tw-sch-min'", "'tw-sch-ap'"))
+      and "'أونلاين'" in _sched184 and "'حضوري'" in _sched184
+      and "text: 'إرسال الدعوة'" in _sched184
+      and 'type="date"' not in _sched184 and "type = 'date'" not in _sched184)
 
-# 184-18: coApptUrlRow and coApptLocRow conditional rows in HTML
-check("184-18. coApptUrlRow and coApptLocRow in HTML",
-      'id="coApptUrlRow"' in _html184
-      and 'id="coApptLocRow"' in _html184)
+# 184-18: link row / place row shown by type
+check("184-18. link row (online) and place row (onsite) toggle with the type",
+      "urlF.hidden = m !== 'online'" in _sched184 and "locF.hidden = m !== 'onsite'" in _sched184)
 
-# 184-19: co-appt-submit CSS defined in company.css
-check("184-19. .co-appt-submit styled in company.css",
-      '.co-appt-submit' in _css184)
+# 184-19: dialog styles from DS tokens in the shared module; old page CSS gone
+check("184-19. tw-schedule.js styles (.tw-sch-*) use DS tokens; .co-appt-* removed from company.css",
+      '.tw-sch-in{' in _sched184 and 'var(--color-' in _sched184 and '.co-appt-' not in _css184)
 
-# 184-20: .co-app-open-appt-btn styled in company.css
-check("184-20. .co-app-open-appt-btn styled in company.css",
-      '.co-app-open-appt-btn' in _css184)
+# 184-20: open state marked on the shared button; old page class gone
+check("184-20. open state = data-tw-schedule=open on the shared button; .co-app-open-appt-btn removed",
+      "setAttribute('data-tw-schedule', 'open')" in _btn184 and '.co-app-open-appt-btn' not in _css184)
 
 # ── §184-21–25 — draft-orphan recovery (create succeeds, send fails) ─────
 # These checks verify the invariant: a failed send never leaves the user stuck.
 
-# 184-21: _isApptDraft function defined
-check("184-21. _isApptDraft function defined",
-      'function _isApptDraft' in _main184)
+# 184-21: draft recognised
+check("184-21. draft appointments recognised (status === 'draft')",
+      "status === 'draft'" in _dialog184 and "status !== 'draft'" in _btn184)
 
-# 184-22: _applyApptIndexToCards skips draft entries (keeps interview btn for retry)
-_apply184 = (_main184.split('function _applyApptIndexToCards')[1]
-             .split('function _onInterviewBtn')[0]
-             if 'function _applyApptIndexToCards' in _main184 else '')
-check("184-22. _applyApptIndexToCards skips draft entries — interview btn stays for retry",
-      '_isApptDraft' in _apply184)
+# 184-22: a draft keeps «تحديد موعد» (not «فتح الموعد») so the user can retry
+check("184-22. draft keeps «تحديد موعد» — only non-draft open appointments become «فتح الموعد»",
+      "if (appt && appt.status !== 'draft')" in _btn184)
 
-# 184-23: _onSchedBtn routes draft entries to _openApptModal (not window.open)
-_onint184 = (_main184.split('function _onSchedBtn')[1]
-             .split('function _openApptModal')[0]
-             if 'function _onSchedBtn' in _main184 else '')
-check("184-23. _onSchedBtn routes draft entries to _openApptModal (not room)",
-      '_isApptDraft' in _onint184 and '_openApptModal' in _onint184)
+# 184-23: clicking with a draft opens the dialog bound to that draft (not the room)
+check("184-23. click with a draft → dialog re-sends that draft (not the room)",
+      'o.draft = open' in _btn184
+      and "if (open && open.status !== 'draft') { location.href = roomHref(open.id); return; }" in _btn184)
 
-# 184-24: after create success, draft stored in _apptByAppId BEFORE _execSendStep is called
-_sub184 = (_main184.split('function _submitApptForm')[1]
-           .split('function _execSendStep')[0]
-           if 'function _submitApptForm' in _main184
-           and 'function _execSendStep' in _main184 else '')
-check("184-24. draft stored in _apptByAppId / _apptByEntryId before _execSendStep — no orphan on send failure",
-      "var info = { id: apptId, status: 'draft' };" in _sub184
-      and "if (appId)   _apptByAppId[String(appId)]     = info;" in _sub184
-      and _sub184.find("_apptByAppId[String(appId)]     = info") < _sub184.find("_execSendStep(apptId"))
+# 184-24: draft id stored right after create, before /send — a failed send keeps it
+check("184-24. draft id stored before /send — no orphan on send failure",
+      'st.draftId = c.data.id' in _submit184
+      and _submit184.index('st.draftId = c.data.id') < _submit184.index("'/send'"))
 
-# 184-25: _execSendStep defined — handles send step independently, preserves draft on failure
-check("184-25. _execSendStep defined — send isolated so draft survives send failure",
-      'function _execSendStep' in _main184)
+# 184-25: retry skips create and sends the stored draft
+check("184-25. retry with a stored draft skips create and sends it",
+      'var createP = st.draftId' in _submit184
+      and "Promise.resolve({ ok: true, data: { id: st.draftId } })" in _submit184)
 
 # ══════════════════════════════════════════════════════════════════════════
 # §185 — Option B: job_applications as per-job source of truth
@@ -9035,8 +9047,9 @@ check("185-01. PR-3: save_company_candidate uses quota check (no UPSERT ON CONFL
       and 'TALENT_BANK_FREE_LIMIT' in _save185)
 
 # 185-02: Option B: promote has no CSC UPSERT at all (2-column conflict removed)
-_prom185 = (_auth185.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
-            if 'def promote_application_to_shortlist' in _auth185 else '')
+# PR 3.10: slice from the shared core _shortlist_candidate_in_tx (writes) through promote
+_prom185 = (_auth185.split('def _shortlist_candidate_in_tx')[1].split('def get_company_candidate_suggestions')[0]
+            if 'def _shortlist_candidate_in_tx' in _auth185 else '')
 check("185-02. Option B: promote has no CSC UPSERT — ON CONFLICT (company_id, candidate_id) DO UPDATE absent",
       'ON CONFLICT (company_id, candidate_id) DO UPDATE' not in _prom185
       and not re.search(r'(INSERT INTO|UPDATE)\s+company_saved_candidates', _prom185)   # bank read-only
@@ -9165,8 +9178,9 @@ check("186-05. PR-3: save_company_candidate does NOT INSERT INTO company_candida
       and 'COMMIT' in _save186)
 
 # 186-06: promote_application_to_shortlist writes to refs inside transaction
-_promote186 = (_auth186.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
-               if 'def promote_application_to_shortlist' in _auth186 else '')
+# PR 3.10: slice from the shared core _shortlist_candidate_in_tx (writes) through promote
+_promote186 = (_auth186.split('def _shortlist_candidate_in_tx')[1].split('def get_company_candidate_suggestions')[0]
+               if 'def _shortlist_candidate_in_tx' in _auth186 else '')
 _commit_run186 = 'conn.run("COMMIT")'
 # §491: promote now uses DO UPDATE SET candidate_status='shortlisted' (was DO NOTHING)
 check("186-06. promote_application_to_shortlist writes to company_candidate_job_refs inside transaction with DO UPDATE — updated §491",
@@ -9309,9 +9323,9 @@ _sic187 = (_main187.split('function _showInterviewChoice')[1].split('function _c
 check("187-10. _showInterviewChoice creates co-ic-float mini-portal lazily",
       'co-ic-float' in _sic187 and '_icFloat' in _sic187 and 'الآن' in _sic187 and 'لاحقاً' in _sic187)
 
-# 187-11: الآن path calls _execClassify then _openApptModal
-check("187-11. الآن choice calls _execClassify then _openApptModal",
-      '_execClassify' in _sic187 and '_openApptModal' in _sic187)
+# 187-11: الآن path calls _execClassify then the shared dialog (PR 3.10)
+check("187-11. الآن choice calls _execClassify then twScheduleInterview",
+      '_execClassify' in _sic187 and 'twScheduleInterview(' in _sic187)
 
 # 187-12: لاحقاً path calls _execClassify with null (no appt modal)
 _later187 = _sic187.split('laterBtn')[1] if 'laterBtn' in _sic187 else ''
@@ -9337,20 +9351,21 @@ check("187-14. _execClassify uses single atomic PUT to /jobs/applications route 
 # 187-15: _reRenderCardFoot rebuilds footer with new classify btn + sched btn for interview
 _rrf187 = (_main187.split('function _reRenderCardFoot')[1]
            if 'function _reRenderCardFoot' in _main187 else '')
-check("187-15. _reRenderCardFoot rebuilds footer: classify btn + sched btn for interview",
-      'co-classify-btn' in _rrf187 and 'co-app-sched-btn' in _rrf187 and 'isInterview' in _rrf187)
+# PR 3.10: shared schedule slot on every non-rejected card, mounted right after the rebuild
+check("187-15. _reRenderCardFoot rebuilds footer: classify btn + shared sched slot (not for rejected)",
+      'co-classify-btn' in _rrf187 and "isRejected ? '' : _schedSlotHTML(" in _rrf187
+      and 'twScheduleMount(foot)' in _rrf187)
 
-# 187-16: _applyApptIndexToCards looks for co-app-sched-btn (not old interview-btn)
-_aaic187 = (_main187.split('function _applyApptIndexToCards')[1].split('function _isApptActive')[0]
-            if 'function _applyApptIndexToCards' in _main187 else '')
-check("187-16. _applyApptIndexToCards looks for co-app-sched-btn not co-app-interview-btn",
-      'co-app-sched-btn' in _aaic187 and 'co-app-interview-btn' not in _aaic187)
-
-# 187-17: _execSendStep success swaps co-app-sched-btn (not old interview-btn)
-_ess187 = (_main187.split('function _execSendStep')[1].split('function _isApptActive')[0]
-           if 'function _execSendStep' in _main187 else '')
-check("187-17. _execSendStep success swaps co-app-sched-btn to open-appt link",
-      'co-app-sched-btn' in _ess187 and 'co-app-interview-btn' not in _ess187)
+# 187-16 / 187-17 (PR 3.10): the shared button owns its state — it asks for the open
+# appointment on creation and turns into «فتح الموعد» after a successful send.
+_sched187 = open('static/shared/tw-schedule.js', encoding='utf-8').read()
+_btn187 = (_sched187.split('function twScheduleButton')[1].split('function twScheduleMount')[0]
+           if 'function twScheduleButton' in _sched187 else '')
+check("187-16. shared button looks up its open appointment (lookupOpen); no old interview-btn",
+      'lookupOpen(cid, opts.jobId).then(setOpen)' in _btn187 and 'co-app-interview-btn' not in _main187)
+check("187-17. successful send switches the shared button to «فتح الموعد» (setOpen)",
+      'if (appt) setOpen(appt)' in _btn187
+      and "st.result = { id: st.draftId, status: 'pending_response'" in _sched187)
 
 # 187-18: CSS has co-app-card--rejected and co-classify-btn styles
 check("187-18. company.css has co-app-card--rejected and co-classify-btn styles",
@@ -9880,26 +9895,29 @@ check("486-18. _onSavedChange syncs chip on success via _renderCandidateJobLinks
 
 # ── Frontend: appointment client-side validation ───────────────────────────
 
+# PR 3.10: the submit lives in the shared dialog (tw-schedule.js → twScheduleInterview → submit)
+_sched486 = open('static/shared/tw-schedule.js', encoding='utf-8').read()
 _appt_fn486 = (
-    _main486.split('function _submitApptForm(')[1].split('\n  function ')[0]
-    if 'function _submitApptForm(' in _main486 else ''
+    _sched486.split('function submit()')[1].split('twModal({')[0]
+    if 'function submit()' in _sched486 else ''
 )
 
 # 486-19: online mode requires URL before submitting
-check("486-19. _submitApptForm validates online URL is present for online mode before any fetch",
-      "_apptMode === 'online' && !urlVal" in _appt_fn486
-      and 'يرجى إدخال رابط المقابلة الأونلاين' in _appt_fn486)
+check("486-19. submit validates the online link (twSafeLinkUrl + https://) before any request",
+      "if (st.mode === 'online')" in _appt_fn486
+      and 'twSafeLinkUrl(' in _appt_fn486
+      and 'أدخل رابط اجتماع صالحاً' in _appt_fn486
+      and _appt_fn486.index('twSafeLinkUrl(') < _appt_fn486.index('twApi('))
 
 # 486-20: deadline vs appointment time check runs client-side
-check("486-20. _submitApptForm checks scheduled time > now + deadline_hours (prevents backend deadline error)",
-      'deadlineMs' in _appt_fn486
-      and 'scheduledMs - Date.now()' in _appt_fn486
+check("486-20. submit checks scheduled time > now + deadline_hours (prevents backend deadline error)",
+      'hours * 3600000' in _appt_fn486
+      and 'when.getTime() - Date.now()' in _appt_fn486
       and 'مهلة الرد تنتهي بعد وقت الموعد' in _appt_fn486)
 
 # 486-21: create-step error handler shows detail from API (not always generic message)
-check("486-21. Create-step error handler shows API detail instead of generic message when detail is present",
-      "detail || 'تعذّر إنشاء الموعد" in _appt_fn486
-      or "msg = detail || " in _appt_fn486)
+check("486-21. Create-step error shows the API message (twApiMessage) before the generic fallback",
+      "twApiMessage(c, 'تعذّر إنشاء الموعد" in _appt_fn486)
 
 # ── CSS ───────────────────────────────────────────────────────────────────
 
@@ -10043,17 +10061,18 @@ check("487-09. PATCH failure restores state via _renderCandidateJobLinksUI(card,
 
 # 487-10: Frontend uses toISOString() — sends UTC ISO with Z suffix
 check("487-10. Appointment scheduled_at built via toISOString() — UTC/timezone-aware string sent to backend",
-      'toISOString()' in _main486
-      and 'localScheduled' in _main486)
+      'scheduled_at: when.toISOString()' in _sched486)
 
 # 487-11: Number.isFinite guard validates date before toISOString
-check("487-11. Invalid date guarded by Number.isFinite(localScheduled.getTime()) before toISOString",
-      'Number.isFinite' in _main486
-      and 'localScheduled.getTime()' in _main486)
+# PR 3.10: DS-DATE dropdowns — value() returns null unless every part is picked (never guessed)
+check("487-11. Incomplete / invalid date guarded (value() → null → error) before toISOString",
+      "if (!y || !m || !d || !h12 || isNaN(mm) || !ap.value) return null;" in _sched486
+      and "if (!when) return fail(" in _appt_fn486
+      and _appt_fn486.index("if (!when) return fail(") < _appt_fn486.index('when.toISOString()'))
 
 # 487-12: Client deadline check uses localScheduled.getTime() (epoch ms — timezone-agnostic)
-check("487-12. Client deadline check uses localScheduled.getTime() for timezone-agnostic epoch comparison",
-      'scheduledMs = localScheduled.getTime()' in _main486)
+check("487-12. Client deadline check uses when.getTime() for timezone-agnostic epoch comparison",
+      'when.getTime() - Date.now() <= hours * 3600000' in _appt_fn486)
 
 # ── Fix 4: Race-safe migration ────────────────────────────────────────────
 
@@ -10210,8 +10229,7 @@ check("488-12. SYSTEMS_INDEX §23 documents timezone-aware contract and deprecat
 
 # 488-13: Frontend uses toISOString — sends UTC ISO (already covered but re-checked in context of doc)
 check("488-13. Frontend sends timezone-aware scheduledAt via toISOString() (Z suffix guaranteed)",
-      'toISOString()' in _main488
-      and 'localScheduled' in _main488)
+      'scheduled_at: when.toISOString()' in open('static/shared/tw-schedule.js', encoding='utf-8').read())   # PR 3.10: tw-schedule.js
 
 # ── Fix 4: No "applicant-driven" in modified files ────────────────────────
 
@@ -10322,8 +10340,7 @@ check("489-12. 'status' and 'application_status' both present and equal in both 
 # 489-13: Field(...) and timezone tests still pass (verify §488 fixes not regressed)
 check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatusInput + toISOString in frontend",
       'Optional[str] = Field(...)' in _srv489
-      and 'toISOString()' in _main489
-      and 'localScheduled' in _main489)
+      and 'scheduled_at: when.toISOString()' in open('static/shared/tw-schedule.js', encoding='utf-8').read())   # PR 3.10: tw-schedule.js
 
 # ═══════════════════════════════════════════════════════════════════
 # §490 — DOM-independent lock registry + correct Writers docs
@@ -10470,7 +10487,8 @@ check("491-07. promote_application_to_shortlist UPSERTs candidate_status=shortli
 check("491-08. promote_application_to_shortlist return value includes top-level sync fields",
       '"application_id":     app_id' in _auth491
       and '"candidate_id":       int(applicant_id)' in _auth491
-      and '"application_status": "accepted"' in _auth491
+      # PR 3.10: the real application status (accepted only from pending / viewed)
+      and '"application_status": sl["app_status"]' in _auth491
       # PR 2B never-backwards: the real resulting stage (shortlisted or a kept higher one)
       and '"candidate_status":   cand_status' in _auth491)
 

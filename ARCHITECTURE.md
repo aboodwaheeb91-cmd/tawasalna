@@ -12803,7 +12803,7 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 | Endpoint | Returns |
 |----------|---------|
 | `POST /api/appointments` | draft appointment (contract converted in PR 3.10 — every caller is `tw-schedule.js` via `twApi`) |
-| `GET /api/schedule/jobs` | `[{id, title}]` — active jobs of the company (`list_schedule_jobs`) |
+| `GET /api/schedule/jobs` | `[{id, title}]` — active jobs of the company (`list_jobs_for_scheduling`) |
 | `GET /api/schedule/open?candidate_ids=1,2&job_id=` | `{"<uid>": {id, status, job_id, job_title, scheduled_at} \| null}` — newest appointment that still blocks a new one (not cancelled / expired / missed / closed — same set as the dup guard); ≤ 50 ids, digits only (`get_open_appointments`) |
 | `GET /api/schedule/people?q=` | `[{id, full_name, tw_id, avatar_url, sources}]` — name search (ILIKE, escaped) among the company's applicants · promoted pipeline candidates · Talent Bank; `emp` only, never the company; ≤ 20 (`search_schedule_people`) |
 

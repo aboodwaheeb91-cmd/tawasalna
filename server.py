@@ -110,7 +110,7 @@ from auth import (
     list_appointments, get_appointment_room,
     get_appointment_events, get_appointment_messages,
     create_appointment_message,
-    AppointmentRuleError, list_schedule_jobs, get_open_appointments,
+    AppointmentRuleError, list_jobs_for_scheduling, get_open_appointments,
     search_schedule_people,
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     get_public_profile, get_full_profile, update_profile,
@@ -6069,14 +6069,14 @@ def api_create_appointment(body: AppointmentCreateInput,
 # Company JWT only (co) — everything scoped to the JWT company (F6/F21).
 
 @app.get("/api/schedule/jobs")
-def api_schedule_jobs(token=Depends(verify_token)):
+def api_jobs_for_scheduling(token=Depends(verify_token)):
     """The company's active jobs for the scheduling job picker → {ok, data:[{id, title}]}."""
     if token.get("user_type") != "co":
         return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
     try:
-        return api_ok(list_schedule_jobs(int(token["user_id"])))
+        return api_ok(list_jobs_for_scheduling(int(token["user_id"])))
     except Exception as e:
-        raise _server_error("api_schedule_jobs", e)
+        raise _server_error("api_jobs_for_scheduling", e)
 
 
 @app.get("/api/schedule/open")
