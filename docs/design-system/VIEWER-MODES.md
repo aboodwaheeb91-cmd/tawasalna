@@ -542,7 +542,7 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 **`TwAuthSync.onSessionChange`** في كل صفحة تملك owner mode تستقبل `reason === 'pageshow'` وتُقرر:
 
 1. **Carve-out (نفس المالك + جلسة صالحة):** `reason ∈ {pageshow, visibilitychange, focus} AND snapshot.isAuthenticated AND snapshot.userId === profileId AND viewerType === 'owner'` → تحقق خلفي فقط (re-verify) بدون إلغاء وبدون إغلاق النوافذ المفتوحة (`.ep-overlay` / `editOverlay`). 401 من الـ re-verify → `TwAuthSync.invalidateSession('api_401')`.
-   - **ليش visibilitychange / focus:** `auth-sync.js` بيستدعي `_check(reason, true)` عليهم بكل رجوع للصفحة حتى لو الجلسة ما تغيّرت. على الموبايل اختيار صورة من المعرض (avatar / cover) بيودّي الصفحة للخلفية وبيرجّعها → كان يصير revocation مؤقت → `_ownerGuard()` يرفض أول "حفظ" (`session_invalid` / "انتهت الجلسة") قبل ما يرجع الـ re-verify.
+   - **ليش visibilitychange / focus:** قبل PR 2C كان `auth-sync.js` يستدعي `_check(reason, true)` عليهم بكل رجوع للصفحة حتى لو الجلسة ما تغيّرت. من PR 2C بيطلقوا بس إذا تغيّر JWT / tw_user أو `state|userId` (مثلاً انتهت الصلاحية والتاب مخفي) — بس الـ carve-out باقي لأن `pageshow` لسا forced. على الموبايل اختيار صورة من المعرض (avatar / cover) بيودّي الصفحة للخلفية وبيرجّعها → كان يصير revocation مؤقت → `_ownerGuard()` يرفض أول "حفظ" (`session_invalid` / "انتهت الجلسة") قبل ما يرجع الـ re-verify.
    - مطبّق بـ `profile-v2.render.js` (`p2-authsync`) و`company.main.js` (`co-authsync`). `edu-profile.html` ما بيلغي مؤقتاً أصلاً (بيعيد حساب `_isCurrentEduOwner()` live) — ما تغيّر.
 2. **Revoke فوري (أي حالة أخرى):** logout · expired / invalid / stale · account switch (`userId ≠ profileId`) · `reason === 'storage'` (تغيّر jwt / user بتاب تاني — حتى لو نفس المالك) → إلغاء فوري لحالة المالك + إغلاق النوافذ + إعادة رسم بيانات عامة.
 
@@ -705,4 +705,4 @@ if (reason === 'pageshow') {
 
 ---
 
-*آخر تحديث: 2026-10-06 — fix/vm01-same-owner-focus-carveout · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*
+*آخر تحديث: 2026-10-07 — PR 2C · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*

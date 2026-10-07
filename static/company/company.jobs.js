@@ -645,6 +645,29 @@
     if (salRow) salRow.style.display = (show && show.checked) ? '' : 'none';
   }
 
+  // @vm-extract-begin: job-loc-mode
+  // Inverse of _resolveJobLocation (PR 2C): which j-loc-mode a stored job.location
+  // came from — 'remote' · 'hq' · 'branch' (value = branch option value) · 'custom'.
+  // Pure: profile + branches passed in. Empty / unknown → 'custom' (country/city parse).
+  function _detectJobLocMode(loc, profile, branches) {
+    loc = String(loc || '').trim();
+    if (loc === 'عن بُعد') return { mode: 'remote', value: loc };
+    if (!loc) return { mode: 'custom', value: '' };
+    var p = profile || null;
+    if (p) {
+      var hq = [p.country, p.city].filter(Boolean).join('، ') || p.location || '';
+      if (hq && String(hq).trim() === loc) return { mode: 'hq', value: loc };
+    }
+    var list = branches || [];
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i] || {};
+      var bv = [b.country, b.city, b.district].filter(Boolean).join('، ');
+      if (bv && bv === loc) return { mode: 'branch', value: bv };
+    }
+    return { mode: 'custom', value: loc };
+  }
+  // @vm-extract-end: job-loc-mode
+
   function _resolveJobLocation() {
     var mode = (document.getElementById('j-loc-mode') || {}).value || 'hq';
     if (mode === 'remote') return 'عن بُعد';
@@ -894,10 +917,20 @@
     s('j-cur',   job.currency || 'USD');
     s('j-dur',   String(job.duration_days || 7));
 
-    // ── Location: parse stored value into country/city dropdowns ─────
-    var locMode = document.getElementById('j-loc-mode');
-    if (locMode) { locMode.value = 'custom'; _onJobLocModeChange(); }
+    // ── Location: restore the mode it was saved with (PR 2C) ─────
+    // remote / hq / branch / custom — forcing 'custom' left the dropdowns empty for
+    // the first three and saving wiped the job location.
     var locStr   = (job.location || '').trim();
+    var det = _detectJobLocMode(locStr,
+      window.companyState && companyState.profile,
+      window.companyState && companyState.branches);
+    var locMode = document.getElementById('j-loc-mode');
+    if (locMode) { locMode.value = det.mode; _onJobLocModeChange(); }
+    if (det.mode === 'branch') {
+      var brSel = document.getElementById('j-branch-sel');
+      if (brSel) { brSel.value = det.value; if (window.scSelectInit) scSelectInit(); }
+    }
+    if (det.mode !== 'custom') locStr = '';
     var locParts = locStr.split(/،\s*| - /).map(function (p) { return p.trim(); }).filter(Boolean);
     var locCountry = locParts[0] || '';
     var locCity    = locParts[1] || '';

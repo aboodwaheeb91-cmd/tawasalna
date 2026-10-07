@@ -152,7 +152,8 @@ function connectWS() {
         _wsRetries = 0;
         _wsReady = true;
         // Signal active conversation now that the connection is authenticated
-        if (_currentConvId) sendActiveConversation(_currentConvId);
+        // Hidden tab stays inactive — the server would mark incoming messages read (PR 2C)
+        if (_currentConvId && !document.hidden) sendActiveConversation(_currentConvId);
         return;
       }
       // Drop all operational events until auth is confirmed
@@ -232,14 +233,23 @@ function connectWS() {
 }
 
 // ── TwAuthSync lifecycle — handle logout and account-switch on messages page ──
-// TwAuthSync fires when tw_jwt changes in any tab or on page focus/visibility.
+// TwAuthSync fires when tw_jwt / tw_user changes in any tab, on bfcache restore,
+// or on focus/visibility when the session state changed (PR 2C).
 // Behavior by case:
+//   Same JWT + same user + socket open/connecting → no-op (PR 2C — keeps the
+//                                       conversation socket, typing and active conv)
 //   No JWT (logout/expired)           → clear state, redirect to /login
 //   JWT but isAuthenticated=false     → clear state, redirect to /login
 //   JWT, different userId             → window.location.reload() (clean re-init)
 //   JWT, same userId (token refresh)  → update _jwt, reconnect WS
 if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
   TwAuthSync.onSessionChange(function(info) {
+    // Step 0: same session and the socket is still alive → keep everything as is
+    var snap0 = info && info.snapshot;
+    if (info && info.jwt && info.jwt === _jwt && snap0 && snap0.isAuthenticated
+        && _user && Number(snap0.userId) === Number(_user.id)
+        && _ws && _ws.readyState < 2) return;
+
     // Step 1: Capture current user before any state mutation
     var prevUserId = _user ? Number(_user.id) : null;
 
