@@ -391,6 +391,15 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## API Client Rule (mandatory for all AI sessions — PR 3A)
+
+1. **`twApi(path, opts)` في `tw_shared.js` هي الطريقة الوحيدة لأي صفحة تنادي API الموقع.** بتحط `getAuthHeaders` لحالها (إلا `auth:false`)، JSON body/parse، مهلة، وبترجّع دايماً `{ok, status, data, error, raw}` — `error` = `normalizeErrorResponse(...)`، ونص الخطأ عبر `twApiMessage(res, fallback)`. ما بترمي أبداً (نت / مهلة → `ok:false` برسالة عربية). 401 بجلسة المستخدم → `TwAuthSync.invalidateSession('api_401')` مرة وحدة، و `twRequireAuth` بيكمّل التحويل.
+2. **أي صفحة بتنلمس من هلق ولقدام بتتحوّل لـ `twApi`** — ❌ `fetch` مباشر لـ API الموقع · ❌ `api()` محلية · ❌ فحص `r.status === 401` يدوي. المرجع: `appointments.html`. الباقي بيتعدّ بـ `node test_tw_api_runtime.js` (القسم F — تقرير بس).
+3. **العقد الرسمي للـ endpoints الجديدة / المحوّلة:** `api_ok(data)` → `{"ok": true, "data": ...}` · `api_error(status, code, message, field=None)` → `{"ok": false, "error": {"code", "message", "field"?}}` (`server.py`). ❌ تغيير شكل endpoint موجود إلا مع تحويل صفحته بنفس الـ PR (F14).
+- Spec: SYSTEMS_INDEX §45a (API Client) + §45b (API Contract) · ARCHITECTURE.md §74 · test `node test_tw_api_runtime.js`.
+
+---
+
 ## Startup Migration Policy (mandatory for all AI sessions — PR 2B)
 
 1. **كل migration بيشتغل عند الـ startup مسجّل بـ `_startup_migrations()` في `server.py`** كـ `(name, fn, critical)` — بالترتيب (الاعتماديات أولاً). `on_startup` بيستدعي `_run_startup_migrations()` بس. ❌ `try: _migrate_x() except: print(...)` جوّا `on_startup`.

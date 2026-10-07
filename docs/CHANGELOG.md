@@ -17,6 +17,12 @@
 - `page_shell.py`: `PAGE_ASSETS` += `tw-overlay.js`. `appointment-room.html`: 3 × `confirm()` → `twConfirm` (إغلاق الغرفة نهائياً = `danger:true`).
 - قاعدة: ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس من هلق. `test_ds_overlay_runtime.js` (جديد — فيه تقرير عدّ للباقي، مش فشل). `test_appointments_guard_runtime.js` C14 اتحدّث (كان بيتأكد إن الـ 3 confirm باقيين).
 
+## PR 3A — نظام طلبات API موحّد (twApi + عقد API) — 2026-10-07
+
+- `tw_shared.js`: **`twApi(path, opts)`** + `twApiMessage()` (جديد — SYSTEMS_INDEX §45a): هيدرات المصادقة، JSON، مهلة 20 ث، نتيجة `{ok, status, data, error, raw}` دايماً، 401 → `invalidateSession('api_401')` مرة وحدة، النت / المهلة → `ok:false` برسالة عربية. `normalizeErrorResponse`: + `error:{field}` → `fieldErrors` و `{ok:false, code, message}` القديم.
+- `server.py`: **`api_ok()` / `api_error()`** (جديد — §45b · ARCHITECTURE §74). ولا endpoint موجود تغيّر شكله.
+- `appointments.html` → `twApi` (المرجع). قاعدة جديدة: `CLAUDE.md → API Client Rule`. اختبار: `test_tw_api_runtime.js` (جديد، فيه تقرير عدد `fetch(` المباشر). `test_appointments_guard_runtime.js` C4/C6 بتقبل `twApi`.
+
 ## PR 2B — منطق المواعيد + مراحل التوظيف + migrations + تعديل الأدمن + بوابة المرحلة 2 — 2026-10-07
 
 - Migrations (SYSTEMS_INDEX §54f · CLAUDE.md → Startup Migration Policy): `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح — كان دايماً بيفشل بصمت) → `_migrate_user_unique_indexes()`: حذف المكرر (بيضل الأقدم) + `CREATE UNIQUE INDEX IF NOT EXISTS` على `user_skills/user_langs/user_links`. `on_startup` → سجل `_startup_migrations()` (حرجة / اختيارية) + `/health.migrations`. `init_db` صارت حرجة (كانت بتبلع خطأها). `_migrate_job_lifecycle`: انشال `except: pass`.

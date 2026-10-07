@@ -229,20 +229,9 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     loadAppointments();
   });
 
-  // Authorization via getAuthHeaders (tw_shared.js). 401 → TwAuthSync.invalidateSession →
-  // the page guard sends the visitor to /login?next= (same path as an expired session).
-  function api(path, opts){
-    return fetch(path, Object.assign({ headers: getAuthHeaders(true) }, opts)).then(function(r){
-      if (r.status === 401 && window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
-      return r.json();
-    });
-  }
-
-  // Error text from any API error shape (normalizeErrorResponse — FBK M15)
-  function errMsg(res, fallback){
-    const g = normalizeErrorResponse(res).generalError;
-    return (g && g.code !== 'unknown' && g.message) || fallback;
-  }
+  // API calls via twApi (tw_shared.js — API Client Rule): auth headers, JSON, timeout,
+  // one result shape; 401 → TwAuthSync.invalidateSession → the page guard sends the visitor
+  // to /login?next=. Error text via twApiMessage (FBK M15).
 
   function formatDate(iso){
     if (!iso) return '';
@@ -344,22 +333,19 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   function loadAppointments(){
     listEl.innerHTML = '<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>';
     const qs = _currentFilter ? '?status=' + encodeURIComponent(_currentFilter) : '';
-    api('/api/appointments' + qs).then(res => {
+    twApi('/api/appointments' + qs).then(res => {
       listEl.innerHTML = '';
       if (!res.ok) {
         listEl.appendChild(stateBox('alert', 'خطأ في تحميل البيانات',
-          errMsg(res, 'تحقق من اتصالك وحاول مرة أخرى')));
+          twApiMessage(res, 'تحقق من اتصالك وحاول مرة أخرى')));
         return;
       }
-      if (!res.data || res.data.length === 0) {
+      if (!Array.isArray(res.data) || res.data.length === 0) {
         listEl.appendChild(stateBox('calendar', 'لا توجد مواعيد',
           _currentFilter ? 'لا توجد مواعيد بهذه الحالة' : 'لم تصلك دعوات مقابلات بعد'));
         return;
       }
       res.data.forEach(a => listEl.appendChild(renderCard(a)));
-    }).catch(function(){
-      listEl.innerHTML = '';
-      listEl.appendChild(stateBox('alert', 'خطأ في تحميل البيانات'));
     });
   }
 
@@ -388,14 +374,14 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       location_text: mode === 'onsite' ? (document.getElementById('fLoc').value.trim() || null) : null,
       notes: document.getElementById('fNotes').value.trim() || null
     };
-    api('/api/appointments', { method: 'POST', body: JSON.stringify(payload) }).then(res => {
-      if (res.ok) {
+    twApi('/api/appointments', { method: 'POST', body: payload }).then(res => {
+      if (res.ok && res.data && res.data.id) {
         modal.classList.remove('open');
         location.href = '/appointment-room?id=' + encodeURIComponent(res.data.id);
       } else {
-        showToast(errMsg(res, 'خطأ في إنشاء الموعد'), 'error');
+        showToast(twApiMessage(res, 'خطأ في إنشاء الموعد'), 'error');
       }
-    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+    });
   });
 
   loadAppointments();
