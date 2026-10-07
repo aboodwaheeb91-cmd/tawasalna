@@ -329,7 +329,10 @@ check("H-07. initial_event_reason='application_status_changed' in _pipeline_upse
 # ═══════════════════════════════════════════════════════════════════════════════
 # §I  promote_application_to_shortlist dual-write
 # ═══════════════════════════════════════════════════════════════════════════════
-_pa = _fn(_auth, "promote_application_to_shortlist", window=9000)
+# PR 3.10: the writes live in the shared core _shortlist_candidate_in_tx (right above promote)
+# → check core + promote together (same transaction).
+_pa = (_auth[_auth.find("def _shortlist_candidate_in_tx("):_auth.find("\ndef get_company_candidate_suggestions(")]
+       if "def _shortlist_candidate_in_tx(" in _auth else "")
 
 check("I-01. promote_application_to_shortlist calls _pipeline_update_stage",
       "_pipeline_update_stage(" in _pa)

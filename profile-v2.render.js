@@ -779,7 +779,7 @@ window.renderProfile = function renderProfile(res){
     if(!btn) return;
     var row = document.createElement('div');
     row.id = 'scSchedRow';
-    row.className = 'sc-sched-row';
+    row.className = 'tw-sch-bar';   // shared row style (tw-schedule.js) — page CSS untouched
     row.appendChild(btn);
     acts.parentNode.insertBefore(row, acts.nextSibling);
   })();

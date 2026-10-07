@@ -305,8 +305,7 @@ function _renderChatSchedule(otherId, name, type) {
   if (!slot) return;
   slot.innerHTML = '';
   if (!otherId || !window.twScheduleButton) return;
-  var btn = twScheduleButton({ candidateId: otherId, candidateName: name, candidateType: type,
-                               className: 'ch-sched-btn' });
+  var btn = twScheduleButton({ candidateId: otherId, candidateName: name, candidateType: type });
   if (btn) slot.appendChild(btn);
 }
 

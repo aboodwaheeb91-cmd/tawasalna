@@ -12816,7 +12816,7 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 
 | Place | Context passed |
 |-------|----------------|
-| Employee profile (`profile-v2.render.js`) — own row `.sc-sched-row` under `.sc-actions` | person |
+| Employee profile (`profile-v2.render.js`) — own row `.tw-sch-bar` (style from tw-schedule.js) under `.sc-actions` | person |
 | Talent Bank saved cards + «اقتراحات مناسبة» (`company.main.js`) | person (dialog asks the job) |
 | Job applicants list — every applicant (`_schedSlotHTML`) + «مقابلة → الآن» | person + job |
 | Saved card job-chip popover (`_showJobChipPop`) | person + job |

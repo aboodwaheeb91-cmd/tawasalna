@@ -161,7 +161,8 @@ check('B2 ignores non-img / null targets', true);
 
 // ── B3 — consumers = phase-C pages only ─────────────────────────────
 const PHASE_C = [path.join('static', 'job', 'job-detail.js'), 'appointments.html', 'appointment-room.html',
-  'edu-profile.html'];  // edu logo via twAvatarEl xl — PR 1.7 (ARCHITECTURE.md → edu-profile)
+  'edu-profile.html',   // edu logo via twAvatarEl xl — PR 1.7 (ARCHITECTURE.md → edu-profile)
+  path.join('static', 'shared', 'tw-schedule.js')];  // person search avatars — PR 3.10 (SYSTEMS_INDEX §23b)
 const SKIP = new Set(['.git', 'node_modules', 'vendor', '__pycache__', 'docs']);
 const users = [];
 (function walk(dir) {

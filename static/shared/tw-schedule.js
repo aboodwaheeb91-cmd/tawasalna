@@ -38,6 +38,8 @@
     + 'font:inherit;font-size:var(--size-font-sm);font-weight:700;cursor:pointer;white-space:nowrap}'
     + '.tw-sch-btn:hover{border-color:var(--color-brand-primary)}'
     + '.tw-sch-btn:focus-visible{outline:2px solid var(--color-border-focus);outline-offset:2px}'
+    // own row under a page's action buttons (employee profile — frozen .sc-actions untouched)
+    + '.tw-sch-bar{display:flex;justify-content:center;padding:0 var(--space-10) var(--space-6)}'
     + '.tw-sch-form{display:flex;flex-direction:column;gap:var(--space-6);padding-bottom:var(--space-2)}'
     + '.tw-sch-f{display:flex;flex-direction:column;gap:var(--space-2)}'
     + '.tw-sch-lbl{font-size:var(--size-font-xs);font-weight:700;color:var(--color-text-secondary)}'
