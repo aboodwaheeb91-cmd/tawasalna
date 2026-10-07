@@ -675,6 +675,99 @@ function twLoginHref(next) {
 }
 window.twLoginHref = twLoginHref;
 
+// ══ Actions Registry — twAction / twActionState (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60) ══
+// The registry is tw_actions.json (validated by tw_actions.py) — delivered with the admin
+// overrides as window.TW_ACTIONS at <!--tw:strings-->. Pages never write visibility rules:
+//   twActionState(id, ctx) → 'hidden' | 'login' | 'disabled' | 'enabled'
+//   twAction(id, ctx)      → <button> / <a> or null (hidden)
+// ctx: { ownerId, targetType, mode, verified, disabled, href, onClick(ctx, el), className,
+//        iconOnly, iconSize, labelKey, labelVars }
+// Viewer (VM-01 / VM-02) from the TwAuthSync snapshot only: no session → guest · snapshot
+// userId === ctx.ownerId → owner · else the account type (emp / co / edu). ctx.mode may pass a
+// page's existing VM signal instead ('owner' / 'guest' / 'registered' / 'public-user').
+// Visibility = UX only (VM-07) — the backend still checks every request.
+var _twActWarned = {};
+
+function _twActDef(id) {
+  var reg = window.TW_ACTIONS && window.TW_ACTIONS.actions;
+  var d = reg && Object.prototype.hasOwnProperty.call(reg, id) ? reg[id] : null;
+  if (!d && !_twActWarned[id]) { _twActWarned[id] = 1; console.warn('[twAction] unknown action: ' + String(id)); }
+  return d;
+}
+
+function _twActAudience(ctx) {
+  var snap = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
+    ? TwAuthSync.getSessionSnapshot() : null;
+  var mode = ctx.mode === 'public-user' ? 'registered' : ctx.mode;
+  if (!mode) {
+    if (!snap || !snap.isAuthenticated) mode = 'guest';
+    else if (ctx.ownerId != null && Number(snap.userId) === Number(ctx.ownerId)) mode = 'owner';
+    else mode = 'registered';
+  }
+  if (mode === 'guest' || mode === 'owner') return mode;
+  return (snap && snap.isAuthenticated && snap.userType) || 'guest';
+}
+
+function twActionState(id, ctx) {
+  ctx = ctx || {};
+  var d = _twActDef(id);
+  if (!d || d.off) return 'hidden';
+  var who = _twActAudience(ctx);
+  if ((d.visibleTo || []).indexOf(who) === -1) return 'hidden';
+  if (d.targets && d.targets.indexOf(ctx.targetType) === -1) return 'hidden';
+  if (who === 'guest' && d.auth) return 'login';
+  if (ctx.disabled) return 'disabled';
+  if ((d.enabledWhen || []).indexOf('verified') !== -1 && ctx.verified !== true) return 'disabled';
+  return 'enabled';
+}
+window.twActionState = twActionState;
+
+function twAction(id, ctx) {
+  ctx = ctx || {};
+  var state = twActionState(id, ctx);
+  if (state === 'hidden') return null;
+  var d = _twActDef(id);
+  var el = document.createElement(ctx.href && state === 'enabled' ? 'a' : 'button');
+  if (el.tagName === 'A') el.href = ctx.href; else el.type = 'button';
+  el.className = ctx.className || ('tw-act tw-act-' + d.type);
+  el.setAttribute('data-tw-action', id);
+  var label = twT(ctx.labelKey || d.labelKey, ctx.labelVars);
+  var size = Object.prototype.hasOwnProperty.call(ctx, 'iconSize') ? ctx.iconSize : 'sm';
+  if (d.icon && typeof window.twIconEl === 'function') el.appendChild(twIconEl(d.icon, size ? { size: size } : {}));
+  if (ctx.iconOnly) el.setAttribute('aria-label', label);
+  else {
+    var span = document.createElement('span');
+    span.className = 'tw-act-lbl';
+    span.textContent = label;
+    el.appendChild(span);
+  }
+  if (state === 'disabled') {
+    el.disabled = true;
+    el.setAttribute('aria-disabled', 'true');
+    if ((d.enabledWhen || []).indexOf('verified') !== -1 && ctx.verified !== true) el.title = twT('action.verify_required');
+    return el;
+  }
+  el.addEventListener('click', function (e) {
+    if (state === 'login') {   // guest → login, back to this page afterwards (NAV-07)
+      e.preventDefault();
+      location.href = twLoginHref(location.pathname + location.search);
+      return;
+    }
+    if (typeof ctx.onClick !== 'function') return;   // plain link / caller wires its own listener
+    e.preventDefault();
+    var c = d.confirm;
+    if (!c) { ctx.onClick(ctx, el); return; }
+    if (typeof window.twConfirm !== 'function') {   // fail closed: never run a guarded action unconfirmed
+      console.error('[twAction] ' + id + ' needs tw-overlay.js (DS-OVL) on this page');
+      return;
+    }
+    twConfirm({ title: twT(c.titleKey), message: twT(c.messageKey), confirmText: twT(c.confirmKey),
+                danger: !!c.danger }).then(function (ok) { if (ok) ctx.onClick(ctx, el); });
+  });
+  return el;
+}
+window.twAction = twAction;
+
 // ══ Protected Page Guard — twRequireAuth (PAGE-SHELL.md SHELL-09 · Auth Gateway rule 14) ══
 // The ONE guard for pages that need a session (<meta name="tw-page" content="auth">).
 // Called once, first thing in the page script:  var snap = twRequireAuth(); if (!snap) return;

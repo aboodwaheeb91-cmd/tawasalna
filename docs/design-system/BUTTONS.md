@@ -19,6 +19,7 @@
 | زر navigation / tab / رابط | **BTN-12** + BTN-11 |
 | إجراء خطير / حذف | **BTN-13** + BTN-11 |
 | زر جديد معروف النوع | **BTN-02 → BTN-03 → BTN-04 → BTN-11** |
+| زر إجراء (متابعة، مراسلة، تحديد موعد…) — مين بيشوفه / بيكبسه | **BTN-19** (Actions Registry) + BTN-17 |
 | نوع زر غير معروف أو لا يطابق | **BTN-00 → BTN-01 → STOP** |
 
 > **لا تقرأ BUTTONS.md كاملاً تلقائياً.** اقرأ فقط الأقسام التي تخص مهمتك.
@@ -774,4 +775,49 @@ Before → Click → Loading → Result → Back → Refresh
 
 ---
 
-*آخر تحديث: 2026-08-03 — BTN-17 VM-10 Extension · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*
+## [BTN-19] Actions Registry — سجل الإجراءات (PR 3.7)
+
+> **المصدر الوحيد لـ «زر الإجراء الفلاني بيطلع لمين وبيكبسه مين».** السجل: `tw_actions.json` (بيفحصه `tw_actions.py` عند تشغيل السيرفر). الرسم: `twAction(id, ctx)` بـ `tw_shared.js`. SYSTEMS_INDEX §60.
+
+### القواعد
+
+1. **الصفحة ما بتكتب شرط ظهور لزر إجراء.** بتنادي `twAction(id, ctx)` → زر أو `null`. السياق: `ownerId` (صاحب الصفحة/الهدف) · `targetType` · `mode` (إشارة VM موجودة) · `disabled` / `verified` (حالة) · `href` · `onClick`.
+2. **مين بيشوف = `visibleTo`** من الأوضاع الموجودة (VM-01/02): `guest` · `owner` · `emp` · `co` · `edu` (مسجّل مش صاحب الصفحة) + `targets` (نوع الهدف). برّاها → **Hidden** (BTN-17 — مش Disabled).
+3. **مين بيكبس:** `auth: true` + ضيف → الزر ظاهر وكبسته → `twLoginHref` مع رجعة لنفس الصفحة · `enabledWhen` / `ctx.disabled` → **Disabled** (حالة، مش صلاحية).
+4. **النوع → ستايل موحّد** `.tw-act .tw-act-{type}` (BTN-02/03: شفاف، border + نص + أيقونة من عائلة وحدة، توكنز بس). `ctx.className` بيحل محله بس لمكان إله شكل خاص (FAB، أزرار صفحة لسّا ما اتحوّلت).
+5. **الخطورة:** إجراء بـ `confirm` بالسجل → `twConfirm` (DS-OVL) قبل التنفيذ؛ `danger:true` → زر خطر + focus على «إلغاء» (BTN-13). بدون `tw-overlay.js` بالصفحة → ما بينفّذ.
+6. **الأدمن (قاعدة التحكم الكامل):** `PUT /admin/actions` → `{id: {enabled:false}}` بيخفيه عن الكل · `{id: {visibleTo:[…]}}` بيغيّر الجمهور. id أو حقل أو جمهور مش معروف → 422.
+7. **الظهور UX بس (VM-07):** الـ endpoint بيتحقق من JWT / الملكية / النوع دايماً.
+
+### جدول الإجراءات
+
+| الإجراء (id) | النوع | مين بيشوفه (`visibleTo` · `targets`) | مين بيكبسه | الخطورة | المستهلك |
+|--------------|-------|--------------------------------------|-----------|---------|----------|
+| `schedule` — تحديد موعد | primary | `co` · هدف `emp` (مش نفسه) | شركة مسجّلة | — | `tw-schedule.js` (`twScheduleButton`) |
+| `schedule_new` — دعوة مقابلة جديدة | primary | `co` | شركة مسجّلة | — | `appointments.html` (FAB) |
+| `open_room` — فتح غرفة الموعد | secondary | `emp` · `co` · `edu` | طرفا الموعد (السيرفر بيرجّع مواعيده بس) | — | `appointments.html` |
+| `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · هدف `co` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | المرحلة 4 |
+| `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | المرحلة 4 |
+| `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` (ضيف → دخول) | — | المرحلة 4 |
+| `close_room` — إغلاق الغرفة | danger | `emp` · `co` | طرفا الموعد | `twConfirm` danger | المرحلة 4 (`appointment-room.html`) |
+
+> قيم المرحلة 4 مأخوذة من VM-02 + BTN-17؛ بتتأكّد مع كل صفحة وقت تحويلها (تعديل بالسجل، مش بالصفحة).
+
+### الممنوعات
+
+```
+❌ if (IS_CO) / userType === … / isOwner لإظهار زر إجراء بصفحة — twAction
+❌ سجل تاني أو جدول ظهور أزرار محلي
+❌ إجراء جديد بدون مدخل بـ tw_actions.json (+ مفتاح twT + أيقونة DS-ICON) بنفس الـ PR
+❌ إجراء خطِر بدون confirm بالسجل
+❌ اعتبار إخفاء الزر حماية
+```
+
+Test: `node test_actions_registry_runtime.js`.
+
+---
+
+*آخر تحديث: 2026-10-07 — PR 3.7 BTN-19 Actions Registry · التاريخ الكامل: [`docs/CHANGELOG.md`](../CHANGELOG.md)*

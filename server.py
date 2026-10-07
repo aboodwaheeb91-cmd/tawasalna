@@ -805,6 +805,7 @@ async def on_startup():
         print(_line)
     _run_startup_migrations()
     await asyncio.to_thread(_strings_load_overrides)
+    await asyncio.to_thread(_actions_load_overrides)
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
@@ -827,19 +828,37 @@ async def on_startup():
 # ── Helpers ──
 from page_shell import apply_shell
 import tw_strings
+import tw_actions
 _html_cache = {}
 
 # Strings System (PR 3.6 · SYSTEMS_INDEX §59): admin overrides live in site_settings, loaded
 # at startup + on admin save (never a DB call while serving a page). The inline block is
 # rebuilt only when the overrides change.
+# Actions Registry (PR 3.7 · SYSTEMS_INDEX §60) rides the same marker: its window.TW_ACTIONS
+# block (registry + admin overrides) is appended to the strings block, before tw_shared.js.
 _STRINGS_OVERRIDES: dict = {}
-_STRINGS_BLOCK = tw_strings.page_block({})
+_ACTIONS_OVERRIDES: dict = {}
+_STRINGS_BLOCK = tw_strings.page_block({}) + tw_actions.page_block({})
 
 
 def _strings_set_overrides(overrides: dict) -> None:
     global _STRINGS_OVERRIDES, _STRINGS_BLOCK
     _STRINGS_OVERRIDES = dict(overrides)
-    _STRINGS_BLOCK = tw_strings.page_block(_STRINGS_OVERRIDES)
+    _STRINGS_BLOCK = tw_strings.page_block(_STRINGS_OVERRIDES) + tw_actions.page_block(_ACTIONS_OVERRIDES)
+
+
+def _actions_set_overrides(overrides: dict) -> None:
+    global _ACTIONS_OVERRIDES
+    _ACTIONS_OVERRIDES = dict(overrides)
+    _strings_set_overrides(_STRINGS_OVERRIDES)   # rebuild the shared page block
+
+
+def _actions_load_overrides() -> None:
+    """site_settings → in-memory action overrides. Failure → registry defaults (logged, F9)."""
+    try:
+        _actions_set_overrides(tw_actions.parse_stored(get_site_setting(tw_actions.SETTING_KEY)))
+    except Exception as e:
+        print(f"[actions] override load failed — defaults in use: {type(e).__name__}: {e}")
 
 
 def _strings_load_overrides() -> None:
@@ -3303,6 +3322,33 @@ def admin_put_strings(request: Request, data: dict = Body(...)):
         return api_error(500, "save_failed", "تعذّر حفظ النصوص، حاول مرة أخرى")
     _strings_set_overrides(clean)
     print(f"[strings] admin saved {len(clean)} override(s)")
+    return api_ok({"overrides": clean})
+
+
+# ══ Actions Registry — admin overrides (PR 3.7 · SYSTEMS_INDEX §60 · BUTTONS.md BTN-19) ══
+@app.get("/admin/actions")
+def admin_get_actions(request: Request):
+    """Registry + current overrides + the audience / type vocabularies."""
+    check_admin(request)
+    return api_ok({"actions": tw_actions.REGISTRY, "overrides": dict(_ACTIONS_OVERRIDES),
+                   "audiences": list(tw_actions.AUDIENCES), "types": list(tw_actions.TYPES)})
+
+
+@app.put("/admin/actions")
+def admin_put_actions(request: Request, data: dict = Body(...)):
+    """Replace the whole override map: {"overrides": {id: {"enabled": false, "visibleTo": [...]}}}.
+    Known ids + known fields + known audiences only (all-or-nothing). {} = registry defaults."""
+    claims = check_admin(request)
+    try:
+        clean = tw_actions.validate_overrides(data.get("overrides"))
+    except tw_actions.ActionsError as e:
+        return api_error(422, e.code, e.message, e.field)
+    ensure_site_settings_table()
+    if not set_site_setting(tw_actions.SETTING_KEY, json.dumps(clean, sort_keys=True)):
+        return api_error(500, "save_failed", "تعذّر حفظ إعدادات الأزرار، حاول مرة أخرى")
+    _actions_set_overrides(clean)
+    print(f"[actions] overrides saved by admin sub={claims.get('sub')!r} "
+          f"values={json.dumps(clean, sort_keys=True)}")
     return api_ok({"overrides": clean})
 
 

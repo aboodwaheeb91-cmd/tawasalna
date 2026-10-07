@@ -382,6 +382,27 @@ body {
   cursor: pointer;
 }
 
+/* Actions Registry buttons — twAction() (PR 3.7 · BUTTONS.md BTN-19). BTN-02: slim rectangle,
+   transparent fill, border + text + icon from one semantic family. Type = registry entry. */
+.tw-act {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--size-control-sm); padding: 0 var(--space-6);
+  border-radius: var(--radius-control); border: 1px solid transparent; background: transparent;
+  font-family: inherit; font-size: var(--size-font-sm); font-weight: 700; white-space: nowrap;
+  cursor: pointer; user-select: none; text-decoration: none;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.tw-act:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.tw-act:disabled, .tw-act[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.tw-act-primary   { border-color: var(--color-brand-primary); color: var(--color-brand-primary); }
+.tw-act-primary:hover:not(:disabled)   { background: rgba(var(--color-brand-primary-rgb), .1); }
+.tw-act-secondary { border-color: var(--color-border-strong); color: var(--color-text-secondary); }
+.tw-act-secondary:hover:not(:disabled) { color: var(--color-text-primary); }
+.tw-act-danger    { border-color: var(--color-status-danger); color: var(--color-status-danger); }
+.tw-act-danger:hover:not(:disabled)    { background: rgba(var(--color-status-danger-rgb), .1); }
+.tw-act-ghost     { color: var(--color-text-secondary); }
+.tw-act-ghost:hover:not(:disabled)     { background: var(--color-surface-input); color: var(--color-text-primary); }
+
 /* Small Action Button */
 .tw-ab {
   padding: 5px 10px;
