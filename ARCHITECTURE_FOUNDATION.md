@@ -484,15 +484,15 @@ Pre-push GitHub State Check:
 ### المطلوب لكل تغيير DB
 
 ```python
-# في server.py — كل migration يُضاف في دالة _migrate_*() مستقلة
+# كل migration في دالة _migrate_*() مستقلة — الفشل يُرفع (raise)، ما يُبلع جوّا الدالة
 def _migrate_new_feature():
-    try:
-        conn = get_conn()
+    with db_conn() as conn:
         conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS new_field TEXT")
         conn.run("CREATE TABLE IF NOT EXISTS new_table (...)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_new ON new_table(field)")
-    except Exception as e:
-        print(f"[migration] new_feature: {e}")
+
+# وتنضاف لسجل _startup_migrations() في server.py مع تصنيفها (PR 2B):
+#   ("new_feature", _migrate_new_feature, True)   # True = حرجة · False = اختيارية
 ```
 
 ### قواعد إلزامية
@@ -506,6 +506,7 @@ def _migrate_new_feature():
 ❌ ممنوع: تعديل DB بدون migration function مقابلة في server.py
 ❌ ممنوع: حذف column بدون التحقق من عدم استخدامه في الكود
 ❌ ممنوع: migration يفشل إذا شُغِّل مرتين
+❌ ممنوع: except: pass / بلع الخطأ جوّا دالة الـ migration — السياسة بـ _run_startup_migrations (CLAUDE.md → Startup Migration Policy)
 ```
 
 ---
@@ -1372,4 +1373,4 @@ Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F39`
 
 ---
 
-*آخر تحديث: 2026-10-06 — PR-8 (DS-SHELL) — F39 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*
+*آخر تحديث: 2026-10-07 — PR 2B — F16 · التاريخ الكامل: [`docs/CHANGELOG.md`](docs/CHANGELOG.md)*

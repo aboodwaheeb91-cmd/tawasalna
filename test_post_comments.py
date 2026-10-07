@@ -10279,16 +10279,9 @@ check("489-08. SYSTEMS_INDEX §20c documents card-level lock, data-job-links rol
 
 # 489-09: startup migration raises on failure (not caught with print+continue)
 check("489-09. on_startup raises on _migrate_candidate_status_per_job failure (startup-critical)",
-      '_migrate_candidate_status_per_job()' in _srv489
-      # The critical line must NOT be inside a try block that catches with only a print
-      and (
-          # Check: no try/except wrapping just this migration call (it might be try-raised or bare)
-          'Startup-critical' in _srv489
-          or (
-              # Bare call (no try/except swallowing it)
-              'except' not in _srv489.split('_migrate_candidate_status_per_job()')[1].split('print(')[0][:200]
-          )
-      ))
+      # PR 2B: critical entry in the _startup_migrations() registry → _run_startup_migrations raises
+      bool(re.search(r'\("candidate_status_per_job",\s*_migrate_candidate_status_per_job,\s*True\)', _srv489))
+      and 'raise RuntimeError(f"critical startup migration failed' in _srv489)
 
 # 489-10: migration uses advisory lock (pg_advisory_lock) and releases in finally
 check("489-10. Migration uses pg_advisory_lock and releases it in finally",

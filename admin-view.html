@@ -504,11 +504,19 @@ async function saveField(field){
   const body = bodyMap[field];
 
   try{
-    const r = await fetch('/profile/'+_userId, {
+    // PR 2B: admin endpoint (check_admin) — same validation as PUT /profile/{id}
+    const r = await TwAdminSession.fetch('/admin/profile/'+_userId, {
       method:'PUT', headers: adminHeaders(),
       body: JSON.stringify(body)
     });
-    if(!r.ok) throw new Error('HTTP '+r.status);
+    if(r.status===401||r.status===403) return;   // TwAdminSession.onExpired already showed the message
+    if(!r.ok){
+      const d = await r.json().catch(()=>({}));
+      const m = (d.errors && d.errors[0] && d.errors[0].message)
+             || (d.error && (d.error.message || d.error))
+             || (typeof d.detail === 'string' ? d.detail : '');
+      throw new Error(m || ('HTTP '+r.status));
+    }
     closeModal();
     await loadProfile();
 initScrollProg();

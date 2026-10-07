@@ -97,6 +97,8 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .msg-name{font-size:11px;font-weight:700;color:var(--ap-text-sub);margin-bottom:var(--space-2)}
 .msg-time{font-size:var(--size-font-3xs);color:var(--ap-text-sub);margin-top:3px;text-align:left}
 .msgs-empty{text-align:center;padding:30px;color:var(--ap-text-sub);font-size:var(--size-font-md)}
+.msgs-older{align-self:center;background:none;border:1px solid var(--ap-border);border-radius:var(--radius-lg);color:var(--ap-text-sub);font-family:inherit;font-size:var(--size-font-xs);padding:var(--space-2) var(--space-5);cursor:pointer}
+.msgs-older:disabled{opacity:.6;cursor:default}
 /* Fixed bottom input */
 .msg-input-bar{position:sticky;bottom:0;background:rgba(7,11,24,.97);border-top:1px solid var(--ap-border);
   padding:var(--space-5) var(--space-8);display:flex;gap:var(--space-4);align-items:flex-end}
@@ -471,7 +473,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     }
 
     // Action buttons
-    if (!isClosed && s !== 'expired' && s !== 'missed') {
+    if (!isClosed) {
       const actDiv = document.createElement('div');
       actDiv.className = 'actions';
 
@@ -534,12 +536,13 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
         actDiv.appendChild(b);
         actDiv.appendChild(bc);
       }
-      if (IS_CO && s === 'confirmed') {
+      // PR 2B: missed is not final — the company can still complete or close it.
+      if (IS_CO && (s === 'confirmed' || s === 'missed')) {
         const b = actBtn('btn-complete', 'circle-check', 'إنهاء المقابلة');
         b.addEventListener('click', function(){ doComplete(); });
         actDiv.appendChild(b);
       }
-      if (IS_CO && (s === 'completed' || s === 'cancelled')) {
+      if (IS_CO && (s === 'completed' || s === 'cancelled' || s === 'missed' || s === 'expired')) {
         const b = actBtn('btn-close-room', 'lock', 'إغلاق الغرفة');
         b.addEventListener('click', function(){ doClose(); });
         actDiv.appendChild(b);
@@ -661,6 +664,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   }
 
   let _msgs = [];
+  const MSG_PAGE = 50;   // server returns the newest MSG_PAGE; ?before_id= loads older pages
   function loadMessages(container){
     api('/api/appointments/'+APPT_ID+'/messages').then(res => {
       container.innerHTML = '';
@@ -677,11 +681,34 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       list.className = 'msgs-list';
       list.id = 'msgsList';
       res.data.forEach(m => list.appendChild(buildMsgItem(m)));
+      if (res.data.length >= MSG_PAGE) list.insertBefore(buildOlderBtn(), list.firstChild);
       container.appendChild(list);
       scrollMsgsToBottom();
     }).catch(function(){
       container.innerHTML = '<div class="panel-error">خطأ في تحميل الرسائل</div>';
     });
+  }
+
+  function buildOlderBtn(){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'msgs-older';
+    safeText(b, 'عرض الرسائل الأقدم');
+    b.addEventListener('click', function(){ loadOlderMessages(b); });
+    return b;
+  }
+
+  function loadOlderMessages(btn){
+    if (!_msgs.length) return;
+    btn.disabled = true;
+    api('/api/appointments/'+APPT_ID+'/messages?before_id='+encodeURIComponent(_msgs[0].id)).then(res => {
+      const list = document.getElementById('msgsList');
+      if (!res.ok || !res.data || !list) { btn.disabled = false; return; }
+      const older = res.data.filter(m => !_msgs.some(old => old.id === m.id));
+      _msgs = older.concat(_msgs);
+      older.slice().reverse().forEach(m => list.insertBefore(buildMsgItem(m), btn.nextSibling));
+      if (res.data.length < MSG_PAGE) btn.remove(); else btn.disabled = false;
+    }).catch(function(){ btn.disabled = false; });
   }
 
   function buildMsgItem(m){
@@ -716,7 +743,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       if (!res.ok || !res.data) return;
       const newMsgs = res.data.filter(m => !_msgs.some(old => old.id === m.id));
       if (newMsgs.length === 0) return;
-      _msgs = res.data;
+      _msgs = _msgs.concat(newMsgs);
       let list = document.getElementById('msgsList');
       const pMsgs = document.getElementById('pMsgs');
       if (!list && pMsgs) {

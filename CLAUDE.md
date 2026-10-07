@@ -390,6 +390,16 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## Startup Migration Policy (mandatory for all AI sessions — PR 2B)
+
+1. **كل migration بيشتغل عند الـ startup مسجّل بـ `_startup_migrations()` في `server.py`** كـ `(name, fn, critical)` — بالترتيب (الاعتماديات أولاً). `on_startup` بيستدعي `_run_startup_migrations()` بس. ❌ `try: _migrate_x() except: print(...)` جوّا `on_startup`.
+2. **حرجة (`True`)** = الكود بيقرأ هالـ schema بمسار أساسي (auth / profiles / jobs / applications / pipeline / appointments / notifications / scheduler) أو migration حرجة بعدها بتعتمد عليها → فشلها **بيوقف التشغيل**. **اختيارية (`False`)** = ميزة وحدة أو أداء بس → فشلها بيتسجّل وبيضل الموقع شغّال.
+3. **الحالة بـ `/health` → `migrations: {name: "ok" | "failed"}`** — بدون تفاصيل الخطأ (التفاصيل بالـ log بس). أي `failed` → `status: "degraded"`.
+4. **دالة الـ migration ما بتبلع خطأها** (`except: pass` ممنوع جوّاها) — بترفعه للـ runner. UNIQUE على بيانات قديمة: احذف المكرر (بيضل الأقدم) ثم `CREATE UNIQUE INDEX IF NOT EXISTS` بنفس الـ transaction (مثال: `_ensure_user_unique_index` بـ `auth.py`). ❌ `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح).
+- Spec: SYSTEMS_INDEX §54f · test `python -m pytest test_pr2b_flow_fixes.py -q`.
+
+---
+
 ## Documentation Completion Rule (mandatory for all AI sessions)
 
 This rule is permanent and applies to all future AI sessions.

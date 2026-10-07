@@ -1505,8 +1505,9 @@ try:
           isinstance(cand46, dict))
     check("46-02. candidate dict has 'action' key",
           "action" in cand46, f"candidate={cand46}")
-    check("46-03. candidate['action'] == 'unchanged'",
-          cand46.get("action") == "unchanged", f"action={cand46.get('action')}")
+    # PR 2B: action is the real outcome — a pending applicant with no stage yet is 'promoted'
+    check("46-03. candidate['action'] == 'promoted' (real outcome — PR 2B)",
+          cand46.get("action") == "promoted", f"action={cand46.get('action')}")
 except Exception as e:
     fail("46-01. candidate.action='unchanged'", e)
 

@@ -617,9 +617,6 @@ def init_db():
             )
         """)
         try:
-            conn.run("ALTER TABLE user_skills ADD CONSTRAINT IF NOT EXISTS user_skills_uid_skill_uq UNIQUE (user_id, skill)")
-        except Exception: pass
-        try:
             conn.run("ALTER TABLE user_skills ADD COLUMN IF NOT EXISTS note TEXT")
         except Exception: pass
         conn.run("""
@@ -631,9 +628,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        try:
-            conn.run("ALTER TABLE user_langs ADD CONSTRAINT IF NOT EXISTS user_langs_uid_lang_uq UNIQUE (user_id, language)")
-        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_links (
                 id SERIAL PRIMARY KEY,
@@ -643,9 +637,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        try:
-            conn.run("ALTER TABLE user_links ADD CONSTRAINT IF NOT EXISTS user_links_uid_link_uq UNIQUE (user_id, link_type)")
-        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS courses (
                 id SERIAL PRIMARY KEY,
@@ -838,19 +829,60 @@ def init_db():
         # courses: make name nullable (old schema compat)
         try: conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
         except Exception: pass
-        # Add UNIQUE constraints (using DO $$ for idempotency)
-        _constraints = [
-            ("user_langs", "user_id, language"),
-            ("user_skills", "user_id, skill"),
-            ("user_links", "user_id, link_type"),
-        ]
-        for _tbl, _cols in _constraints:
-            try:
-                conn.run(f"ALTER TABLE {_tbl} ADD CONSTRAINT {_tbl}_unique_uq UNIQUE ({_cols})")
-            except Exception: pass  # already exists
+        # UNIQUE (user_id, skill|language|link_type) → _migrate_user_unique_indexes() (PR 2B)
         release_conn(conn)
     # Phase 2: company tables
     ensure_company_tables()
+
+
+# PR 2B — per-user uniqueness that the upsert endpoints rely on
+# (ON CONFLICT (user_id, <col>) in POST /skills · /langs · /links).
+# Index name = the constraint name of the old fallback, so a constraint that
+# already exists in production satisfies IF NOT EXISTS (no second index).
+_USER_UNIQUE_INDEXES = (
+    ("user_skills", "skill",     "user_skills_unique_uq"),
+    ("user_langs",  "language",  "user_langs_unique_uq"),
+    ("user_links",  "link_type", "user_links_unique_uq"),
+)
+
+
+def _ensure_user_unique_index(conn, table: str, col: str, index_name: str) -> int:
+    """Delete duplicate (user_id, col) rows — the oldest (lowest id) stays — then
+    CREATE UNIQUE INDEX IF NOT EXISTS, in one transaction under a write lock so no
+    duplicate can slip in between. Returns the number of rows deleted. Raises on failure."""
+    conn.run("BEGIN")
+    try:
+        conn.run(f"LOCK TABLE {table} IN SHARE ROW EXCLUSIVE MODE")
+        deleted = conn.run(
+            f"DELETE FROM {table} a USING {table} b "
+            f"WHERE a.user_id = b.user_id AND a.{col} = b.{col} AND a.id > b.id "
+            f"RETURNING a.id")
+        conn.run(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} (user_id, {col})")
+        conn.run("COMMIT")
+    except Exception:
+        try:
+            conn.run("ROLLBACK")
+        except Exception as _rb:
+            print(f"[migrate] {index_name} rollback failed: {_rb!r}")
+        raise
+    return len(deleted or [])
+
+
+def _migrate_user_unique_indexes() -> None:
+    """Startup migration (optional — see server.py _startup_migrations). Every index is
+    attempted; any failure is logged by name and the migration raises at the end."""
+    failed = []
+    with db_conn() as conn:
+        for table, col, index_name in _USER_UNIQUE_INDEXES:
+            try:
+                n = _ensure_user_unique_index(conn, table, col, index_name)
+                if n:
+                    print(f"[migrate] {table}: removed {n} duplicate (user_id, {col}) rows — kept the oldest")
+            except Exception as e:
+                failed.append(index_name)
+                print(f"❌ [migrate] unique index {index_name} on {table}(user_id, {col}) failed: {type(e).__name__}: {e}")
+    if failed:
+        raise RuntimeError("unique index migration failed: " + ", ".join(failed))
 
 
 def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
@@ -1743,8 +1775,6 @@ def _migrate_job_lifecycle():
             SET expires_at = created_at + INTERVAL '30 days'
             WHERE expires_at IS NULL AND status IN ('active', 'paused')
         """)
-    except Exception:
-        pass
     finally:
         release_conn(conn)
 
@@ -5934,15 +5964,22 @@ CANDIDATE_STATUS_LABELS = {
     "rejected":    "غير مناسب",
 }
 
-# Numeric rank for "don't downgrade" logic in promote_application_to_shortlist.
-# rejected is absent intentionally — it's checked as a Conflict before rank comparison.
+# Numeric rank for "don't downgrade" logic in promote_application_to_shortlist (PR 2B).
+# Covers company_candidate_job_refs.candidate_status AND job_pipeline_entries.stage
+# (new / reviewing / offer are pipeline-only stages).
+# rejected / withdrawn are absent intentionally — they are a no-op before rank comparison
+# (_CANDIDATE_STATUS_FINAL).
 _CANDIDATE_STATUS_RANK = {
+    "new":         1,
+    "reviewing":   1,
     "saved":       1,
     "shortlisted": 2,
     "contacted":   3,
     "interview":   4,
-    "hired":       5,
+    "offer":       5,
+    "hired":       6,
 }
+_CANDIDATE_STATUS_FINAL = frozenset({"rejected", "withdrawn"})
 
 # Allowed sort keys → ORDER BY expression (safe — never interpolated from user input directly)
 VALID_CANDIDATE_SORTS = {
@@ -6634,6 +6671,14 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
     """
     Atomic business operation: mark application 'accepted' + set pipeline to 'shortlisted'.
 
+    PR 2B — never moves a candidate backwards (_CANDIDATE_STATUS_RANK):
+      - rejected / withdrawn (application, job ref or pipeline stage) → no-op, nothing written,
+        candidate.action = 'rejected_noop' + `message`.
+      - current stage already ≥ shortlisted (contacted / interview / offer / hired) → the
+        stage stays; only missing links (application accepted, pipeline entry, promoted_at)
+        are filled. action = 'unchanged' (already shortlisted) or 'kept_higher'.
+      - otherwise → stage set to 'shortlisted', action = 'promoted'.
+
     Option B (Bnd-4): This function NEVER writes to company_saved_candidates.
     Talent Bank (company_saved_candidates) is managed exclusively by explicit HR saves.
     This function reads general_status from the bank as read-only metadata.
@@ -6682,19 +6727,84 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
             )
             general_status = bank_rows[0][0] if bank_rows else None
 
-            # ── 3. Always mark application as accepted ──
-            conn.run(
-                "UPDATE job_applications SET status = 'accepted' WHERE id = :id",
-                id=app_id)
-
-            # ── 4. UPSERT company-job link + candidate_status='shortlisted' ──
-            conn.run(
-                "INSERT INTO company_candidate_job_refs "
-                "(company_id, candidate_id, job_id, candidate_status) "
-                "VALUES (:cid, :uid, :jid, 'shortlisted') "
-                "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE "
-                "SET candidate_status = 'shortlisted'",
+            # ── 2b. Current stage for this job (locked) — PR 2B no-downgrade ──
+            ref_rows = conn.run(
+                "SELECT candidate_status FROM company_candidate_job_refs "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+                "FOR UPDATE",
                 cid=company_id, uid=applicant_id, jid=job_id)
+            ref_status = ref_rows[0][0] if ref_rows else None
+            pe_rows = conn.run(
+                "SELECT stage FROM job_pipeline_entries "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+                "FOR UPDATE",
+                cid=company_id, uid=applicant_id, jid=job_id)
+            pe_stage = pe_rows[0][0] if pe_rows else None
+
+            if (_app_status == "rejected" or ref_status in _CANDIDATE_STATUS_FINAL
+                    or pe_stage in _CANDIDATE_STATUS_FINAL):
+                conn.run("ROLLBACK")
+                committed = True   # nothing written — no second ROLLBACK below
+                final = ("rejected" if "rejected" in (_app_status, ref_status, pe_stage)
+                         else "withdrawn")
+                return {
+                    "application": {"id": app_id, "status": _app_status},
+                    "candidate": {
+                        "candidate_id": int(applicant_id),
+                        "status":       ref_status or pe_stage or final,
+                        "status_label": CANDIDATE_STATUS_LABELS.get(
+                            ref_status or final, ref_status or final),
+                        "job_id":       int(job_id),
+                        "action":       "rejected_noop",
+                    },
+                    "message": ("المرشح مرفوض لهذه الوظيفة — غيّر حالته أولاً إذا أردت ترشيحه"
+                                if final == "rejected" else
+                                "المرشح انسحب من هذه الوظيفة — لا يمكن ترشيحه"),
+                    "application_id":     app_id,
+                    "candidate_id":       int(applicant_id),
+                    "job_id":             int(job_id),
+                    "application_status": _app_status,
+                    "candidate_status":   ref_status or pe_stage or final,
+                    "general_status":     general_status,
+                }
+
+            _rank_short = _CANDIDATE_STATUS_RANK["shortlisted"]
+            _cur_rank = max(_CANDIDATE_STATUS_RANK.get(ref_status, 0),
+                            _CANDIDATE_STATUS_RANK.get(pe_stage, 0))
+            if _cur_rank > _rank_short:
+                action = "kept_higher"
+            elif _cur_rank == _rank_short and (ref_status == "shortlisted" or pe_stage == "shortlisted"):
+                action = "unchanged"
+            else:
+                action = "promoted"
+            # Effective stage after this call: the higher of the two sources, never lower.
+            if action == "kept_higher":
+                cand_status = (ref_status if _CANDIDATE_STATUS_RANK.get(ref_status, 0) >=
+                               _CANDIDATE_STATUS_RANK.get(pe_stage, 0) else pe_stage)
+            else:
+                cand_status = "shortlisted"
+
+            # ── 3. Mark application as accepted (forward-only — rejected already returned) ──
+            if _app_status != "accepted":
+                conn.run(
+                    "UPDATE job_applications SET status = 'accepted' WHERE id = :id",
+                    id=app_id)
+
+            # ── 4. UPSERT company-job link — candidate_status only moves forward ──
+            if ref_rows:
+                if _CANDIDATE_STATUS_RANK.get(ref_status, 0) < _rank_short:
+                    conn.run(
+                        "UPDATE company_candidate_job_refs SET candidate_status = 'shortlisted' "
+                        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+                        cid=company_id, uid=applicant_id, jid=job_id)
+            else:
+                conn.run(
+                    "INSERT INTO company_candidate_job_refs "
+                    "(company_id, candidate_id, job_id, candidate_status) "
+                    "VALUES (:cid, :uid, :jid, :st)",
+                    cid=company_id, uid=applicant_id, jid=job_id,
+                    # 'offer' is pipeline-only → closest job-ref status below it
+                    st=cand_status if cand_status in CANDIDATE_STATUS_LABELS else "interview")
 
             # ── 5. Pipeline dual-write: ensure entry exists, advance to 'shortlisted' ─
             _pipeline_upsert_entry(
@@ -6719,15 +6829,16 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 cid=int(company_id), uid=int(applicant_id), jid=int(job_id),
             )
 
-            _pipeline_update_stage(
-                conn,
-                company_id=int(company_id),
-                candidate_id=int(applicant_id),
-                job_id=int(job_id),
-                new_stage="shortlisted",
-                changed_by=int(company_id),
-                reason="application_shortlisted",
-            )
+            if _CANDIDATE_STATUS_RANK.get(pe_stage, 0) < _rank_short:
+                _pipeline_update_stage(
+                    conn,
+                    company_id=int(company_id),
+                    candidate_id=int(applicant_id),
+                    job_id=int(job_id),
+                    new_stage="shortlisted",
+                    changed_by=int(company_id),
+                    reason="application_shortlisted",
+                )
 
             conn.run("COMMIT")
             committed = True
@@ -6756,17 +6867,18 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
             },
             "candidate": {
                 "candidate_id": int(applicant_id),
-                "status":       "shortlisted",
-                "status_label": CANDIDATE_STATUS_LABELS.get("shortlisted", "shortlisted"),
+                "status":       cand_status,
+                "status_label": CANDIDATE_STATUS_LABELS.get(cand_status, cand_status),
                 "job_id":       int(job_id),
-                "action":       "unchanged",
+                # real outcome: promoted | unchanged | kept_higher (rejected_noop returns above)
+                "action":       action,
             },
             # Top-level fields for tw:candidate-job-classification-updated event dispatch
             "application_id":     app_id,
             "candidate_id":       int(applicant_id),
             "job_id":             int(job_id),
             "application_status": "accepted",
-            "candidate_status":   "shortlisted",
+            "candidate_status":   cand_status,
             "general_status":     general_status,
         }
     finally:
@@ -7159,7 +7271,16 @@ _APPT_VALID_STATUSES = {
     'draft', 'pending_response', 'reschedule_requested', 'confirmed',
     'cancelled', 'expired', 'missed', 'completed', 'closed'
 }
-_APPT_TERMINAL_STATUSES = {'cancelled', 'expired', 'missed', 'closed'}
+# PR 2B: 'missed' is NOT terminal — the company can still mark it completed or close it,
+# and both sides can still message. Terminal = no message, no decision.
+_APPT_TERMINAL_STATUSES = {'cancelled', 'expired', 'closed'}
+# Status transitions the company drives (PR 2B — ARCHITECTURE.md → Appointment Status Transitions).
+_APPT_COMPLETE_FROM = {'confirmed', 'missed'}
+_APPT_CLOSE_FROM    = {'completed', 'cancelled', 'missed', 'expired'}
+# A confirmed appointment becomes 'missed' only once it is really over:
+# end_at + 15 min when the appointment has an end time, else scheduled_at + 2 h.
+_APPT_MISSED_GRACE_AFTER_END_MIN = 15
+_APPT_MISSED_NO_END_WINDOW_MIN   = 120
 _APPT_VALID_MODES = {'online', 'onsite'}
 _APPT_DEADLINE_HOURS_ALLOWED = {24, 48, 72, 168}
 
@@ -7221,6 +7342,31 @@ def _get_appointment_row(conn, appointment_id: int):
             "notes","created_at","updated_at","closed_at",
             "pipeline_entry_id","appointment_type","end_at"]
     return _serialize(_row_to_dict(cols, rows[0]))
+
+
+def _appt_parse_dt(val):
+    """DB / ISO value → aware UTC datetime (naive = UTC), or None."""
+    from datetime import timezone as _tz
+    if not val:
+        return None
+    dt = val if isinstance(val, datetime) else datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    return dt.replace(tzinfo=_tz.utc) if dt.tzinfo is None else dt
+
+
+def _appt_missed_at(appt: dict):
+    """When a confirmed appointment counts as missed (aware UTC), or None without scheduled_at."""
+    from datetime import timedelta as _td
+    end_dt = _appt_parse_dt(appt.get("end_at"))
+    if end_dt is not None:
+        return end_dt + _td(minutes=_APPT_MISSED_GRACE_AFTER_END_MIN)
+    sched_dt = _appt_parse_dt(appt.get("scheduled_at"))
+    if sched_dt is None:
+        return None
+    return sched_dt + _td(minutes=_APPT_MISSED_NO_END_WINDOW_MIN)
+
+
+def _appt_missed_dedupe_key(appointment_id: int, sched_ts: int, missed_at) -> str:
+    return f"appointment_missed:{appointment_id}:{sched_ts}:{int(missed_at.timestamp())}"
 
 
 def _appt_computed_status(appt: dict) -> str:
@@ -7641,7 +7787,7 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             create_notification(**notify_payload)
         except Exception as e:
             print(f"[accept_appointment] notification failed: {e}")
-    # S4: schedule appointment_reminder (24h before) and appointment_missed (15 min after) — non-fatal
+    # S4: schedule appointment_reminder (24h before) and appointment_missed (_appt_missed_at) — non-fatal
     if sched_at_str:
         from datetime import datetime as _dt_a, timezone as _tz_a, timedelta as _td_a
         try:
@@ -7665,12 +7811,12 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             if _sched2.tzinfo is None:
                 _sched2 = _sched2.replace(tzinfo=_tz_a.utc)
             _sched2_ts = int(_sched2.timestamp())
-            _missed_at = _sched2 + _td_a(minutes=15)
+            _missed_at = _appt_missed_at(appt_result or {"scheduled_at": sched_at_str})
             schedule_job(
                 "appointment_missed",
                 {"appointment_id": appointment_id, "scheduled_at_ts": _sched2_ts},
                 _missed_at,
-                f"appointment_missed:{appointment_id}:{_sched2_ts}",
+                _appt_missed_dedupe_key(appointment_id, _sched2_ts, _missed_at),
             )
         except Exception as _sje:
             print(f"[accept_appointment] schedule_job(missed) failed: {_sje}")
@@ -7892,7 +8038,8 @@ def cancel_appointment(appointment_id: int, user_id: int, reason: str = "") -> d
 
 
 def complete_appointment(appointment_id: int, user_id: int) -> dict:
-    """Company marks interview done: confirmed → completed."""
+    """Company marks interview done: confirmed | missed → completed (PR 2B: a long
+    interview the scheduler already marked missed can still be completed)."""
     conn = get_conn()
     try:
         appt = _get_appointment_row(conn, appointment_id)
@@ -7900,8 +8047,8 @@ def complete_appointment(appointment_id: int, user_id: int) -> dict:
             raise ValueError("الموعد غير موجود")
         if appt['company_id'] != user_id:
             raise PermissionError("غير مصرح: فقط الشركة يمكنها إنهاء المقابلة")
-        if appt['status'] != 'confirmed':
-            raise ValueError(f"لا يمكن إنهاء مقابلة بحالة '{appt['status']}' — يجب confirmed")
+        if appt['status'] not in _APPT_COMPLETE_FROM:
+            raise ValueError(f"لا يمكن إنهاء مقابلة بحالة '{appt['status']}' — يجب confirmed أو missed")
         if appt.get('scheduled_at'):
             from datetime import datetime as _dt, timezone as _tz
             _now = _dt.now(_tz.utc)
@@ -7913,13 +8060,16 @@ def complete_appointment(appointment_id: int, user_id: int) -> dict:
             if _sched > _now:
                 raise ValueError("لا يمكن إنهاء المقابلة قبل موعدها المحدد")
 
-        conn.run(
-            "UPDATE appointments SET status='completed', updated_at=NOW() WHERE id=:id",
-            id=appointment_id
+        rows = conn.run(
+            "UPDATE appointments SET status='completed', updated_at=NOW() "
+            "WHERE id=:id AND status=:old RETURNING id",
+            id=appointment_id, old=appt['status']
         )
+        if not rows:
+            raise ValueError("تغيّرت حالة الموعد — حدّث الصفحة وحاول مرة أخرى")
         _insert_appointment_event(
             conn, appointment_id, user_id, 'appointment_completed',
-            old_status='confirmed', new_status='completed'
+            old_status=appt['status'], new_status='completed'
         )
         return _get_appointment_row(conn, appointment_id)
     finally:
@@ -7927,7 +8077,8 @@ def complete_appointment(appointment_id: int, user_id: int) -> dict:
 
 
 def close_appointment(appointment_id: int, user_id: int) -> dict:
-    """Company closes room: completed|cancelled → closed."""
+    """Company closes room: completed | cancelled | missed | expired → closed.
+    'expired' includes the computed one (pending_response past its deadline)."""
     appt_result = None
     notify_payloads = []
     conn = get_conn()
@@ -7937,16 +8088,20 @@ def close_appointment(appointment_id: int, user_id: int) -> dict:
             raise ValueError("الموعد غير موجود")
         if appt['company_id'] != user_id:
             raise PermissionError("غير مصرح: فقط الشركة يمكنها إغلاق الغرفة")
-        if appt['status'] not in ('completed', 'cancelled'):
-            raise ValueError(f"لا يمكن إغلاق موعد بحالة '{appt['status']}' — يجب completed أو cancelled")
+        _from = _appt_computed_status(appt)
+        if _from not in _APPT_CLOSE_FROM:
+            raise ValueError(f"لا يمكن إغلاق موعد بحالة '{_from}' — يجب completed أو cancelled أو missed أو expired")
 
-        conn.run(
-            "UPDATE appointments SET status='closed', closed_at=NOW(), updated_at=NOW() WHERE id=:id",
-            id=appointment_id
+        rows = conn.run(
+            "UPDATE appointments SET status='closed', closed_at=NOW(), updated_at=NOW() "
+            "WHERE id=:id AND status=:old RETURNING id",
+            id=appointment_id, old=appt['status']
         )
+        if not rows:
+            raise ValueError("تغيّرت حالة الموعد — حدّث الصفحة وحاول مرة أخرى")
         _insert_appointment_event(
             conn, appointment_id, user_id, 'appointment_closed',
-            old_status=appt['status'], new_status='closed'
+            old_status=_from, new_status='closed'
         )
 
         for uid in [appt['company_id'], appt['applicant_id']]:
@@ -8109,21 +8264,29 @@ def get_appointment_events(appointment_id: int, user_id: int) -> list:
 
 
 def get_appointment_messages(appointment_id: int, user_id: int,
-                              limit: int = 50, offset: int = 0) -> list:
-    """Return active messages (excludes soft-deleted) for a participant."""
+                              limit: int = 50, offset: int = 0,
+                              before_id: int = None) -> list:
+    """Return the NEWEST `limit` active messages (excludes soft-deleted) for a participant,
+    oldest → newest. `before_id` = only messages older than that id (load-older page).
+    PR 2B: was ORDER BY created_at ASC LIMIT 50 → messages after the 50th never showed."""
     conn = get_conn()
     try:
         _check_appt_participant(conn, appointment_id, user_id)
+        _before_sql = "AND am.id < :before " if before_id else ""
+        _params = {"appt": appointment_id, "lim": max(1, min(limit, 100)), "off": max(offset, 0)}
+        if before_id:
+            _params["before"] = int(before_id)
         rows = conn.run(
-            """SELECT am.id, am.appointment_id, am.sender_id, am.body,
+            f"""SELECT am.id, am.appointment_id, am.sender_id, am.body,
                       am.created_at, am.edited_at, u.full_name AS sender_name
                FROM appointment_messages am
                JOIN users u ON u.id=am.sender_id
-               WHERE am.appointment_id=:appt AND am.deleted_at IS NULL
-               ORDER BY am.created_at ASC
+               WHERE am.appointment_id=:appt AND am.deleted_at IS NULL {_before_sql}
+               ORDER BY am.created_at DESC, am.id DESC
                LIMIT :lim OFFSET :off""",
-            appt=appointment_id, lim=max(1, min(limit, 100)), off=max(offset, 0)
+            **_params
         )
+        rows = list(reversed(rows or []))
         cols = ["id","appointment_id","sender_id","body","created_at","edited_at","sender_name"]
         result = []
         for r in (rows or []):
@@ -9732,7 +9895,7 @@ _SCHEDULER_HANDLERS = {
     "noop",                          # Test-only: succeeds immediately with no side effects.
     "appointment_reminder",          # S4: 24h-before reminder for confirmed appointments.
     "appointment_deadline_expire",   # S4: expire pending_response when deadline passes.
-    "appointment_missed",            # S4: mark confirmed appointment missed (15 min after).
+    "appointment_missed",            # S4: mark confirmed appointment missed (_appt_missed_at — PR 2B).
     "job_expiring_soon",             # S4: notify company 48h before job listing expires.
 }
 
@@ -9883,12 +10046,14 @@ def _handle_appointment_deadline_expire(job: dict) -> None:
 
 
 def _handle_appointment_missed(job: dict) -> None:
-    """Transition confirmed → missed when scheduled_at + 15 min has passed.
+    """Transition confirmed → missed once _appt_missed_at() has passed
+    (end_at + 15 min, else scheduled_at + 2 h — PR 2B).
 
     Stale check: payload carries scheduled_at_ts. If the current DB scheduled_at
     differs, this job targets an old cycle after a reschedule — safe no-op.
 
-    Time check: NOW() must be >= scheduled_at + 15 minutes before transitioning.
+    Time check: NOW() must be >= _appt_missed_at(appt). A job that fires earlier (e.g. one
+    queued before PR 2B at scheduled_at + 15 min) re-queues itself at the right time.
 
     Retry safety: if transition already happened (status='missed') but notification
     failed, allow re-notification without re-transitioning.
@@ -9903,6 +10068,7 @@ def _handle_appointment_missed(job: dict) -> None:
     company_id = applicant_id = None
     transitioned = False
     already_missed = False
+    requeue_at = None
     try:
         appt = _get_appointment_row(conn, int(appt_id))
         if not appt:
@@ -9913,14 +10079,12 @@ def _handle_appointment_missed(job: dict) -> None:
             if db_sched_val and _ts_from_db_val(db_sched_val) != int(sched_ts_payload):
                 return  # stale — safe no-op
         if appt["status"] == "confirmed":
-            sched_val = appt.get("scheduled_at")
-            if not sched_val:
+            missed_at = _appt_missed_at(appt)
+            if missed_at is None:
                 return
-            sched_dt = _dt.fromisoformat(str(sched_val).replace("Z", "+00:00"))
-            if sched_dt.tzinfo is None:
-                sched_dt = sched_dt.replace(tzinfo=_tz.utc)
-            if _dt.now(_tz.utc) < sched_dt + _td(minutes=15):
-                return  # too early — appointment not yet overdue
+            if _dt.now(_tz.utc) < missed_at:
+                requeue_at = missed_at  # too early — re-queued after release_conn
+                return
             rows = conn.run(
                 "UPDATE appointments SET status='missed', updated_at=NOW() "
                 "WHERE id=:id AND status='confirmed' RETURNING id",
@@ -9940,6 +10104,14 @@ def _handle_appointment_missed(job: dict) -> None:
         applicant_id = appt["applicant_id"]
     finally:
         release_conn(conn)
+        if requeue_at is not None:
+            _sched_ts = _ts_from_db_val(appt["scheduled_at"])
+            schedule_job(
+                "appointment_missed",
+                {"appointment_id": int(appt_id), "scheduled_at_ts": _sched_ts},
+                requeue_at,
+                _appt_missed_dedupe_key(int(appt_id), _sched_ts, requeue_at),
+            )
     if transitioned or already_missed:
         errors = []
         for uid in [company_id, applicant_id]:

@@ -59,8 +59,10 @@ class A_ButtonRename(unittest.TestCase):
         self.assertIn('data-lucide="gem"', btn_block.group())
 
     def test_03_badge_quota_format_in_setBadge(self):
-        """JS: _setBadge shows 'used / limit' from _quotaUsed/_quotaLimit"""
-        self.assertIn("_quotaUsed + ' / ' + _quotaLimit", JS)
+        """JS: _setBadge shows 'used من limit' from _quotaUsed/_quotaLimit.
+        PR 2B: the badge text became Arabic "X من 25" in PR-4 (ARCHITECTURE.md §68 —
+        quota label "X من 25"); the old ' / ' assertion was stale."""
+        self.assertIn("_quotaUsed + ' من ' + _quotaLimit", JS)
 
     def test_04_nb_talent_bank_css_class_exists(self):
         """CSS: .nb-talent-bank rule is defined"""

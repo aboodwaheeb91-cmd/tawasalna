@@ -1030,6 +1030,16 @@
       return r.json();
     })
     .then(function (data) {
+      var action = data && data.candidate && data.candidate.action;
+      // PR 2B: rejected / withdrawn → server changed nothing; keep the card as it is.
+      if (action === 'rejected_noop') {
+        if (promoteBtn) {
+          promoteBtn.disabled    = false;
+          promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
+        }
+        if (window.showToast) showToast(data.message || 'لا يمكن ترشيح هذا المرشح', 'error');
+        return;
+      }
       if (card) {
         _reRenderCardFoot(card, 'accepted');
       }
@@ -1045,7 +1055,11 @@
         }}));
       }
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
-      if (window.showToast) showToast('تم تصنيف المرشح بنجاح ✓');
+      if (window.showToast) {
+        showToast(action === 'kept_higher' ? 'المرشح بمرحلة متقدمة — بقيت مرحلته كما هي ✓'
+                : action === 'unchanged' ? 'المرشح مصنّف مسبقاً ✓'
+                : 'تم تصنيف المرشح بنجاح ✓');
+      }
     })
     .catch(function (err) {
       if (promoteBtn) {
