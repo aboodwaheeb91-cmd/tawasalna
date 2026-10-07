@@ -916,6 +916,29 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
         release_conn(conn)
 
 
+def check_user_password(user_id: int, password: str) -> Optional[bool]:
+    """bcrypt check of a signed-in user's password (PUT /auth/password · account delete).
+    None = no such user; False = wrong password; True = match."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT password_hash FROM users WHERE id = :uid", uid=user_id)
+        if not rows:
+            return None
+        return bool(password) and verify_password(password, rows[0][0])
+    finally:
+        release_conn(conn)
+
+
+def set_user_password(user_id: int, new_password: str) -> None:
+    """Store a new bcrypt hash — caller has already verified the current password."""
+    conn = get_conn()
+    try:
+        conn.run("UPDATE users SET password_hash = :pw WHERE id = :uid",
+                 pw=hash_password(new_password), uid=user_id)
+    finally:
+        release_conn(conn)
+
+
 def get_user_by_id(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:

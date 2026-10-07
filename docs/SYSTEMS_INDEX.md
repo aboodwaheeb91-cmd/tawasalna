@@ -29,6 +29,16 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 1a. Account Security Operations — Password Change / Account Delete (PR 1.2)
+**Purpose:** Signed-in account operations from `/settings` that must really happen before the UI says «تم».
+**Source of Truth:** `PUT /auth/password` + `DELETE /auth/user/{id}/delete` in `server.py` · password rule `_password_policy_error()` (`server.py` — the ONE rule, shared with `POST /auth/register`) · DB helpers `check_user_password()` / `set_user_password()` (`auth.py`, bcrypt) · field errors `AccountFieldError` → 422 `{ok:false, error, errors:[{field, code, message}], detail:{status, message, field}}`
+**Contract:** `PUT /auth/password` — JWT required (401) · body `{current_password, new_password}` · current checked with bcrypt → `current_password/wrong_password` · new through `_password_policy_error` → `new_password/weak_password` · new == current → `new_password/same_password` · success `{ok:true}` · in `rate_limit_middleware`. `DELETE /auth/user/{id}/delete` — JWT owner (403 otherwise) + body `{password}` (bcrypt) → `password/wrong_password`; DB error → fixed Arabic message (never `str(e)`); rate limited. Hard delete — FK audit: `ARCHITECTURE.md → Account Security Operations`. **UI hidden («حذف الحساب — قريباً») until soft delete (F27) — decision 2026-10-07.**
+**Frontend:** `settings.html` — `twRequireAuth()` + `auth-sync.js`; name / email / phone / type / tw_id from `GET /profile/{uid}/full` (never `tw_user` / `tw_profile_data`); every save via `getAuthHeaders(true)`; success toast only on `r.ok`; network error → error. Email change hidden («تغيير البريد الإلكتروني — قريباً») until FUTURE_ROADMAP 5.1.
+**Details:** `ARCHITECTURE.md → Account Security Operations (PR 1.2)` · test `test_account_security.py`
+**Do not recreate:** ❌ a second password-length rule (register and change share `_password_policy_error`) · ❌ checking a password by calling `/auth/login` from the client · ❌ success toast in `.finally()` / `.catch()` · ❌ clearing `localStorage` by hand after a server operation — `TwAuthSync.invalidateSession` / `twLogout` · ❌ `str(e)` in an account-operation error response.
+
+---
+
 ### 2. JWT Token System
 **Purpose:** Issue and validate signed JWT tokens for all API calls; payload carries `user_id`, `user_type`, `country_code`.
 **Source of Truth:** JWT generation in `server.py` (`_jwt_encode`/`_jwt_decode`); algorithm HS256; secret from `JWT_SECRET` env var (independent of `ADMIN_TOKEN`); token stored in `localStorage.tw_jwt`
@@ -1098,7 +1108,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 54b. Auth Rate Limiter (PR 1.4)
 **Purpose:** Throttle auth / OTP endpoints per client IP, plus a per-email login lockout that does not depend on the IP at all.
-**Source of Truth:** `server.py` → `rate_limit_middleware` + `_rate_hit()` on the single `_rate_store`; `_RATE_LIMITED_PATHS` (`/auth/login`, `/auth/register`, `/tw-ctrl-login`, `/kyc/{email,phone}/{send,verify}`) — 20/min per IP (`_RATE_LIMIT`). Login: `_login_email_locked/_fail/_reset` on the same store, key `login-email:{email lowercased}` — 5 failures / 15 min → 429 `detail.code = "login_email_locked"` (Arabic message; `index.auth.js` shows fixed text for that code); success resets.
+**Source of Truth:** `server.py` → `rate_limit_middleware` + `_rate_hit()` on the single `_rate_store`; `_RATE_LIMITED_PATHS` (`/auth/login`, `/auth/register`, `/auth/password`, `/tw-ctrl-login`, `/kyc/{email,phone}/{send,verify}`) + `/auth/user/{id}/delete` — 20/min per IP (`_RATE_LIMIT`). Login: `_login_email_locked/_fail/_reset` on the same store, key `login-email:{email lowercased}` — 5 failures / 15 min → 429 `detail.code = "login_email_locked"` (Arabic message; `index.auth.js` shows fixed text for that code); success resets.
 **Details:** `ARCHITECTURE.md §52 → Client IP Resolution + Auth Rate Limiter`
 **Do not recreate:** No second limiter/store for auth paths. Do not remove `/tw-ctrl-login` or the KYC verify paths from the list. Do not key the email lockout on IP. Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 

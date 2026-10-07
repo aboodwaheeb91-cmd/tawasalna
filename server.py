@@ -110,7 +110,7 @@ from auth import (
     list_appointments, get_appointment_room,
     get_appointment_events, get_appointment_messages,
     create_appointment_message,
-    create_user, authenticate_user, get_user_by_id,
+    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
@@ -433,7 +433,7 @@ def _login_email_reset(email: str) -> None:
 
 
 _RATE_LIMITED_PATHS = frozenset({
-    "/auth/login", "/auth/register", "/tw-ctrl-login",
+    "/auth/login", "/auth/register", "/auth/password", "/tw-ctrl-login",
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
 })
 
@@ -441,7 +441,9 @@ _RATE_LIMITED_PATHS = frozenset({
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
     # Only rate limit auth / OTP endpoints — IP from get_client_ip() only
-    if request.url.path in _RATE_LIMITED_PATHS:
+    _p = request.url.path
+    if _p in _RATE_LIMITED_PATHS \
+            or (_p.startswith("/auth/user/") and _p.endswith("/delete")):  # password-checked account delete
         if not _rate_hit("ip:" + get_client_ip(request), _RATE_LIMIT, 60):
             from fastapi.responses import JSONResponse as _JR
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
@@ -3253,14 +3255,44 @@ def ping():
 # ══════════════════════════════════════════
 # Auth
 # ══════════════════════════════════════════
+_PASSWORD_MIN_LEN = 6
+
+def _password_policy_error(password) -> Optional[str]:
+    """The one password rule — POST /auth/register + PUT /auth/password. None = acceptable."""
+    if not isinstance(password, str) or len(password) < _PASSWORD_MIN_LEN:
+        return f"كلمة المرور يجب أن تكون {_PASSWORD_MIN_LEN} أحرف على الأقل"
+    return None
+
+class AccountFieldError(Exception):
+    """Field-specific 422 for account security forms (password change / account delete)."""
+    def __init__(self, field: str, code: str, message: str):
+        self.field, self.code, self.message = field, code, message
+
+@app.exception_handler(AccountFieldError)
+async def account_field_error_handler(request, exc):
+    # Same shape as ExternalUrlError / PUT /profile field errors (errors[] + detail.message)
+    return JSONResponse(status_code=422, content={
+        "ok": False, "error": exc.message,
+        "errors": [{"field": exc.field, "code": exc.code, "message": exc.message}],
+        "detail": {"status": "error", "message": exc.message, "field": exc.field},
+    })
+
+class PasswordChangeInput(BaseModel):
+    current_password: str = ""
+    new_password: str = ""
+
+class AccountDeleteInput(BaseModel):
+    password: str = ""
+
 @app.post("/auth/register")
 def register(data: RegisterInput, request: Request):
     if data.user_type not in ("emp", "co", "edu"):
         raise HTTPException(400, detail="نوع الحساب غير صحيح")
     if not data.email.strip():
         raise HTTPException(400, detail="البريد الإلكتروني مطلوب")
-    if len(data.password) < 6:
-        raise HTTPException(400, detail="كلمة المرور يجب أن تكون 6 أحرف على الأقل")
+    _pw_err = _password_policy_error(data.password)
+    if _pw_err:
+        raise HTTPException(400, detail=_pw_err)
 
     # G-contract: emp uses structured name; co/edu use full_name.
     # _norm_name: trim + collapse internal whitespace (e.g. "محمد   أحمد" → "محمد أحمد").
@@ -3315,6 +3347,35 @@ def login(data: LoginInput, request: Request):
     _login_email_reset(data.email)
     token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
     return {"status": "success", "user": user, "token": token}
+
+@app.put("/auth/password")
+def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
+    """Signed-in password change — JWT owner only, current password checked with bcrypt,
+    new password through _password_policy_error (same rule as register). Rate limited."""
+    uid = int(token["user_id"])
+    if not data.current_password:
+        raise AccountFieldError("current_password", "required", "أدخل كلمة المرور الحالية")
+    pw_err = _password_policy_error(data.new_password)
+    if pw_err:
+        raise AccountFieldError("new_password", "weak_password", pw_err)
+    if data.new_password == data.current_password:
+        raise AccountFieldError("new_password", "same_password",
+                                "كلمة المرور الجديدة يجب أن تختلف عن الحالية")
+    try:
+        ok = check_user_password(uid, data.current_password)
+        if ok is None:
+            raise HTTPException(404, detail="المستخدم غير موجود")
+        if not ok:
+            raise AccountFieldError("current_password", "wrong_password",
+                                    "كلمة المرور الحالية غير صحيحة")
+        set_user_password(uid, data.new_password)
+    except (HTTPException, AccountFieldError):
+        raise
+    except Exception as e:
+        print(f"[PUT /auth/password] ERROR user={uid}: {e}")
+        raise HTTPException(500, detail="تعذّر تغيير كلمة المرور، حاول لاحقاً")
+    print(f"[PUT /auth/password] changed user={uid}")
+    return {"ok": True, "status": "success"}
 
 @app.put("/auth/user/{user_id}/name")
 async def update_user_name(user_id: int, request: Request, token=Depends(verify_token)):
@@ -5387,18 +5448,33 @@ def admin_get_profile(user_id: int, request: Request):
         raise HTTPException(500, detail=f"خطأ: {str(e)}")
 
 @app.delete("/auth/user/{user_id}/delete")
-def delete_own_account(user_id: int, request: Request, token=Depends(verify_token)):
-    """User deletes their own account"""
+def delete_own_account(user_id: int, data: AccountDeleteInput, token=Depends(verify_token)):
+    """User deletes their own account — JWT owner only + current password (bcrypt).
+    Hard delete — FK audit: ARCHITECTURE.md → Account Security Operations. UI hidden until soft delete (F27)."""
     if token["user_id"] != user_id:
         raise HTTPException(403, "لا يمكنك حذف حساب شخص آخر")
+    if not data.password:
+        raise AccountFieldError("password", "required", "أدخل كلمة المرور للتأكيد")
+    try:
+        ok = check_user_password(user_id, data.password)
+    except Exception as e:
+        print(f"[DELETE account] password check ERROR user={user_id}: {e}")
+        raise HTTPException(500, detail="تعذّر حذف الحساب، حاول لاحقاً")
+    if ok is None:
+        raise HTTPException(404, detail="المستخدم غير موجود")
+    if not ok:
+        raise AccountFieldError("password", "wrong_password", "كلمة المرور غير صحيحة")
     conn = get_conn()
     try:
         conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
-        return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[DELETE account] ERROR user={user_id}: {e}")
+        raise HTTPException(500, detail="تعذّر حذف الحساب، حاول لاحقاً")
     finally:
         release_conn(conn)
+    _cache_del('profile:' + str(user_id))
+    print(f"[DELETE account] deleted user={user_id}")
+    return {"ok": True, "success": True}
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):

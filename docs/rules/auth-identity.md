@@ -9,6 +9,7 @@
 - Hashed with **bcrypt** (salted)
 - Minimum 6 characters enforced
 - `hash_password(plain)` / `verify_password(plain, hashed)`
+- **One rule (PR 1.2):** `_password_policy_error(pw)` in `server.py` — used by `POST /auth/register` and `PUT /auth/password`. ❌ a second length check. Signed-in change: `PUT /auth/password` (JWT + bcrypt check of the current password, new ≠ current, rate limited) — never verify a password by calling `/auth/login` from the client. → SYSTEMS_INDEX §1a.
 
 ### User ID Format (tw_id)
 Every user gets a unique platform ID:
