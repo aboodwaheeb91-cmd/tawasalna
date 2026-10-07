@@ -51,6 +51,8 @@ def test_c2_theme_css_empty_without_override_and_renders_twin():
     assert "--color-text-muted: rgba(255,255,255,.5);" in css
     # stored junk never reaches the CSS
     assert tt.render_css({"--color-x": "#fff", "--color-ink": "}"}) == ""
+    # ETag follows the body (304 when unchanged)
+    assert tt.css_etag("") == tt.css_etag("") != tt.css_etag(css)
 
 
 def test_c3_rgb_channels_are_twins():

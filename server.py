@@ -1845,7 +1845,6 @@ def manifest():
 # Per-process cache (60s) so a page view never hits the DB; a save clears this process's
 # cache, other workers pick it up within the TTL. ETag → 304 (NoCacheMiddleware forces
 # revalidation on every .css).
-import hashlib as _hashlib
 import theme_tokens as _theme
 _THEME_CSS_TTL = 60
 _theme_css_cache = {"css": None, "etag": "", "at": 0.0}
@@ -1860,7 +1859,7 @@ def _theme_css() -> tuple:
         css = _theme.render_css(_theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY)))
     except Exception as e:
         print(f"[theme] stored color overrides unreadable — serving defaults: {e!r}")
-    etag = '"' + _hashlib.sha256(css.encode("utf-8")).hexdigest()[:16] + '"'
+    etag = _theme.css_etag(css)
     c.update(css=css, etag=etag, at=now)
     return css, etag
 

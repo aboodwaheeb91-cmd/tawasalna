@@ -15,6 +15,7 @@ nothing else can reach the CSS text (§54: no injection through a value).
 
 Pure functions — no DB, no FastAPI (server.py wires the endpoints).
 """
+import hashlib
 import json
 import os
 import re
@@ -97,6 +98,11 @@ def render_css(overrides: dict, known: dict = None) -> str:
         if known[key]:
             lines.append(f"  {key}-rgb: {_hex_rgb(clean[key])};")
     return ":root {\n" + "\n".join(lines) + "\n}\n"
+
+
+def css_etag(css: str) -> str:
+    """Strong ETag of a rendered /theme.css body (sha256, 16 hex)."""
+    return '"' + hashlib.sha256(css.encode("utf-8")).hexdigest()[:16] + '"'
 
 
 def parse_stored(raw: str) -> dict:
