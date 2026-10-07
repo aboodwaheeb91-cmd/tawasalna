@@ -5,7 +5,7 @@
  *
  * Load order (enforced by <script> tags in home-v2.html):
  *   home.utils.js → home.state.js → home.api.js → home.cards.js →
- *   home.render.js → home.filters.js → home.header.js → home.nav.js →
+ *   home.render.js → home.filters.js → home.nav.js →
  *   home.main.js
  */
 (function () {
@@ -30,11 +30,11 @@
   window.Home.state.jwt  = _jwt;
 
   /* Init modules */
-  window.Home.header.init();
   window.Home.filters.init();
   window.Home.nav.init(_u);
 
-  /* Render initial Lucide icons already in the DOM (header, bottom nav) */
+  /* Render initial Lucide icons already in the DOM (feed / sidebar — header + bottom nav
+   * come from the unified app chrome, HEADER-NAV.md) */
   window.Home.utils.icons();
 
   /* Load default feed */

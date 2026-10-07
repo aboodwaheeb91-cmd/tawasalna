@@ -19,9 +19,7 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
 
-/* ══ NAV ══ */
-.nav{position:fixed;top:0;left:0;right:0;z-index:200;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);overflow:visible;}
-.nav-logo{font-size:.95rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;flex-shrink:0;}
+/* Header + bottom nav = unified app chrome (app-header.css · HEADER-NAV.md) */
 .nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;white-space:nowrap;}
 .nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--bdr);}
 .nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
@@ -32,7 +30,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .nb-follow.following{background:rgba(0,200,150,.12);color:#00c896;border-color:rgba(0,200,150,.25);}
 
 /* ══ HERO ══ */
-.hero{margin-top:52px;position:relative;height:190px;background:linear-gradient(135deg,#0d0a1a,#1a1040);overflow:hidden;}
+.hero{position:relative;height:190px;background:linear-gradient(135deg,#0d0a1a,#1a1040);overflow:hidden;}
 .hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(37,99,255,.08));}
 .hero-orb{position:absolute;border-radius:50%;filter:blur(60px);}
 .ho1{width:280px;height:280px;background:#8b5cf6;opacity:.1;top:-100px;right:-80px;}
@@ -182,26 +180,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 </head>
 <body>
 
-<!-- ══ NAV ══ -->
-<nav class="nav">
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
-
-  <!-- Owner actions (VM-01) -->
-  <div id="ownerActions" style="display:none;align-items:center;gap:6px">
-    <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
-    <button class="nb nb-ghost" onclick="goHome()">📊 لوحة التحكم</button>
-  </div>
-
-  <div style="flex:1"></div>
-
-  <!-- Global session UI (VM-10) -->
-  <a href="/notifications" class="nb nb-ghost" title="الإشعارات" data-tw-session="authenticated" hidden>🔔</a>
-  <a href="/messages" class="nb nb-ghost" title="الرسائل" data-tw-session="authenticated" hidden>💬</a>
-  <div class="sc-menu-wrap" id="epMenuWrap">
-    <button class="nb nb-ghost" id="epMenuBtn" title="القائمة">☰</button>
-    <div class="sc-menu-dropdown" id="epMenuDropdown"></div>
-  </div>
-</nav>
+<!-- ══ UNIFIED APP HEADER (HEADER-NAV.md — rendered by twMountAppChrome) ══ -->
+<header data-tw-header></header>
 
 <!-- ══ HERO ══ -->
 <div class="hero" id="heroSection">
@@ -225,6 +205,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
             <div class="edu-meta-item" id="profileLoc">📍 —</div>
             <div class="edu-meta-item">🌐 <a href="#" id="aboutWeb">—</a></div>
           </div>
+        </div>
+        <!-- Owner actions (VM-01) — moved out of the header (HNAV-01: the header carries navigation only) -->
+        <div class="ph-actions" id="ownerActions" style="display:none">
+          <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
         </div>
         <div class="ph-actions" id="visitorActions">
           <button class="nb nb-ghost" id="contactBtn" onclick="openContact()" hidden>💬 تواصل</button>
@@ -258,8 +242,12 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 </div>
 
-<script src="/tw_shared.js?v=safe-link-v1"></script>
+<!-- ══ UNIFIED BOTTOM NAV (HNAV-06) ══ -->
+<nav data-tw-bottom-nav></nav>
+
+<script src="/tw_shared.js?v=hnav-v1"></script>
 <script src="/static/shared/auth-sync.js"></script>
+<script src="/static/shared/tw-icons.js"></script>
 <script>
 let _isOwner=false;
 let _data={name:'',desc:'',loc:'',web:'',avatar:'',twId:''};
@@ -383,10 +371,6 @@ function openContact(){
   window.location.href=(snap && snap.isAuthenticated) ? dest : twLoginHref(dest);
 }
 
-function goHome(){
-  window.location.href=twHomeHref();
-}
-
 // ── Load profile from API ──
 (function(){
   var snap = window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null;
@@ -433,11 +417,6 @@ var _ptrE=0,_ptrEA=false;
 document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e.touches[0].clientY;},{passive:true});
 document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;if(window.showToast)showToast('جاري التحديث...','info',1200);location.reload();}},{passive:true});
 document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>120&&!_ptrEA){_ptrEA=true;}}},{passive:true});
-
-// ── Global Session UI (VM-10) ──
-if (window.initGlobalHeaderMenu) {
-  initGlobalHeaderMenu('epMenuBtn', 'epMenuDropdown');
-}
 
 // ── Auth-sync: VM-01 bfcache session revalidation (edu-profile) ──
 // @vm-extract-begin: edu-authsync

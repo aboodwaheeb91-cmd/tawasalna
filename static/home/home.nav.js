@@ -1,4 +1,5 @@
-/* home.nav.js — bottom nav, sidebar, and per-user-type adjustments for Home V2 */
+/* home.nav.js — sidebar + banner per user type for Home V2.
+ * The bottom nav is the unified one (tw_shared.js _TW_BOTTOM_NAV — HEADER-NAV.md HNAV-06). */
 (function () {
   'use strict';
   window.Home = window.Home || {};
@@ -53,7 +54,6 @@
       var profileUrl = user.tw_id ? '/u/' + user.tw_id : '/profile';
 
       if (type === 'emp') {
-        document.getElementById('bnProfile').href    = profileUrl;
         document.getElementById('sbComplLink').href  = profileUrl;
         _sbLinks([
           { icon: 'user',      label: 'ملفي الشخصي', href: profileUrl   },
@@ -64,10 +64,6 @@
 
       } else if (type === 'co') {
         var _coUrl = user.tw_id ? '/u/' + user.tw_id : '/company-profile';
-        document.getElementById('bnProfile').href           = _coUrl;
-        document.getElementById('bnProfileLbl').textContent = 'شركتي';
-        document.getElementById('bnJobs').href              = _coUrl;
-        document.getElementById('bnJobsLbl').textContent    = 'فرصي';
         document.getElementById('sbComplLink').href         = _coUrl;
         _banner('briefcase', 'فرص شركتك', 'تابع الفرص المنشورة والمتقدمين', [
           { v: '—', l: 'فرصة نشطة' }, { v: '—', l: 'متقدم جديد' }
@@ -80,11 +76,6 @@
         ]);
 
       } else if (type === 'edu') {
-        document.getElementById('bnProfile').href           = '/edu-profile';
-        document.getElementById('bnProfileLbl').textContent = 'مؤسستي';
-        document.getElementById('bnJobsIco').setAttribute('data-lucide', 'book-open');
-        document.getElementById('bnJobs').href              = '/edu-profile';
-        document.getElementById('bnJobsLbl').textContent    = 'دوراتي';
         document.getElementById('sbComplLink').href         = '/edu-profile';
         _banner('graduation-cap', 'دورات مؤسستك', 'تابع الدورات المنشورة وطلبات التوثيق', [
           { v: '—', l: 'دورة نشطة' }, { v: '—', l: 'طلب توثيق' }

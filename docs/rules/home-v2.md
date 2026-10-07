@@ -22,8 +22,8 @@ These rules are permanent and apply to all future AI sessions:
    - `static/home/home.cards.js` — card renderers (opportunity / post / news)
    - `static/home/home.render.js` — feed UI states (skeleton / empty / error / feed)
    - `static/home/home.filters.js` — filter tab wiring + orchestration
-   - `static/home/home.header.js` — header buttons (home, menu, logout)
-   - `static/home/home.nav.js` — bottom nav + sidebar + per-user-type setup
+   - ~~`static/home/home.header.js`~~ — deleted PR 3.2: header + bottom nav = unified app chrome (`<header data-tw-header>` / `<nav data-tw-bottom-nav>` — `docs/design-system/HEADER-NAV.md`)
+   - `static/home/home.nav.js` — sidebar + banner per user type
    - `static/home/home.main.js` — bootstrap only (auth guard + init + load)
    - ممنوع دمج CSS/JS الكبير داخل HTML
    - **ممنوع** إضافة feature جديدة قبل تحديد module المناسب لها
@@ -43,11 +43,11 @@ These rules are permanent and apply to all future AI sessions:
 
 8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
 
-9. **CSS offset is single-source:** `body { padding-top: var(--flt) }` — `.sc-header` هو `position:sticky` (في التدفق الطبيعي)، لا يحتاج padding. `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
+9. **CSS offset is single-source:** الهيدر الموحّد `position:sticky` (في التدفق الطبيعي) — لا `padding-top` على الـ body؛ مسافة الشريط السفلي = `body.tw-has-bnav` (`app-header.css`). `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
 
 10. **`home.html` و `static/home-v2.js` محذوفان (PR-4).** ممنوع إعادتهما. Auth guard في `home.main.js` يقرر من `TwAuthSync.getSessionSnapshot()` فقط (expired/stale/invalid → `invalidateSession('home_guard')` ثم `/login`؛ guest أو TwAuthSync غير موجود → `/login`).
 
-11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
+11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). الهيدر نفسه = DS-HNAV (`docs/design-system/HEADER-NAV.md` — PR 3.2). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
 
 12. **Home مصمم لملايين المستخدمين — لا ديون تقنية.** قواعد إلزامية:
     - **ممنوع** إضافة feature جديدة فوق ملف واحد كبير — كل feature تذهب لـ module مناسب

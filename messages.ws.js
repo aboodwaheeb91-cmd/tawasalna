@@ -95,7 +95,7 @@ function updateMessageStatus(data) {
 
 function applyMsgBadge(count) {
   document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
-    el.textContent = count > 9 ? '9+' : String(count);
+    el.textContent = twNotifBadgeLabel(count);   // one cap rule (tw_shared.js — HNAV-05)
     el.style.display = count > 0 ? 'inline-block' : 'none';
   });
 }

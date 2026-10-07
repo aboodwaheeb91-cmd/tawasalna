@@ -39,7 +39,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-10`.
 
 8. **`invalidateSession(reason, opts)` allowlist (permanent):** Only removes `['tw_jwt', 'tw_user']`. `startsWith('tw_')` is permanently forbidden — it would destroy user preferences.
 
-9. **Pages adopted by VM-10 (all 6 are complete):** `company-profile.html`, `home-v2.html`, `messages.html`, `notifications.html`, `profile-showcase.html`, `edu-profile.html`. Any new page using `.sc-menu-dropdown` must follow the adoption pattern: load `tw_shared.js` → `auth-sync.js` → call `initGlobalHeaderMenu`.
+9. **Pages adopted by VM-10:** `company-profile.html` + `profile-showcase.html` (own `.sc-header`, call `initGlobalHeaderMenu`) and every page on the unified app header (PR 3.2 — `docs/design-system/HEADER-NAV.md`: `home-v2` · `messages` · `notifications` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail`) — there `twMountAppChrome()` calls `initGlobalHeaderMenu('twHdrMenuBtn','twHdrMenuDd')`; the page never calls it. A new page uses `<header data-tw-header>` — not a hand-written `.sc-header`.
 
 ### Forbidden (VM-10 — permanent)
 

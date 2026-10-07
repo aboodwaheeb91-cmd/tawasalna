@@ -22,6 +22,7 @@
 | ترتيب CSS المشترك مقابل CSS الصفحة | SHELL-04 |
 | أيقونات / `tw-icons.js` | **مش هون** — DS-ICON Phase C (F37) |
 | صفحة محمية (بدها جلسة) | SHELL-09 (`twRequireAuth` + `<meta name="tw-page" content="auth">`) |
+| هيدر / شريط سفلي | **مش هون** — `HEADER-NAV.md` (DS-HNAV: `<header data-tw-header>` + `twMountAppChrome` بـ `tw_shared.js`) |
 
 ---
 
@@ -35,6 +36,7 @@
 | ملفات الأيقونات + `manifest.json` + SW | §32 |
 | ألوان `theme-color` | DS-COLOR (`--color-brand-primary` = `#00c896`) |
 | قرار الدخول (guest → `/login?next=`) | `twRequireAuth` (SHELL-09) — بيقرأ TwAuthSync (§VM-10) بس |
+| الهيدر + الشريط السفلي | DS-HNAV (`HEADER-NAV.md`) — JS بـ `tw_shared.js` مش partial: المحتوى حسب الجلسة، وبيشتغل كمان على صفحات لسّا مش على الـ shell |
 
 ---
 

@@ -6616,7 +6616,7 @@ setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 | `home.cards.js` | `Home.cards.renderCard / renderOpportunityCard / renderPostCard / renderNewsCard` |
 | `home.render.js` | `Home.render.showSkeleton / showEmpty / showError / renderFeed` |
 | `home.filters.js` | `Home.filters.init() / load(filter)` — tab wiring + orchestration |
-| `home.header.js` | `Home.header.init()` — home btn, menu dropdown, logout |
+| ~~`home.header.js`~~ | انحذف PR 3.2 — الهيدر + الشريط السفلي = الهيدر الموحّد (`docs/design-system/HEADER-NAV.md`) |
 | `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments (co sidebar "بنك المواهب" → `twTalentBankHref(user)`) |
 | `home.main.js` | bootstrap only: auth guard (TwAuthSync snapshot), populate state, init modules, load initial feed |
 
@@ -6666,7 +6666,7 @@ CSS vars مشتركة (من `app-header.css`):
 
 - `static/app-header.js` — يبقى للاستخدام المستقبلي (لا يُستخدم في Home V2 أو Profile V2 حالياً)
 - Profile V2 logout يديره `initGlobalHeaderMenu()` من `tw_shared.js`
-- Home V2 logout يديره `home.header.js` على `#hwLogoutBtn`
+- Home V2 logout = قائمة الهيدر الموحّد (`twLogout` عبر `_TW_HEADER_MENU_POLICY` — PR 3.2)
 
 ### DOM Structure
 
@@ -7572,6 +7572,8 @@ type) is wanted and it can be added as a real, working control.
   issue no new HTTP/WebSocket requests
 
 ### Header source — Profile V2 (`.sc-header`)
+
+> **PR 3.2:** `messages.html` · `home-v2.html` · `notifications.html` (والصفحات الفرعية) صارت على الهيدر الموحّد — `docs/design-system/HEADER-NAV.md` (DS-HNAV). الأقسام التالية تاريخية لهالصفحات؛ `.sc-header` اليدوي باقي بس بـ `profile-showcase` + `company-profile` (المرحلة 4).
 
 The site's profile surface — and the header source — is **Profile V2** (`profile-showcase.html`, served by `/u/{tw_id}`). The legacy `profile.html` and its `.toolbar` header were deleted in PR-4.
 

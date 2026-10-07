@@ -491,10 +491,7 @@ var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 |--------|--------------|---------|
 | `profile-showcase.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` / `scMenuDynamic` |
 | `company-profile.html` | ✅ مكتمل | `coMenuBtn` / `coMenuDropdown` / `coMenuDynamic` |
-| `notifications.html` | ✅ مكتمل | `ntMenuBtn` / `ntMenuDropdown` / `ntMenuDynamic` |
-| `messages.html` | ✅ مكتمل | `scMenuBtn` / `scMenuDropdown` |
-| `home-v2.html` | ✅ مكتمل | `hwMenuBtn` / `hwMenuDropdown` |
-| `edu-profile.html` | ✅ مكتمل | `epMenuBtn` / `epMenuDropdown` |
+| الهيدر الموحّد (PR 3.2 — `HEADER-NAV.md`): `notifications` · `messages` · `home-v2` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail` | ✅ مكتمل | `twHdrMenuBtn` / `twHdrMenuDd` (بيعملهم `twMountAppChrome`) |
 
 **قاعدة الاعتماد (إلزامية لأي صفحة جديدة تحمل `.sc-menu-dropdown`):**
 1. تحميل `/tw_shared.js` قبل ملفات الصفحة

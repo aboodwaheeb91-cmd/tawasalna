@@ -10,16 +10,8 @@
 
 <a href="#jdMain" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
-<!-- Navigation -->
-<div class="sc-header jd-header-bar" role="navigation" aria-label="التنقل الرئيسي">
-  <button class="sc-hicon sc-home-btn" id="jdBackBtn" aria-label="رجوع"><i data-tw-icon="prev" data-tw-size="xl"></i></button>
-  <div class="sc-logo">
-    <img src="/static/33333.svg" alt="تواصلنا"
-         onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-    <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
-  </div>
-  <div style="width:40px" aria-hidden="true"></div>
-</div>
+<!-- Unified app header with back; fallback = home when there is no in-site history (HEADER-NAV.md HNAV-03) -->
+<header data-tw-header data-back="home"></header>
 
 <!-- Main shell -->
 <div class="jd-shell" id="jdMain" role="main">
@@ -226,7 +218,6 @@
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
 <script src="/static/shared/tw-options-data.js"></script>
 <script src="/static/shared/tw-skills.js"></script>
-<script src="/static/app-header.js"></script>
 <script src="/static/job/job-detail.js"></script>
 </body>
 </html>

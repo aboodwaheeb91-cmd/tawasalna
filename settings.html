@@ -20,15 +20,10 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100vh;}
 
-/* ── NAV ── */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.07);}
-.nav-back{padding:6px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);font-family:'Cairo',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.nav-back:hover{background:rgba(255,255,255,.12);color:#fff;}
-.nav-title{font-size:.85rem;font-weight:700;color:rgba(255,255,255,.6);}
-.nav-logo{font-size:.95rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+/* Header = unified app header with back (app-header.css · HEADER-NAV.md) */
 
 /* ── MAIN ── */
-.main{padding:72px 16px 48px;max-width:600px;margin:0 auto;}
+.main{padding:20px 16px 48px;max-width:600px;margin:0 auto;}
 .page-title{font-size:1.15rem;font-weight:900;margin-bottom:6px;}
 .page-sub{font-size:.75rem;color:rgba(255,255,255,.35);margin-bottom:28px;}
 
@@ -130,6 +125,7 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 .pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
 .pass-eye:hover{opacity:.9;}
 </style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/app-header.css">
 </head>
 <body>
 <!--
@@ -142,11 +138,8 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 -->
 
 
-<nav class="nav">
-  <button class="nav-back" onclick="goBack()">← رجوع</button>
-  <span class="nav-title">إعدادات الحساب</span>
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
-</nav>
+<!-- Unified app header with back; fallback = own account page when there is no in-site history (HNAV-03) -->
+<header data-tw-header data-back="account"></header>
 
 <div class="main" role="main" id="main-content">
   <div class="page-title">⚙️ إعدادات الحساب</div>
@@ -247,6 +240,7 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/auth-sync.js"></script>
+<script src="/static/shared/tw-icons.js"></script>
 <script src="/static/shared/tw-upload.js"></script>
 <script>
 'use strict';
@@ -406,12 +400,6 @@ function savePassword() {
     if (f && _PW_FIELD_ERR[f.field]) { setErr(_PW_FIELD_ERR[f.field], f.message); return; }
     showToast(apiErr(res.body, 'تعذّر تغيير كلمة المرور'), 'error');
   }).catch(() => { setBtnLoad(btn, false); showToast('تعذّر الاتصال بالخادم، لم تتغيّر كلمة المرور', 'error'); });
-}
-
-// ── Navigation ──
-function goBack() {
-  if (!_user || !_user.tw_id) { window.location.href = twHomeHref(); return; }
-  window.location.href = twAccountHref(_user);
 }
 
 // ── Toast ──

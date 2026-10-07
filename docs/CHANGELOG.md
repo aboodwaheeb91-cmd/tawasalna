@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.2 — هيدر واحد + شريط سفلي واحد (DS-HNAV) — 2026-10-07
+
+- نظام جديد: `twMountAppChrome()` بـ `tw_shared.js` بيرسم `<header data-tw-header [data-back]>` + `<nav data-tw-bottom-nav>` — ترتيب ثابت (مسجّل: رئيسية · لوغو · جرس · رسائل · قائمة / زائر: لوغو · دخول · تسجيل) · زر رجوع اختياري بنفس الهيدر (`twNavBack` — NAV-05) · لوغو `/static/33333.svg` بس · شريط سفلي من تعريف واحد `_TW_BOTTOM_NAV` حسب نوع الحساب، بدون `href="#"` · حد شارات واحد 99+ للجرس والرسائل (`twNotifBadgeLabel` — كانت الرسائل 9+). CSS بـ `static/app-header.css` (DS-SIZE / DS-COLOR tokens).
+- صفحات محوّلة (الكود القديم انحذف): `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail` · `home-v2` · `notifications` · `messages`. انحذف `static/home/home.header.js`. `profile-showcase` + `company-profile` → المرحلة 4 (السبب بـ HEADER-NAV.md HNAV-07).
+- Docs: `docs/design-system/HEADER-NAV.md` (جديد) · SYSTEMS_INDEX §28 / §41 / §53 / §58 · PAGE-SHELL.md · NAVIGATION.md (ثغرة job-detail ✅) · `docs/rules/` (vm10-header · ds-icon · ds-size · home-v2) · سطر بـ `CLAUDE.md` + `DESIGN_SYSTEM.md`. Tests: `test_header_nav.py` (جديد) + تحديث `test_global_ui_visibility.py` · `test_post_comments.py` §151 · `test_page_shell.py` F05 · `test_job_detail_shell.py` B06 · `test_legacy_routes_cleanup.py` · `test_ds_icon_registry.js` (PHASE_C_PAGES) · `test_ds_size_tokens.py` (`app-header.css`).
+
 ## PR 3.5 — نظام متابعة واحد (Follow System — جدول واحد) — 2026-10-07
 
 - Backend: `profile_follows` هو المصدر الوحيد. `_follow_set()` = عملية المتابعة الوحيدة (أي حساب مسجّل يتابع أي حساب، إلا نفسه؛ ضيف 401؛ حساب مش موجود 404). جديد: `GET /profile/{id}/follow` (الحالة + العدّادات) · `get_follow_state()`. migration `company_follows_to_profile_follows` (اختيارية، `ON CONFLICT DO NOTHING`، العدد بالـ log). `/company/follow/{id}` + `GET /company/{id}/followers` = aliases لنفس الدوال (بينحذفوا بـ 3.9). انحذف `follow_company` / `unfollow_company` / `get_company_followers_list`. `get_company_extras` + `/mention/search` صاروا يقروا `profile_follows`. تغيير سلوك: الشركة والجهة التعليمية بيقدروا يتابعوا (كان موظف بس على صفحة الشركة)؛ إشعار متابعة الشركة صار بمفتاح `follow_agg:user:`.

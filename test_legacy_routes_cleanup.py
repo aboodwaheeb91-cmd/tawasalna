@@ -101,13 +101,14 @@ check('2. twTalentBankHref → /u/{tw_id}?cand=',
 check('2. home.nav.js co sidebar → twTalentBankHref (label "بنك المواهب")',
       "label: 'بنك المواهب',  href: twTalentBankHref(user)" in read('static/home/home.nav.js'))
 msg_js = read('messages.render.js')
-check('2. messages.render.js home → twHomeHref(_user) for every type (no Talent Bank exception)',
-      'window.location.href = twHomeHref(_user);' in msg_js and 'twTalentBankHref' not in msg_js)
-check('2. edu-profile.html goHome → twHomeHref()',
-      "window.location.href=twHomeHref();" in read('edu-profile.html'))
+check('2. messages / edu-profile home → unified app header (twHomeHref in tw_shared.js — HEADER-NAV.md)',
+      'goMessengerHome' not in msg_js and 'twTalentBankHref' not in msg_js
+      and 'data-tw-header' in read('messages.html') and 'data-tw-header' in read('edu-profile.html')
+      and "href=\"' + twEscAttr(twHomeHref()) + '\" data-key=\"home\"" in tws)
 st_html = read('settings.html')
-check('2. settings.html goBack → twAccountHref(_user), no hardcoded profile paths',
-      'window.location.href = twAccountHref(_user);' in st_html
+check('2. settings.html back → unified header data-back="account" (twAccountHref), no hardcoded profile paths',
+      '<header data-tw-header data-back="account"></header>' in st_html
+      and "var d = twAccountHref(getTwUser());" in tws
       and "?id=' + _pid" not in st_html)
 check('2. job-detail.js "أكمل مهاراتك الآن" → twAccountHref',
       'twAccountHref(_user)' in read('static/job/job-detail.js'))

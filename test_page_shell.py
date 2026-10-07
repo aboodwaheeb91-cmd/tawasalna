@@ -116,8 +116,8 @@ check("F03 tw_shared.css before app-header.css / home-v2.css",
 srcs = re.findall(r'(?:src|href)="([^"?#]+)', hv2)
 dups = sorted({s for s in srcs if srcs.count(s) > 1 and s.endswith((".css", ".js"))})
 check("F04 no CSS/JS loaded twice", not dups, dups)
-check("F05 auth-sync.js before home.header.js",
-      hv2.index("auth-sync.js") < hv2.index("home.header.js"))
+check("F05 auth-sync.js before home.main.js (header = unified app chrome, HEADER-NAV.md)",
+      hv2.index("auth-sync.js") < hv2.index("home.main.js") and "home.header.js" not in hv2)
 check("F06 charset is the first tag in <head>",
       hv2.index("<head>") < hv2.index('charset="UTF-8"') < hv2.index("<title>"))
 
