@@ -12532,6 +12532,45 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 ---
 
+## Account Security Operations (PR 1.2)
+
+> SYSTEMS_INDEX §1a. Page: `settings.html` (`/settings`). Before PR 1.2 the page showed «تم» for operations that never happened (password checked via `/auth/login` only; email changed in `localStorage` only; phone `PUT` without JWT + success in `.finally`; delete without JWT then wiped storage anyway).
+
+### Endpoints
+
+| Endpoint | Auth | Body | Errors | Success |
+|----------|------|------|--------|---------|
+| `PUT /auth/password` | JWT (401) · `rate_limit_middleware` | `{current_password, new_password}` | 422 field: `current_password/required` · `current_password/wrong_password` (bcrypt) · `new_password/weak_password` (`_password_policy_error`) · `new_password/same_password` · 404 user missing · 500 fixed message | `{ok:true, status:"success"}` |
+| `DELETE /auth/user/{id}/delete` | JWT + `token.user_id == id` (403) · rate limited (path prefix) | `{password}` | 422 `password/required` · `password/wrong_password` · 404 · 500 fixed «تعذّر حذف الحساب، حاول لاحقاً» (never `str(e)`) | `{ok:true, success:true}` |
+
+- 422 shape = `AccountFieldError` handler: `{ok:false, error, errors:[{field, code, message}], detail:{status, message, field}}` (same as `ExternalUrlError` / `PUT /profile`).
+- **One password rule:** `_password_policy_error(pw)` (≥ 6 chars) — used by `POST /auth/register` (400, unchanged message) and `PUT /auth/password`. ❌ a second length check.
+- DB access only via `check_user_password(uid, pw)` (None = no user · False · True) and `set_user_password(uid, pw)` in `auth.py`.
+- Existing JWTs stay valid after a password change (no token version yet) — FUTURE_ROADMAP → Security.
+
+### `settings.html` contract
+
+- `<meta name="tw-page" content="auth">` + `twRequireAuth()` (Auth Gateway rule 14) · loads `tw_shared.js` → `static/shared/auth-sync.js`.
+- Displayed name / email / phone / account type / tw_id ← `GET /profile/{uid}/full` (owner projection). ❌ `tw_user` / `tw_profile_data` as data source.
+- All calls through one page `api()` (`getAuthHeaders(true)`; 401 → `TwAuthSync.invalidateSession('api_401')` → guard → `/login?next=/settings`). Success toast only on `r.ok`; field errors via `normalizeErrorResponse`; network failure → error.
+- Phone: `PUT /profile/{uid}` `{phone}` then re-fetch — no manual `localStorage` write.
+- Email change: **hidden** — read-only row + «تغيير البريد الإلكتروني — قريباً» (FUTURE_ROADMAP 5.1).
+- Account delete: **hidden** — read-only row «حذف الحساب — قريباً» until soft delete (F27). The endpoint stays, password-checked. When re-enabled: password field → `DELETE …/delete` → only after `r.ok` → `TwAuthSync.invalidateSession(…)` (never manual storage wipe).
+
+### `users` delete — FK audit (2026-10-07)
+
+Every FK to `users(id)` is `ON DELETE CASCADE` or `SET NULL` except `profession_suggestions.reviewed_by` (NO ACTION — never written by code). `job_pipeline_entries.job_id → jobs` is `RESTRICT`, but the same entries cascade through `company_id`; a company delete with pipeline entries was verified on PostgreSQL 16 (succeeds). No orphan rows; Storage files (avatars / covers / kyc-docs) are **not** removed.
+
+| Effect of `DELETE FROM users` | Tables |
+|------------------------------|--------|
+| CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · verify_requests · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
+| CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_follows · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) · reports (reported) |
+| SET NULL — history kept | notifications.actor_id · reports.reporter_id · company_post_views.viewer_user_id · company_saved_candidates.saved_by · appointments.representative_user_id · appointment_events.actor_id · jobs.archived_by · job_pipeline_entries created_by / stage_updated_by / archived_by · pipeline_stage_events.changed_by · pipeline_notes.created_by · candidate_bank_notes.created_by · news_posts.created_by |
+
+Test: `python -m pytest test_account_security.py -q`.
+
+---
+
 ## §72 — Core Schema: Base Tables (`init_db()` in `auth.py`)
 
 > PR-3b: moved from `CLAUDE.md → Database Schema` and corrected from `auth.py → init_db()`. Tables are auto-created on startup (`CREATE TABLE IF NOT EXISTS`) with inline `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migrations. Feature tables (company, pipeline, comments, notifications, appointments …) are documented in their own sections.

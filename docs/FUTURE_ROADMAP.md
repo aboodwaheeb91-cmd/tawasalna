@@ -180,6 +180,9 @@
 
 - [ ] **P2** — تنظيف ملفات Storage اليتيمة (الصور القديمة بعد الاستبدال): كل رفع بيولّد اسم جديد (PR-7a)، فالصورة القديمة بتضل بـ `avatars` / `site` / `kyc-docs` بعد الاستبدال أو الحذف — وكمان الكائن المرفوع لما ترحيل PR-7c يلاقي `changed_concurrently`. المطلوب: مهمة أدمن (dry run أولاً) بتقارن كائنات الـ bucket بالقيم المحفوظة بالداتا وبتحذف اليتيم بعد مهلة أمان.
 - [ ] **P2** — Rate limiting audit: مراجعة rate limits على endpoints الحساسة (تعليق، تقدير، متابعة)
+- [ ] **P1** — تغيير البريد الإلكتروني (خطة إنهاء الموقع **5.1**): مخفي بـ `settings.html` من PR 1.2 (سطر «تغيير البريد الإلكتروني — قريباً»، الإيميل للقراءة بس). المطلوب: endpoint حقيقي بتأكيد كلمة السر + OTP على الإيميل الجديد (يحتاج Email Provider — اليوم `is_email_otp_delivery_available()` = False) + فحص التكرار.
+- [ ] **P1** — حذف الحساب soft delete (F27): الواجهة مخفية من PR 1.2 («حذف الحساب — قريباً»). `DELETE /auth/user/{id}/delete` اليوم hard delete بيمسح بيانات أطراف تانية (رسائل · مواعيد · طلبات توظيف · تقييمات) — جدول الأثر بـ `ARCHITECTURE.md → Account Security Operations (PR 1.2)`. المطلوب: `users.deleted_at` + منع الدخول + إخفاء من الـ Smart Router والبحث + تنظيف ملفات Storage، وبعدين إرجاع الزر (كلمة سر + `TwAuthSync.invalidateSession`).
+- [ ] **P2** — إبطال الجلسات بعد تغيير كلمة السر: الـ JWT القديم بيضل صالح لحد ما ينتهي (ما في token version). اقتراح: `users.password_changed_at` + فحصه بـ `verify_token`.
 
 > **ملاحظة — مراجعة أمنية شاملة مؤجلة:**
 > مراجعة الأمن الشاملة للمنصة (security audit كامل للـ endpoints والـ auth flow والـ permissions) مؤجلة إلى ما بعد اكتمال ميزات المنصة الأساسية.
