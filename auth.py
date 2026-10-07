@@ -4027,7 +4027,8 @@ def ensure_company_tables():
                 updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        # ── company_follows — M:M, UNIQUE prevents double-follow at DB level ──
+        # ── company_follows — LEGACY (PR 3.5): nobody reads/writes it; rows moved to
+        #    profile_follows by _migrate_company_follows_to_profile_follows(). Dropped in PR 3.9. ──
         conn.run("""
             CREATE TABLE IF NOT EXISTS company_follows (
                 id          SERIAL PRIMARY KEY,
@@ -4200,8 +4201,8 @@ def get_company_extras(company_id: int, viewer_id: int = None) -> dict:
     """
     conn = get_conn()
     try:
-        # followers count — uses idx_follows_company
-        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+        # followers count — Follow System (PR 3.5): profile_follows only (idx_pf_followed)
+        fc = conn.run("SELECT COUNT(*) FROM profile_follows WHERE followed_id = :cid",
                       cid=company_id)
         followers_count = fc[0][0] if fc else 0
 
@@ -4217,7 +4218,7 @@ def get_company_extras(company_id: int, viewer_id: int = None) -> dict:
         my_rating    = None
         if viewer_id:
             f = conn.run(
-                "SELECT 1 FROM company_follows WHERE company_id = :cid AND follower_id = :vid",
+                "SELECT 1 FROM profile_follows WHERE followed_id = :cid AND follower_id = :vid",
                 cid=company_id, vid=viewer_id)
             is_following = bool(f)
             r = conn.run(
@@ -4251,145 +4252,6 @@ def update_company_profile(user_id: int, fields: dict) -> bool:
             f"UPDATE company_profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
             uid=user_id, **clean)
         return True
-    finally:
-        release_conn(conn)
-
-
-def follow_company(follower_id: int, company_id: int) -> int:
-    """Follow (idempotent). Returns new followers_count."""
-    conn = get_conn()
-    try:
-        ins_rows = conn.run(
-            "INSERT INTO company_follows (company_id, follower_id) VALUES (:cid, :fid) "
-            "ON CONFLICT (company_id, follower_id) DO NOTHING RETURNING follower_id",
-            cid=company_id, fid=follower_id)
-        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
-                      cid=company_id)
-        count = fc[0][0] if fc else 0
-        # V2-2: aggregated follow notification (non-fatal, fresh follow only)
-        if ins_rows:
-            if follower_id != company_id:
-                try:
-                    urows = conn.run(
-                        "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
-                    crows = conn.run(
-                        "SELECT tw_id FROM users WHERE id = :cid", cid=company_id)
-                    if urows:
-                        follower_name = urows[0][0] or ''
-                        company_tw_id = crows[0][0] if crows else ''
-                        agg_key = f"follow_agg:company:{company_id}"
-                        ex_agg = conn.run(
-                            "SELECT aggregation_count FROM notifications "
-                            "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
-                            "ORDER BY created_at DESC LIMIT 1",
-                            uid=company_id, akey=agg_key
-                        )
-                        ex_count = ex_agg[0][0] if ex_agg else 0
-                        new_count = ex_count + 1
-                        if new_count == 1:
-                            notif_title = "شخص جديد يتابعك"
-                            notif_body = f"{follower_name} بدأ بمتابعتك"
-                        else:
-                            notif_title = f"{new_count} أشخاص يتابعونك"
-                            notif_body = f"{follower_name} و{new_count - 1} آخرون بدأوا بمتابعتك"
-                        create_or_update_aggregated_notification(
-                            recipient_user_id=company_id,
-                            type_="follow",
-                            title=notif_title,
-                            body=notif_body,
-                            aggregation_key=agg_key,
-                            target_type="company",
-                            target_id=company_id,
-                            actor_id=follower_id,
-                            action_url=f"/u/{company_tw_id}#followers",
-                            aggregation_kind="follow",
-                        )
-                except Exception as _notif_err:
-                    print(f"[TW-WARN] follow notification (company {company_id}) failed: {_notif_err}")
-        return count
-    finally:
-        release_conn(conn)
-
-
-def unfollow_company(follower_id: int, company_id: int) -> int:
-    """Unfollow (idempotent). Returns new followers_count."""
-    conn = get_conn()
-    try:
-        conn.run(
-            "DELETE FROM company_follows WHERE company_id = :cid AND follower_id = :fid",
-            cid=company_id, fid=follower_id)
-        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
-                      cid=company_id)
-        return fc[0][0] if fc else 0
-    finally:
-        release_conn(conn)
-
-
-def get_company_followers_list(company_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:
-    """Paginated list of accounts following company_id. viewer_id=None for guests."""
-    conn = get_conn()
-    try:
-        # Per-type counts (single query)
-        type_rows = conn.run(
-            "SELECT u.user_type, COUNT(*) FROM company_follows cf "
-            "JOIN users u ON u.id=cf.follower_id "
-            "WHERE cf.company_id=:cid GROUP BY u.user_type",
-            cid=company_id) or []
-        type_counts = {"emp": 0, "co": 0, "edu": 0}
-        for row in type_rows:
-            utype, cnt = row[0], row[1]
-            if utype in type_counts:
-                type_counts[utype] = cnt
-        total_all = sum(type_counts.values())
-        counts = {"all": total_all, **type_counts}
-        total = type_counts.get(user_type, 0) if user_type != "all" else total_all
-
-        where_type = "AND u.user_type=:utype " if user_type != "all" else ""
-        # Check if viewer follows each follower (via profile_follows — cross-entity follow)
-        if viewer_id is not None:
-            is_following_expr = (
-                "EXISTS(SELECT 1 FROM profile_follows v "
-                "WHERE v.follower_id=:vid AND v.followed_id=u.id)")
-        else:
-            is_following_expr = "FALSE"
-
-        query = (
-            "SELECT u.id, u.tw_id, u.full_name, u.user_type, p.avatar_url, "
-            "pc.name_ar, pc.icon, cf.created_at, " + is_following_expr + " "
-            "FROM company_follows cf "
-            "JOIN users u ON u.id=cf.follower_id "
-            "LEFT JOIN profiles p ON p.user_id=u.id "
-            "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
-            "WHERE cf.company_id=:cid " + where_type +
-            "ORDER BY cf.created_at DESC LIMIT :lim OFFSET :off"
-        )
-        params = {"cid": company_id, "lim": limit, "off": offset}
-        if viewer_id is not None:
-            params["vid"] = int(viewer_id)
-        if user_type != "all":
-            params["utype"] = user_type
-
-        rows = conn.run(query, **params) or []
-        items = []
-        for r in rows:
-            uid, tw_id, full_name, utype, avatar_url, prof_name, prof_icon, followed_at, is_following = r
-            items.append({
-                "id":           uid,
-                "tw_id":        tw_id,
-                "display_name": full_name,
-                "avatar_url":   avatar_url,
-                "user_type":    utype,
-                "profession":   {"name_ar": prof_name, "icon": prof_icon} if prof_name else None,
-                "is_following": bool(is_following),
-                "can_follow":   viewer_id is not None and int(viewer_id) != uid,
-                "followed_at":  followed_at.isoformat() if hasattr(followed_at, "isoformat") else (str(followed_at) if followed_at else None),
-            })
-        return {
-            "items":      items,
-            "filter":     {"type": user_type},
-            "counts":     counts,
-            "pagination": {"limit": limit, "offset": offset, "has_more": (offset + limit) < total, "total": total},
-        }
     finally:
         release_conn(conn)
 
@@ -5014,7 +4876,10 @@ def delete_company_post_comment(comment_id: int, user_id: int) -> bool:
         release_conn(conn)
 
 
-# ══ Profile Follow System ══
+# ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
+# profile_follows is the ONLY follow table: any signed-in account follows any other
+# account (emp / co / edu), never itself. company_follows is legacy — read only by
+# _migrate_company_follows_to_profile_follows() until it is dropped in PR 3.9.
 
 def follow_profile(follower_id: int, followed_id: int) -> int:
     """Follow a profile (idempotent). Returns new followers_count."""
@@ -5114,6 +4979,40 @@ def is_profile_following(follower_id: int, followed_id: int) -> bool:
         return bool(rows)
     finally:
         release_conn(conn)
+
+
+def get_follow_state(user_id: int, viewer_id=None) -> dict:
+    """Follow counters of any account + whether viewer_id follows it (one query)."""
+    vid = int(viewer_id) if viewer_id is not None and int(viewer_id) != int(user_id) else 0
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT (SELECT COUNT(*) FROM profile_follows WHERE followed_id = :uid), "
+            "(SELECT COUNT(*) FROM profile_follows WHERE follower_id = :uid2), "
+            "EXISTS(SELECT 1 FROM profile_follows WHERE follower_id = :vid AND followed_id = :uid3)",
+            uid=user_id, uid2=user_id, vid=vid, uid3=user_id)
+    r = rows[0] if rows else (0, 0, False)
+    return {"followers_count": int(r[0] or 0), "following_count": int(r[1] or 0),
+            "is_following": bool(r[2])}
+
+
+def _migrate_company_follows_to_profile_follows() -> int:
+    """PR 3.5 — copy every company_follows row into profile_follows (the one follow table).
+    Idempotent: ON CONFLICT DO NOTHING; self rows skipped (no_self_follow CHECK).
+    company_follows itself is left in place (dropped in PR 3.9). Returns rows moved."""
+    with db_conn() as conn:
+        present = conn.run("SELECT to_regclass('public.company_follows') IS NOT NULL")
+        if not present or not present[0][0]:
+            print("[migration] company_follows → profile_follows: no legacy table, nothing to move")
+            return 0
+        total = conn.run("SELECT COUNT(*) FROM company_follows")[0][0]
+        moved = conn.run(
+            "INSERT INTO profile_follows (follower_id, followed_id, created_at) "
+            "SELECT follower_id, company_id, created_at FROM company_follows "
+            "WHERE follower_id <> company_id "
+            "ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id") or []
+    print(f"[migration] company_follows → profile_follows: legacy_rows={total} "
+          f"moved={len(moved)} already_present_or_self={total - len(moved)}")
+    return len(moved)
 
 
 def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:

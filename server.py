@@ -139,12 +139,13 @@ from auth import (
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
     _validate_accepted_profession_ids,
-    follow_company, unfollow_company, get_company_followers_list, rate_company,
+    rate_company,
     get_company_ratings_detail,
     get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, set_company_post_appreciation, set_company_post_save,
     get_company_post_comments, create_company_post_comment, update_company_post_comment, delete_company_post_comment,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
-    get_profile_followers_list, get_profile_following_list,
+    get_profile_followers_list, get_profile_following_list, get_follow_state,
+    _migrate_company_follows_to_profile_follows,
     record_profile_view, get_profile_views_count,
     save_profile_interest, remove_profile_interest,
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
@@ -759,6 +760,7 @@ def _startup_migrations():
         ("pipeline_schema_v1",                _migrate_pipeline_schema_v1,         True),
         ("pr5_pipeline_linking",              _migrate_pr5_pipeline_linking,       True),
         ("applicants_candidates_split",       _migrate_applicants_candidates_split, True),
+        ("company_follows_to_profile_follows", _migrate_company_follows_to_profile_follows, False),
     )
 
 
@@ -2298,54 +2300,26 @@ class ReportInput(BaseModel):
     target_url: Optional[str] = None
 
 
-# ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
+# ══ Phase 2 Step 4: Company social endpoints (rate) ══
+# Follow System (PR 3.5): /company/follow/{id} and /company/{id}/followers are TEMPORARY
+# aliases of /profile/{id}/follow and /profile/{id}/followers — same functions, same
+# profile_follows table — kept only for pages cached by old browsers. Delete in PR 3.9.
 @app.post("/company/follow/{company_id}")
 def company_follow(company_id: str, token=Depends(verify_token)):
-    user_id   = token.get("user_id")
-    user_type = token.get("user_type")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: POST /company/follow")
-        raise HTTPException(401, "رمز غير صالح")
-    if user_type != "emp":
-        print(f"[SECURITY] FOLLOW_FORBIDDEN: user_type={user_type} tried follow")
-        raise HTTPException(403, "الموظفون فقط يمكنهم المتابعة")
-    resolved_id = _resolve_company_id(company_id)
-    if int(user_id) == resolved_id:
-        print(f"[SECURITY] SELF_FOLLOW: user={user_id}")
-        raise HTTPException(400, "لا يمكنك متابعة نفسك")
-    count = follow_company(int(user_id), resolved_id)
-    return {"status": "success", "following": True, "followers_count": count}
+    r = _follow_set(token, company_id, True)   # alias — delete in PR 3.9
+    return {"status": "success", "following": r["is_following"], **r}
 
 
 @app.delete("/company/follow/{company_id}")
 def company_unfollow(company_id: str, token=Depends(verify_token)):
-    user_id = token.get("user_id")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: DELETE /company/follow")
-        raise HTTPException(401, "رمز غير صالح")
-    resolved_id = _resolve_company_id(company_id)
-    count = unfollow_company(int(user_id), resolved_id)
-    return {"status": "success", "following": False, "followers_count": count}
+    r = _follow_set(token, company_id, False)  # alias — delete in PR 3.9
+    return {"status": "success", "following": r["is_following"], **r}
 
 
 @app.get("/company/{company_id}/followers")
 def company_followers_list(company_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
-    """Paginated followers list for a company. Public — no auth required. type: all|emp|co|edu"""
-    if type not in _VALID_FOLLOW_TYPES:
-        raise HTTPException(400, "نوع غير صالح — القيم المسموحة: all, emp, co, edu")
-    resolved_id = _resolve_company_id(company_id)
-    if not resolved_id:
-        raise HTTPException(404, "الشركة غير موجودة")
-    limit  = min(max(limit, 1), 50)
-    offset = max(offset, 0)
-    viewer_id = None
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        payload = _jwt_decode(auth_header[7:])
-        if payload:
-            viewer_id = payload.get("user_id")
-    result = get_company_followers_list(resolved_id, viewer_id, limit, offset, type)
-    return {"status": "success", **result}
+    """Alias of GET /profile/{id}/followers (PR 3.5) — delete in PR 3.9."""
+    return profile_followers_list(company_id, request, limit, offset, type)
 
 
 @app.post("/company/rate/{company_id}")
@@ -2616,14 +2590,12 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     Search users to @mention in comments.
 
     Results are sourced by viewer account type:
-    - emp / edu / other: profile_follows both directions + companies viewer follows + any user (if q)
-    - co (company):      people who follow this company + any user (if q)
+    - every account type: profile_follows both directions + any user (if q)
 
     Returns up to `limit` candidates [{tw_id, name, avatar, user_type}].
 
     Perf:
-    - Employee path: single UNION ALL (1 DB roundtrip, unique param names per branch).
-    - Company path: single indexed scan on company_follows.company_id.
+    - Single UNION ALL (1 DB roundtrip, unique param names per branch).
     - When q is empty: pure FK-indexed scan, no ILIKE, no Priority 4.
     - When q is provided: ILIKE per branch; Priority 4 (any user) fills remaining slots.
     - Errors are logged and returned as {"ok": False} — never swallowed silently.
@@ -2645,99 +2617,43 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     try:
         conn = get_conn()
 
-        if viewer_type == "co":
-            # Company viewer: return people who follow this company.
-            # company_follows.company_id = the company (viewer)
-            # company_follows.follower_id = the person who follows
-            if q:
-                q_like = f"%{q}%"
-                _add(conn.run(
-                    "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM company_follows cf"
-                    " JOIN users u ON u.id = cf.follower_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE cf.company_id = :vid AND u.full_name ILIKE :q LIMIT :lim",
-                    vid=viewer_id, q=q_like, lim=limit))
-                # Priority 4 — any matching user (fills remaining slots)
-                if len(results) < limit:
-                    _add(conn.run(
-                        "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                        " FROM users u"
-                        " LEFT JOIN profiles p ON p.user_id = u.id"
-                        " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
-                        vid=viewer_id, q=q_like, lim=limit))
-            else:
-                # No q: pure FK-indexed scan on company_id (idx_follows_company)
-                _add(conn.run(
-                    "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM company_follows cf"
-                    " JOIN users u ON u.id = cf.follower_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE cf.company_id = :vid LIMIT :lim",
-                    vid=viewer_id, lim=limit))
-
-        else:
-            # Employee / edu / other viewer:
-            # Branch A: profiles I follow (profile_follows.follower_id = me → followed_id)
-            # Branch B: profiles who follow me (profile_follows.followed_id = me → follower_id)
-            # Branch C: companies I follow (company_follows.follower_id = me → company_id)
-            # Merged in a single UNION ALL (1 DB roundtrip).
-            # Unique param names per branch (:vid_a/b/c, :lim_a/b/c, :q_a/b/c) guarantee
-            # unambiguous pg8000 $N positional mapping across UNION branches.
-            if q:
-                q_like = f"%{q}%"
-                _add(conn.run(
-                    "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM profile_follows pf"
-                    " JOIN users u ON u.id = pf.followed_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE pf.follower_id = :vid_a AND u.full_name ILIKE :q_a LIMIT :lim_a)"
-                    " UNION ALL"
-                    " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM profile_follows pf"
-                    " JOIN users u ON u.id = pf.follower_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 AND u.full_name ILIKE :q_b LIMIT :lim_b)"
-                    " UNION ALL"
-                    " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
-                    " FROM company_follows cf"
-                    " JOIN users u ON u.id = cf.company_id"
-                    " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                    " WHERE cf.follower_id = :vid_c AND u.full_name ILIKE :q_c LIMIT :lim_c)",
-                    vid_a=viewer_id, q_a=q_like, lim_a=limit,
-                    vid_b=viewer_id, vid_b2=viewer_id, q_b=q_like, lim_b=limit,
-                    vid_c=viewer_id, q_c=q_like, lim_c=limit))
-                # Priority 4 — any matching user (only when q provided + space left)
-                if len(results) < limit:
-                    _add(conn.run(
-                        "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                        " FROM users u"
-                        " LEFT JOIN profiles p ON p.user_id = u.id"
-                        " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
-                        vid=viewer_id, q=q_like, lim=limit))
-            else:
-                # No q: pure FK-indexed scan — no ILIKE, no ORDER BY, no Priority 4
-                _add(conn.run(
-                    "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM profile_follows pf"
-                    " JOIN users u ON u.id = pf.followed_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE pf.follower_id = :vid_a LIMIT :lim_a)"
-                    " UNION ALL"
-                    " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM profile_follows pf"
-                    " JOIN users u ON u.id = pf.follower_id"
-                    " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)"
-                    " UNION ALL"
-                    " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
-                    " FROM company_follows cf"
-                    " JOIN users u ON u.id = cf.company_id"
-                    " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                    " WHERE cf.follower_id = :vid_c LIMIT :lim_c)",
-                    vid_a=viewer_id, lim_a=limit,
-                    vid_b=viewer_id, vid_b2=viewer_id, lim_b=limit,
-                    vid_c=viewer_id, lim_c=limit))
+        # Every account type (Follow System PR 3.5 — profile_follows is the only follow table):
+        # Branch A: accounts I follow (profile_follows.follower_id = me → followed_id)
+        # Branch B: accounts who follow me (profile_follows.followed_id = me → follower_id)
+        # Merged in a single UNION ALL (1 DB roundtrip).
+        # Unique param names per branch (:vid_a/b, :lim_a/b, :q_a/b) guarantee
+        # unambiguous pg8000 $N positional mapping across UNION branches.
+        # Avatar: profiles.avatar_url, else company_profiles.avatar_url (company logo).
+        q_like = f"%{q}%" if q else None
+        q_a = " AND u.full_name ILIKE :q_a" if q else ""
+        q_b = " AND u.full_name ILIKE :q_b" if q else ""
+        params = {"vid_a": viewer_id, "lim_a": limit,
+                  "vid_b": viewer_id, "vid_b2": viewer_id, "lim_b": limit}
+        if q:
+            params.update(q_a=q_like, q_b=q_like)
+        _add(conn.run(
+            "(SELECT u.tw_id, u.full_name, COALESCE(p.avatar_url, cp.avatar_url), u.user_type"
+            " FROM profile_follows pf"
+            " JOIN users u ON u.id = pf.followed_id"
+            " LEFT JOIN profiles p ON p.user_id = u.id"
+            " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+            " WHERE pf.follower_id = :vid_a" + q_a + " LIMIT :lim_a)"
+            " UNION ALL"
+            " (SELECT u.tw_id, u.full_name, COALESCE(p.avatar_url, cp.avatar_url), u.user_type"
+            " FROM profile_follows pf"
+            " JOIN users u ON u.id = pf.follower_id"
+            " LEFT JOIN profiles p ON p.user_id = u.id"
+            " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+            " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" + q_b + " LIMIT :lim_b)",
+            **params))
+        # Priority 4 — any matching user (only when q provided + space left)
+        if q and len(results) < limit:
+            _add(conn.run(
+                "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                " FROM users u"
+                " LEFT JOIN profiles p ON p.user_id = u.id"
+                " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                vid=viewer_id, q=q_like, lim=limit))
 
     except Exception as _exc:
         print(f"[mention_search] ERROR viewer={viewer_id} type={viewer_type} q={q!r}: {_exc}")
@@ -3775,43 +3691,64 @@ def full_profile(user_id: str, token=Depends(verify_token)):
     return {"status": "success", "profile": project_owner_profile(profile)}
 
 
-# ══ Profile Follow Endpoints ══
+# ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
+# ONE rule: any signed-in account (emp / co / edu) follows any other account, never
+# itself. Guest → 401 (verify_token) → the page sends them to login. One table:
+# profile_follows. /company/follow/* are temporary aliases of _follow_set (PR 3.9).
 
-@app.post("/profile/{user_id}/follow")
-def profile_follow(user_id: str, token=Depends(verify_token)):
+def _resolve_account_id(raw: str) -> int:
+    """Numeric users.id or tw_id → users.id. 404 when unknown."""
+    raw = (raw or "").strip()
+    if raw.isascii() and raw.isdigit() and len(raw) <= 18:
+        with db_conn() as conn:
+            rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=int(raw))
+        uid = rows[0][0] if rows else None
+    else:
+        uid = get_user_id_by_tw_id(raw)
+    if not uid:
+        raise HTTPException(404, "الحساب غير موجود")
+    return int(uid)
+
+
+def _follow_set(token: dict, target_raw: str, follow: bool) -> dict:
+    """The only follow / unfollow action → {is_following, followers_count}."""
     viewer_id = token.get("user_id")
     if not viewer_id:
         raise HTTPException(401, "رمز غير صالح")
-
-    try:
-        target_id = int(user_id)
-    except ValueError:
-        raise HTTPException(400, "معرّف غير صالح")
-
+    target_id = _resolve_account_id(target_raw)
+    if not follow:
+        return {"is_following": False, "followers_count": unfollow_profile(int(viewer_id), target_id)}
     if int(viewer_id) == target_id:
         raise HTTPException(400, "لا يمكنك متابعة نفسك")
-
     try:
         count = follow_profile(int(viewer_id), target_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    print(f"[follow] user={viewer_id} → {target_id} followers={count}")
+    return {"is_following": True, "followers_count": count}
 
-    return {"status": "success", "is_following": True, "followers_count": count}
+
+@app.post("/profile/{user_id}/follow")
+def profile_follow(user_id: str, token=Depends(verify_token)):
+    return {"status": "success", **_follow_set(token, user_id, True)}
 
 
 @app.delete("/profile/{user_id}/follow")
 def profile_unfollow(user_id: str, token=Depends(verify_token)):
-    viewer_id = token.get("user_id")
-    if not viewer_id:
-        raise HTTPException(401, "رمز غير صالح")
+    return {"status": "success", **_follow_set(token, user_id, False)}
 
-    try:
-        target_id = int(user_id)
-    except ValueError:
-        raise HTTPException(400, "معرّف غير صالح")
 
-    count = unfollow_profile(int(viewer_id), target_id)
-    return {"status": "success", "is_following": False, "followers_count": count}
+@app.get("/profile/{user_id}/follow")
+def profile_follow_state(user_id: str, request: Request):
+    """Follow state of any account: counters + viewer.is_following. Public (guest → false)."""
+    target_id = _resolve_account_id(user_id)
+    viewer_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        if payload:
+            viewer_id = payload.get("user_id")
+    return api_ok(get_follow_state(target_id, viewer_id))
 
 
 _VALID_FOLLOW_TYPES = {"all", "emp", "co", "edu"}

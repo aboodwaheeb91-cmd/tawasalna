@@ -4920,7 +4920,14 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 
 ---
 
-## [P1] 53. Profile Follows System
+## [P1] 53. Follow System (one table — PR 3.5)
+
+**The rule (F5 / F29):** any signed-in account (`emp` / `co` / `edu`) can follow any other account, never itself. Guest → 401 → the page sends them to `twLoginHref(current page)`. One table (`profile_follows`), one action (`_follow_set()` in `server.py` → `follow_profile` / `unfollow_profile` in `auth.py`), one counter source (`profile_follows` — company page `get_company_extras`, profile `/profile/{id}` + `/metrics`, follow state, lists all count the same rows).
+
+- `company_follows` is **legacy**: `_migrate_company_follows_to_profile_follows()` (startup, optional) copies its rows into `profile_follows` with `ON CONFLICT DO NOTHING` (self rows skipped) and logs `legacy_rows / moved / already_present_or_self`. Nothing reads or writes it after that; it is dropped in **PR 3.9**.
+- `/company/follow/{id}` (POST/DELETE) and `GET /company/{id}/followers` are **temporary aliases** (old cached pages) that call the same functions — delete in PR 3.9.
+- Follow notification: one hook in `follow_profile` (`follow_agg:user:{followed_id}`) for every account type — the old `follow_agg:company:` key is no longer created.
+- `/mention/search`: both directions of `profile_follows` for every account type.
 
 **Database Table: `profile_follows`**
 
@@ -4942,8 +4949,11 @@ CREATE TABLE profile_follows (
 
 | Method | Path | Auth | Response |
 |--------|------|------|----------|
-| POST | `/profile/{user_id}/follow` | JWT | `{status, is_following: true, followers_count: <int>}` |
-| DELETE | `/profile/{user_id}/follow` | JWT | `{status, is_following: false, followers_count: <int>}` |
+| POST | `/profile/{user_id}/follow` | JWT (any type) | `{status, is_following: true, followers_count: <int>}` · self → 400 · unknown → 404 · guest → 401 |
+| DELETE | `/profile/{user_id}/follow` | JWT (any type) | `{status, is_following: false, followers_count: <int>}` |
+| GET | `/profile/{user_id}/follow` | optional JWT | `{ok, data: {followers_count, following_count, is_following}}` (guest → `is_following: false`) |
+
+`user_id` = numeric id or `tw_id` (`_resolve_account_id`).
 
 ### API Endpoints — Read (Paginated Lists)
 
@@ -5162,33 +5172,18 @@ invalid type → HTTP 400
 
 **Implemented in:** PR #295 (feat/company-followers-modal)
 
-### Architecture Note — Two Follow Tables (Not Unified)
+### Architecture Note — One Follow Table (PR 3.5)
 
-The platform has **two separate follow tables**:
-
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `profile_follows` | Employee/user follows any user profile | `follower_id`, `followed_id` |
-| `company_follows` | User follows a company | `follower_id`, `company_id` |
-
-These tables are **not unified**. A migration to unify them is deferred to a future standalone PR with a clear migration plan. Do not attempt to merge them in an unrelated PR.
-
-### Database Table: `company_follows`
-
-```sql
--- Existing table (created in Phase 2)
-company_follows: id PK, company_id FK(users.id), follower_id FK(users.id), created_at
-  UNIQUE(company_id, follower_id)
-  -- No DB-level self-follow CHECK (only server-level guard)
-```
+Company followers are `profile_follows` rows with `followed_id = company id` (§53). `company_follows` is legacy (migrated, read by nobody, dropped in PR 3.9).
 
 ### API Endpoint
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/company/{company_id}/followers?limit=20&offset=0&type=all` | None (public, optional JWT) | قائمة متابعي الشركة |
+| GET | `/profile/{company_id}/followers?limit=20&offset=0&type=all` | None (public, optional JWT) | قائمة متابعي الشركة (نفس endpoint البروفايل) |
 
-- `company_id` accepts numeric id or `tw_id` (resolved via `_resolve_company_id()`)
+- `GET /company/{company_id}/followers` = temporary alias of the same function (delete in PR 3.9)
+- `company_id` accepts numeric id or `tw_id`
 - `type` values: `all` \| `emp` \| `co` \| `edu` — invalid value → HTTP 400
 - `limit` capped at 50; `offset` min 0
 - Optional JWT: if provided, `is_following` per item is populated via `profile_follows` (cross-entity follow check)
@@ -5218,17 +5213,16 @@ company_follows: id PK, company_id FK(users.id), follower_id FK(users.id), creat
 
 ### Backend Function
 
-`get_company_followers_list(company_id, viewer_id, limit, offset, user_type="all")` in `auth.py`
+`get_profile_followers_list(followed_id, viewer_id, limit, offset, user_type="all")` in `auth.py` (`get_company_followers_list` removed — PR 3.5)
 
-- Mirrors `get_profile_followers_list` pattern
 - `is_following` = EXISTS in `profile_follows` (viewer → follower) — no N+1
 - `viewer_id = None` for unauthenticated requests → `is_following = FALSE`
 
 ### Frontend — Company Followers Modal
 
 **Files:**
-- `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
-- `static/company/company.main.js` — Company Followers Modal IIFE (open/close/fetch/render) + Soft Refresh IIFE
+- `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)` + `followAccount(id, follow)` (both `twApi` → `/profile/{id}/…`)
+- `static/company/company.main.js` — follow button (`toggleFollow` → `followAccount`) + Company Followers Modal IIFE (open/close/fetch/render) + Soft Refresh IIFE
 - `static/company/company.css` — `.co-fl-*` styles + `.co-stat-clickable`
 - `company-profile.html` — `#coStatFollowersTile` (clickable) + `#coFollowListModal` (HTML structure)
 
@@ -5237,20 +5231,19 @@ company_follows: id PK, company_id FK(users.id), follower_id FK(users.id), creat
 - Bottom-sheet on mobile (≤539px), centered panel on desktop (≥540px)
 - Filter chips: `all` / `emp` / `co` / `edu` — filtering done server-side (preserves pagination correctness)
 - Load More: offset-based, `has_more` from backend
-- Per-item follow button: calls `POST/DELETE /profile/{uid}/follow` (cross-entity follow via `profile_follows`)
+- Per-item follow button: `followAccount(uid, …)` → `POST/DELETE /profile/{uid}/follow`; guest → `twLoginHref`
 - Soft Refresh: `loadData({silent:true})` every 30 s, paused while tab is hidden (`visibilitychange`)
 - Close: `#coFlClose` button, backdrop click, ESC key
 
-**Single Tab Only:**
-The modal has no "يتابع" tab because companies do not follow other users. Any future addition of company-follows-company must be a separate PR.
+**Single Tab Only (for now):**
+Since PR 3.5 a company can follow accounts too (data is in `profile_follows`, readable via `GET /profile/{id}/following`), but the company modal still shows followers only — a "يتابع" tab is a separate UI decision.
 
 ### ممنوعات
 
 ```
-❌ لا تُضيف تبويب "يتابع" لشركة (الشركات لا تتابع حسابات أخرى)
-❌ لا تستخدم profile_follows لبيانات متابعي الشركة
-❌ لا تدمج company_follows و profile_follows في هذا السياق
-❌ لا تعمل DB migration لتوحيد الجدولين إلا في PR مستقل بخطة واضحة
+❌ قراءة أو كتابة company_follows (legacy — بينحذف بـ PR 3.9)
+❌ جدول متابعة تاني أو endpoint متابعة خاص بنوع حساب
+❌ fetch مباشر للمتابعة — twApi على /profile/{id}/follow* بس
 ❌ لا تعرض followers_count من localStorage — استخدم companyState.stats.followers_count فقط
 ```
 

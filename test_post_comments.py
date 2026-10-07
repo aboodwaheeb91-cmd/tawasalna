@@ -1942,7 +1942,7 @@ check(
 )
 check(
     "123l. GET /mention/search returns prioritized candidates from followers/following",
-    "profile_follows" in srv_src and "company_follows" in srv_src and
+    "profile_follows" in srv_src and
     "mention_search" in srv_src
 )
 check(
@@ -3192,16 +3192,16 @@ _nplan146 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §146: Notifications Phase 7 — Follow Notification Hook ──")
 check(
-    "146a. follow_company INSERT now uses RETURNING follower_id",
-    "ON CONFLICT (company_id, follower_id) DO NOTHING RETURNING follower_id" in _auth146
+    "146a. Follow System PR 3.5: nothing writes company_follows (follow_company removed)",
+    "INSERT INTO company_follows" not in _auth146 and "def follow_company(" not in _auth146
 )
 check(
     "146b. follow_profile INSERT now uses RETURNING follower_id",
     "ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id" in _auth146
 )
 check(
-    "146c. follow_company notification hook present (aggregated V2-2, key follow_agg:company:)",
-    "follow_agg:company:" in _auth146
+    "146c. company follows notify through follow_profile (one hook, key follow_agg:user:)",
+    "follow_agg:company:" not in _auth146
 )
 check(
     "146d. follow_profile notification hook present (aggregated V2-2, key follow_agg:user:)",
@@ -3698,13 +3698,13 @@ check(
     'job_company_id != user_id' in _auth153
 )
 check(
-    "153g. follow_company in auth.py calls create_notification with follow type",
-    'follow_company' in _auth153 and
+    "153g. follow_profile in auth.py calls create_notification with follow type",
+    'follow_profile' in _auth153 and
     ('type_="follow"' in _auth153 or "type_='follow'" in _auth153)
 )
 check(
-    "153h. follow aggregation keys present in auth.py (V2-2: follow_agg:user: / follow_agg:company:)",
-    'follow_agg:user:' in _auth153 and 'follow_agg:company:' in _auth153
+    "153h. follow aggregation key present in auth.py (V2-2: follow_agg:user: — every account type since PR 3.5)",
+    'follow_agg:user:' in _auth153
 )
 check(
     "153i. follow notification only fires on fresh follow — if ins_rows guards aggregated call",
@@ -4277,7 +4277,7 @@ with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
 
 # Slices for targeted checks (3000 chars covers full function body)
 _fp159  = _auth159[_auth159.find('def follow_profile('):_auth159.find('def follow_profile(') + 3000]
-_fc159  = _auth159[_auth159.find('def follow_company('):_auth159.find('def follow_company(') + 3000]
+_fc159  = _fp159  # PR 3.5: company follows go through follow_profile (follow_company removed)
 
 # ── V1 removed from follow hooks ─────────────────────────────────────────
 check(
@@ -4286,8 +4286,8 @@ check(
     _fp159.count('create_notification(') == 0
 )
 check(
-    "159b. follow_company no longer calls create_notification (V1 removed)",
-    'def follow_company(' in _auth159 and
+    "159b. follow_company removed; follow path has no create_notification (V1 removed)",
+    'def follow_company(' not in _auth159 and
     _fc159.count('create_notification(') == 0
 )
 
@@ -4307,8 +4307,8 @@ check(
     'follow_agg:user:' in _fp159
 )
 check(
-    "159f. follow_company uses follow_agg:company: aggregation key",
-    'follow_agg:company:' in _fc159
+    "159f. company follows use the follow_agg:user: aggregation key (PR 3.5)",
+    'follow_agg:user:' in _fc159
 )
 
 # ── target_type correct ───────────────────────────────────────────────────
@@ -4317,14 +4317,14 @@ check(
     "target_type=\"user\"" in _fp159 or "target_type='user'" in _fp159
 )
 check(
-    "159h. follow_company sets target_type='company'",
-    "target_type=\"company\"" in _fc159 or "target_type='company'" in _fc159
+    "159h. company follows set target_type='user' (one hook, PR 3.5)",
+    "target_type=\"user\"" in _fc159 or "target_type='user'" in _fc159
 )
 
 # ── Self-notification guard in follow_company ─────────────────────────────
 check(
-    "159i. follow_company has self-notification guard (follower_id != company_id)",
-    'follower_id != company_id' in _fc159
+    "159i. follow path has self-notification guard (follower_id != followed_id)",
+    'follower_id != followed_id' in _fc159
 )
 
 # ── action_url ends with #followers ──────────────────────────────────────
@@ -4383,8 +4383,8 @@ check(
     '[TW-WARN] follow notification (profile' in _fp159
 )
 check(
-    "159u. follow_company notification block is still wrapped in try/except (non-fatal)",
-    '[TW-WARN] follow notification (company' in _fc159
+    "159u. follow notification block is still wrapped in try/except (non-fatal)",
+    '[TW-WARN] follow notification (profile' in _fc159
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────
@@ -4416,8 +4416,8 @@ check(
     _fp159.find('follower_id != followed_id') < _fp159.find('create_or_update_aggregated_notification(')
 )
 check(
-    "159ab. follow_company self-notification guard still present (follower_id != company_id)",
-    'follower_id != company_id' in _fc159
+    "159ab. follow path self-notification guard still present (follower_id != followed_id)",
+    'follower_id != followed_id' in _fc159
 )
 
 # ── No other aggregation hooks activated ─────────────────────────────────
@@ -4570,14 +4570,14 @@ check(
 
 # ── Backward compatibility — unchanged systems ────────────────────────────
 _fp160 = _auth160[_auth160.find('def follow_profile('):_auth160.find('def follow_profile(') + 3000]
-_fc160 = _auth160[_auth160.find('def follow_company('):_auth160.find('def follow_company(') + 3000]
+_fc160 = _fp160  # PR 3.5: follow_company removed
 check(
     "160p. follow_profile aggregation unchanged (follow_agg:user: still present)",
     'follow_agg:user:' in _fp160
 )
 check(
-    "160q. follow_company aggregation unchanged (follow_agg:company: still present)",
-    'follow_agg:company:' in _fc160
+    "160q. follow_company removed (PR 3.5) — company follows aggregate via follow_profile",
+    'def follow_company(' not in _auth160 and 'follow_agg:user:' in _fc160
 )
 check(
     "160r. create_notification (V1 helper) still exists",
@@ -5027,16 +5027,16 @@ check(
     '"follow_agg:user:' in _auth163
 )
 check(
-    "163u. follow_company calls create_or_update_aggregated_notification (V2-2)",
-    'follow_agg:company:' in _auth163
+    "163u. follow_company removed (PR 3.5) — one follow hook",
+    'def follow_company(' not in _auth163
 )
 check(
-    "163v. follow_agg:company: aggregation_key pattern present in auth.py",
-    '"follow_agg:company:' in _auth163
+    "163v. follow_agg:company: key no longer created (PR 3.5)",
+    '"follow_agg:company:' not in _auth163
 )
 check(
-    "163w. self-follow guard in follow_company (follower_id != company_id)",
-    'follower_id != company_id' in _auth163
+    "163w. self-follow guard in follow_profile (follower_id != followed_id)",
+    'follower_id != followed_id' in _auth163
 )
 
 # ── Job Application Aggregation QA (V2-3) — checks x through ab ──

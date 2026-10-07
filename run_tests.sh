@@ -78,6 +78,7 @@ PY_DB=(
   test_pipeline_backfill_integration.py
   test_pipeline_integration.py
   test_talent_bank_quota.py
+  pytest:test_follow_system.py
   pytest:test_otp_rate_limit_security.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_schedule_interview.py
