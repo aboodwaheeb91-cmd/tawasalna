@@ -377,6 +377,8 @@ These rules are permanent and apply to all future AI sessions.
 
 8. **`get_client_ip(request)` in `server.py` is the ONLY source of the client IP (PR 1.4).** Rate limiter, registration country, logs — all call it. Never read `X-Forwarded-For` / `X-Real-IP` anywhere else. Source chosen by `CLIENT_IP_SOURCE` (measured, not guessed — `ARCHITECTURE.md §52 → Client IP Resolution`). KYC OTP logic lives only in `auth._otp_issue` / `auth._otp_verify` (SYSTEMS_INDEX §54c).
 
+9. **ممنوع `str(e)` بأي رد للعميل (PR 1.6).** خطأ غير متوقع → `raise _server_error("endpoint_name", e)` في `server.py` (log كامل + 500 «خطأ في الخادم، حاول مرة أخرى»). ❌ `HTTPException(500, str(e))` · ❌ `detail=f"...{e}"` · ❌ `{"error": str(e)}` · ❌ `RuntimeError(f"...{e}")` بـ `auth.py` بيوصل لرد · ❌ `str(exc)` برد الـ validation (بيرجع `loc` + `type` بس). الأخطاء المقصودة (`ValueError` / `PermissionError` برسالة عربية مكتوبة بالكود) بتضل 4xx متل ما هي. `detail` من نوع dict بيرجع JSON حقيقي `{"error": message, "detail": {...}}`. Spec: SYSTEMS_INDEX §54d · test `python -m pytest test_server_error_leak.py -q`.
+
 ---
 
 ## Documentation Completion Rule (mandatory for all AI sessions)

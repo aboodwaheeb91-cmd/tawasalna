@@ -1133,6 +1133,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 54d. Internal Error Responses — no server details to the client (PR 1.6)
+**Purpose:** An unexpected exception (DB error, bug) never sends its text to the client — it can carry table / column / constraint names. Full details go to the log only.
+**Source of Truth:** `server.py` → `_server_error(where, e)` — logs `[server-error] {where}: {Type}: {e}` + traceback, returns `HTTPException(500, _SERVER_ERROR_MSG)` (= «خطأ في الخادم، حاول مرة أخرى»). Usage: `except Exception as e: raise _server_error("endpoint_name", e)`. Global handlers: `http_exception_handler` → `_http_error_content(detail)` — str detail → `{"error": str}` (unchanged) · dict detail → real JSON `{"error": detail.message, "detail": {...}}` (was `str(dict)`) · `validation_exception_handler` → `{"error": "بيانات غير صحيحة", "details": [{"loc", "type"}]}` — never the submitted values · `general_exception_handler` → same fixed message. `auth.py`: transaction `RuntimeError`s carry a fixed Arabic message (`from` the original, detail printed); `save/remove_profile_interest` return a fixed error. Frontend: `normalizeErrorResponse` (tw_shared.js) reads `detail.message` (dict without field) and string `error` → `generalError`.
+**Details:** `CLAUDE.md → Safe Rendering / Output Escaping Rules` rule 9 · `docs/contracts/API-MUTATIONS-ERRORS.md` API-MUT-11 · F9 / F23
+**Do not recreate:** ❌ `HTTPException(500, str(e))` · ❌ `detail=f"...{e}"` · ❌ `{"error": str(e)}` / `RuntimeError(f"...{e}")` that can reach a response · ❌ `str(exc)` in a validation response · ❌ a second internal-error helper. Intended errors (`ValueError` / `PermissionError` / `KeyError` with an Arabic message written in code, `ContentValidationError`, `ExternalUrlError`) keep their 4xx message. Test (static AST check + runtime): `python -m pytest test_server_error_leak.py -q`.
+
+---
+
 ## I — Systems Needing Documentation
 
 These systems exist in code but lack formal documentation in ARCHITECTURE.md or CLAUDE.md:
@@ -1143,4 +1151,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 1.7 remove dummy content · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 1.6 internal error responses · PR 1.7 remove dummy content · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
