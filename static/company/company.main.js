@@ -44,7 +44,8 @@
   var isFollowLoading = false;
 
   function toggleFollow() {
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    // Guest → login, then back to this page (Follow System PR 3.5)
+    if (!window._jwt || !_jwt()) { location.href = twLoginHref(location.pathname + location.search); return; }
     if (!window.companyState || !companyState.permissions.can_follow) return;
     if (isFollowLoading) return;
 
@@ -66,31 +67,20 @@
     var btn = document.getElementById('followBtn');
     if (btn) btn.disabled = true;
 
-    fetch('/company/follow/' + companyId, {
-      method:  willFollow ? 'POST' : 'DELETE',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('follow failed: ' + r.status);
-      return r.json();
-    })
-    .then(function (data) {
-      companyState.permissions.is_following = !!data.following;
-      if (typeof data.followers_count === 'number')
-        companyState.stats.followers_count = data.followers_count;
-      if (window.renderFollowBtn) renderFollowBtn();
-      if (window.renderStats)     renderStats();
-    })
-    .catch(function () {
-      companyState.permissions.is_following = prevFollowing;
-      companyState.stats.followers_count    = prevCount;
-      if (window.renderFollowBtn) renderFollowBtn();
-      if (window.renderStats)     renderStats();
-      if (window.showToast) showToast('تعذّر تحديث المتابعة', 'error');
-    })
-    .finally(function () {
+    followAccount(companyId, willFollow).then(function (res) {
       isFollowLoading = false;
       if (btn) btn.disabled = false;
+      if (res.ok) {
+        companyState.permissions.is_following = !!res.data.is_following;
+        if (typeof res.data.followers_count === 'number')
+          companyState.stats.followers_count = res.data.followers_count;
+      } else {
+        companyState.permissions.is_following = prevFollowing;
+        companyState.stats.followers_count    = prevCount;
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر تحديث المتابعة'), 'error');
+      }
+      if (window.renderFollowBtn) renderFollowBtn();
+      if (window.renderStats)     renderStats();
     });
   }
 
@@ -1990,22 +1980,19 @@
         (function (it, btn) {
           btn.addEventListener('click', function () {
             var jwt = window._jwt ? window._jwt() : '';
-            if (!jwt) { if (window.showToast) showToast('سجّل الدخول أولاً'); return; }
+            if (!jwt) { location.href = twLoginHref(location.pathname + location.search); return; }
             var isF = btn.classList.contains('following');
-            var method = isF ? 'DELETE' : 'POST';
             btn.disabled = true;
-            fetch('/profile/' + it.id + '/follow', {
-              method: method,
-              headers: { 'Authorization': 'Bearer ' + jwt }
-            }).then(function (r) { return r.json(); })
-              .then(function (d) {
-                if (d.status === 'success' || d.is_following != null) {
-                  var nowF = !isF;
-                  btn.classList.toggle('following', nowF);
-                  btn.textContent = nowF ? 'متابَع' : 'تابع';
-                }
-              }).catch(function () {})
-              .finally(function () { btn.disabled = false; });
+            followAccount(it.id, !isF).then(function (res) {
+              btn.disabled = false;
+              if (res.ok) {
+                var nowF = !!res.data.is_following;
+                btn.classList.toggle('following', nowF);
+                btn.textContent = nowF ? 'متابَع' : 'تابع';
+              } else if (window.showToast) {
+                showToast(twApiMessage(res, 'تعذّر تحديث المتابعة'), 'error');
+              }
+            });
           });
         }(item, followBtnEl));
       }

@@ -721,11 +721,12 @@ window.renderProfile = function renderProfile(res){
         return;
       }
 
-      // Guest or owner (can_follow=false): prompt login
-      if(_vt === 'guest' || !_canFollow){
-        if(window.toast) toast('سجّل الدخول لمتابعة هذا الحساب');
+      // Guest → login, then back here (Follow System PR 3.5). Owner (can_follow=false) → no-op.
+      if(_vt === 'guest'){
+        location.href = twLoginHref(location.pathname + location.search);
         return;
       }
+      if(!_canFollow) return;
 
       if(followBtn.disabled) return;
       followBtn.disabled = true;
@@ -735,16 +736,13 @@ window.renderProfile = function renderProfile(res){
         : window.followProfile(p.id);
 
       _req.then(function(r){
+        followBtn.disabled = false;
         if(r.ok){
           _isFollowing = !!r.data.is_following;
           _setBtn(_isFollowing, r.data.followers_count);
-        } else {
-          if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+        } else if(window.toast){
+          toast(twApiMessage(r, 'حدث خطأ، حاول مرة أخرى'));
         }
-      }).catch(function(){
-        if(window.toast) toast('خطأ في الاتصال');
-      }).finally(function(){
-        followBtn.disabled = false;
       });
     };
   })();
@@ -1226,8 +1224,7 @@ window._scOwnerHydrationGeneration = 0;
         var pag = d.pagination || {};
         _offset += (d.items || []).length;
         _loadWrap.style.display = pag.has_more ? 'flex' : 'none';
-      })
-      .catch(function(){ _loading = false; });
+      });
   }
 
   function _renderChips(counts){
@@ -1303,8 +1300,10 @@ window._scOwnerHydrationGeneration = 0;
       if(res.ok){
         btn.classList.toggle('active', !isActive);
         btn.textContent = !isActive ? 'متابَع' : 'تابع';
+      } else if(window.toast){
+        toast(twApiMessage(res, 'حدث خطأ، حاول مرة أخرى'));
       }
-    }).catch(function(){ btn.disabled = false; });
+    });
   });
 
   // Tile click wiring handled by Popover IIFE below (_scFlOpen exposed as window._scFlOpen)
