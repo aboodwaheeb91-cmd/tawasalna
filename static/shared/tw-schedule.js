@@ -112,10 +112,6 @@
     return !!(v && v.type === 'co' && cid !== v.id && (candidateType || 'emp') === 'emp');
   }
 
-  function label(key, fallback) {
-    return typeof window.twT === 'function' ? twT(key) : fallback;
-  }
-
   function roomHref(id) { return '/appointment-room?id=' + encodeURIComponent(id); }
 
   // ── Open-appointment lookup — one request per job group per tick ──────────
@@ -163,7 +159,6 @@
       : el('button', opts.className || 'tw-sch-btn', 'تحديد موعد');
     if (!btn) return null;
     btn.type = 'button';
-    var lbl = (btn.querySelector && btn.querySelector('.tw-act-lbl')) || btn;
     btn.setAttribute('data-tw-schedule', 'new');
     var open = null;
     btn.addEventListener('click', function (e) {
@@ -180,7 +175,7 @@
     function setOpen(appt) {
       open = appt;
       if (appt && appt.status !== 'draft') {
-        lbl.textContent = label('action.open_appointment', 'فتح الموعد');
+        btn.textContent = 'فتح الموعد';
         btn.setAttribute('data-tw-schedule', 'open');
       }
     }
