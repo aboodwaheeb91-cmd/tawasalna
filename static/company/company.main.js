@@ -2201,6 +2201,14 @@
   }());
   // @vm-extract-end: co-authsync
 
+  // Page namespace exports (PR 2C) — used by the candidate-job popover (other IIFE).
+  // jobId (optional) sets the job context the appointment modal books against.
+  TwCompanyPage.openNotesPanel = _openNotesPanel;
+  TwCompanyPage.openApptModal  = function (appId, applName, jobTitle, entryId, candidateId, jobId) {
+    if (jobId) _appJobId = jobId;
+    _openApptModal(appId, applName, jobTitle, entryId, candidateId);
+  };
+
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
     if (window.lucide) lucide.createIcons();
@@ -3863,9 +3871,7 @@
       notesBtn.addEventListener('click', function () {
         var entryId = notesBtn.getAttribute('data-pe-id');
         _closeJobPop();
-        if (entryId && typeof _openNotesPanel === 'function') {
-          _openNotesPanel(parseInt(entryId, 10));
-        }
+        if (entryId) TwCompanyPage.openNotesPanel(parseInt(entryId, 10));
       });
     }
     var apptBtn = pop.querySelector('.co-cjp-btn--appt');
@@ -3884,15 +3890,13 @@
           var cndName  = apptBtn.getAttribute('data-cand-name') || '';
           var jTitle   = apptBtn.getAttribute('data-job-title') || '';
           var jId      = apptBtn.getAttribute('data-job-id');
-          if (entryId && typeof _openApptModal === 'function') {
-            if (typeof _appJobId !== 'undefined' && jId) {
-              _appJobId = parseInt(jId, 10);
-            }
-            _openApptModal(
+          if (entryId) {
+            TwCompanyPage.openApptModal(
               appId   ? parseInt(appId, 10)   : null,
               cndName, jTitle,
               parseInt(entryId, 10),
-              cndId   ? parseInt(cndId, 10)   : null
+              cndId   ? parseInt(cndId, 10)   : null,
+              jId     ? parseInt(jId, 10)     : null
             );
           }
         }
@@ -4403,71 +4407,83 @@
     });
   }
 
+  // One delegated listener on _body for every suggestion save button (PR 2C).
+  // remove+add keeps it single across _renderSuggestions / _appendSuggestions
+  // ("عرض المزيد"), so one click = one POST (was N listeners → duplicate 409).
+  // @vm-extract-begin: co-sugg-save
   function _wireSaveButtons() {
-    _body.querySelectorAll('.co-sugg-save-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var cid = parseInt(btn.getAttribute('data-cid'));
-        if (!cid) return;
-        btn.disabled = true;
-        btn.textContent = 'جارٍ الحفظ…';
-        if (!window.saveSuggestedCandidate) { btn.disabled = false; return; }
-        window.saveSuggestedCandidate(cid)
-          .then(function (res) {
-            if (res && res.ok) {
-              _loadSavedStats(null);
-              var row = btn.closest('.co-cand-item');
-              // Req 5: swap save btn for manage btn (clone removes old listener)
-              var newBtn = document.createElement('button');
-              newBtn.className = 'co-sugg-save-btn co-sugg-manage-mode';
-              newBtn.type      = 'button';
-              newBtn.textContent = 'إدارة المرشح';
-              newBtn.addEventListener('click', function () {
+    _body.removeEventListener('click', _onSuggSaveClick);
+    _body.addEventListener('click', _onSuggSaveClick);
+  }
+
+  function _onSuggSaveClick(e) {
+    var btn = e.target.closest ? e.target.closest('.co-sugg-save-btn') : null;
+    if (!btn || btn.classList.contains('co-sugg-manage-mode') || btn.disabled) return;
+    _saveSuggestion(btn);
+  }
+  // @vm-extract-end: co-sugg-save
+
+  function _saveSuggestion(btn) {
+    var cid = parseInt(btn.getAttribute('data-cid'));
+    if (!cid) return;
+    btn.disabled = true;
+    btn.textContent = 'جارٍ الحفظ…';
+    if (!window.saveSuggestedCandidate) { btn.disabled = false; return; }
+    window.saveSuggestedCandidate(cid)
+      .then(function (res) {
+        if (res && res.ok) {
+          _loadSavedStats(null);
+          var row = btn.closest('.co-cand-item');
+          // Req 5: swap save btn for manage btn (clone removes old listener)
+          var newBtn = document.createElement('button');
+          newBtn.className = 'co-sugg-save-btn co-sugg-manage-mode';
+          newBtn.type      = 'button';
+          newBtn.textContent = 'إدارة المرشح';
+          newBtn.addEventListener('click', function () {
+            _pendingManageOpen      = cid;
+            _pendingManageOpenNotes = false;
+            _switchTab('saved');
+          });
+          if (btn.parentNode) btn.parentNode.replaceChild(newBtn, btn);
+          // Req 6: show inline confirmation card
+          if (row) {
+            var existing = row.querySelector('.co-sugg-confirm');
+            if (!existing) {
+              var conf = document.createElement('div');
+              conf.className = 'co-sugg-confirm';
+              conf.innerHTML = '<span class="co-sugg-conf-msg">✓ تم حفظ المرشح</span>'
+                + '<button class="co-sugg-conf-notes" type="button">إضافة ملاحظة</button>'
+                + '<button class="co-sugg-conf-later" type="button">ليس الآن</button>';
+              conf.querySelector('.co-sugg-conf-notes').addEventListener('click', function () {
                 _pendingManageOpen      = cid;
-                _pendingManageOpenNotes = false;
+                _pendingManageOpenNotes = true;
                 _switchTab('saved');
               });
-              if (btn.parentNode) btn.parentNode.replaceChild(newBtn, btn);
-              // Req 6: show inline confirmation card
-              if (row) {
-                var existing = row.querySelector('.co-sugg-confirm');
-                if (!existing) {
-                  var conf = document.createElement('div');
-                  conf.className = 'co-sugg-confirm';
-                  conf.innerHTML = '<span class="co-sugg-conf-msg">✓ تم حفظ المرشح</span>'
-                    + '<button class="co-sugg-conf-notes" type="button">إضافة ملاحظة</button>'
-                    + '<button class="co-sugg-conf-later" type="button">ليس الآن</button>';
-                  conf.querySelector('.co-sugg-conf-notes').addEventListener('click', function () {
-                    _pendingManageOpen      = cid;
-                    _pendingManageOpenNotes = true;
-                    _switchTab('saved');
-                  });
-                  conf.querySelector('.co-sugg-conf-later').addEventListener('click', function () {
-                    conf.parentNode && conf.parentNode.removeChild(conf);
-                  });
-                  row.appendChild(conf);
-                }
-              }
-            } else {
-              btn.disabled = false;
-              btn.textContent = 'حفظ كمرشح';
-              if (res && res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
-                var body = res.data;
-                if (window.showToast) showToast(
-                  'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
-                  + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
-                  'error');
-              } else {
-                if (window.showToast) showToast('تعذّر الحفظ', 'error');
-              }
+              conf.querySelector('.co-sugg-conf-later').addEventListener('click', function () {
+                conf.parentNode && conf.parentNode.removeChild(conf);
+              });
+              row.appendChild(conf);
             }
-          })
-          .catch(function () {
-            btn.disabled = false;
-            btn.textContent = 'حفظ كمرشح';
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'حفظ كمرشح';
+          if (res && res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
+            var body = res.data;
+            if (window.showToast) showToast(
+              'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
+              + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
+              'error');
+          } else {
             if (window.showToast) showToast('تعذّر الحفظ', 'error');
-          });
+          }
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'حفظ كمرشح';
+        if (window.showToast) showToast('تعذّر الحفظ', 'error');
       });
-    });
   }
 
   // ── Wire events ────────────────────────────────────────────────

@@ -28,6 +28,8 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACH
 
 10. **Generation guard has five independent checks inside the hydration `.then()`** AND one check inside `.catch()` (see `VIEWER-MODES.md §VM-01-BFCACHE` for the full list). Do not remove any guard without an explicit architectural PR.
 
+10b. **`focus` / `visibilitychange` fire handlers only on a real session change (PR 2C).** `auth-sync.js` → `_checkOnForeground()`: handlers run when the `tw_jwt` / `tw_user` fingerprint changed OR the resolved `state|userId` changed since the last delivery (e.g. token expired while the tab slept). Same session → nothing fires (sockets stay open, no badge flash). `pageshow` (bfcache) stays **forced**; `storage` (logout / switch in another tab) unchanged. The same-owner carve-out (#552) in page handlers stays — it still covers the forced `pageshow`. Socket consumers (badge WS in `tw_shared.js`, `messages.ws.js`) also no-op when the event carries the same JWT + same userId and their socket is CONNECTING / OPEN.
+
 11. **Tests run real production code via Node.js `vm` module.** `@vm-extract-begin/end` markers in production files delimit extractable sections. Tests use `vm.runInContext(realCode, ctx)` to register the real handler, then call it directly. Rewriting handler logic inside the test file is permanently forbidden.
 
 ### Forbidden (VM-01-BFCACHE — permanent)
@@ -45,5 +47,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACH
 ❌ Parallel TwAuthSync.onSessionChange registration for the same page
 ❌ Deferring owner-mode revocation until after background fetch completes
 ❌ Reading snapshot.jwt (V2 TwAuthSync snapshot has no jwt field — use localStorage.getItem('tw_jwt'))
+❌ Forcing _check() on focus / visibilitychange again (PR 2C — closed the WS and flashed badges on every tab return)
+❌ Closing / reopening the badge or conversation socket on a session event with the same JWT + userId while the socket is alive
 ❌ Rewriting handler logic inside test_vm01_bfcache_runtime.js (must use vm module + @vm-extract markers)
 ```

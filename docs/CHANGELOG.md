@@ -11,6 +11,16 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 2C — الاتصالات ما بتنقطع مع رجعة التبويب + أعطال صفحة الشركة — 2026-10-07
+
+- `static/shared/auth-sync.js`: `focus` / `visibilitychange` ما بيعملوا force — بيطلقوا بس لما يتغيّر JWT / tw_user أو `state|userId` (`_checkOnForeground`). `pageshow` (bfcache) لسا forced · `storage` متل ما هو.
+- `tw_shared.js` (badge WS) + `messages.ws.js`: نفس JWT + نفس المستخدم + سوكيت شغّال → ولا شي (ما في إغلاق / مسح شارات / GET). إعادة اتصال بس عند تغيير JWT أو المستخدم أو سوكيت مسكّر فعلاً.
+- `messages.render.js`: polling الـ 10 ثواني بيوقف لما `document.hidden` وبيرجع (مع تحديث فوري) لما تبيّن الصفحة؛ `reloadMessagesQuiet` ما بيطلب `GET /messages` والصفحة مخفية؛ إخفاء التاب → `inactive_conversation`، رجوعه → `active_conversation` (السيرفر بيعلّم مقروء للمحادثة النشطة).
+- `tw_shared.js`: انشال fade-in الصفحة (`<html>` opacity 0 لحد `window.load`).
+- صفحة الشركة: `window.TwCompanyPage` (namespace جديد — `company.state.js`) لـ `openNotesPanel` / `openApptModal` بالقائمة المنبثقة · زر «حفظ كمرشح» بـ listener delegated واحد · `_detectJobLocMode()` بيرجّع وضع الموقع الصح بتعديل الوظيفة.
+- التوثيق: `docs/rules/vm01-bfcache.md` (10b + ممنوعات) · VIEWER-MODES · SYSTEMS_INDEX §8 + §11a · ARCHITECTURE (Company Frontend → Page Namespace).
+- اختبار: `test_pr2c_session_sockets_runtime.js` (جديد).
+
 ## PR 1.6 — منع تسريب تفاصيل السيرفر برسائل الخطأ — 2026-10-07
 
 - `server.py`: **`_server_error(where, e)`** (جديد — SYSTEMS_INDEX §54d) — log كامل + traceback، والعميل بياخد 500 «خطأ في الخادم، حاول مرة أخرى». استبدل 60 مكان `HTTPException(500, str(e))` / `detail=f"خطأ: {str(e)}"`.
