@@ -5,10 +5,18 @@ Uses JS window.fetch override (injected after page load) for reliable mock inter
 Playwright page.route() has a concurrency issue with parallel fetch() calls (Promise.all):
 only the first matching request is intercepted; the rest bypass the mock and hit the real
 server. Overriding window.fetch in-browser avoids this entirely.
+
+Needs a LIVE server (:8000) + Playwright + a real company account, so CI does not run it
+(run_tests.sh → EXCLUDED; the static twin test_company_save_static.py runs in CI).
+PR 6.4: /company-profile?id= is a 302 → /u/{tw_id} (F7) — the page is opened at
+/u/{COMPANY_TW_ID} (export COMPANY_TW_ID=C… of an existing company account).
 """
 import subprocess, sys, time, json, os
 
 BASE = 'http://localhost:8000'
+COMPANY_TW_ID = os.environ.get('COMPANY_TW_ID', '').strip()
+if not COMPANY_TW_ID:
+    print('FATAL: export COMPANY_TW_ID=<tw_id of an existing company account>'); sys.exit(1)
 
 def ensure_server():
     try:
@@ -171,7 +179,7 @@ def make_page(browser, profile_status=200, company_status=200, branches_status=2
     ctx  = browser.new_context()
     page = ctx.new_page()
 
-    page.goto(BASE + '/company-profile?id=1', timeout=15000)
+    page.goto(BASE + '/u/' + COMPANY_TW_ID, timeout=15000)
     page.evaluate("""
         localStorage.setItem('tw_user', JSON.stringify({
             id: 1, tw_id: 'C9660aabbccddee', user_type: 'co',

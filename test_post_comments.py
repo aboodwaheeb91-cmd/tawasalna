@@ -13,6 +13,13 @@ PASS = "✅ PASS"
 FAIL = "❌ FAIL"
 results = []
 
+def _in_startup_registry(src, fn, critical=None):
+    """PR 2B: startup migrations are registered in server._startup_migrations() as
+    (name, fn, critical) — never called directly from on_startup (CLAUDE.md → Startup
+    Migration Policy). critical=True ⇒ failure raises and stops startup."""
+    m = re.search(r'\(\s*"[a-z0-9_]+",\s*' + re.escape(fn) + r',\s*(True|False)\s*\)', src)
+    return bool(m) and (critical is None or m.group(1) == str(critical))
+
 def check(name, cond, detail=""):
     status = PASS if cond else FAIL
     results.append((name, status, detail))
@@ -2916,8 +2923,8 @@ check(
     'n.body' not in _notif140 or 'textContent' in _notif140
 )
 check(
-    "140h. create_notification in report flow called with 4 args (type + title + body)",
-    'create_notification(1, "report", "بلاغ جديد"' in _srv140
+    "140h. report flow sends NO user notification (PR 1.5 — admins are not user accounts)",
+    'create_notification(1, "report"' not in _srv140 and 'No user notification' in _srv140
 )
 check(
     "140i. No bare except: pass in the create_notification / report flow block",
@@ -2971,7 +2978,7 @@ check(
 )
 check(
     "141h. _migrate_notifications_schema_v2 is imported and called in server.py startup",
-    '_migrate_notifications_schema_v2' in _srv141 and '_migrate_notifications_schema_v2()' in _srv141
+    _in_startup_registry(_srv141, '_migrate_notifications_schema_v2')
 )
 check(
     "141i. _migrate_notifications_schema_v2 contains no notification hooks (migration-only)",
@@ -4234,9 +4241,7 @@ check(
 )
 check(
     "158y. server.py calls _migrate_notifications_schema_v2_1() at startup with raise on failure",
-    '_migrate_notifications_schema_v2_1()' in _srv158 and
-    'raise' in _srv158[_srv158.find('_migrate_notifications_schema_v2_1()'):
-                        _srv158.find('_migrate_notifications_schema_v2_1()') + 400]
+    _in_startup_registry(_srv158, '_migrate_notifications_schema_v2_1', True)
 )
 
 # ── No UI/CSS/JS changes ──────────────────────────────────────────────────
@@ -6504,8 +6509,7 @@ check(
 # ── server.py startup (41) ────────────────────────────────────────────
 check(
     "170-41. server.py: _migrate_appointments() imported and called in startup",
-    "_migrate_appointments" in _server170 and
-    "_migrate_appointments()" in _server170
+    _in_startup_registry(_server170, '_migrate_appointments')
 )
 
 # ── No forbidden additions (42–46) ────────────────────────────────────
@@ -6562,15 +6566,16 @@ _startup_block170 = (
 )
 check(
     "170-50. server.py: _migrate_appointments() called in startup",
-    "_migrate_appointments()" in _server170
+    _in_startup_registry(_server170, '_migrate_appointments')
 )
 check(
     "170-51. server.py: failure prints ❌ error message (not ⚠️ warning)",
-    '❌ appointments migration failed' in _server170
+    '❌ [migration] {name} failed' in _server170   # PR 2B shared runner
 )
 check(
     "170-52. server.py: failure raises (startup-critical)",
-    'raise' in _startup_block170
+    _in_startup_registry(_server170, '_migrate_appointments', True)
+    and 'raise RuntimeError(f"critical startup migration failed' in _server170
 )
 check(
     "170-53. server.py: no warning-only (⚠️) handling for appointments migration",
@@ -6779,7 +6784,9 @@ check(
 )
 check(
     "171-36. auth.py: complete_appointment requires confirmed status (not just any status)",
-    "'confirmed'" in _auth171.split('def complete_appointment(')[1].split('\ndef ')[0]
+    # PR 2B: allowed source states live in _APPT_COMPLETE_FROM (confirmed | missed)
+    '_APPT_COMPLETE_FROM' in _auth171.split('def complete_appointment(')[1].split('\ndef ')[0]
+    and re.search(r"_APPT_COMPLETE_FROM\s*=.*'confirmed'", _auth171) is not None
     if 'def complete_appointment(' in _auth171 else False
 )
 
@@ -6908,12 +6915,12 @@ check(
 
 # ── Frontend: appointments.html (63–68) ───────────────────────────────────
 check(
-    "171-63. appointments.html: auth guard present",
-    'tw_user' in _appthtml and '/login' in _appthtml
+    "171-63. appointments.html: auth guard present (twRequireAuth — PR 1.2)",
+    'twRequireAuth(' in _appthtml
 )
 check(
-    "171-64. appointments.html: uses JWT Bearer token for API calls",
-    "Authorization': 'Bearer" in _appthtml or 'Authorization\': \'Bearer' in _appthtml
+    "171-64. appointments.html: API calls via twApi (adds the JWT Bearer header — PR 3A)",
+    'twApi(' in _appthtml
 )
 check(
     "171-65. appointments.html: no innerHTML for API data (safeText/textContent used)",
@@ -6934,8 +6941,8 @@ check(
 
 # ── Frontend: appointment-room.html (69–75) ───────────────────────────────
 check(
-    "171-69. appointment-room.html: auth guard present",
-    'tw_user' in _roomhtml and '/login' in _roomhtml
+    "171-69. appointment-room.html: auth guard present (twRequireAuth — PR 1.2)",
+    'twRequireAuth(' in _roomhtml
 )
 check(
     "171-70. appointment-room.html: loads room via /api/appointments/{id}",
@@ -6944,7 +6951,8 @@ check(
 )
 check(
     "171-71. appointment-room.html: no innerHTML for user data (safeText used)",
-    'function safeText' in _roomhtml and '.textContent' in _roomhtml
+    # safeText is the shared helper in tw_shared.js (loaded by the page)
+    'safeText(' in _roomhtml and '.textContent' in _roomhtml and 'tw_shared.js' in _roomhtml
 )
 check(
     "171-72. appointment-room.html: event timeline tab exists",
@@ -7235,18 +7243,18 @@ check(
 )
 check(
     "172-22. BUG22 fixed: doAccept has .catch() handler",
-    '.catch(function(){ alert(' in _roomhtml2.split('function doAccept')[1].split('function doComplete')[0]
+    '.catch(function(){ showToast(' in _roomhtml2.split('function doAccept')[1].split('function doComplete')[0]  # PR 3B: no alert()
     if 'function doAccept' in _roomhtml2 and 'function doComplete' in _roomhtml2 else False
 )
 check(
     "172-23. BUG22 fixed: doComplete has .catch() handler",
-    '.catch(function(){ alert(' in _roomhtml2.split('function doComplete')[1].split('function doClose')[0]
+    '.catch(function(){ showToast(' in _roomhtml2.split('function doComplete')[1].split('function doClose')[0]  # PR 3B: no alert()
     if 'function doComplete' in _roomhtml2 and 'function doClose' in _roomhtml2 else False
 )
 check(
     "172-24. BUG22 fixed: doClose has .catch() handler",
-    '.catch(function(){ alert(' in _roomhtml2.split('function doClose')[1].split('function doSendMsg')[0]
-    if 'function doClose' in _roomhtml2 else False
+    '.catch(function(){ showToast(' in _roomhtml2.split('function doClose')[1].split('\n  function ')[0]
+    if 'function doClose' in _roomhtml2 else False  # PR 3B: no alert()
 )
 check(
     "172-25. BUG24 fixed: send modal sets min attribute on datetime-local input before open",
@@ -7258,7 +7266,7 @@ check(
 )
 check(
     "172-27. appointment-room.html: doSendMsg already has .catch() (pre-existing, not regressed)",
-    '.catch(function(){ alert(' in _roomhtml2.split('function doSendMsg')[1].split('function doAccept')[0]
+    '.catch(function(){ showToast(' in _roomhtml2.split('function doSendMsg')[1].split('function doAccept')[0]  # PR 3B
     if 'function doSendMsg' in _roomhtml2 and 'function doAccept' in _roomhtml2 else False
 )
 
@@ -7266,17 +7274,18 @@ check(
 
 check(
     "172-28. BUG15 fixed: appointments.html differentiates !res.ok (error) from empty list",
-    '!res.ok' in _appthtml2 and 'res.detail' in _appthtml2
+    '!res.ok' in _appthtml2 and 'twApiMessage(res' in _appthtml2   # PR 3A error text
 )
 check(
     "172-29. BUG15 fixed: error branch does not show 'لا توجد مواعيد' message",
-    'res.detail' in _appthtml2.split('if (!res.ok)')[1].split('if (!res.data')[0]
-    if 'if (!res.ok)' in _appthtml2 and 'if (!res.data' in _appthtml2 else False
+    ('twApiMessage(res' in _appthtml2.split('if (!res.ok)')[1].split('res.data.length === 0')[0]
+     and 'لا توجد مواعيد' not in _appthtml2.split('if (!res.ok)')[1].split('res.data.length === 0')[0])
+    if 'if (!res.ok)' in _appthtml2 and 'res.data.length === 0' in _appthtml2 else False
 )
 check(
     "172-30. appointments.html: empty-list branch only fires when res.ok is truthy",
-    _appthtml2.index('if (!res.ok)') < _appthtml2.index('if (!res.data || res.data.length === 0)')
-    if 'if (!res.ok)' in _appthtml2 and 'if (!res.data || res.data.length === 0)' in _appthtml2 else False
+    _appthtml2.index('if (!res.ok)') < _appthtml2.index('res.data.length === 0')
+    if 'if (!res.ok)' in _appthtml2 and 'res.data.length === 0' in _appthtml2 else False
 )
 
 # ── Group 6: Security / architecture invariants (6 checks) ───────────────
@@ -8307,7 +8316,8 @@ check(
     "178-17. hooks carry epoch-seconds in payload and dedupe key for all 4 job types",
     'scheduled_at_ts' in _accept178 and 'response_deadline_at_ts' in _send178
     and 'response_deadline_at_ts' in _resched178 and 'expected_expires_at_ts' in _addjob178
-    and 'f"appointment_reminder:' in _accept178 and 'f"appointment_missed:' in _accept178
+    and 'f"appointment_reminder:' in _accept178
+    and '_appt_missed_dedupe_key(' in _accept178   # PR 2B: missed key via shared helper
     and 'f"appointment_deadline_expire:' in _send178
     and 'f"job_expiring_soon:' in _addjob178
 )
@@ -8321,7 +8331,8 @@ check(
 # 178-19: appointment_missed checks sched_dt + 15 min before transitioning to 'missed'
 check(
     "178-19. appointment_missed: guards transition on scheduled_at + 15 minutes",
-    'minutes=15' in _missed178 and 'timedelta' in _missed178
+    # PR 2B: missed time = _appt_missed_at (end + 15 min, or start + 120 min without an end)
+    '_appt_missed_at(' in _missed178 and '_APPT_MISSED_GRACE_AFTER_END_MIN = 15' in _auth178
 )
 
 # 178-20: Notification failures re-raised in all 4 handlers (not swallowed)
@@ -8588,13 +8599,16 @@ try:
 except Exception: pass
 
 # 181-01: appointments.html reads tw_user (correct key) not tawasalna_user
-check("181-01. appointments.html auth guard reads tw_user (not tawasalna_user)",
-      "localStorage.getItem('tw_user')" in _appt_html181
+# PR 1.2: pages are guarded by twRequireAuth (TwAuthSync snapshot) — never tw_user directly
+check("181-01. appointments.html auth guard via twRequireAuth (no tw_user / tawasalna_user read)",
+      "twRequireAuth(" in _appt_html181
+      and "localStorage.getItem('tw_user')" not in _appt_html181
       and "localStorage.getItem('tawasalna_user')" not in _appt_html181)
 
 # 181-02: appointment-room.html reads tw_user (correct key) not tawasalna_user
-check("181-02. appointment-room.html auth guard reads tw_user (not tawasalna_user)",
-      "localStorage.getItem('tw_user')" in _room_html181
+check("181-02. appointment-room.html auth guard via twRequireAuth (no tw_user / tawasalna_user read)",
+      "twRequireAuth(" in _room_html181
+      and "localStorage.getItem('tw_user')" not in _room_html181
       and "localStorage.getItem('tawasalna_user')" not in _room_html181)
 
 # 181-03: /appointments route exists in server.py (no new route added)
@@ -8607,9 +8621,10 @@ check("181-03. /appointments route in server.py serves appointments.html",
       and 'appointments.html' in _srv181)
 
 # 181-04: Guest redirect preserved — auth guard still sends unauthenticated to /login
+# PR 1.2: twRequireAuth sends a guest to twLoginHref(next) — no hand-built /login redirect
 check("181-04. auth guard in appointments.html still redirects unauthenticated to /login",
-      "location.href = '/login'" in _appt_html181
-      and "localStorage.getItem('tw_jwt')" in _appt_html181)
+      "twRequireAuth(" in _appt_html181
+      and "location.href = '/login'" not in _appt_html181)
 
 # ════════════════════════════════════════════════════════════════════════════
 # §182 — Promote Application to Shortlist: PR-B backend (feat/promote-application)
@@ -8698,7 +8713,9 @@ check("182-10. Option B: no downgrade-protection CASE expression on company_save
 # Option B removed both the gate and the UPSERT. The CCJR UPSERT (different table) is present.
 check("182-11. Option B: no skip_candidate_update gate; CCJR upsert always runs",
       'skip_candidate_update' not in _promote_fn182
-      and "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE" in _promote_fn182)
+      # PR 2B (never backwards): CCJR row is UPDATEd to 'shortlisted' or INSERTed
+      and "UPDATE company_candidate_job_refs SET candidate_status = 'shortlisted'" in _promote_fn182
+      and "INSERT INTO company_candidate_job_refs" in _promote_fn182)
 
 # 182-12: application is always updated to 'accepted' inside the transaction
 check("182-12. application status set to 'accepted' inside transaction",
@@ -8744,7 +8761,8 @@ check("182-19. endpoint maps KeyError→404, PermissionError→403, ValueError�
       "KeyError" in _ep_block182 and "404" in _ep_block182
       and "PermissionError" in _ep_block182 and "403" in _ep_block182
       and "ValueError" in _ep_block182 and "409" in _ep_block182
-      and "RuntimeError" in _ep_block182 and "500" in _ep_block182)
+      and "RuntimeError" in _ep_block182
+      and '_server_error("promote_applicant"' in _ep_block182)   # PR 1.6: 500 via _server_error
 
 # 182-20: security log for ownership failure
 check("182-20. endpoint logs PROMOTE_OWNERSHIP_FAILED on PermissionError",
@@ -9021,7 +9039,8 @@ _prom185 = (_auth185.split('def promote_application_to_shortlist')[1].split('def
             if 'def promote_application_to_shortlist' in _auth185 else '')
 check("185-02. Option B: promote has no CSC UPSERT — ON CONFLICT (company_id, candidate_id) DO UPDATE absent",
       'ON CONFLICT (company_id, candidate_id) DO UPDATE' not in _prom185
-      and 'ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE' in _prom185)
+      and not re.search(r'(INSERT INTO|UPDATE)\s+company_saved_candidates', _prom185)   # bank read-only
+      and 'INSERT INTO company_candidate_job_refs' in _prom185)   # PR 2B: CCJR UPDATE / INSERT
 
 # 185-03: Option B: no RETURNING from company_saved_candidates (no CSC UPSERT)
 check("185-03. Option B: no RETURNING from CSC (no CSC UPSERT means no was_inserted column)",
@@ -9152,7 +9171,8 @@ _commit_run186 = 'conn.run("COMMIT")'
 # §491: promote now uses DO UPDATE SET candidate_status='shortlisted' (was DO NOTHING)
 check("186-06. promote_application_to_shortlist writes to company_candidate_job_refs inside transaction with DO UPDATE — updated §491",
       'company_candidate_job_refs' in _promote186
-      and ("DO UPDATE" in _promote186 or "DO NOTHING" in _promote186)
+      and ("DO UPDATE" in _promote186 or "DO NOTHING" in _promote186
+           or "SET candidate_status = 'shortlisted'" in _promote186)   # PR 2B UPDATE / INSERT
       and _commit_run186 in _promote186
       and _promote186.index('company_candidate_job_refs') < _promote186.index(_commit_run186))
 
@@ -9747,7 +9767,7 @@ check("486-02. CHECK constraint on candidate_status allows only valid pipeline v
 
 # 486-03: migration is called during server startup
 check("486-03. _migrate_candidate_status_per_job() called in server.py startup",
-      "_migrate_candidate_status_per_job()" in _srv486)
+      _in_startup_registry(_srv486, '_migrate_candidate_status_per_job'))
 
 # ── Backend: batch-fetch contract ─────────────────────────────────────────
 
@@ -10444,14 +10464,15 @@ check("491-06. server.py update_app_status maps KeyError→404, PermissionError�
 # 491-07: promote_application_to_shortlist writes candidate_status='shortlisted' to company_candidate_job_refs
 check("491-07. promote_application_to_shortlist UPSERTs candidate_status=shortlisted into company_candidate_job_refs",
       "SET candidate_status = 'shortlisted'" in _auth491
-      and "'shortlisted')" in _auth491)
+      and "INSERT INTO company_candidate_job_refs" in _auth491)   # PR 2B UPDATE / INSERT
 
 # 491-08: promote return value includes top-level candidate_id, job_id, application_status, candidate_status
 check("491-08. promote_application_to_shortlist return value includes top-level sync fields",
       '"application_id":     app_id' in _auth491
       and '"candidate_id":       int(applicant_id)' in _auth491
       and '"application_status": "accepted"' in _auth491
-      and '"candidate_status":   "shortlisted"' in _auth491)
+      # PR 2B never-backwards: the real resulting stage (shortlisted or a kept higher one)
+      and '"candidate_status":   cand_status' in _auth491)
 
 # 491-09: _execClassify dispatches tw:candidate-job-classification-updated CustomEvent on success
 check("491-09. _execClassify dispatches tw:candidate-job-classification-updated on success only",
@@ -10618,7 +10639,7 @@ if _srv_sec1 is not None:
         _idor_status = None
         try:
             _srv_sec1.delete_own_account(
-                user_id=99, request=_Mb(),
+                user_id=99, data=_Mb(password='x'),
                 token={'user_id': 1, 'user_type': 'emp'}
             )
         except _FHE_sec1 as _ex_idor:
@@ -10638,19 +10659,21 @@ if _srv_sec1 is not None:
     # ── sec-1-06 + sec-1-07: self-delete — token.user_id=1 deletes user_id=1 → success
     _conn_self = _Mb()
     _gc_self = _Mb(return_value=_conn_self)
+    # delete_own_account requires the current password (bcrypt) — PR account security
     with _Pb.object(_srv_sec1, 'get_conn', _gc_self), \
-         _Pb.object(_srv_sec1, 'release_conn', _Mb()):
+         _Pb.object(_srv_sec1, 'release_conn', _Mb()), \
+         _Pb.object(_srv_sec1, 'check_user_password', _Mb(return_value=True)):
         _self_res = None
         try:
             _self_res = _srv_sec1.delete_own_account(
-                user_id=1, request=_Mb(),
+                user_id=1, data=_Mb(password='current'),
                 token={'user_id': 1, 'user_type': 'emp'}
             )
         except Exception:
             pass
     check(
         "sec-1-06. [BEHAVIORAL] self-delete: token(user=1) deleting user_id=1 → {success: True}",
-        _self_res == {"success": True}
+        isinstance(_self_res, dict) and _self_res.get("success") is True
     )
     check(
         "sec-1-07. [BEHAVIORAL] DELETE FROM users query executed for self-deletion",
@@ -11315,7 +11338,7 @@ if _pr1_srv_ok:
     )
     check(
         "pr-1-10e.[STATIC] server.py calls _migrate_pipeline_schema_v1() in startup",
-        '_migrate_pipeline_schema_v1()' in _pr1_srv
+        _in_startup_registry(_pr1_srv, '_migrate_pipeline_schema_v1')
     )
 
 else:
@@ -11336,3 +11359,6 @@ if passed == total:
 else:
     failed = [n for n, s, _ in results if s == FAIL]
     print("Failed:", ", ".join(failed))
+
+# PR 6.4: the exit code is the CI signal (run_tests.sh) — failures were silent before
+sys.exit(0 if passed == total else 1)

@@ -114,9 +114,11 @@ var jwt = localStorage.getItem('tw_jwt');   // snapshot has no jwt field — nev
 Focused tests live at the repo root (`test_*.py`, `test_*_runtime.js`) and in `tests/`. Run only the one relevant to your change, e.g.:
 
 ```bash
-python -m pytest test_post_comments.py -q
+python test_post_comments.py
 node test_stale_session_entry_runtime.js
 ```
+
+The full suite runs in CI on every PR (`.github/workflows/tests.yml` → `./run_tests.sh` — the only list of what runs / what is excluded and why; SYSTEMS_INDEX §54g). Locally: `pip install -r requirements.txt -r requirements-dev.txt && ./run_tests.sh` (PostgreSQL with `ssl=on`, or `--no-db`).
 
 ---
 
@@ -126,6 +128,8 @@ node test_stale_session_entry_runtime.js
 # Railway — deploys from GitHub main (Procfile)
 # Set env vars in Railway → Variables (see Environment Variables table)
 ```
+
+Python version: `runtime.txt` = `python-3.11` (same as CI; read by Nixpacks and Railpack — no trailing newline, Nixpacks' parser does not trim it).
 
 The `Procfile` binds to `$PORT` automatically:
 ```

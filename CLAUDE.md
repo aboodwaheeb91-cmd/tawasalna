@@ -10,7 +10,7 @@
 7. التوثيق: أي نظام أو قاعدة أو عقد جديد → SYSTEMS_INDEX + الملف التفصيلي بنفس الـ PR. حذف أي شي → يُحذف من الكود والتوثيق معاً.
 8. GitHub: Pre-push GitHub State Check قبل أي رفع. PR مدموج → branch جديد من آخر main.
 9. الدمج: ممنوع الدمج أو auto-merge. زعتر يدمج يدوياً.
-10. الرصيد: اختبار واحد مركّز. بدون screenshots، بدون بحث بكل الريبو، بدون تشغيل كل الاختبارات. فشل الاختبار مرتين → وقف وبلّغ.
+10. الرصيد: اختبار واحد مركّز. بدون screenshots، بدون بحث بكل الريبو، بدون تشغيل كل الاختبارات (الـ CI بيشغّل الكل — قسم **Testing & CI**). فشل الاختبار مرتين → وقف وبلّغ. هالقاعدة سارية بكل مهمة حتى لو المسج ما ذكرها.
 11. التقرير النهائي: رقم PR، آخر commit، الملفات، السبب الجذري، الاختبار ونتيجته، ما لم يُختبر، أي تغيير سلوك لازم زعتر يعرفه.
 12. الجلسات: مهمة جديدة = جلسة جديدة. تصحيحات نفس الـ PR بنفس الجلسة.
 13. سجل التحديثات: تاريخ التعديلات يُكتب كبند جديد بـ `docs/CHANGELOG.md` فقط (الأحدث فوق) — ممنوع تطويل سطر "Last updated" بأي ملف؛ كل ملف يحتفظ بسطر واحد قصير: آخر تاريخ + آخر PR + رابط `docs/CHANGELOG.md`.
@@ -79,8 +79,8 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 ## Running Locally
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
+# 1. Install dependencies (+ test-only deps)
+pip install -r requirements.txt -r requirements-dev.txt
 
 # 2. Set the required environment variables (see table above)
 export SUPABASE_DB_URL="postgres://..."
@@ -91,10 +91,23 @@ export APP_ENV=development
 uvicorn server:app --reload
 
 # 4. Run a focused test (one file — see docs/rules/project-reference.md → Testing)
-python -m pytest test_post_comments.py -q
+python -m pytest test_safe_link_url.py -q     # or: python test_post_comments.py / node test_x_runtime.js
+
+# 5. Everything CI runs (needs PostgreSQL with ssl=on — see run_tests.sh header)
+./run_tests.sh            # or ./run_tests.sh --no-db
 ```
 
 Server starts at `http://localhost:8000`.
+
+---
+
+## Testing & CI (mandatory for all AI sessions — PR 6.4)
+
+1. **الجلسات بتشغّل اختبار مهمتها بس (توفير رصيد)، والـ CI هو اللي بيشغّل الكل على كل PR.** `.github/workflows/tests.yml` بيشغّل `./run_tests.sh` على كل PR لـ `main` وكل push لـ `main` (Python 3.11 + Node 20 + PostgreSQL بـ SSL) — بدون فلترة مسارات.
+2. **قاعدة توفير الرصيد (ثابتة بكل مهمة، حتى لو المسج ما ذكرها):** اختبار واحد مركّز للمهمة · ممنوع screenshots (إلا إذا طُلبت صراحةً) · ممنوع بحث بكل الريبو · ممنوع تشغيل كل الاختبارات بالجلسة · فشل نفس الاختبار مرتين → وقف وبلّغ (`docs/rules/ai-usage-budget.md`). بعد الـ push: تأكّد إن `Tests` نجح على الـ PR — هاد هو فحص "الكل".
+3. **`run_tests.sh` هو المصدر الوحيد لقائمة الاختبارات.** ملف `test_*` جديد لازم ينضاف لقائمة تشغيل، أو لـ `EXCLUDED` بسطر سبب (سيرفر حي :8000 / Playwright / حساب حقيقي) — ملف بدون قائمة = الـ CI بيفشل. اختبار script لازم يطلع بـ exit code ≠ 0 عند الفشل.
+4. ❌ workflow اختبار تاني أو بفلترة مسارات (`scheduler-cron.yml` مش اختبار) · ❌ استثناء بدون سبب · ❌ تعديل اختبار بس ليمرق (إذا الكود غلط → F30 وبلّغ).
+- Spec: SYSTEMS_INDEX §54g · `runtime.txt` = `python-3.11` (نفس CI).
 
 ---
 

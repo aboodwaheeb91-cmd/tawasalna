@@ -172,9 +172,9 @@ def _create_schema(conn):
 
 # ── Seed ─────────────────────────────────────────────────────────────────────
 def _seed(conn):
-    conn.run("INSERT INTO users(tw_id,user_type,full_name) VALUES('C001','co','شركة') ON CONFLICT DO NOTHING")
-    conn.run("INSERT INTO users(tw_id,user_type,full_name) VALUES('U001','emp','موظف') ON CONFLICT DO NOTHING")
-    conn.run("INSERT INTO users(tw_id,user_type,full_name) VALUES('C002','co','شركة أخرى') ON CONFLICT DO NOTHING")
+    conn.run("INSERT INTO users(tw_id,user_type,full_name,email,password_hash) VALUES('C001','co','شركة','c001@ja.test','x') ON CONFLICT DO NOTHING")
+    conn.run("INSERT INTO users(tw_id,user_type,full_name,email,password_hash) VALUES('U001','emp','موظف','u001@ja.test','x') ON CONFLICT DO NOTHING")
+    conn.run("INSERT INTO users(tw_id,user_type,full_name,email,password_hash) VALUES('C002','co','شركة أخرى','c002@ja.test','x') ON CONFLICT DO NOTHING")
 
     co_id  = conn.run("SELECT id FROM users WHERE tw_id='C001'")[0][0]
     emp_id = conn.run("SELECT id FROM users WHERE tw_id='U001'")[0][0]
@@ -238,6 +238,11 @@ print("=" * 60)
 _sc = _get_test_conn()
 try:
     _setup(_sc)
+    # Real production schema first (PR 2B canonical startup migration list): the
+    # minimal tables in _create_schema predate later migrations (appointment_type,
+    # notifications v2, promoted_at …) — its CREATE TABLE IF NOT EXISTS become no-ops.
+    import server as _server
+    _server._run_startup_migrations()
     _create_schema(_sc)
     co_id, co2_id, emp_id, j1, j2, app_id = _seed(_sc)
 finally:
@@ -690,7 +695,7 @@ try:
         "INSERT INTO jobs(company_id,title,status) VALUES(:cid,'وظيفة تزامن','active') RETURNING id",
         cid=co_id
     )[0][0]
-    _dc29.run("INSERT INTO users(tw_id,user_type,full_name) VALUES('U002','emp','موظف 2') ON CONFLICT DO NOTHING")
+    _dc29.run("INSERT INTO users(tw_id,user_type,full_name,email,password_hash) VALUES('U002','emp','موظف 2','u002@ja.test','x') ON CONFLICT DO NOTHING")
     _emp2_id = _dc29.run("SELECT id FROM users WHERE tw_id='U002'")[0][0]
     _dc29.run("INSERT INTO profiles(user_id) VALUES(:uid) ON CONFLICT DO NOTHING", uid=_emp2_id)
 finally:

@@ -1186,6 +1186,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `CLAUDE.md → Startup Migration Policy` · `ARCHITECTURE_FOUNDATION.md` F16 · test `python -m pytest test_pr2b_flow_fixes.py -q`.
 **Do not recreate:** ❌ a migration call in `on_startup` outside the registry · ❌ `except: pass` inside a `_migrate_*()` · ❌ `ALTER TABLE … ADD CONSTRAINT IF NOT EXISTS` (invalid PostgreSQL) · ❌ error text in `/health`.
 
+### 54g. Test Runner + CI — `run_tests.sh` · `tests.yml` (PR 6.4)
+**Purpose:** Every PR to `main` (and every push to `main`) runs every test that can run without a live server, Playwright or secrets — so a PR that breaks an old feature is caught by CI, while sessions run only their own focused test.
+**Source of Truth:** `run_tests.sh` (the ONLY list of what runs: `PY_PYTEST` · `PY_SCRIPT` · `PY_DB` · `NODE_TESTS` + `EXCLUDED` with one reason per file + JS/Python syntax step) · `.github/workflows/tests.yml` (Python 3.11 + Node 20 + `postgres:16` service with SSL on → `./run_tests.sh`) · `requirements-dev.txt` (test-only deps) · `runtime.txt` (`python-3.11`, no trailing newline — Nixpacks keeps major.minor only; Railpack also reads it).
+**Details:** guard — a `test_*.py/js/mjs` (root or `tests/`) in no list, in two lists, or a listed file that does not exist → run fails. DB tests: fresh database per file (`DROP … WITH (FORCE)` + `CREATE`), URL `postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline` (`TW_TEST_DB_URL` overrides); `auth.get_conn` is SSL-only, so the server needs `ssl=on`. Local: `pip install -r requirements.txt -r requirements-dev.txt && ./run_tests.sh` (`--no-db` lists the DB tests as skipped). A script-mode test must exit non-zero on failure. `CLAUDE.md → Testing & CI` · `docs/rules/project-reference.md → Testing`.
+**Do not recreate:** ❌ a second test workflow or a path-filtered one (only `scheduler-cron.yml` lives beside it — not a test) · ❌ a test file outside the lists (silent ignore) · ❌ excluding a test without a reason line · ❌ a script test that prints failures but exits 0 · ❌ sessions running the full suite instead of their focused test.
+
 ---
 
 ## I — Systems Needing Documentation
