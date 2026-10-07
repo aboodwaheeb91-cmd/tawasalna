@@ -6339,6 +6339,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
 | GET | `/auth/users` | `get_all_users` | List all users |
+| GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` |
+| PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
 | PUT | `/admin/profile/{user_id}` | `admin_update_profile` | Edit a user's profile (admin-view.html name / headline / location / bio — PR 2B). Body = `ProfileUpdateInput`; same validation + error shapes as `PUT /profile/{id}` via the shared `_apply_profile_update()` — rules follow the **target** account's `user_type` (emp + `full_name` → 422 `emp_name_mutation_forbidden`). 404 unknown user. User JWT → 401 |
 | DELETE | `/admin/user/{user_id}` | `delete_user` | Delete user account |
