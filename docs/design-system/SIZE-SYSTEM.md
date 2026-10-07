@@ -48,7 +48,7 @@
 
 ### صفحات ما بتحمّل `tw_shared.css`
 
-`appointments.html` · `appointment-room.html` (`home-v2.html` بتحمّله من PR-8 · `job-detail.html` و `landing.html` من المرحلة C).
+ما ضل — `home-v2.html` بتحمّله من PR-8 · `job-detail.html` و `landing.html` و `appointments.html` و `appointment-room.html` من المرحلة C.
 هاي الصفحات ما بتشوف الـ tokens لحد ما ينضاف إلها `tw_shared.css` بـ PR منفصل مع فحص بصري (FUTURE_ROADMAP). ممنوع تنسخ الـ tokens لجوّاها.
 
 ---
@@ -223,7 +223,7 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 | `company.css` | `--r-sm: 10px` | `var(--radius-md)` | تشابه أسماء مربك (`--r-sm` ≠ `--radius-sm`) — الاسم المحلي يبقى، القيمة بتشاور على T1 |
 | `company.css` | `--r-md: 14px` | `var(--radius-xl)` | |
 | `company.css` | `--r-lg: 20px` | `var(--radius-3xl)` | |
-| appointments* | `--r: 14px` | `var(--radius-xl)` | الصفحة ما بتحمّل `tw_shared.css` بعد — بعد PR التحميل فقط |
+| appointments* | `--r: 14px` | `var(--radius-xl)` | ✅ Phase C (2026-10-07) — T2 |
 | `app-header.css` | `--ah-h: 44px` | `var(--size-touch-min)` | |
 | `home-v2.css` | `--flt: 46px` | T3 يبقى | ما في token مطابق |
 
@@ -304,7 +304,7 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 |---------|---------|--------|
 | A | جرد + سلالم مقترحة + قرارات | ✅ (تقرير PR-5 / المرحلة A) |
 | B (Phase 1) | توثيق + tokens بـ `tw_shared.css` — بدون تغيير بصري وبدون migration | ✅ هذا الـ PR |
-| Phase 2 | migration صفحة صفحة — المطابق وتحت البكسل فقط (+ استثناء قرار 2) — موافقة صريحة لكل صفحة | 🔜 جاري — ✅ `job-detail` (`job-detail.css` + skeleton بـ `job-detail.html`) · ✅ `landing` (`<style>` بـ `landing.html`) · الباقي FUTURE_ROADMAP |
+| Phase 2 | migration صفحة صفحة — المطابق وتحت البكسل فقط (+ استثناء قرار 2) — موافقة صريحة لكل صفحة | 🔜 جاري — ✅ `job-detail` (`job-detail.css` + skeleton بـ `job-detail.html`) · ✅ `landing` (`<style>` بـ `landing.html`) · ✅ `appointments` + `appointment-room` (`<style>` بالصفحتين) · الباقي FUTURE_ROADMAP |
 | — | توحيد أزرار الهيدر (PR بصري منفصل مع screenshots) | 🔜 FUTURE_ROADMAP |
 | — | إضافة `tw_shared.css` للصفحات الخمس (PR منفصل مع فحص بصري) | 🔜 FUTURE_ROADMAP |
 | — | redesign معلن لكل صفحة للقيم المرئية | عند الطلب |
@@ -315,6 +315,7 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 
 | التاريخ | الـ PR | التغيير |
 |---------|-------|---------|
+| 2026-10-07 | Phase C — appointments + appointment-room | migration `<style>` بالصفحتين: المطابق وتحت البكسل → tokens (13/14/15/16px → md/lg/xl/2xl · 12px → xs · 10px → 3xs · مسافات 2–40px · radius 8/10/12/14/20/50%). محلي (SIZE-09): 17px · 11px (مرئي +.52) · 3/5/9px · 30/60/80/90px · 36/34/38/52px · 18px أيقونة الرجوع = `--size-icon-lg` · empty 48px / error 40px · `--r: var(--radius-xl)` (T2). أيقونات 13 → 14 (قرار 2). أفاتار القائمة 44 → 48 (IMG-02 — مرئي) |
 | 2026-10-06 | Phase C — landing | migration `<style>` بـ `landing.html`: المطابق وتحت البكسل → tokens (ما في قيمة مرئية انبدلت). محلي (SIZE-09): `clamp()` العناوين · مسافات الأقسام 48–100px و5% · 7/9/13/22/26/28/36px · radius 2/18/24px · 1.05/1.1/1.3/2.5rem · الـ mock (أفاتار 56 · QR 52 · أيقونات 44/46/50) |
 | 2026-10-06 | Phase C — job-detail | أول migration صفحة: `job-detail.css` (163 قيمة مطابق / تحت البكسل → tokens) + أيقونات الصفحة على `--size-icon-*` (قرارات 13→14 · 10→12 · 15→16) — القيم المرئية بتضل محلية (SIZE-09). `test_ds_size_tokens.py` S4 بيستثني ملفات صفحات المرحلة C |
 | 2026-10-06 | PR-7b | `--size-avatar-md/lg/xl/2xl` (40/48/88/106) لـ DS-IMAGE (SIZE-06) |

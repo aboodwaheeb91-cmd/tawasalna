@@ -169,7 +169,7 @@
 |---------|--------|
 | A — فحص | ✅ |
 | B — helper + CSS + tokens + توثيق + إصلاح §54 بـ profile-v2 (بدون مستهلك وبدون تغيير بصري) | ✅ PR-7b (2026-10-06) |
-| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail` (أول صفحة بموافقة صريحة: لوغو الهيدر `twAvatarHtml(company, 'xl', {eager:true})` + كرت الشركة `lg` — الشكل صار مربع بزوايا بدل الدائرة). الباقي: messages ← company ← profile ← home. كل صفحة: helper + شيل الـ escaping المحلي + توحيد الأحجام + screenshots. + غلاف الموظف 4:1 + cropper · لوغو الشركة مربع + cropper مربع |
+| C — تحويل صفحة صفحة | 🔜 جاري — ✅ `job-detail` (أول صفحة بموافقة صريحة: لوغو الهيدر `twAvatarHtml(company, 'xl', {eager:true})` + كرت الشركة `lg` — الشكل صار مربع بزوايا بدل الدائرة) · ✅ `appointments` + `appointment-room` (الطرف التاني بالموعد `twAvatarEl` lg — القائمة: حرف بس لأن `GET /api/appointments` ما بيرجّع صورة؛ الغرفة: `applicant_avatar` / `company_avatar`؛ 44 → 48 · حرفين → حرف · لوغو الشركة مربع). الباقي: messages ← company ← profile ← home. كل صفحة: helper + شيل الـ escaping المحلي + توحيد الأحجام + screenshots. + غلاف الموظف 4:1 + cropper · لوغو الشركة مربع + cropper مربع |
 | الجهة التعليمية | 🔜 PR مستقل: upload لوغو + غلاف عبر §29a / §29b (بدل localStorage) |
 
 > المرحلة C ممنوعة إلا بموافقة صريحة لكل صفحة.

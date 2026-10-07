@@ -520,6 +520,53 @@ function twLoginHref(next) {
 }
 window.twLoginHref = twLoginHref;
 
+// ══ Protected Page Guard — twRequireAuth (PAGE-SHELL.md SHELL-09 · Auth Gateway rule 14) ══
+// The ONE guard for pages that need a session (<meta name="tw-page" content="auth">).
+// Called once, first thing in the page script:  var snap = twRequireAuth(); if (!snap) return;
+// Decides from TwAuthSync.getSessionSnapshot() only (never tw_user / tw_jwt directly):
+//   guest / expired / stale / invalid / no TwAuthSync → location.replace(twLoginHref(path + query)) → null
+//   opts.userTypes given and the account type is not in it → location.replace(twAccountHref(u)) → null
+//   authenticated                                        → the snapshot
+// Same decision again on every TwAuthSync.onSessionChange (logout / expiry in another tab,
+// bfcache restore — VM-01: no own pageshow / storage listener). Another account signed in
+// (userId changed) → reload so the page never shows account A's data to account B.
+// One onSessionChange registration per page (a second call does not register again).
+var _twGuardBound   = false;
+var _twGuardLeaving = false;
+
+function _twGuardDestination(snap, types) {
+  if (!snap || !snap.isAuthenticated) return twLoginHref(location.pathname + location.search);
+  if (types && types.indexOf(snap.userType) === -1) return twAccountHref(getTwUser());
+  return null;
+}
+
+function _twGuardLeave(dest) {
+  if (_twGuardLeaving) return;
+  _twGuardLeaving = true;
+  if (dest) location.replace(dest);
+  else location.reload();
+}
+
+function twRequireAuth(opts) {
+  var types = (opts && Array.isArray(opts.userTypes) && opts.userTypes.length) ? opts.userTypes.slice() : null;
+  var sync  = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function') ? TwAuthSync : null;
+  var snap  = sync ? sync.getSessionSnapshot() : null;
+  var dest  = _twGuardDestination(snap, types);
+  if (dest) { _twGuardLeave(dest); return null; }
+  if (!_twGuardBound && typeof sync.onSessionChange === 'function') {
+    _twGuardBound = true;
+    var boundUserId = Number(snap.userId);
+    sync.onSessionChange(function (info) {
+      var s = (info && info.snapshot) || sync.getSessionSnapshot();
+      var d = _twGuardDestination(s, types);
+      if (d) { _twGuardLeave(d); return; }
+      if (Number(s.userId) !== boundUserId) _twGuardLeave(null);
+    });
+  }
+  return snap;
+}
+window.twRequireAuth = twRequireAuth;
+
 function twLogout() {
   if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
     TwAuthSync.invalidateSession('logout', { redirect: '/login' });

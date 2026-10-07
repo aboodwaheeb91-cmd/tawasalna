@@ -21,6 +21,7 @@
 | بدك `?v=` لملف مشترك | SHELL-05 (تلقائي — ممنوع يدوي) |
 | ترتيب CSS المشترك مقابل CSS الصفحة | SHELL-04 |
 | أيقونات / `tw-icons.js` | **مش هون** — DS-ICON Phase C (F37) |
+| صفحة محمية (بدها جلسة) | SHELL-09 (`twRequireAuth` + `<meta name="tw-page" content="auth">`) |
 
 ---
 
@@ -33,7 +34,7 @@
 | `<title>` + CSS / JS الخاص بالصفحة + `<body>` | الصفحة نفسها |
 | ملفات الأيقونات + `manifest.json` + SW | §32 |
 | ألوان `theme-color` | DS-COLOR (`--color-brand-primary` = `#00c896`) |
-| قرار الدخول (guest → `/login`) | TwAuthSync (§VM-10) — guard موحّد بالمرحلة C |
+| قرار الدخول (guest → `/login?next=`) | `twRequireAuth` (SHELL-09) — بيقرأ TwAuthSync (§VM-10) بس |
 
 ---
 
@@ -67,7 +68,7 @@
 | النسخة | Markers | الفرق |
 |--------|---------|-------|
 | **app** — صفحات الحساب (محمية) | `shell-head` / `shell-scripts` | الكامل |
-| **entry** — `landing` · `/login` · الصفحات العامة | نفس markers الـ app | نفس الـ partials؛ الفرق بالـ guard (`<meta name="tw-page">` — المرحلة C) مش بالـ shell |
+| **entry** — `landing` · `/login` · الصفحات العامة | نفس markers الـ app | نفس الـ partials؛ الفرق بالـ guard (SHELL-09: صفحة محمية = `<meta name="tw-page" content="auth">` + `twRequireAuth()`) مش بالـ shell |
 | **admin** — `admin-view` · لوحة `/tw-ctrl-*` | `shell-head:admin` / `shell-scripts:admin` | بدون `manifest` · بدون `auth-sync.js` · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل الـ SW |
 
 ---
@@ -112,6 +113,39 @@
 
 ---
 
+## SHELL-09 — Guard الصفحات المحمية (`twRequireAuth`)
+
+> **المصدر الوحيد:** `twRequireAuth(opts)` بـ `tw_shared.js` (Auth Gateway rule 14 · CLAUDE.md). أول مستهلك: `appointments.html` + `appointment-room.html` (المرحلة C). اختبار: `node test_appointments_guard_runtime.js`.
+
+**الصفحة:** `<meta name="tw-page" content="auth">` بالـ `<head>` (بعد الـ shell marker) + **نداء واحد** بأول سكربت الصفحة:
+
+```js
+const snap = twRequireAuth();            // أو twRequireAuth({ userTypes: ['co'] })
+if (!snap) return;                       // الصفحة عم تتحوّل — ولا سطر بعدها
+```
+
+| الحالة (`TwAuthSync.getSessionSnapshot()` فقط) | النتيجة |
+|-----------------------------------------------|---------|
+| `guest` · `expired` · `stale` · `invalid` · TwAuthSync مش موجود (fail-closed) | `location.replace(twLoginHref(pathname + search))` → `null` |
+| `authenticated` + `opts.userTypes` وما فيها نوع الحساب | `location.replace(twAccountHref(u))` (مش `/login`) → `null` |
+| `authenticated` | بيرجّع الـ snapshot (`userId` · `userType`) |
+
+**بعد التحميل** — تسجيل **واحد** على `TwAuthSync.onSessionChange` (نداء ثاني ما بيسجّل): نفس القرار عند logout / انتهاء الجلسة بتاب تاني أو رجوع bfcache (VM-01 — ما في `pageshow` / `storage` listener خاص)؛ حساب تاني سجّل دخول (`userId` تغيّر، نفس النوع المسموح) → `location.reload()` (ما بتضل بيانات الحساب الأول ظاهرة). بعد أول تحويل ما في تحويل ثاني.
+
+- `401` من API الصفحة → `TwAuthSync.invalidateSession('api_401')` → الـ guard نفسه بيحوّل لـ `/login?next=` (نفس نمط `loadGlobalBadges`).
+- الـ guard **UX بس** — الحماية الفعلية بالـ Backend (F6 / F21).
+- `twAccountHref(u)` بياخد `tw_id` من `getTwUser()` (الـ snapshot ما فيه `tw_id`) — نفس `twEntryDestination()`.
+
+```
+❌ قراءة tw_user / tw_jwt مباشرة لقرار الدخول بصفحة محمية
+❌ location.href = '/login' يدوي (بدون ?next=) أو guard ثاني بالصفحة
+❌ أكتر من نداء twRequireAuth بالصفحة، أو نداء بعد أي fetch
+❌ <meta name="tw-page" content="auth"> بدون twRequireAuth (أو العكس)
+❌ twRequireAuth بصفحة entry (landing / login) — هدول عبر twEntryDestination()
+```
+
+---
+
 ## SHELL-07 — الممنوعات
 
 ```
@@ -132,5 +166,5 @@
 ## SHELL-08 — المرحلة C (التحويل)
 
 - **B ✅ (PR-8):** `page_shell.py` + partials + `read_html` + الصفحة التجريبية `home-v2.html` (screenshots قبل/بعد مطابقة بالبكسل بالـ sandbox).
-- **C 🔜 (جاري):** PR لكل صفحة مع فحص بصري، بالترتيب: `job-detail` ✅ (أول صفحة — shell + `/static/tw_shared.js` + DS-ICON / DS-IMAGE / DS-SIZE / DS-FEEDBACK + session من `TwAuthSync.getSessionSnapshot()`؛ اختبار `python test_job_detail_shell.py`) ← `landing` ✅ (entry — بدون guard؛ التحويل عبر `twEntryDestination()` بس · صفحة الـ offline fallback: ملفات الـ shell + `tw-icons.js` بالـ precache بدون `?v=` و `ignoreSearch` offline — §32 · `apple-mobile-web-app-*` و `/icon-192.png` اليدوي انشالوا · SEO بالصفحة؛ اختبار `python test_landing_shell.py`) ← `appointments` ← `appointment-room` (الصفحات اللي ما بتحمّل `tw_shared.*`) ← الباقي. التفاصيل + البنود المرافقة: `docs/FUTURE_ROADMAP.md` → Platform / Architecture.
+- **C 🔜 (جاري):** PR لكل صفحة مع فحص بصري، بالترتيب: `job-detail` ✅ (أول صفحة — shell + `/static/tw_shared.js` + DS-ICON / DS-IMAGE / DS-SIZE / DS-FEEDBACK + session من `TwAuthSync.getSessionSnapshot()`؛ اختبار `python test_job_detail_shell.py`) ← `landing` ✅ (entry — بدون guard؛ التحويل عبر `twEntryDestination()` بس · صفحة الـ offline fallback: ملفات الـ shell + `tw-icons.js` بالـ precache بدون `?v=` و `ignoreSearch` offline — §32 · `apple-mobile-web-app-*` و `/icon-192.png` اليدوي انشالوا · SEO بالصفحة؛ اختبار `python test_landing_shell.py`) ← `appointments` ✅ + `appointment-room` ✅ (PR واحد — أول مستهلك لـ `twRequireAuth` SHELL-09 · `fetch` عبر `getAuthHeaders` · `alert()` → `showToast` · emoji / SVG → `twIcon` · أفاتار الطرف التاني `twAvatarEl` lg · `:root` المحلي → `--color-*` أو `--ap-*` بدون shadowing · `confirm()` ×3 بالغرفة باقية لحد نظام تأكيد DS-OVL؛ اختبار `node test_appointments_guard_runtime.js`) ← الباقي. التفاصيل + البنود المرافقة: `docs/FUTURE_ROADMAP.md` → Platform / Architecture.
 - كل تحويل: شيل الـ tags المكرّرة + markers + تحديث أي اختبار بيقرأ الملف الخام ليقرأ ناتج `apply_shell` (مثال: `read_page()` بـ `test_global_ui_visibility.py`).

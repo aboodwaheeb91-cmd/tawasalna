@@ -95,7 +95,7 @@ check('S3 no --size-*/--radius-*/--space-* defined outside tw_shared.css', not o
 # S4 — no page migration: no CSS/HTML file other than tw_shared.css gains a DS-SIZE consumer
 # (a version-string bump or unrelated HTML change is not a migration) — except the files of
 # pages migrated in phase C (one approved PR per page adds its files here).
-_PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html']
+_PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html', 'appointments.html', 'appointment-room.html']
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,

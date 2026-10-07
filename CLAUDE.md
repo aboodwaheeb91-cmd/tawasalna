@@ -283,6 +283,13 @@ These rules are permanent and apply to all future AI sessions.
    - ❌ Hand-built `'/login?next=' + …` · ❌ a second next validator · ❌ reading `?next=` outside `index.auth.js`.
    - Test: `node test_auth_next_icon_hydrate_runtime.js`.
 
+14. **Protected Page Guard — `twRequireAuth(opts)` in `tw_shared.js` (`docs/design-system/PAGE-SHELL.md` SHELL-09).** The ONLY way a page that needs a session sends a visitor away. The page declares `<meta name="tw-page" content="auth">` and calls `twRequireAuth()` once, first thing in its script, before any `fetch` (`if (!snap) return;`).
+   - Decides from `TwAuthSync.getSessionSnapshot()` only: guest / expired / stale / invalid / no TwAuthSync → `location.replace(twLoginHref(pathname + search))`; authenticated + `opts.userTypes` without this type → `location.replace(twAccountHref(u))` (not `/login`); authenticated → returns the snapshot.
+   - Registers once on `TwAuthSync.onSessionChange` (VM-01 — no own `pageshow` / `storage` listener): logout / expiry in another tab → same redirect; a different account signed in → `location.reload()`.
+   - First consumers: `appointments.html` · `appointment-room.html`. Entry pages (`/`, `/login`) never use it — they use `twEntryDestination()`.
+   - ❌ Reading `tw_user` / `tw_jwt` directly to gate a page · ❌ hand-built `location.href = '/login'` · ❌ a second page-local guard.
+   - Test: `node test_appointments_guard_runtime.js`.
+
 ---
 
 ## Shared System First — Architecture Pattern Check (mandatory for all AI sessions)

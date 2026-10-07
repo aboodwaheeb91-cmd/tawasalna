@@ -11,6 +11,18 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## Phase C / appointments + appointment-room — 2026-10-07 — ثالث تحويل + guard الصفحات المحمية (`twRequireAuth`)
+
+- `tw_shared.js`: **`twRequireAuth(opts)`** (جديد — SHELL-09 · Auth Gateway rule 14) — قرار من `TwAuthSync.getSessionSnapshot()` بس: guest / expired / stale / invalid / بدون TwAuthSync → `location.replace(twLoginHref(path + query))` · `opts.userTypes` ونوع غلط → `twAccountHref` · تسجيل واحد على `onSessionChange` (logout بتاب تاني / bfcache → نفس القرار · حساب تاني → `location.reload()`).
+- `appointments.html` + `appointment-room.html`: markers الـ shell (انشالت charset / viewport / Cairo — صار 400–900 / preconnect؛ الـ reset `*` صار من `tw_shared.css`) · `<meta name="tw-page" content="auth">` + `twRequireAuth()` بدل `tw_user` / `tw_jwt` المباشر · `fetch` عبر `getAuthHeaders(true)` · `401` → `invalidateSession('api_401')` → `/login?next=` · `alert()` → `showToast` (`error` / `warning`) + `normalizeErrorResponse` · `safeText` / `initials` المحلية انحذفت (المشتركة / `twAvatarEl`).
+- DS-ICON: SVG يدوي + emoji (أزرار الغرفة · الحالات الفاضية · البانر المغلق · صفحة "غير مصرح") + `‹` → `<i data-tw-icon>` + `twIcon.hydrate` / `twIconEl` · `tw-icons.js?v={{v:tw-icons.js}}`.
+- DS-IMAGE: الطرف التاني بالموعد → `twAvatarEl(..., 'lg')` (الغرفة مع `applicant_avatar` / `company_avatar`).
+- DS-SIZE / DS-COLOR: المطابق وتحت البكسل → tokens · `--bg/--card/--ac/--ac2/--ac3` → `--color-*` · المختلف → `--ap-border` (.07) · `--ap-text` (#e8eaf0) · `--ap-text-sub` (#8892a4) · `--ap-danger` (#ef4444 — كان بيغطّي `--danger` المشترك) · `--ap-warn` (#f59e0b) · `--ap-surface-modal` (#0d1526) · `--r: var(--radius-xl)` (T2) · inline `style.cssText` بالغرفة → classes.
+- WebSocket: الغرفة polling HTTP كل 5 ثواني بس (ما فيها WS) — `tw_shared.js` بيضيف اتصال واحد للـ badge WS العام (نفس كل الصفحات)، ما في تكرار ولا تعارض.
+- باقي (F30): 3 × `confirm()` بالغرفة · NAV-06 بدون صف للمواعيد · ما في helper لرابط خارجي — FUTURE_ROADMAP.
+- اختبارات: `node test_appointments_guard_runtime.js` (جديد — 49 فحص) · allowlists المرحلة C بـ `test_ds_icon_registry.js` / `test_ds_image_runtime.js` / `test_ds_size_tokens.py`.
+- توثيق: PAGE-SHELL (SHELL-00 · SHELL-01 · SHELL-03 · SHELL-08 · **SHELL-09**) · `docs/rules/page-shell.md` (10) · CLAUDE.md Auth Gateway rule 14 · ICON-SYSTEM · IMAGE-SYSTEM · SIZE-SYSTEM · FEEDBACK-SYSTEM (M12 / M13) · `docs/rules/{ds-icon,ds-image,ds-size}.md` · SYSTEMS_INDEX §23 · §55–§58 · ARCHITECTURE · FUTURE_ROADMAP.
+
 ## landing F30 close-out (بعد PR #560) — 2026-10-06 — أزرار التسجيل · لوغو offline · `?v=` لأصول الصفحة · صورة المشاركة
 
 - `landing.html`: «ابدأ مجاناً» (nav · hero · CTA) و«تسجيل» (footer) → `/login#register` · «كموظف / كشركة / كجهة تعليمية» → `/login#register-emp|co|edu` (hash router الموجود بـ `index.ui.js`). «دخول» بيضل `/login`.
