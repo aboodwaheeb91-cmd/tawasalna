@@ -158,7 +158,8 @@ const consumers = [];
   for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, f.name);
     if (f.isDirectory()) { if (!SKIP_DIRS.has(f.name)) walk(p); continue; }
-    if (!/\.(html|js|mjs|css|py|json)$/.test(f.name) || /^test_/.test(f.name)) continue;
+    // .py excluded: page_shell.py names the file in its rules — it is not a page loading it
+    if (!/\.(html|js|mjs|css|json)$/.test(f.name) || /^test_/.test(f.name)) continue;
     if (p === path.join('static', 'shared', 'tw-icons.js')) continue;
     if (p === 'sw.js') continue;  // §32 precache list for the offline page (landing) — not a consumer
     if (read(p).includes('tw-icons')) consumers.push(p);

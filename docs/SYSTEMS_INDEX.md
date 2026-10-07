@@ -1081,9 +1081,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 54. Safe Rendering / Output Escaping
 **Purpose:** Shared HTML escaping helpers to prevent stored XSS across all pages.
 **Source of Truth:** `tw_shared.js` → `twEscAttr(v)` (canonical implementation) · `twEscHtml(v)` (alias for `twEscAttr`). Both exposed on `window.` — the old `sanitize()` alias was deleted (PR-4); do not re-add it.
-**Image URL (PR-7b):** `twSafeImageUrl(url)` is the only image-URL check (`https://` or `/`-relative — not `//`, not `/\`; javascript: / data: / vbscript: / http: → `''`) · `twCssUrl(url)` for `background-image` (validated + CSS-escaped). Fixed in `profile-v2`: `.sc-avatar`, followers modal `.sc-fl-avatar` + href, employee cover. `static/app-header.js` avatar (`img.src = twSafeImageUrl(...)`, link `twAccountHref`; page without `tw_shared.js` → initials + `/login`, no local copies). **Known debt:** 8 local escaping functions on image paths (messages / company / profile-v2) → DS-IMAGE phase C (§57).
+**Image URL (PR-7b):** `twSafeImageUrl(url)` is the only image-URL check (`https://` or `/`-relative — not `//`, not `/\`; javascript: / data: / vbscript: / http: → `''`) · `twCssUrl(url)` for `background-image` (validated + CSS-escaped). Fixed in `profile-v2`: `.sc-avatar`, followers modal `.sc-fl-avatar` + href, employee cover. `static/app-header.js` avatar (`img.src = twSafeImageUrl(...)`, link `twAccountHref`; page without `tw_shared.js` → initials + `/login`, no local copies). **Known debt:** 7 local escaping functions on image paths (messages / company) → DS-IMAGE phase C (§57). `profile-v2.utils.js → esc()` = alias of `twEscHtml` (PR 1.1).
+**External link URL (PR 1.1 — rule 4b):** `twSafeLinkUrl(url)` is the only check for a user-entered link in `href` (`http://` / `https://` + host char; no whitespace / control char; ≤ 2048; else `''` → plain text, no `<a>`). Backend twin `_validate_external_url(url, field, label, required)` in `server.py` → 422 `ExternalUrlError` (`errors[]` + `detail.message`, Arabic) on `POST /links` · `POST/PUT /course` · `PUT /profile` (`website`) · `POST/PUT /admin/news` (`source_url`). Consumers: profile-v2 links + certificate · edu-profile website · home news source · appointment-room `online_url`. Test: `python -m pytest test_safe_link_url.py -q`.
 **Details:** `ARCHITECTURE.md → Safe Rendering (§54)` · `CLAUDE.md → Safe Rendering / Output Escaping Rules` · `docs/design-system/IMAGE-SYSTEM.md` IMG-08
-**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. Image URLs go through `twSafeImageUrl` (not a new inline regex; the legacy `/^(https?:\/\/|\/(?!\/))/` in admin pages is not to be copied). `sanitize` is deprecated; do not use in new code.
+**Do not recreate:** Do not write new escaping logic — one implementation only (`twEscAttr`). Always wrap API data in `twEscHtml` for text content and `twEscAttr` for attribute values. External links go through `twSafeLinkUrl` (front) + `_validate_external_url` (server) — no inline `^https?://` regex, no `esc()` alone on an `href`. Image URLs go through `twSafeImageUrl` (not a new inline regex; the legacy `/^(https?:\/\/|\/(?!\/))/` in admin pages is not to be copied). `sanitize` is deprecated; do not use in new code.
 
 ---
 
@@ -1097,4 +1098,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — Phase C / appointments · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 1.1 safe external links · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

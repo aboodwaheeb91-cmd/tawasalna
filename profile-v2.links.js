@@ -38,6 +38,7 @@
   if(saveBtn) saveBtn.onclick = function(){
     var url = fv('linkUrl');
     if(!url){ toast('الرابط مطلوب'); return; }
+    if(!twSafeLinkUrl(url)){ toast('الرابط غير صالح — يجب أن يبدأ بـ https:// أو http://'); return; }   // §54 rule 4b
     var payload = { link_type: fv('linkType') || 'other', url: url };
     saveBtn.disabled    = true;
     saveBtn.textContent = 'جاري الحفظ…';
@@ -85,6 +86,7 @@
       var label   = esc(LINK_LABELS[ltype] || ltype);
       var icon    = LINK_ICONS[ltype] || 'link';
       var urlText = esc(l.url || '');
+      var safeUrl = twSafeLinkUrl(l.url || '');   // §54 rule 4b — unsafe stored URL → plain text, no <a>
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
           +'<button class="sc-exp-menu-btn" onclick="window._expMenuToggle(this)" title="خيارات">'
@@ -102,7 +104,9 @@
         + '<div class="sc-link-icon"><i data-lucide="' + icon + '" class="ico-sm"></i></div>'
         + '<div class="sc-link-info">'
         + '<div class="sc-link-type">' + label + '</div>'
-        + '<a href="' + urlText + '" target="_blank" rel="noopener" class="sc-link-url">' + urlText + '</a>'
+        + (safeUrl
+            ? '<a href="' + twEscAttr(safeUrl) + '" target="_blank" rel="noopener noreferrer" class="sc-link-url">' + urlText + '</a>'
+            : '<span class="sc-link-url">' + urlText + '</span>')
         + '</div>'
         + actions
         + '</div>';

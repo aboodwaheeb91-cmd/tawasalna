@@ -66,6 +66,8 @@
       var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_checkFields[_i]);
       if(_pcErr){ toast(_pcErr); return; }
     }
+    var _curl = fv('courseCurl');
+    if(_curl && !twSafeLinkUrl(_curl)){ toast('رابط الشهادة غير صالح — يجب أن يبدأ بـ https:// أو http://'); return; }   // §54 rule 4b
     var payload = {
       title:            title,
       provider:         fv('courseProv')  || null,
@@ -123,7 +125,7 @@
       var title  = esc(c.title    || '');
       var prov   = c.provider         ? esc(c.provider)         : '';
       var cd     = c.completion_date  ? esc(c.completion_date)  : '';
-      var curl   = c.certificate_url  ? esc(c.certificate_url)  : '';
+      var curl   = twSafeLinkUrl(c.certificate_url || '');   // §54 rule 4b — unsafe stored URL → no link
       var desc   = c.description      ? esc(c.description)      : '';
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
@@ -149,7 +151,8 @@
         + (prov ? '<div class="sc-exp-company">' + prov + '</div>' : '')
         + (cd   ? '<div class="sc-exp-period">' + cd + '</div>' : '')
         + (desc ? '<div class="sc-exp-desc">'   + desc + '</div>' : '')
-        + (curl ? '<a href="' + curl + '" target="_blank" rel="noopener" class="sc-cert-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> عرض الشهادة</a>' : '')
+        + (curl ? '<a href="' + twEscAttr(curl) + '" target="_blank" rel="noopener noreferrer" class="sc-cert-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> عرض الشهادة</a>'
+               : (c.certificate_url ? '<span class="sc-cert-link">' + esc(c.certificate_url) + '</span>' : ''))
         + '</div>'
         + actions
         + '</div>'
