@@ -6667,6 +6667,120 @@ def update_candidate_job_status(
         release_conn(conn)
 
 
+# Application statuses below 'accepted' — the only ones the shortlist core moves forward.
+_APP_STATUS_BELOW_ACCEPTED = frozenset({"pending", "viewed"})
+
+
+def _shortlist_candidate_in_tx(conn, *, company_id: int, candidate_id: int, job_id: int,
+                               app_id, app_status, actor_id: int, reason: str) -> dict:
+    """
+    Shared shortlist core — make (candidate, job) a pipeline CANDIDATE of this company.
+    Used by promote_application_to_shortlist and create_appointment (PR 3.10 auto-add).
+    Must run inside the caller's open transaction — never commits / rolls back.
+
+    Never moves anything backwards (_CANDIDATE_STATUS_RANK — PR 2B):
+      - rejected / withdrawn (application, job ref or pipeline stage) → nothing written,
+        action = 'final_noop', final = 'rejected' | 'withdrawn'.
+      - stage already ≥ shortlisted → stage kept (action 'kept_higher' / 'unchanged'),
+        only missing links are filled (job ref, pipeline entry, promoted_at).
+      - otherwise → stage 'shortlisted' (action 'promoted').
+      - the application (if any) moves to 'accepted' only from pending / viewed.
+
+    Returns {action, status, final, ref_status, pe_stage, app_status, created_entry}.
+    """
+    ref_rows = conn.run(
+        "SELECT candidate_status FROM company_candidate_job_refs "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "FOR UPDATE",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    ref_status = ref_rows[0][0] if ref_rows else None
+    pe_rows = conn.run(
+        "SELECT stage FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "FOR UPDATE",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    pe_stage = pe_rows[0][0] if pe_rows else None
+    out = {"ref_status": ref_status, "pe_stage": pe_stage, "app_status": app_status,
+           "created_entry": not pe_rows, "final": None}
+
+    if (app_status == "rejected" or ref_status in _CANDIDATE_STATUS_FINAL
+            or pe_stage in _CANDIDATE_STATUS_FINAL):
+        out.update(action="final_noop", status=None,
+                   final=("rejected" if "rejected" in (app_status, ref_status, pe_stage)
+                          else "withdrawn"))
+        return out
+
+    _rank_short = _CANDIDATE_STATUS_RANK["shortlisted"]
+    _cur_rank = max(_CANDIDATE_STATUS_RANK.get(ref_status, 0),
+                    _CANDIDATE_STATUS_RANK.get(pe_stage, 0))
+    if _cur_rank > _rank_short:
+        action = "kept_higher"
+    elif _cur_rank == _rank_short and (ref_status == "shortlisted" or pe_stage == "shortlisted"):
+        action = "unchanged"
+    else:
+        action = "promoted"
+    # Effective stage after this call: the higher of the two sources, never lower.
+    if action == "kept_higher":
+        cand_status = (ref_status if _CANDIDATE_STATUS_RANK.get(ref_status, 0) >=
+                       _CANDIDATE_STATUS_RANK.get(pe_stage, 0) else pe_stage)
+    else:
+        cand_status = "shortlisted"
+
+    # Application → accepted, forward-only (rejected already returned above)
+    if app_id is not None and app_status in _APP_STATUS_BELOW_ACCEPTED:
+        conn.run("UPDATE job_applications SET status = 'accepted' WHERE id = :id", id=app_id)
+        out["app_status"] = "accepted"
+
+    # Company-job link — candidate_status only moves forward
+    if ref_rows:
+        if _CANDIDATE_STATUS_RANK.get(ref_status, 0) < _rank_short:
+            conn.run(
+                "UPDATE company_candidate_job_refs SET candidate_status = 'shortlisted' "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+                cid=company_id, uid=candidate_id, jid=job_id)
+    else:
+        conn.run(
+            "INSERT INTO company_candidate_job_refs "
+            "(company_id, candidate_id, job_id, candidate_status) "
+            "VALUES (:cid, :uid, :jid, :st)",
+            cid=company_id, uid=candidate_id, jid=job_id,
+            # 'offer' is pipeline-only → closest job-ref status below it
+            st=cand_status if cand_status in CANDIDATE_STATUS_LABELS else "interview")
+
+    # Pipeline: ensure entry exists (linked to the application when there is one)
+    _pipeline_upsert_entry(
+        conn,
+        company_id=company_id,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        application_id=app_id,
+        stage="shortlisted",
+        source="application" if app_id is not None else "company_add",
+        created_by=actor_id,
+        job_title_snapshot=None,
+        initial_event_reason=reason,
+    )
+    # promoted_at separates "candidate" from "applicant" (PR-6) — COALESCE never overwrites
+    conn.run(
+        "UPDATE job_pipeline_entries "
+        "SET promoted_at = COALESCE(promoted_at, NOW()), updated_at = NOW() "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+        cid=company_id, uid=candidate_id, jid=job_id,
+    )
+    if _CANDIDATE_STATUS_RANK.get(pe_stage, 0) < _rank_short:
+        _pipeline_update_stage(
+            conn,
+            company_id=company_id,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            new_stage="shortlisted",
+            changed_by=actor_id,
+            reason=reason,
+        )
+    out.update(action=action, status=cand_status)
+    return out
+
+
 def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
     """
     Atomic business operation: mark application 'accepted' + set pipeline to 'shortlisted'.
@@ -6678,6 +6792,9 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
         stage stays; only missing links (application accepted, pipeline entry, promoted_at)
         are filled. action = 'unchanged' (already shortlisted) or 'kept_higher'.
       - otherwise → stage set to 'shortlisted', action = 'promoted'.
+      - the application moves to 'accepted' only from pending / viewed (PR 3.10 —
+        contacted / interview / hired stay as they are).
+    Core shared with create_appointment: _shortlist_candidate_in_tx (PR 3.10).
 
     Option B (Bnd-4): This function NEVER writes to company_saved_candidates.
     Talent Bank (company_saved_candidates) is managed exclusively by explicit HR saves.
@@ -6727,26 +6844,17 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
             )
             general_status = bank_rows[0][0] if bank_rows else None
 
-            # ── 2b. Current stage for this job (locked) — PR 2B no-downgrade ──
-            ref_rows = conn.run(
-                "SELECT candidate_status FROM company_candidate_job_refs "
-                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
-                "FOR UPDATE",
-                cid=company_id, uid=applicant_id, jid=job_id)
-            ref_status = ref_rows[0][0] if ref_rows else None
-            pe_rows = conn.run(
-                "SELECT stage FROM job_pipeline_entries "
-                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
-                "FOR UPDATE",
-                cid=company_id, uid=applicant_id, jid=job_id)
-            pe_stage = pe_rows[0][0] if pe_rows else None
+            # ── 2b–5b. Shared shortlist core (PR 3.10 — same code as the appointment path) ──
+            sl = _shortlist_candidate_in_tx(
+                conn, company_id=int(company_id), candidate_id=int(applicant_id),
+                job_id=int(job_id), app_id=app_id, app_status=_app_status,
+                actor_id=int(company_id), reason="application_shortlisted")
+            ref_status, pe_stage = sl["ref_status"], sl["pe_stage"]
 
-            if (_app_status == "rejected" or ref_status in _CANDIDATE_STATUS_FINAL
-                    or pe_stage in _CANDIDATE_STATUS_FINAL):
+            if sl["action"] == "final_noop":
                 conn.run("ROLLBACK")
                 committed = True   # nothing written — no second ROLLBACK below
-                final = ("rejected" if "rejected" in (_app_status, ref_status, pe_stage)
-                         else "withdrawn")
+                final = sl["final"]
                 return {
                     "application": {"id": app_id, "status": _app_status},
                     "candidate": {
@@ -6767,78 +6875,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     "candidate_status":   ref_status or pe_stage or final,
                     "general_status":     general_status,
                 }
-
-            _rank_short = _CANDIDATE_STATUS_RANK["shortlisted"]
-            _cur_rank = max(_CANDIDATE_STATUS_RANK.get(ref_status, 0),
-                            _CANDIDATE_STATUS_RANK.get(pe_stage, 0))
-            if _cur_rank > _rank_short:
-                action = "kept_higher"
-            elif _cur_rank == _rank_short and (ref_status == "shortlisted" or pe_stage == "shortlisted"):
-                action = "unchanged"
-            else:
-                action = "promoted"
-            # Effective stage after this call: the higher of the two sources, never lower.
-            if action == "kept_higher":
-                cand_status = (ref_status if _CANDIDATE_STATUS_RANK.get(ref_status, 0) >=
-                               _CANDIDATE_STATUS_RANK.get(pe_stage, 0) else pe_stage)
-            else:
-                cand_status = "shortlisted"
-
-            # ── 3. Mark application as accepted (forward-only — rejected already returned) ──
-            if _app_status != "accepted":
-                conn.run(
-                    "UPDATE job_applications SET status = 'accepted' WHERE id = :id",
-                    id=app_id)
-
-            # ── 4. UPSERT company-job link — candidate_status only moves forward ──
-            if ref_rows:
-                if _CANDIDATE_STATUS_RANK.get(ref_status, 0) < _rank_short:
-                    conn.run(
-                        "UPDATE company_candidate_job_refs SET candidate_status = 'shortlisted' "
-                        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
-                        cid=company_id, uid=applicant_id, jid=job_id)
-            else:
-                conn.run(
-                    "INSERT INTO company_candidate_job_refs "
-                    "(company_id, candidate_id, job_id, candidate_status) "
-                    "VALUES (:cid, :uid, :jid, :st)",
-                    cid=company_id, uid=applicant_id, jid=job_id,
-                    # 'offer' is pipeline-only → closest job-ref status below it
-                    st=cand_status if cand_status in CANDIDATE_STATUS_LABELS else "interview")
-
-            # ── 5. Pipeline dual-write: ensure entry exists, advance to 'shortlisted' ─
-            _pipeline_upsert_entry(
-                conn,
-                company_id=int(company_id),
-                candidate_id=int(applicant_id),
-                job_id=int(job_id),
-                application_id=app_id,
-                stage="shortlisted",
-                source="application",
-                created_by=int(company_id),
-                job_title_snapshot=None,
-                initial_event_reason="application_shortlisted",
-            )
-
-            # ── 5b. Stamp promoted_at — idempotent (COALESCE never overwrites) ──
-            # This is what separates "candidate" from "applicant" in the PR-6 split.
-            conn.run(
-                "UPDATE job_pipeline_entries "
-                "SET promoted_at = COALESCE(promoted_at, NOW()), updated_at = NOW() "
-                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
-                cid=int(company_id), uid=int(applicant_id), jid=int(job_id),
-            )
-
-            if _CANDIDATE_STATUS_RANK.get(pe_stage, 0) < _rank_short:
-                _pipeline_update_stage(
-                    conn,
-                    company_id=int(company_id),
-                    candidate_id=int(applicant_id),
-                    job_id=int(job_id),
-                    new_stage="shortlisted",
-                    changed_by=int(company_id),
-                    reason="application_shortlisted",
-                )
+            action, cand_status = sl["action"], sl["status"]
 
             conn.run("COMMIT")
             committed = True
@@ -6863,7 +6900,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
         return {
             "application": {
                 "id":     app_id,
-                "status": "accepted",
+                "status": sl["app_status"],
             },
             "candidate": {
                 "candidate_id": int(applicant_id),
@@ -6877,7 +6914,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
             "application_id":     app_id,
             "candidate_id":       int(applicant_id),
             "job_id":             int(job_id),
-            "application_status": "accepted",
+            "application_status": sl["app_status"],
             "candidate_status":   cand_status,
             "general_status":     general_status,
         }
@@ -7395,6 +7432,44 @@ def _appt_computed_status(appt: dict) -> str:
     return status
 
 
+class AppointmentRuleError(ValueError):
+    """A scheduling rule refused the appointment (PR 3.10) → HTTP 409 {ok:false, error:{code, message}}.
+    code: candidate_rejected | candidate_withdrawn | job_not_active | appointment_exists."""
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _final_status_on_job(conn, company_id: int, candidate_id: int, job_id: int,
+                         app_status=None):
+    """'rejected' | 'withdrawn' | None — the person's final state on this job
+    (application status, job ref candidate_status, pipeline stage)."""
+    ref = conn.run(
+        "SELECT candidate_status FROM company_candidate_job_refs "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    pe = conn.run(
+        "SELECT stage FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    vals = (app_status, ref[0][0] if ref else None, pe[0][0] if pe else None)
+    if "rejected" in vals:
+        return "rejected"
+    if "withdrawn" in vals:
+        return "withdrawn"
+    return None
+
+
+def _raise_final_on_job(final: str):
+    if final == "rejected":
+        raise AppointmentRuleError(
+            "candidate_rejected",
+            "هذا الشخص مصنّف «غير مناسب» لهذه الوظيفة — غيّر تصنيفه أولاً إذا أردت تحديد موعد")
+    raise AppointmentRuleError(
+        "candidate_withdrawn", "هذا الشخص انسحب من هذه الوظيفة — لا يمكن تحديد موعد عليها")
+
+
 def create_appointment(company_user_id: int,
                        application_id: int = None,
                        candidate_id: int = None,
@@ -7411,8 +7486,12 @@ def create_appointment(company_user_id: int,
     Two paths:
       Path A (backward-compat): application_id supplied — derive applicant + job from it.
                                  Optionally links pipeline entry if found (best-effort).
-      Path B (pipeline):        candidate_id + job_id supplied — pipeline entry required.
-                                 application_id resolved server-side from pipeline entry.
+      Path B (pipeline):        candidate_id + job_id supplied. PR 3.10: when the person is
+                                 not a candidate on this job yet, they are added to its
+                                 pipeline here (_shortlist_candidate_in_tx, same transaction;
+                                 a new link needs an active job). application_id resolved
+                                 server-side from the pipeline entry.
+      Both paths: rejected / withdrawn on this job → AppointmentRuleError (409).
 
     Security invariants:
       - company_id always from JWT (company_user_id) — never trusted from caller
@@ -7450,13 +7529,14 @@ def create_appointment(company_user_id: int,
         if application_id is not None:
             # ── Path A: derive applicant_id + job_id from job_applications ──────────
             app_rows = conn.run(
-                "SELECT id, user_id, job_id FROM job_applications WHERE id = :id FOR UPDATE",
+                "SELECT id, user_id, job_id, status FROM job_applications WHERE id = :id FOR UPDATE",
                 id=application_id
             )
             if not app_rows:
                 raise ValueError("طلب التوظيف غير موجود")
             applicant_id   = app_rows[0][1]
             resolved_job_id = app_rows[0][2]
+            app_status_a   = app_rows[0][3]
 
             job_rows = conn.run(
                 "SELECT company_id, archived_at FROM jobs WHERE id = :id", id=resolved_job_id
@@ -7471,6 +7551,12 @@ def create_appointment(company_user_id: int,
             u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=applicant_id)
             if not u_rows or u_rows[0][1] != 'emp':
                 raise ValueError("المتقدم غير موجود أو ليس موظفاً")
+
+            # PR 3.10: rejected / withdrawn on this job → no appointment
+            _final = _final_status_on_job(conn, company_user_id, applicant_id,
+                                          resolved_job_id, app_status_a)
+            if _final:
+                _raise_final_on_job(_final)
 
             # Try to link pipeline entry — best-effort (backward-compat: OK if absent)
             pipeline_entry_id = None
@@ -7504,10 +7590,11 @@ def create_appointment(company_user_id: int,
                     appid=application_id
                 )
             if dup:
-                raise ValueError("يوجد موعد نشط لهذا الطلب")
+                raise AppointmentRuleError("appointment_exists", "يوجد موعد نشط لهذا الطلب")
 
         else:
-            # ── Path B: candidate_id + job_id — pipeline entry required ───────────
+            # ── Path B: candidate_id + job_id — PR 3.10: not yet a candidate on this job
+            #    → added to the job's pipeline here, in this same transaction ──────────
             u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=candidate_id)
             if not u_rows:
                 raise ValueError("المرشح غير موجود")
@@ -7518,7 +7605,8 @@ def create_appointment(company_user_id: int,
             resolved_job_id = job_id
 
             job_rows = conn.run(
-                "SELECT company_id, archived_at FROM jobs WHERE id = :id", id=resolved_job_id
+                "SELECT company_id, archived_at, status, closed_at, expires_at "
+                "FROM jobs WHERE id = :id", id=resolved_job_id
             )
             if not job_rows:
                 raise ValueError("الوظيفة غير موجودة")
@@ -7527,7 +7615,32 @@ def create_appointment(company_user_id: int,
             if job_rows[0][1] is not None:
                 raise ValueError("لا يمكن تحديد موعد لوظيفة مؤرشفة")
 
-            # Pipeline entry required — also validates candidate+job+company
+            app_rows = conn.run(
+                "SELECT id, status FROM job_applications "
+                "WHERE user_id = :uid AND job_id = :jid ORDER BY id LIMIT 1 FOR UPDATE",
+                uid=candidate_id, jid=job_id)
+            app_id_b     = int(app_rows[0][0]) if app_rows else None
+            app_status_b = app_rows[0][1] if app_rows else None
+
+            # A new link to the job (no pipeline entry yet) needs an active job.
+            # Someone already on the job keeps the old rule (not archived only — F14).
+            had_entry = conn.run(
+                "SELECT 1 FROM job_pipeline_entries "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+                cid=company_user_id, uid=candidate_id, jid=job_id)
+            if not had_entry and _eff_status(job_rows[0][2] or 'active', job_rows[0][3],
+                                             job_rows[0][4]) != 'active':
+                raise AppointmentRuleError(
+                    "job_not_active", "الوظيفة غير فعّالة — اختر وظيفة فعّالة لتحديد الموعد")
+
+            # Same shortlist core as «ترشيح للوظيفة» — never moves anything backwards
+            sl = _shortlist_candidate_in_tx(
+                conn, company_id=int(company_user_id), candidate_id=int(candidate_id),
+                job_id=int(job_id), app_id=app_id_b, app_status=app_status_b,
+                actor_id=int(company_user_id), reason="appointment_scheduled")
+            if sl["action"] == "final_noop":
+                _raise_final_on_job(sl["final"])
+
             ctx = _resolve_pipeline_entry(
                 conn, company_user_id, candidate_id, job_id, None
             )
@@ -7546,7 +7659,8 @@ def create_appointment(company_user_id: int,
                 eid=pipeline_entry_id
             )
             if dup:
-                raise ValueError("يوجد موعد نشط مرتبط بهذا المرشح في هذه الوظيفة")
+                raise AppointmentRuleError(
+                    "appointment_exists", "يوجد موعد نشط مرتبط بهذا المرشح في هذه الوظيفة")
 
         # ── Dynamic INSERT — literal NULL for nullable FKs (avoids pg8000 42P08) ──
         _cols = ["company_id", "applicant_id", "created_by", "job_id", "mode", "status"]
@@ -8126,6 +8240,91 @@ def close_appointment(appointment_id: int, user_id: int) -> dict:
         except Exception as e:
             print(f"[close_appointment] notification failed: {e}")
     return appt_result
+
+
+# ── Schedule Interview System — read helpers (PR 3.10) ────────────────────────
+def list_jobs_for_scheduling(company_id: int) -> list:
+    """The company's active jobs for the scheduling job picker: [{id, title}], newest first.
+    Active = not archived + effective status 'active' (_eff_status — paused / closed /
+    expired are left out)."""
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT id, title, status, closed_at, expires_at FROM jobs "
+            "WHERE company_id = :cid AND archived_at IS NULL AND status = 'active' "
+            "ORDER BY created_at DESC LIMIT 100",
+            cid=company_id)
+    return [{"id": int(r[0]), "title": r[1] or ""} for r in rows
+            if _eff_status(r[2] or 'active', r[3], r[4]) == 'active']
+
+
+def get_open_appointments(company_id: int, candidate_ids: list, job_id: int = None) -> dict:
+    """{candidate_id: {id, status, job_id, job_title, scheduled_at} | None} — the newest
+    appointment of this company with each person that still blocks a new one (not
+    cancelled / expired / missed / closed). job_id → that job only. Max 50 ids."""
+    ids = sorted({int(i) for i in candidate_ids if int(i) > 0})[:50]
+    out = {i: None for i in ids}
+    if not ids:
+        return out
+    where_job = " AND a.job_id = :jid" if job_id else ""
+    kw = {"cid": company_id}
+    if job_id:
+        kw["jid"] = int(job_id)
+    ph = []
+    for n, i in enumerate(ids):
+        kw["u%d" % n] = i
+        ph.append(":u%d" % n)
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT a.applicant_id, a.id, a.status, a.job_id, j.title, a.scheduled_at "
+            "FROM appointments a LEFT JOIN jobs j ON j.id = a.job_id "
+            "WHERE a.company_id = :cid AND a.applicant_id IN (" + ", ".join(ph) + ") "
+            "AND a.status NOT IN ('cancelled','expired','missed','closed')" + where_job +
+            " ORDER BY a.id DESC",
+            **kw)
+    for r in rows:
+        uid = int(r[0])
+        if out.get(uid) is None:
+            out[uid] = _serialize({"id": int(r[1]), "status": r[2],
+                                   "job_id": int(r[3]) if r[3] is not None else None,
+                                   "job_title": r[4], "scheduled_at": r[5]})
+    return out
+
+
+def search_schedule_people(company_id: int, q: str = "", limit: int = 20) -> list:
+    """People this company can schedule with, searched by name: applicants on its jobs,
+    its pipeline candidates and its Talent Bank — emp accounts only, never the company.
+    [{id, full_name, tw_id, avatar_url, sources: ['applicant'|'candidate'|'saved']}]."""
+    q = (q or "").strip()[:100]
+    limit = max(1, min(int(limit or 20), 30))
+    name_sql = ""
+    kw = {"cid": company_id, "lim": limit}
+    if q:
+        name_sql = " AND u.full_name ILIKE :q"
+        kw["q"] = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    with db_conn() as conn:
+        rows = conn.run(
+            "WITH src AS ("
+            "  SELECT ja.user_id AS uid, 'applicant' AS s, ja.applied_at AS t "
+            "    FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
+            "   WHERE j.company_id = :cid "
+            "  UNION ALL "
+            "  SELECT jpe.candidate_id, 'candidate', jpe.updated_at "
+            "    FROM job_pipeline_entries jpe WHERE jpe.company_id = :cid "
+            "     AND jpe.promoted_at IS NOT NULL "
+            "  UNION ALL "
+            "  SELECT sc.candidate_id, 'saved', sc.created_at "
+            "    FROM company_saved_candidates sc WHERE sc.company_id = :cid"
+            ") "
+            "SELECT u.id, u.full_name, u.tw_id, p.avatar_url, "
+            "       array_agg(DISTINCT src.s), MAX(src.t) AS last_t "
+            "FROM src JOIN users u ON u.id = src.uid "
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "WHERE u.user_type = 'emp' AND u.id <> :cid" + name_sql + " "
+            "GROUP BY u.id, u.full_name, u.tw_id, p.avatar_url "
+            "ORDER BY last_t DESC NULLS LAST, u.id DESC LIMIT :lim",
+            **kw)
+    return [{"id": int(r[0]), "full_name": r[1] or "", "tw_id": r[2] or "",
+             "avatar_url": r[3] or "", "sources": sorted(r[4] or [])} for r in rows]
 
 
 def list_appointments(user_id: int, status_filter: str = None,

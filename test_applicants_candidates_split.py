@@ -67,8 +67,10 @@ class TestPromoteStampsPromotedAt(unittest.TestCase):
     """promote_application_to_shortlist must stamp promoted_at inside its transaction."""
 
     def _promote_body(self):
+        # PR 3.10: the writes live in the shared core _shortlist_candidate_in_tx, right
+        # above promote — the body = core + promote (same transaction).
         m = re.search(
-            r"def promote_application_to_shortlist\(app_id.*?\n    finally:\n        release_conn\(conn\)",
+            r"def _shortlist_candidate_in_tx\(.*?def promote_application_to_shortlist\(app_id.*?\n    finally:\n        release_conn\(conn\)",
             AUTH_SRC, re.DOTALL
         )
         self.assertIsNotNone(m, "promote_application_to_shortlist not found in auth.py")

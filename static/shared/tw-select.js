@@ -37,6 +37,15 @@
   document.addEventListener('mousedown', function(e){
     if(_cur && !_cur.wrap.contains(e.target) && !_cur.drop.contains(e.target)) _close();
   });
+  // Escape while a dropdown is open closes the dropdown ONLY: window capture runs before every
+  // document listener (DS-OVL dialog, page modals); preventDefault + stopPropagation — and
+  // tw-overlay.js also ignores a defaultPrevented Escape (PR 3.10).
+  window.addEventListener('keydown', function(e){
+    if(!_cur || (e.key !== 'Escape' && e.key !== 'Esc')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    _close();
+  }, true);
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){ _close(); return; }
     if(!_cur) return;

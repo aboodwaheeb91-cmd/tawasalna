@@ -14,6 +14,7 @@
 4. **نافذة بمحتوى:** `twModal({title, content, actions, dismissible, onClose})` → `{close, setBusy, el}`. `onClick` بيرجّع Promise = busy (Escape والخلفية ما بيسكّروا لحتى يخلص). بدل `prompt()` والمودالات اليدوية الجديدة.
 
 5. **السلوك ملك النظام:** role=dialog + aria-modal + aria-labelledby · Escape · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock — كلّه جوّا `tw-overlay.js`. الصفحة ما بتكتب ولا وحدة منهن لنافذة جديدة.
+   - **Escape + قائمة منسدلة مفتوحة (PR 3.10):** `tw-select.js` بيمسك Escape على `window` (capture) وهي مفتوحة → `preventDefault` + `stopPropagation` + بيسكّر القائمة بس؛ و `tw-overlay.js` بيتجاهل Escape إذا `event.defaultPrevented`. الضغطة الجاية بتسكّر النافذة. Test: `node test_ds_overlay_runtime.js` (القسم E).
 
 6. **التحميل:** أصل صفحة عبر `PAGE_ASSETS` بـ `page_shell.py` — `<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}">` بعد `<!--tw:shell-scripts-->` (وبعد `tw-icons.js`). مش بالـ Page Shell.
 

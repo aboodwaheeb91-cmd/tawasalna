@@ -480,6 +480,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Image Display System V1 (DS-IMAGE) Rules — أفاتار / لوغو / رابط صورة | `docs/rules/ds-image.md` |
 | Overlay System (DS-OVL) Runtime V1 — `twConfirm` / `twAlert` / `twModal` · ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس | `docs/rules/ds-overlay.md` |
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
+| Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |

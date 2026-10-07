@@ -767,6 +767,23 @@ window.renderProfile = function renderProfile(res){
       };
     }
   }
+  // ── Schedule Interview (PR 3.10 — shared tw-schedule.js): company viewer only. Own row
+  //    under .sc-actions so the frozen action buttons keep their layout (profile-v2.md). ──
+  (function(){
+    var old = document.getElementById('scSchedRow');
+    if(old) old.parentNode.removeChild(old);
+    var acts = document.querySelector('.sc-actions');
+    var btn = (acts && window.twScheduleButton) ? twScheduleButton({
+      candidateId: p.id, candidateName: p.full_name || '', candidateType: 'emp'
+    }) : null;
+    if(!btn) return;
+    var row = document.createElement('div');
+    row.id = 'scSchedRow';
+    row.className = 'tw-sch-bar';   // shared row style (tw-schedule.js) — page CSS untouched
+    row.appendChild(btn);
+    acts.parentNode.insertBefore(row, acts.nextSibling);
+  })();
+
   // ── Profile Interest Button (replaces hardcoded /profile?id nav) ──
   (function(){
     var intBtn = document.getElementById('scFullBtn');

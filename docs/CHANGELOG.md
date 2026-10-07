@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.10 — نظام تحديد موعد موحّد (Schedule Interview System) — 2026-10-07
+
+- Backend: `POST /api/appointments` Path B — الشخص مش مرشح على الوظيفة → بينضاف بنفس الـ transaction عبر `_shortlist_candidate_in_tx` (القلب المشترك مع `promote_application_to_shortlist`)؛ ربط جديد بيحتاج وظيفة فعّالة؛ مرفوض / منسحب → 409 (`AppointmentRuleError`). الـ endpoint صار `{ok, data}` / `{ok:false, error}`. جديد: `GET /api/schedule/jobs` · `/api/schedule/open` · `/api/schedule/people`. تغيير سلوك: الترقية بتنقل الطلب لـ `accepted` من `pending` / `viewed` بس.
+- Frontend: `static/shared/tw-schedule.js` (جديد) — `twScheduleInterview` / `twScheduleButton` / `twScheduleMount`. الأماكن: بروفايل الموظف · بنك المواهب + الاقتراحات · المتقدمين (كل متقدم) · قائمة الوظيفة المنبثقة · هيدر الماسنجر · «+» بالمواعيد. انحذف `#coApptModal` + منطقه + `.co-appt-*` CSS + `#newApptModal` وحقل `application_id`. `PAGE_ASSETS` += `tw-schedule.js` · `tw-select.js` · `tw-select.css`.
+- Docs: SYSTEMS_INDEX §23b · ARCHITECTURE §75 (+ §69 Path B) · APPOINTMENTS_PLAN §18 · `docs/rules/schedule-interview.md` + سطر بـ `CLAUDE.md`. Tests: `test_schedule_interview.py` · `test_schedule_interview_runtime.js` (جديدين) · `test_pr2c_session_sockets_runtime.js` (assert الـ popover اتحدّث).
+- تصحيحات قبل الدمج: merge لـ main (#574 CI) · الاختبار الجديدين بـ `run_tests.sh` · `test_post_comments.py` (§171 / §182–187 / §486–489 / §491) صارت تفحص نفس السلوك بـ `tw-schedule.js` + القلب المشترك بدل المودال المحذوف · `list_schedule_jobs` → `list_jobs_for_scheduling` (فحص 175-29: ما في `schedule_job` بـ server.py) · Escape: القائمة المنسدلة المفتوحة جوّا نافذة بتتسكّر لحالها (`tw-select.js` window capture + `tw-overlay.js` بيتجاهل `defaultPrevented`) — `docs/rules/ds-overlay.md` + `test_ds_overlay_runtime.js` القسم E. · `test_applicants_candidates_split.py` + `test_pipeline_backfill.py` (شريحة الترقية بتبلّش من القلب المشترك) · `test_ds_image_runtime.js` B3 (+ `tw-schedule.js` — أفاتار البحث) · ستايل زر الماسنجر وسطر البروفايل صار من `tw-schedule.js` (`.tw-sch-bar`) — ولا CSS صفحة اتغيّر (DS-SIZE S4)، و `profile-v2.css` رجع متل ما كان.
+
 ## PR 6.4 — CI شامل: `tests.yml` + `run_tests.sh` + `runtime.txt` — 2026-10-07
 
 - `.github/workflows/tests.yml` (جديد): كل PR لـ main + كل push لـ main، بدون فلترة مسارات — Python 3.11 + Node 20 + `postgres:16` (SSL) → `./run_tests.sh`. انحذفوا `vm01-bfcache.yml` · `vm10-session-visibility.yml` · `ws-security.yml` (مغطّاين كاملين: نفس الاختبارات + `node --check` لكل JS). `scheduler-cron.yml` باقي (مش اختبار).

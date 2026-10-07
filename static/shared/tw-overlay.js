@@ -12,7 +12,8 @@
 //
 // Contract (OVL-39):
 //   - role="dialog" + aria-modal="true" + aria-labelledby → the title (aria-describedby → message).
-//   - Escape closes the TOP layer only (reason 'escape') — never while busy.
+//   - Escape closes the TOP layer only (reason 'escape') — never while busy, never when the
+//     event is already defaultPrevented (an open tw-select dropdown inside it closes first).
 //   - Backdrop click closes only dismissible layers: twAlert, twConfirm without danger,
 //     twModal unless dismissible:false. danger:true → never by backdrop.
 //   - Focus trap: Tab / Shift-Tab wrap inside the top surface; focus that escapes is pulled back.
@@ -159,6 +160,7 @@
     var L = top();
     if (!L || L.state !== 'open') return;
     if (e.key === 'Escape' || e.key === 'Esc') {
+      if (e.defaultPrevented) return;   // an inner widget used it (open tw-select dropdown — PR 3.10)
       e.preventDefault();
       if (!L.busy) L.close('escape');
       return;

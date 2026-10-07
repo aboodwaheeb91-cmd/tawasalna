@@ -12324,8 +12324,10 @@ Path B is triggered when `candidate_id` + `job_id` are provided (no `application
 
 Path A (backward compat) is triggered when `application_id` is provided.
 
+**PR 3.10 (§75):** Path B no longer needs an existing pipeline entry — the server adds the person to the job's pipeline in the same transaction. Errors use `{ok:false, error:{code, message}}` (§74).
+
 **Error codes:**
-- `409 {code: "pipeline_entry_required"}` — candidate not in pipeline for this job (Path B only)
+- ~~`409 pipeline_entry_required`~~ — no longer returned by Path B (PR 3.10 auto-add); `409 candidate_rejected` / `candidate_withdrawn` / `job_not_active` / `appointment_exists` (§75)
 - `409 {code: "pipeline_application_conflict"}` — client `application_id` conflicts with DB-stored value
 - `400` — naive ISO datetime (missing timezone), mode=hybrid, past date, archived job
 - `403` — non-company JWT
@@ -12778,3 +12780,49 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 
 - Reference page: `appointments.html` (list + create). Remaining direct `fetch(` per file: `node test_tw_api_runtime.js` section F (report only).
 - Test: `node test_tw_api_runtime.js`.
+
+---
+
+## §75 — Schedule Interview System (PR 3.10)
+
+> SYSTEMS_INDEX §23b · rules `docs/rules/schedule-interview.md` · `docs/APPOINTMENTS_PLAN.md §18`.
+
+### Rule — every appointment is linked to a job
+
+- A company schedules with a person **on one of its jobs**. Not a candidate on that job yet → the server adds them (Zaatar decision, PR 3.10).
+- `POST /api/appointments` **Path B** `{candidate_id, job_id}` (the only path the UI sends): inside one transaction —
+  1. person = `emp` (else 400) · job of the JWT company (else 403) · not archived (400).
+  2. no pipeline entry yet (a **new** link) → job must be **active** (`_eff_status(...) == 'active'` — paused / closed / expired → `409 job_not_active`). Someone already on the job keeps the old rule (not archived only — F14).
+  3. `_shortlist_candidate_in_tx(conn, …, reason="appointment_scheduled")` — the **same core as «ترشيح للوظيفة»** (`promote_application_to_shortlist`): rejected / withdrawn (application · job ref · pipeline stage) → nothing written → `409 candidate_rejected` / `candidate_withdrawn` (Arabic message); else stage ≥ `shortlisted` (never backwards — `_CANDIDATE_STATUS_RANK`), job ref upserted, pipeline entry created (`source = application` when the person applied, else `company_add`; linked to the application), `promoted_at` stamped, application `pending` / `viewed` → `accepted`.
+  4. `_resolve_pipeline_entry` → dup guard (`409 appointment_exists`) → insert draft + participants + event.
+- Path A `{application_id}` (no UI caller left — kept for API clients): also refuses rejected / withdrawn (`_final_status_on_job`).
+- Shared core behavior change: `promote_application_to_shortlist` now moves the application to `accepted` only from `pending` / `viewed` (an `interview` / `contacted` / `hired` application is no longer reset to `accepted`).
+
+### Endpoints (company JWT `co` only → else `403 forbidden`; all `{ok, data}` / `{ok:false, error}`)
+
+| Endpoint | Returns |
+|----------|---------|
+| `POST /api/appointments` | draft appointment (contract converted in PR 3.10 — every caller is `tw-schedule.js` via `twApi`) |
+| `GET /api/schedule/jobs` | `[{id, title}]` — active jobs of the company (`list_jobs_for_scheduling`) |
+| `GET /api/schedule/open?candidate_ids=1,2&job_id=` | `{"<uid>": {id, status, job_id, job_title, scheduled_at} \| null}` — newest appointment that still blocks a new one (not cancelled / expired / missed / closed — same set as the dup guard); ≤ 50 ids, digits only (`get_open_appointments`) |
+| `GET /api/schedule/people?q=` | `[{id, full_name, tw_id, avatar_url, sources}]` — name search (ILIKE, escaped) among the company's applicants · promoted pipeline candidates · Talent Bank; `emp` only, never the company; ≤ 20 (`search_schedule_people`) |
+
+### Frontend — `static/shared/tw-schedule.js` (page asset after `tw-overlay.js`; never in the shell)
+
+- `twScheduleInterview(opts)` — DS-OVL `twModal`: person (search when unknown) · job (active-jobs picker when unknown) · DS-DATE DateTime (day / month / year + hour / minute (15-min step) / ص-م — `.ep-select` dropdowns, DS-SEL engine via `scSelectInit`; years = this + next; month change clears the day, year change re-checks it; nothing pre-selected) · type (أونلاين → `twSafeLinkUrl` + `https://` / حضوري → place) · reply deadline (24 / 48 / 72 / 168 h, default 48) · company rep · notes. Submit → create (Path B) → `/send`. A failed send keeps the draft id → the next submit sends it. Success → toast + `tw:appointment-scheduled` + room page.
+- Time zone (DATE-13/14 Feature Contract): picked values = the company's local time → `new Date(y, m-1, d, h, mi).toISOString()`; backend stores UTC.
+- `twScheduleButton(opts)` — `null` unless `TwAuthSync` viewer is `co`, other side `emp`, not self. Batched `GET /api/schedule/open` (one request per job group per tick) → open (not draft) → «فتح الموعد» → `/appointment-room?id=`.
+- `twScheduleMount(root)` — `<span data-tw-schedule-slot data-candidate-id … data-class>` → the button (for HTML-string renderers).
+
+| Place | Context passed |
+|-------|----------------|
+| Employee profile (`profile-v2.render.js`) — own row `.tw-sch-bar` (style from tw-schedule.js) under `.sc-actions` | person |
+| Talent Bank saved cards + «اقتراحات مناسبة» (`company.main.js`) | person (dialog asks the job) |
+| Job applicants list — every applicant (`_schedSlotHTML`) + «مقابلة → الآن» | person + job |
+| Saved card job-chip popover (`_showJobChipPop`) | person + job |
+| Messenger chat header `#chatSchedSlot` (`messages.render.js`) | person + account type |
+| `appointments.html` «+» | nothing — dialog searches the person and asks the job |
+
+Removed: `#coApptModal` + `_openApptModal` / `_submitApptForm` / `_execSendStep` / appointment index (`company.main.js`, `.co-appt-*` CSS) · `TwCompanyPage.openApptModal` · `#newApptModal` + «رقم طلب التوظيف (application_id)» field (`appointments.html`).
+
+Tests: `python -m pytest test_schedule_interview.py -q` (needs `TW_TEST_DB_URL`) · `node test_schedule_interview_runtime.js`.

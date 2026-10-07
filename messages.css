@@ -235,6 +235,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 }
 .ch-ava img{width:100%;height:100%;object-fit:cover;display:block;}
 .ch-info{min-width:0;flex:1;}
+/* Schedule Interview slot (PR 3.10 — the button + its style come from tw-schedule.js) */
+.ch-sched{flex-shrink:0;display:flex;align-items:center}
+.ch-sched:empty{display:none}
 /* Line 1: name + account-type badge + small back-arrow, same "badge right
    beside the name" rule as the conv-list cards. */
 .ch-name-row{display:flex;align-items:center;gap:6px;min-width:0;}

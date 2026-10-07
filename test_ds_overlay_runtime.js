@@ -4,6 +4,7 @@
  *   A  twConfirm true / false · ARIA · Escape · focus trap · focus restore · scroll lock + inert
  *   B  danger: focus on «إلغاء», backdrop does not close · non-danger backdrop closes · twAlert
  *   C  twModal busy action — Escape / backdrop ignored while the action runs
+ *   E  Escape with an open tw-select dropdown inside a dialog closes the dropdown only (PR 3.10)
  *   D  wiring — PAGE_ASSETS entry · appointment-room loads it after the shell
  *   R  REPORT ONLY (never fails): native alert / confirm / prompt still in the site
  *
@@ -78,8 +79,9 @@ function makeEnv() {
   html.clientWidth = 985;   // 15px scrollbar
   vm.createContext(ctx);
   vm.runInContext(read('static/shared/tw-overlay.js'), ctx);
-  const key = (k, shift) => {
-    const ev = { key: k, shiftKey: !!shift, prevented: false, preventDefault() { this.prevented = true; } };
+  const key = (k, shift, alreadyPrevented) => {
+    const ev = { key: k, shiftKey: !!shift, prevented: false, defaultPrevented: !!alreadyPrevented,
+                 preventDefault() { this.prevented = true; this.defaultPrevented = true; } };
     (docListeners.keydown || []).forEach(fn => fn(ev));
     return ev;
   };
@@ -177,6 +179,29 @@ function makeEnv() {
     check('C5 action resolved → closed (reason action) + focus restored',
       !E.surface() && closedWith === 'action' && E.doc.activeElement === E.trigger);
     check('C6 returns { close, setBusy }', typeof m.close === 'function' && typeof m.setBusy === 'function');
+  }
+
+  // ── E ──────────────────────────────────────────────────────────────────
+  console.log('\nE — Escape + open tw-select dropdown (dropdown first, dialog stays)');
+  {
+    const E = makeEnv();
+    E.trigger.focus();
+    let closedWith = null;
+    E.ctx.twModal({ title: 'تحديد موعد', content: new E.El('div'), actions: [{ text: 'إلغاء' }],
+                    onClose: r => { closedWith = r; } });
+    // tw-select (window capture, before the dialog's document listener) already used this Escape
+    E.key('Escape', false, true); await E.flush();
+    check('E1 defaultPrevented Escape (dropdown closed it) → dialog stays open', !!E.surface() && closedWith === null);
+    E.key('Escape'); await E.flush();
+    check('E2 next Escape (no dropdown) → dialog closes (reason escape)', !E.surface() && closedWith === 'escape');
+    const sel = read('static/shared/tw-select.js');
+    const h = sel.split("window.addEventListener('keydown', function(e){")[1] || '';
+    const body = h.split('}, true);')[0];
+    check('E3 tw-select: Escape handler on window, capture phase, only while a dropdown is open',
+      /if\(!_cur \|\| \(e\.key !== 'Escape' && e\.key !== 'Esc'\)\) return;/.test(body)
+      && h.indexOf('}, true);') > 0);
+    check('E4 tw-select: open dropdown + Escape → preventDefault + stopPropagation + close',
+      /e\.preventDefault\(\);[\s\S]*e\.stopPropagation\(\);[\s\S]*_close\(\);/.test(body));
   }
 
   // ── D ──────────────────────────────────────────────────────────────────
