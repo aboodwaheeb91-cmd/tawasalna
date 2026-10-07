@@ -1967,9 +1967,9 @@ check(
     "UNION ALL" in srv_src and "mention_search" in srv_src
 )
 check(
-    "124b. /mention/search empty-q path has no ILIKE filter (pure FK scan)",
-    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
-    "if q:" in srv_src
+    "124b. /mention/search empty-q path has no ILIKE filter (pure FK scan — ILIKE only added when q)",
+    'q_a = " AND u.full_name ILIKE :q_a" if q else ""' in srv_src and
+    'q_b = " AND u.full_name ILIKE :q_b" if q else ""' in srv_src
 )
 check(
     "124c. /mention/search does NOT search all users when q is empty (Priority 4 skipped)",
@@ -1977,21 +1977,20 @@ check(
      srv_src.find("Priority 4") > srv_src.find("if q:"))
 )
 check(
-    "124d. /mention/search empty-q still returns followers/following/company follows",
-    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
-    "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)" in srv_src and
-    "WHERE cf.follower_id = :vid_c LIMIT :lim_c)" in srv_src
+    "124d. /mention/search returns following + followers from profile_follows (companies included — PR 3.5)",
+    '" WHERE pf.follower_id = :vid_a" + q_a + " LIMIT :lim_a)"' in srv_src and
+    '" WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" + q_b + " LIMIT :lim_b)"' in srv_src and
+    "company_follows" not in srv_src[srv_src.find("def mention_search("):srv_src.find("def _require_company_owner(")]
 )
 check(
     "124e. /mention/search with q uses ILIKE inside each UNION branch",
-    "ILIKE :q_a LIMIT :lim_a)" in srv_src and
-    "ILIKE :q_b LIMIT :lim_b)" in srv_src and
-    "ILIKE :q_c LIMIT :lim_c)" in srv_src
+    "ILIKE :q_a" in srv_src and "ILIKE :q_b" in srv_src and
+    "params.update(q_a=q_like, q_b=q_like)" in srv_src
 )
 check(
     "124j. UNION ALL uses unique param names per branch — no duplicate :vid/:lim across branches",
-    ":vid_a" in srv_src and ":vid_b" in srv_src and ":vid_c" in srv_src and
-    ":lim_a" in srv_src and ":lim_b" in srv_src and ":lim_c" in srv_src
+    ":vid_a" in srv_src and ":vid_b" in srv_src and ":vid_b2" in srv_src and
+    ":lim_a" in srv_src and ":lim_b" in srv_src
 )
 
 # Frontend: debounce 100ms
@@ -2029,17 +2028,18 @@ check(
 srv_src  = open("server.py",  encoding="utf-8").read()
 posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
 
+_ms125 = srv_src[srv_src.find("def mention_search("):srv_src.find("def _require_company_owner(")]
 check(
-    "125a. mention_search branches on viewer_type (co vs emp path)",
-    'viewer_type == "co"' in srv_src and 'viewer_type = token.get("user_type"' in srv_src
+    "125a. mention_search has ONE path for every account type (PR 3.5 — no viewer_type branch)",
+    'viewer_type == "co"' not in _ms125 and "profile_follows" in _ms125
 )
 check(
-    "125b. company viewer queries people who follow the company (cf.company_id = :vid)",
-    "cf.company_id = :vid" in srv_src
+    "125b. company viewer gets the people who follow it (profile_follows.followed_id = me)",
+    "WHERE pf.followed_id = :vid_b" in _ms125
 )
 check(
-    "125c. company viewer retrieves followers by joining on cf.follower_id (not cf.company_id)",
-    "u.id = cf.follower_id" in srv_src
+    "125c. followers joined on pf.follower_id; company_follows not read (legacy — PR 3.9)",
+    "JOIN users u ON u.id = pf.follower_id" in _ms125 and "company_follows" not in _ms125
 )
 check(
     "125d. mention_search exception handler logs error — not a silent pass",
@@ -2054,13 +2054,13 @@ check(
     "!res.ok" in posts_js
 )
 check(
-    "125g. company empty-q path uses pure FK scan on company_id (no ILIKE)",
-    "cf.company_id = :vid LIMIT :lim" in srv_src
+    "125g. empty-q path is a pure FK scan for every account type (no ILIKE, no Priority 4)",
+    "if q and len(results) < limit:" in _ms125
 )
 check(
-    "125h. employee path is unchanged — profile_follows both directions still present",
-    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
-    "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)" in srv_src
+    "125h. profile_follows both directions still present",
+    "WHERE pf.follower_id = :vid_a" in _ms125 and
+    "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" in _ms125
 )
 
 # ── 126. Company Logo Crop Circle Preview (feat/company-logo-crop-circle) ──
@@ -3208,22 +3208,21 @@ check(
     "follow_agg:user:" in _auth146
 )
 check(
-    "146e. notification type is 'follow'",
-    _auth146.count("type_=\"follow\"") >= 2 or _auth146.count("type_='follow'") >= 2 or
-    ("type_=\"follow\"" in _auth146 and "type_='follow'" in _auth146) or
-    _auth146.count("type_=\"follow\"") + _auth146.count("type_='follow'") >= 2
+    "146e. notification type is 'follow' (one follow hook since PR 3.5)",
+    "type_=\"follow\"" in _auth146 or "type_='follow'" in _auth146
 )
 check(
     "146f. both hooks only fire for fresh follows (ins_rows guard)",
     _auth146.count("if ins_rows:") >= 2
 )
 check(
-    "146g. follower name fetched from DB in both hooks",
-    _auth146.count("SELECT full_name, tw_id FROM users WHERE id = :fid") >= 2
+    "146g. follower name fetched from DB in the follow hook",
+    _auth146.count("SELECT full_name, tw_id FROM users WHERE id = :fid") >= 1
 )
 check(
-    "146h. both hooks are non-fatal (two separate TW-WARN follow logs)",
-    _auth146.count("[TW-WARN] follow notification") >= 2
+    "146h. follow hook is non-fatal (TW-WARN log) — the old company hook is gone (PR 3.5)",
+    _auth146.count("[TW-WARN] follow notification (profile") == 1 and
+    "[TW-WARN] follow notification (company" not in _auth146
 )
 check(
     "146i. no self-follow notification possible (guard in follow_profile; company follow already has guard in server.py)",
