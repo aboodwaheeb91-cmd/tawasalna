@@ -6347,6 +6347,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
 | GET | `/auth/users` | `get_all_users` | List all users |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
+| PUT | `/admin/profile/{user_id}` | `admin_update_profile` | Edit a user's profile (admin-view.html name / headline / location / bio — PR 2B). Body = `ProfileUpdateInput`; same validation + error shapes as `PUT /profile/{id}` via the shared `_apply_profile_update()` — rules follow the **target** account's `user_type` (emp + `full_name` → 422 `emp_name_mutation_forbidden`). 404 unknown user. User JWT → 401 |
 | DELETE | `/admin/user/{user_id}` | `delete_user` | Delete user account |
 | PUT | `/admin/user/{user_id}/type` | `change_user_type` | Change user type |
 | PUT | `/admin/user/{user_id}/verify` | `verify_user` | Set verified badge |
@@ -12715,3 +12716,31 @@ Test: `python -m pytest test_account_security.py -q`.
 | `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
 | `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code (hash), email_code_target/_expires_at/_attempts, email_verified, phone, phone_code (hash), phone_code_target/_expires_at/_attempts, created_at (§52 → KYC OTP Security) |
 | `verify_requests` | user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status (default `'pending'`), created_at |
+
+---
+
+## §73 — Appointment Status Transitions (PR 2B)
+
+Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERMINAL_STATUSES` · `_appt_missed_at()` · `_handle_appointment_missed()`. Plan states: `docs/APPOINTMENTS_PLAN.md §6`.
+
+| من | إلى | مين | قبل PR 2B | بعد PR 2B |
+|----|-----|-----|-----------|-----------|
+| `draft` | `pending_response` | الشركة (إرسال) | ✅ | ✅ |
+| `pending_response` | `confirmed` / `reschedule_requested` / `cancelled` | الموظف | ✅ | ✅ |
+| `pending_response` (مهلة منتهية) | `expired` | scheduler / محسوبة وقت القراءة | ✅ | ✅ |
+| `reschedule_requested` | `pending_response` / `cancelled` | الشركة | ✅ | ✅ |
+| `confirmed` | `cancelled` | الطرفين | ✅ | ✅ |
+| `confirmed` | `completed` | الشركة (بعد `scheduled_at`) | ✅ | ✅ |
+| `confirmed` | `missed` | scheduler | بعد `scheduled_at + 15 د` | بعد **`end_at + 15 د`**، أو **`scheduled_at + 2 س`** إذا ما في `end_at` |
+| `missed` | `completed` | الشركة | ❌ | ✅ |
+| `missed` | `closed` | الشركة | ❌ | ✅ |
+| `expired` (مخزّنة أو محسوبة) | `closed` | الشركة | ❌ | ✅ |
+| `completed` / `cancelled` | `closed` | الشركة | ✅ | ✅ |
+| `closed` | — | — | نهائية | نهائية |
+
+- **Terminal (no messages, no decisions):** `cancelled` · `expired` · `closed` (`_APPT_TERMINAL_STATUSES`). `missed` is no longer terminal — both sides can still message until the company completes or closes it.
+- **Missed job timing:** `accept_appointment` queues `appointment_missed` at `_appt_missed_at()` (dedupe key `appointment_missed:{id}:{scheduled_ts}:{missed_ts}`). A job that fires early (queued before PR 2B at `scheduled_at + 15 min`) does not mark missed — it re-queues itself at `_appt_missed_at()`.
+- **Writes are conditional:** complete / close use `UPDATE … WHERE id AND status = <read status> RETURNING id` — a concurrent change → 400 «تغيّرت حالة الموعد».
+- **Room messages:** `GET /api/appointments/{id}/messages` returns the **newest** `limit` (default 50, max 100) oldest → newest; `?before_id=<id>` returns the page before that message (room page: «عرض الرسائل الأقدم» button when a page is full). Before PR 2B: `ORDER BY created_at ASC LIMIT 50` — messages after the 50th never appeared.
+- UI (`appointment-room.html`): «إنهاء المقابلة» for `confirmed` | `missed`; «إغلاق الغرفة» for `completed` | `cancelled` | `missed` | `expired`.
+- Test: `python -m pytest test_pr2b_flow_fixes.py -q` (DB parts need `TW_TEST_DB_URL`).

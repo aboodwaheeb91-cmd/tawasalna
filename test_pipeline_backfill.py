@@ -393,8 +393,12 @@ check("K-02. job_applications.status column not removed",
       "DROP COLUMN status" not in _auth)
 check("K-03. company_saved_candidates.notes column not removed",
       "DROP COLUMN notes" not in _auth)
-check("K-04. No SELECT from job_pipeline_entries in get_company_saved_candidates",
-      "job_pipeline_entries" not in _fn(_auth, "get_company_saved_candidates", 6000))
+# PR 2B: PR-5 legitimately joins job_pipeline_entries to return pipeline_entry_id in
+# job_links (notes / appointment linking). The PR-2 contract this guards is "no READ
+# SWITCH" — the stage shown still comes from the legacy columns, never jpe.stage.
+check("K-04. get_company_saved_candidates does not read pipeline stage (no read switch)",
+      "jpe.stage" not in _fn_strict(_auth, "get_company_saved_candidates")
+      and "r.candidate_status" in _fn_strict(_auth, "get_company_saved_candidates"))
 check("K-05. server.py imports new pipeline functions",
       "run_pipeline_backfill" in _server
       and "_migrate_partial_unique_application_id" in _server)

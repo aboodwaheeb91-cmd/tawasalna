@@ -70,11 +70,13 @@ if '_check_save_rate' in server:
 else:
     fail(9, '404 check', 'دالة company_post_set_save غير موجودة')
 
-# 10. company.render.js: icoBookmarkFilled exists
-if 'icoBookmarkFilled' in render and 'fill="currentColor"' in render:
-    ok(10, 'company.render.js: icoBookmarkFilled موجود ✅')
+# 10. company.render.js: saved-state icon = icoBookmarkCheck (filled) — the documented
+#     contract (docs/rules/post-save.md rule 3: icoBookmarkCheck / icoBookmark). The old
+#     name icoBookmarkFilled was renamed; this check was stale (PR 2B).
+if 'icoBookmarkCheck' in render and 'fill="currentColor"' in render:
+    ok(10, 'company.render.js: icoBookmarkCheck موجود ✅')
 else:
-    fail(10, 'icoBookmarkFilled', 'غير موجود')
+    fail(10, 'icoBookmarkCheck', 'غير موجود')
 
 # 11. company.render.js: save button uses viewer_saved
 if 'viewer_saved' in render and 'save-active' in render and 'data-saved' in render:

@@ -6,7 +6,7 @@ Playwright page.route() has a concurrency issue with parallel fetch() calls (Pro
 only the first matching request is intercepted; the rest bypass the mock and hit the real
 server. Overriding window.fetch in-browser avoids this entirely.
 """
-import subprocess, sys, time, json
+import subprocess, sys, time, json, os
 
 BASE = 'http://localhost:8000'
 
@@ -21,7 +21,7 @@ def ensure_server():
 if not ensure_server():
     proc = subprocess.Popen(
         [sys.executable, '-m', 'uvicorn', 'server:app', '--host', '0.0.0.0', '--port', '8000'],
-        cwd='/home/user/tawasalna', stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cwd=os.path.dirname(os.path.abspath(__file__)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(3)
     if not ensure_server():
         print("FATAL: server did not start"); sys.exit(1)

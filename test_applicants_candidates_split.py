@@ -51,8 +51,10 @@ class TestMigrationFunction(unittest.TestCase):
             "Backfill UPDATE must guard with promoted_at IS NULL to avoid overwriting")
 
     def test_migration_registered_in_server_startup(self):
-        self.assertIn("_migrate_applicants_candidates_split()", SERVER_SRC,
-            "_migrate_applicants_candidates_split() must be called in server.py startup")
+        # PR 2B: startup migrations run from the _startup_migrations() registry (critical = True)
+        self.assertRegex(SERVER_SRC,
+            r'\("applicants_candidates_split",\s*_migrate_applicants_candidates_split,\s*True\)',
+            "_migrate_applicants_candidates_split must be a critical entry in _startup_migrations()")
 
     def test_migration_imported_in_server(self):
         self.assertIn("_migrate_applicants_candidates_split", SERVER_SRC,

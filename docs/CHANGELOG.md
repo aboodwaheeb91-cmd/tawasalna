@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 2B — منطق المواعيد + مراحل التوظيف + migrations + تعديل الأدمن + بوابة المرحلة 2 — 2026-10-07
+
+- Migrations (SYSTEMS_INDEX §54f · CLAUDE.md → Startup Migration Policy): `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح — كان دايماً بيفشل بصمت) → `_migrate_user_unique_indexes()`: حذف المكرر (بيضل الأقدم) + `CREATE UNIQUE INDEX IF NOT EXISTS` على `user_skills/user_langs/user_links`. `on_startup` → سجل `_startup_migrations()` (حرجة / اختيارية) + `/health.migrations`. `init_db` صارت حرجة (كانت بتبلع خطأها). `_migrate_job_lifecycle`: انشال `except: pass`.
+- المواعيد (ARCHITECTURE.md §73): `missed` → `completed` / `closed` و `expired` → `closed`؛ `missed` مش نهائية؛ الـ scheduler بيعلّم `missed` بعد `end_at + 15 د` أو `scheduled_at + 2 س` (job قديم بيوصل بكير بيعيد جدولة حاله)؛ رسائل الغرفة = آخر 50 + `?before_id=` + زر «عرض الرسائل الأقدم».
+- مراحل التوظيف: `promote_application_to_shortlist` ما بيرجّع لورا (`_CANDIDATE_STATUS_RANK`)، المرفوض/المنسحب no-op مع رسالة، و`candidate.action` حقيقي (`promoted` / `unchanged` / `kept_higher` / `rejected_noop`). `company.main.js` بيعرض الرسالة.
+- الأدمن: `PUT /admin/profile/{id}` (`check_admin`) + `_apply_profile_update()` المشتركة مع `PUT /profile/{id}`؛ `admin-view.html` عبر `TwAdminSession`.
+- اختبارات قديمة اتحدّثت: `test_post_save.py` (Test 10 → `icoBookmarkCheck`) · `test_pipeline_backfill.py` (K-04 → no read switch) · `test_talent_bank_polish.py` (test_03 → `' من '`) · `test_company_save.py` (مسار نسبي) · `test_applicants_candidates_split.py` + `test_post_comments.py` 489-09 (سجل الـ migrations) · `test_pipeline_backfill_integration.py` §46 (`promoted`). جديد: `test_pr2b_flow_fixes.py`.
+
 ## PR 2A — تسريب اتصالات DB + أعطال مؤكّدة + async بيوقف السيرفر — 2026-10-07
 
 - `auth.py`: **`db_conn()`** (جديد — SYSTEMS_INDEX §54e) — `with db_conn() as conn:` بيرجّع الاتصال بـ `finally`، والاتصال المكسور (`InterfaceError`) بيتسكّر بدل ما يرجع للـ pool. `get/set_site_setting` + `ensure_site_settings_table` + `ensure_reports_table` صاروا عليه (كان release بمسار النجاح بس + `except:` عامة). `ensure_company_tables`: release بـ `finally`. `release_conn`: `except:` → log.
@@ -359,6 +367,7 @@ reflects systems as of PR #386–#430 (pending).
 
 > منقول حرفياً من نهاية `ARCHITECTURE_FOUNDATION.md` (قسم "التحديثات"). الأحدث فوق.
 
+- PR 2B — 2026-10-07 — F16: مثال الـ migration صار بيرفع الخطأ (ما بيبلعه) + التسجيل بـ `_startup_migrations()` (حرجة / اختيارية) + ممنوع `except: pass` جوّا الـ migration. بدون قاعدة جديدة — توضيح لـ F9 / F16.
 - AF-11 · حُدِّث في PR-6 / المرحلة B (DS-ICON) — 2026-10-06 — أُضيفت القاعدة F37: Icon System (DS-ICON). فهرس القواعد: سطر F37. F31 جدول التوجيه: صف أيقونة واجهة / SVG / `data-lucide` / emoji كأيقونة → `docs/design-system/ICON-SYSTEM.md`. المجموع: 37 قاعدة عليا.
 - AF-10 · حُدِّث في PR-5 / المرحلة B (DS-SIZE) — 2026-10-06 — أُضيفت القاعدة F36: Size System (DS-SIZE). فهرس القواعد: سطر F36. F31 جدول التوجيه: صف font-size/radius/spacing/icon/control height → `docs/design-system/SIZE-SYSTEM.md`. المجموع: 36 قاعدة عليا.
 - AF-09 · حُدِّث في PR-3 (docs/protocol-conflicts) — 2026-10-06 — أُضيف "فهرس القواعد" (F1–F35 بسطر واحد لكل قاعدة) بأول الملف بدلاً من جدول "القواعد العليا" (نفس الأرقام والأولويات)؛ سطر "إلزامي القراءة" عُدِّل ليطابق بروتوكول المهام (CLAUDE.md البند 1). لم يتغيّر نص أي قاعدة.

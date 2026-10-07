@@ -103,7 +103,7 @@ def get_client_ip(request) -> str:
 
 
 from auth import (
-    init_db, get_conn,
+    init_db, _migrate_user_unique_indexes, get_conn,
     create_appointment, send_appointment, accept_appointment,
     request_reschedule_appointment, reschedule_appointment,
     cancel_appointment, complete_appointment, close_appointment,
@@ -704,6 +704,60 @@ async def _pipeline_asyncpg(
             return msg, int(unread or 0), timing
 
 
+# ── Startup migrations — one policy (PR 2B · CLAUDE.md → Startup Migration Policy) ──
+# critical = the app reads this schema on core paths (auth / profiles / jobs /
+#            applications / pipeline / appointments / notifications / scheduler), or a
+#            later critical migration depends on it → failure stops startup.
+# optional = one feature or performance only → failure is logged, reported on /health
+#            (name + ok/failed, no error details) and the rest of the site keeps working.
+# Order matters (dependencies run first).
+def _startup_migrations():
+    return (
+        ("init_db",                           init_db,                             True),
+        ("user_unique_indexes",               _migrate_user_unique_indexes,        False),
+        ("news_posts",                        _migrate_news_posts,                 False),
+        ("feed_indexes",                      _migrate_feed_indexes,               False),
+        ("company_branches",                  _migrate_company_branches,           False),
+        ("company_saved_candidates",          _migrate_company_saved_candidates,   True),
+        ("company_candidate_job_refs",        _migrate_company_candidate_job_refs, True),
+        ("candidate_status_per_job",          _migrate_candidate_status_per_job,   True),
+        ("password_changed_at",               _migrate_password_changed_at,        True),
+        ("kyc_otp_security",                  _migrate_kyc_otp_security,           True),
+        ("jobs_v2",                           _migrate_jobs_v2,                    True),
+        ("job_lifecycle",                     _migrate_job_lifecycle,              True),
+        ("taxonomy_foundation",               _migrate_taxonomy_foundation,        True),
+        ("job_profession_targets",            _migrate_job_profession_targets,     False),
+        ("notifications_schema_v2",           _migrate_notifications_schema_v2,    True),
+        ("notifications_schema_v2_1",         _migrate_notifications_schema_v2_1,  True),
+        ("appointments",                      _migrate_appointments,               True),
+        ("scheduler_jobs",                    _migrate_scheduler_jobs,             True),
+        ("pipeline_schema_v1",                _migrate_pipeline_schema_v1,         True),
+        ("pr5_pipeline_linking",              _migrate_pr5_pipeline_linking,       True),
+        ("applicants_candidates_split",       _migrate_applicants_candidates_split, True),
+    )
+
+
+_MIGRATION_STATUS: dict = {}   # name → "ok" | "failed" — exposed by /health
+
+
+def _run_startup_migrations(migrations=None) -> dict:
+    """Run every startup migration in order. Optional failure → logged + "failed";
+    critical failure → logged + RuntimeError (FastAPI refuses to start)."""
+    for name, fn, critical in (migrations if migrations is not None else _startup_migrations()):
+        try:
+            fn()
+        except Exception as e:
+            _MIGRATION_STATUS[name] = "failed"
+            kind = "critical" if critical else "optional"
+            print(f"❌ [migration] {name} failed ({kind}): {type(e).__name__}: {e}")
+            if critical:
+                raise RuntimeError(f"critical startup migration failed: {name}") from e
+            continue
+        _MIGRATION_STATUS[name] = "ok"
+        print(f"✅ [migration] {name}")
+    return dict(_MIGRATION_STATUS)
+
+
 # ── Startup ──
 @app.on_event("startup")
 async def on_startup():
@@ -722,109 +776,7 @@ async def on_startup():
         print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
     for _line in _supabase_storage_status_lines():
         print(_line)
-    try:
-        init_db()
-        print("✅ DB initialized")
-    except Exception as e:
-        print(f"⚠️ DB init failed: {e}")
-    try:
-        _migrate_news_posts()
-        print("✅ news_posts table ready")
-    except Exception as e:
-        print(f"⚠️ news_posts migration failed: {e}")
-    try:
-        _migrate_feed_indexes()
-        print("✅ feed indexes ready")
-    except Exception as e:
-        print(f"⚠️ feed indexes migration failed: {e}")
-    try:
-        _migrate_company_branches()
-        print("✅ company_branches table ready")
-    except Exception as e:
-        print(f"⚠️ company_branches migration failed: {e}")
-    try:
-        _migrate_company_saved_candidates()
-        print("✅ company_saved_candidates table ready")
-    except Exception as e:
-        print(f"⚠️ company_saved_candidates migration failed: {e}")
-    try:
-        _migrate_company_candidate_job_refs()
-        print("✅ company_candidate_job_refs table ready")
-    except Exception as e:
-        print(f"⚠️ company_candidate_job_refs migration failed: {e}")
-    # Startup-critical: both batch-fetch functions always SELECT candidate_status.
-    # A failed migration means every saved-candidates API call returns HTTP 500.
-    # Let the exception propagate — FastAPI will refuse to start in a broken schema state.
-    _migrate_candidate_status_per_job()
-    print("✅ company_candidate_job_refs.candidate_status column ready")
-    # Startup-critical: _jwt_decode reads users.password_changed_at (cached).
-    _migrate_password_changed_at()
-    print("✅ users.password_changed_at column ready")
-    try:
-        _migrate_kyc_otp_security()
-        print("✅ KYC OTP security ready (hashed codes, target/expiry/attempts, legacy codes wiped)")
-    except Exception as e:
-        print(f"⚠️ KYC OTP security migration failed: {e}")
-    try:
-        _migrate_jobs_v2()
-        print("✅ jobs v2 columns ready")
-    except Exception as e:
-        print(f"⚠️ jobs v2 migration failed: {e}")
-    try:
-        _migrate_job_lifecycle()
-        print("✅ jobs lifecycle columns ready (closed_at, paused_at, expires_at back-fill)")
-    except Exception as e:
-        print(f"⚠️ jobs lifecycle migration failed: {e}")
-    try:
-        _migrate_taxonomy_foundation()
-        print("✅ taxonomy foundation ready (skill_catalog + jobs.profession_id)")
-    except Exception as e:
-        print(f"⚠️ taxonomy foundation migration failed: {e}")
-    try:
-        _migrate_job_profession_targets()
-        print("✅ job_profession_targets table ready")
-    except Exception as e:
-        print(f"⚠️ job_profession_targets migration failed: {e}")
-    try:
-        _migrate_notifications_schema_v2()
-        print("✅ notifications schema v2 ready (actor_id, entity_id, entity_type, event_key)")
-    except Exception as e:
-        print(f"⚠️ notifications schema v2 migration failed: {e}")
-    try:
-        _migrate_notifications_schema_v2_1()
-        print("✅ notifications schema v2-1 ready (aggregation_key, aggregation_count, aggregation_kind, last_actor_id, last_event_at, target_type, target_id)")
-    except Exception as e:
-        print(f"❌ notifications schema v2-1 migration failed: {e}")
-        raise
-    try:
-        _migrate_appointments()
-        print("✅ appointments tables ready (appointments, appointment_participants, appointment_events, appointment_messages)")
-    except Exception as e:
-        print(f"❌ appointments migration failed: {e}")
-        raise
-    try:
-        _migrate_scheduler_jobs()
-        print("✅ scheduler_jobs table ready")
-    except Exception as e:
-        print(f"❌ scheduler_jobs migration failed: {e}")
-        raise
-    try:
-        _migrate_pipeline_schema_v1()
-        print("✅ pipeline schema v1 ready (jobs archive, job_pipeline_entries, pipeline_stage_events, pipeline_notes, candidate_bank_notes, company_saved_candidates fields, appointments.pipeline_entry_id)")
-    except Exception as e:
-        print(f"❌ pipeline schema v1 migration failed: {e}")
-        raise
-    try:
-        _migrate_pr5_pipeline_linking()
-        print("✅ PR-5 pipeline linking ready (appointment_type, end_at, applicant_id backfill)")
-    except Exception as e:
-        print(f"❌ PR-5 pipeline linking migration failed: {e}")
-        raise
-    try:
-        _migrate_applicants_candidates_split()
-    except Exception as e:
-        print(f"❌ PR-6 (applicants-candidates-split) migration failed: {e}")
-        raise
+    _run_startup_migrations()
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
@@ -3394,10 +3346,12 @@ def health():
         db_ok = True
     except Exception as e:
         print(f"[health] DB check failed: {e!r}")
-    status = "ok" if db_ok else "degraded"
+    migrations = dict(_MIGRATION_STATUS)   # name → ok | failed (never error details)
+    status = "ok" if db_ok and "failed" not in migrations.values() else "degraded"
     return {
         "status": status,
         "db": "ok" if db_ok else "error",
+        "migrations": migrations,
         "timestamp": datetime.now().isoformat(),
         "version": "2.0",
         "uptime": "running"
@@ -4043,8 +3997,14 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
     # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
-    payload = data.dict(exclude_unset=True)
-    user_type = token.get('user_type')
+    return _apply_profile_update(user_id, data.dict(exclude_unset=True),
+                                 token.get('user_type'), "PUT /profile", _t0)
+
+
+def _apply_profile_update(user_id: int, payload: dict, user_type: str, tag: str, _t0: float):
+    """The one profile-update path (validation + save + error shapes) — PUT /profile/{id}
+    (owner JWT) and PUT /admin/profile/{id} (check_admin, PR 2B). `user_type` is the
+    TARGET account's type; the caller has already authorised the write."""
     if "website" in payload:   # §54 rule 4b — empty / null = clear
         payload["website"] = _validate_external_url(payload["website"], "website", "الموقع الإلكتروني")
     # PR-7a: image URLs must come from /upload/image for this user (company logo = avatar_url of a co)
@@ -4071,7 +4031,7 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         if not profile:
             raise HTTPException(500, "Profile update failed")
         updated_keys = list(payload.keys())
-        print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
+        print(f"[{tag}] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
     except ProfileValidationError as e:
         # Field-specific: errors[] is the official shape; no top-level error{} (API-MUT)
@@ -4094,11 +4054,31 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
             })
     except ValueError as e:
         # no_profile_row or other internal data errors — not a client validation error
-        print(f"[PUT /profile] ValueError user={user_id}: {e}")
+        print(f"[{tag}] ValueError user={user_id}: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
     except Exception as e:
-        print(f"[PUT /profile] ERROR user={user_id}: {e}")
+        print(f"[{tag}] ERROR user={user_id}: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
+
+
+@app.put("/admin/profile/{user_id}")
+def admin_update_profile(user_id: int, data: ProfileUpdateInput, request: Request):
+    """Admin edits a user's profile (admin-view.html). Admin JWT only (check_admin) —
+    same validation as PUT /profile/{id} via _apply_profile_update (no admin-only rules);
+    the rules follow the TARGET account's user_type (e.g. emp → no full_name)."""
+    _t0 = _time.time()
+    claims = check_admin(request)
+    try:
+        with db_conn() as conn:
+            rows = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=user_id)
+    except Exception as e:
+        raise _server_error("admin_update_profile", e)
+    if not rows:
+        raise HTTPException(404, "المستخدم غير موجود")
+    payload = data.dict(exclude_unset=True)
+    print(f"[ADMIN] profile edit by {claims.get('sub')} → user={user_id} fields={list(payload.keys())}")
+    return _apply_profile_update(user_id, payload, rows[0][0], "PUT /admin/profile", _t0)
+
 
 @app.post("/experience/{user_id}")
 def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verify_token)):
@@ -6283,11 +6263,13 @@ def api_get_appointment_events(appointment_id: int, token=Depends(verify_token))
 @app.get("/api/appointments/{appointment_id}/messages")
 def api_get_appointment_messages(appointment_id: int,
                                   limit: int = 50, offset: int = 0,
+                                  before_id: Optional[int] = None,
                                   token=Depends(verify_token)):
+    """Newest `limit` messages, oldest → newest. ?before_id= loads the page before that id."""
     user_id = int(token["user_id"])
     try:
         msgs = get_appointment_messages(appointment_id, user_id,
-                                         limit=limit, offset=offset)
+                                         limit=limit, offset=offset, before_id=before_id)
         return {"ok": True, "data": msgs}
     except PermissionError as e:
         raise HTTPException(403, str(e))
