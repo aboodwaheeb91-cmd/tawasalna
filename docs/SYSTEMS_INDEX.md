@@ -106,6 +106,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `profiles` (company fields) + `company_branches` table · `static/company/` modules
 **Details:** `ARCHITECTURE.md §18–21` · `docs/rules/company-profile.md`
 **Do not recreate:** All Company Profile JS goes in `static/company/` — never inline in HTML. Load order is mandatory. Use `companyState` as the single source of truth.
+**Page namespace (PR 2C):** `window.TwCompanyPage` (created in `company.state.js`) is the only bridge for an internal function one `company.*.js` IIFE needs from another (`openNotesPanel` · `openApptModal`). ❌ `typeof _fn === 'function'` across IIFEs (always false) · ❌ a new ad-hoc `window._coX` for this. Suggestion save buttons: one delegated `_body` listener (`_onSuggSaveClick`). Job edit restores `j-loc-mode` via `_detectJobLocMode()` (`company.jobs.js`). Test: `node test_pr2c_session_sockets_runtime.js`.
 **Talent Bank deep-link (PR-4):** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it with no candidate selected (`company.main.js`). Links to the bank (header menu "بنك المواهب", Home V2 co sidebar) come only from `twTalentBankHref(u)` in `tw_shared.js` — do not build the URL by hand or re-add a separate candidate-search page.
 
 ---
@@ -138,7 +139,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 11a. Cross-Tab Auth Sync (`auth-sync.js`)
 **Purpose:** Detects JWT changes across browser tabs and invalidates stale owner mode instantly. Prevents a tab that was loaded as owner from staying in owner mode after logout or account switch in another tab.
 **Source of Truth:** `static/shared/auth-sync.js` · `window.TwAuthSync.onSessionChange(cb)`
-**Details:** Listens to `storage`, `pageshow` (bfcache), `visibilitychange`, `focus` events. Only fires callbacks when `tw_jwt` actually changes, except `pageshow` from bfcache which forces revalidation because the page may be stale. Profile V2 wiring: `profile-v2.render.js` (bottom). Company wiring: `static/company/company.main.js`.
+**Details:** Listens to `storage`, `pageshow` (bfcache), `visibilitychange`, `focus` events. Fires callbacks only when `tw_jwt` / `tw_user` actually change, except `pageshow` from bfcache which forces revalidation because the page may be stale. `focus` / `visibilitychange` also fire when the resolved `state|userId` changed (expiry while hidden) — never on an unchanged session (PR 2C, `docs/rules/vm01-bfcache.md` 10b). Socket consumers (badge WS · `messages.ws.js`) keep a live socket when JWT + userId are unchanged. Profile V2 wiring: `profile-v2.render.js` (bottom). Company wiring: `static/company/company.main.js`.
 **Do not recreate:** Do not add per-page `storage` event listeners for session sync — use `TwAuthSync.onSessionChange`. Do not re-implement the event listener set in any page file.
 
 ---
@@ -1157,4 +1158,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 2A DB connection + async safety · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 2A DB connection + async safety · PR 2C session sockets + company page fixes · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

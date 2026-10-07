@@ -157,12 +157,9 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// Page fade-in
-document.documentElement.style.opacity = '0';
-window.addEventListener('load', function(){
-  document.documentElement.style.transition = 'opacity .25s ease';
-  document.documentElement.style.opacity = '1';
-});
+// Page fade-in removed (PR 2C): <html> was hidden until window.load (all images /
+// fonts / logo), and pages already painted by the Page Shell flashed out. Pages
+// render as soon as they parse; skeletons cover the loading state.
 
 // Service Worker — not on pages served with the admin Page Shell
 // (<meta name="tw-sw" content="off"> — PAGE-SHELL.md SHELL-03).
@@ -817,10 +814,12 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 // Handles badge_update events to update [data-badge="msgs"] in real time.
 // Auth protocol: sends {"type":"auth","token":"..."} as the first message;
 // only processes badge_update after server confirms with auth_ok.
+// @vm-extract-begin: badge-ws
 // Exposed: window._twBadgeWsStop(), window._twBadgeWsStart()
 (function() {
   var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
   var _activeUid = 0;
+  var _activeJwt = '';         // JWT the current socket authenticated with (PR 2C same-session check)
   var _activeSocket = null;    // current active WS reference
   var _reconnectTimer = null;  // active reconnect timer handle
   var _retries = 0;            // IIFE-level: persists across _initBadgeWS() calls; reset on auth_ok or new session
@@ -865,6 +864,7 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 
     _gen++;
     _activeUid = uid;
+    _activeJwt = jwt;
     var capturedGen = _gen;
     var capturedUid = Number(uid);
 
@@ -943,7 +943,14 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
     if (typeof TwAuthSync === 'undefined' || typeof TwAuthSync.onSessionChange !== 'function') return;
     _badgeAuthSyncBound = true;
     TwAuthSync.onSessionChange(function(info) {
-      // Full unified stop path on every session change:
+      // Same session, socket still alive (CONNECTING / OPEN) → keep it (PR 2C):
+      // no close, no badge flash, no extra GETs. Reconnect only when the JWT or
+      // the user changed, or the socket is really closed.
+      var snap = info && info.snapshot;
+      if (info && info.jwt && info.jwt === _activeJwt && snap && snap.isAuthenticated
+          && Number(snap.userId) === Number(_activeUid)
+          && _activeSocket && _activeSocket.readyState < 2) return;
+      // Full unified stop path on every real session change:
       // close socket + cancel timers (_gen++) + cancel in-flight HTTP + clear DOM
       _twBadgeWsStop();
       // Only restart when a new JWT is present (authenticated account switch or token refresh).
@@ -972,5 +979,6 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   window._twBadgeWsStop  = _twBadgeWsStop;
   window._twBadgeWsStart = _twBadgeWsStart;
 })();
+// @vm-extract-end: badge-ws
 
 

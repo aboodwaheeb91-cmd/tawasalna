@@ -499,8 +499,24 @@ function doSendMessage() {
 // Called on interval — only refreshes if DB has more messages than shown.
 // Preserves scroll position if user is not at bottom.
 
+// @vm-extract-begin: msg-poll
+var _msgPollTimer = null;
+function _msgPollTick() {
+  loadConversations();
+  reloadMessagesQuiet();
+}
+function _startMsgPoll() {
+  if (_msgPollTimer || document.hidden) return;
+  _msgPollTimer = setInterval(_msgPollTick, 10000);
+}
+function _stopMsgPoll() {
+  if (_msgPollTimer) { clearInterval(_msgPollTimer); _msgPollTimer = null; }
+}
+// @vm-extract-end: msg-poll
+
 function reloadMessagesQuiet() {
-  if (!_currentConvId) return;
+  // Hidden tab never fetches the open conversation — GET /messages marks it read (PR 2C)
+  if (!_currentConvId || document.hidden) return;
   apiGetMessages(_currentConvId).then(function(data) {
     var list = data.messages || [];
     var msgs = document.getElementById('messages');
@@ -675,10 +691,19 @@ document.addEventListener('DOMContentLoaded', function() {
   connectWS();
   // Poll every 10s: conversations list + active conversation messages.
   // Required because HTTP send does not push to receiver via WS.
-  setInterval(function() {
-    loadConversations();
-    reloadMessagesQuiet();
-  }, 10000);
+  // Visible pages only (PR 2C): GET /messages marks messages read, so a hidden tab
+  // must not poll — and tells the server the conversation is inactive meanwhile.
+  _startMsgPoll();
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      _stopMsgPoll();
+      if (_currentConvId) sendInactiveConversation(_currentConvId);
+    } else {
+      if (_currentConvId) sendActiveConversation(_currentConvId);
+      _msgPollTick();
+      _startMsgPoll();
+    }
+  });
 
   // Typing indicator: throttled + debounced WS typing events.
   // Throttle sends typing at most once per 1500ms to stay well under the server

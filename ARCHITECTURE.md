@@ -876,6 +876,18 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 - **ممنوع** إضافة module جديد قبل تحديد الترتيب الصحيح له في الجدول أعلاه
 - كل namespace: `window.X` — لا ES modules، لا bundler
 
+### Page Namespace — `window.TwCompanyPage` (PR 2C)
+- يُنشأ بأول `company.state.js`: `window.TwCompanyPage = window.TwCompanyPage || {}`.
+- هو الجسر **الوحيد** لما IIFE بملف `company.*.js` بدّه دالة داخلية من IIFE تانية. المالك بيصدّر: `TwCompanyPage.openNotesPanel(entryId)` · `TwCompanyPage.openApptModal(appId, name, jobTitle, entryId, candidateId, jobId?)` (بيضبط `_appJobId` لما يجي `jobId`).
+- المستهلك الحالي: قائمة الوظيفة المنبثقة بتبويب بنك المواهب (`company.main.js` — أزرار «ملاحظات الوظيفة» و«تحديد موعد»).
+- ❌ `typeof _fn === 'function'` لدالة بـ IIFE تانية (دايماً false) · ❌ `window._coX` جديد عشوائي لهالغرض · ❌ نسخ الدالة.
+
+### أزرار «حفظ كمرشح» (الاقتراحات) — PR 2C
+- listener واحد delegated على `_body` (`_onSuggSaveClick` → `_saveSuggestion(btn)`)، `_wireSaveButtons()` بيعمل remove+add فبيضل واحد بعد «عرض المزيد». الزر `disabled` (طلب شغّال) أو `.co-sugg-manage-mode` → تجاهل.
+
+### وضع موقع الوظيفة بالتعديل — PR 2C
+- `hydrateEditJobForm(job)` بيرجّع `j-loc-mode` من `_detectJobLocMode(location, companyState.profile, companyState.branches)` (عكس `_resolveJobLocation`): `عن بُعد` → remote · يطابق المقر → hq · يطابق قيمة فرع → branch (+ اختيار الفرع) · غير هيك / فاضي → custom (تفكيك دولة/مدينة).
+
 ---
 
 ## [P0] 21. Company Frontend — Step 3 Implementation Contract

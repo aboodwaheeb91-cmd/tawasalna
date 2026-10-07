@@ -8,6 +8,11 @@
   // Bootstrap guard (Rule #10)
   window.__companyBooted = false;
 
+  // Page namespace (PR 2C) — the ONLY bridge between the company.*.js IIFEs for
+  // internal functions one module needs from another. Not an ad-hoc global.
+  // ARCHITECTURE.md → Company Profile → Page Namespace.
+  window.TwCompanyPage = window.TwCompanyPage || {};
+
   // companyState — initial shape (Rule #19)
   window.companyState = {
     profile: {

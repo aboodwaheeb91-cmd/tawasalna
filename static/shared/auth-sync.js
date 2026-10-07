@@ -1,7 +1,8 @@
 // auth-sync.js V2 — Session Resolver + Cross-tab Invalidation
 // VM-10 compliant (docs/design-system/VIEWER-MODES.md)
 // Fires registered callbacks when tw_jwt or tw_user changes in any tab,
-// on bfcache restore (pageshow), or when tab regains focus.
+// on bfcache restore (pageshow, always), or when the tab regains focus /
+// visibility AND the session changed (JWT · tw_user · state/userId — PR 2C).
 // V2 adds: getSessionSnapshot(), invalidateSession(), JWT expiry timer,
 //          session fingerprinting (tw_user change detection),
 //          mismatch detection (JWT user_id vs tw_user.id → stale).
@@ -18,6 +19,10 @@
   var _prevUserStr = localStorage.getItem('tw_user') || '';
   var _handlers    = [];
   var _expiryTimer = null;
+  // Resolved-state key (state|userId) last delivered to handlers (or seen at init).
+  // focus / visibilitychange fire handlers only when this key or the fingerprint
+  // changed — e.g. the token expired while the tab slept (PR 2C).
+  var _prevStateKey = '';
 
   // setTimeout is capped at 32-bit signed int (~24.8 days).
   // 7-day tokens produce ~604 800 000 ms — well inside the cap, but we clamp
@@ -144,12 +149,23 @@
     _prevUserStr = userStr;
     _scheduleExpiryTimer();
     var snapshot = _resolveSession();
+    _prevStateKey = _stateKey(snapshot);
     for (var i = 0; i < _handlers.length; i++) {
       try { _handlers[i]({ jwt: jwt, reason: reason, snapshot: snapshot }); } catch (e) {}
     }
   }
 
+  function _stateKey(snap) { return snap.state + '|' + (snap.userId == null ? '' : String(snap.userId)); }
+
+  // focus / visibilitychange: fire only when the session really changed —
+  // JWT / tw_user fingerprint (handled by _check) OR resolved state / userId
+  // (expiry while hidden). Same session → no handlers, so sockets stay open (PR 2C).
+  function _checkOnForeground(reason) {
+    _check(reason, _stateKey(_resolveSession()) !== _prevStateKey);
+  }
+
   // Schedule initial expiry timer on load
+  _prevStateKey = _stateKey(_resolveSession());
   _scheduleExpiryTimer();
 
   // ── Cross-tab events ─────────────────────────────────────────────
@@ -164,13 +180,13 @@
     if (e.persisted) _check('pageshow', true);
   });
 
-  // Tab becomes visible — re-check in case timer fired while page was hidden
+  // Tab becomes visible — re-check in case the token expired while the page was hidden
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') _check('visibilitychange', true);
+    if (document.visibilityState === 'visible') _checkOnForeground('visibilitychange');
   });
 
   // OS window focus
-  window.addEventListener('focus', function () { _check('focus', true); });
+  window.addEventListener('focus', function () { _checkOnForeground('focus'); });
 
   // ── Public API ───────────────────────────────────────────────────
   window.TwAuthSync = {
@@ -203,6 +219,7 @@
       _prevJwt     = '';
       _prevUserStr = '';
       var snapshot = _resolveSession(); // will be 'guest' — storage was just cleared
+      _prevStateKey = _stateKey(snapshot);
       for (var i = 0; i < _handlers.length; i++) {
         try { _handlers[i]({ jwt: '', reason: reason || 'invalidate', snapshot: snapshot }); } catch (e) {}
       }
