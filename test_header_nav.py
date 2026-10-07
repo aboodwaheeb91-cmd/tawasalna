@@ -60,7 +60,7 @@ check("A home.header.js deleted (header wiring lives in tw_shared.js)",
 print("\nB — header order")
 pos = [HDR.find(x) for x in ['data-tw-hdr-back', 'data-key="home"', 'class="sc-logo"',
                              'data-key="notifications"', 'data-key="messages"', 'twHdrMenuBtn',
-                             'data-tw-session="guest" hidden>تسجيل الدخول', 'href="/login#register"']]
+                             'data-tw-session="guest" hidden>\' + twEscHtml(twT(\'auth.login\'))', 'href="/login#register"']]
 check("B back · home · logo · bell · messages · menu · login · register (DOM = RTL order)",
       all(p > 0 for p in pos) and pos == sorted(pos), pos)
 check("B auth items hidden by default (data-tw-session=authenticated) — home, bell, messages, menu",
@@ -83,8 +83,9 @@ keys = re.findall(r"key: '([a-z]+)'", REG)
 check("D keys = home · appointments · messages · notifications · account", keys ==
       ["home", "appointments", "messages", "notifications", "account"], keys)
 check("D no '#' href in the registry", "'#'" not in REG and '"#"' not in REG)
-check("D account label + icon per type (emp / co / edu)",
-      "emp: 'ملفي', co: 'شركتي', edu: 'مؤسستي'" in REG and "twAccountHref(u)" in REG)
+check("D account label (twT key) + icon per type (emp / co / edu)",
+      "labelKey: { emp: 'nav.account.emp', co: 'nav.account.co', edu: 'nav.account.edu' }" in REG
+      and "twAccountHref(u)" in REG)
 check("D resolved href never empty (fallback '/')", "href: href || '/'" in TWS)
 check("D current tab = aria-current=page + .is-current", 'is-current" aria-current="page' in TWS)
 check("D bottom nav only for authenticated sessions", "nav.hidden = !auth;" in TWS)

@@ -1,0 +1,64 @@
+{
+  "ar": {
+    "brand.name": "تواصلنا",
+    "page.title": "{page} — تواصلنا",
+    "common.soon": "قريباً",
+    "common.all": "الكل",
+    "common.check_connection": "تحقق من اتصالك وحاول مرة أخرى",
+    "common.load_error": "خطأ في تحميل البيانات",
+
+    "account.type.emp": "حساب شخصي",
+    "account.type.co": "حساب شركة",
+    "account.type.edu": "حساب جهة تعليمية",
+
+    "jobs.title": "الوظائف",
+    "jobs.post": "نشر وظيفة",
+    "people.applicants": "المتقدمون",
+    "people.candidates": "المرشحون",
+    "people.talent_bank": "بنك المواهب",
+
+    "auth.login": "تسجيل الدخول",
+    "auth.register": "إنشاء حساب",
+    "auth.logout": "تسجيل الخروج",
+
+    "header.label": "التنقل الرئيسي",
+    "header.back": "رجوع",
+    "header.home": "الرئيسية",
+    "header.notifications": "الإشعارات",
+    "header.messages": "الرسائل",
+    "header.menu": "القائمة",
+
+    "menu.settings": "الإعدادات",
+    "menu.contact": "تواصل معنا",
+    "menu.report": "الإبلاغ عن مشكلة",
+    "menu.suggest": "اقترح ميزة",
+
+    "nav.label": "التنقل السفلي",
+    "nav.home": "الرئيسية",
+    "nav.appointments": "مواعيد",
+    "nav.messages": "رسائل",
+    "nav.notifications": "إشعارات",
+    "nav.account.emp": "ملفي",
+    "nav.account.co": "شركتي",
+    "nav.account.edu": "مؤسستي",
+
+    "appt.title": "مواعيدي",
+    "appt.new": "دعوة مقابلة جديدة",
+    "appt.general_interview": "مقابلة عامة",
+    "appt.open_room": "فتح غرفة الموعد",
+    "appt.empty": "لا توجد مواعيد",
+    "appt.empty_filtered": "لا توجد مواعيد بهذه الحالة",
+    "appt.empty_none": "لم تصلك دعوات مقابلات بعد",
+    "appt.mode.online": "أونلاين",
+    "appt.mode.onsite": "حضوري",
+    "appt.status.draft": "مسودة",
+    "appt.status.pending_response": "بانتظار الرد",
+    "appt.status.reschedule_requested": "طلب تغيير موعد",
+    "appt.status.confirmed": "مؤكَّد",
+    "appt.status.cancelled": "ملغي",
+    "appt.status.expired": "انتهت المهلة",
+    "appt.status.missed": "فائت",
+    "appt.status.completed": "مكتملة",
+    "appt.status.closed": "مغلق"
+  }
+}

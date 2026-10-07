@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.6 — نظام نصوص واحد + قاموس تسميات (Strings System) — 2026-10-07
+
+- نظام جديد: `tw_strings.json` (افتراضي `{"ar": …}`) + `tw_strings.py` + override أدمن بـ `site_settings` (`strings_override.ar`) + `GET` / `PUT /admin/strings` (تحقق: مفاتيح معروفة · ≤ 300 · بدون HTML · بدون متغيرات جديدة) + `twT(key, vars)` / `twTApply` بـ `tw_shared.js`. `read_html` بيبدّل `<!--tw:strings-->` (بـ `shell-scripts.html` + كل صفحة بتحمّل `/tw_shared.js`).
+- محوّل لـ `twT`: الهيدر · الشريط السفلي · قائمة الهيدر · `appointments.html`. تغيير نص: فلاتر المواعيد «طلب تغيير» ← «طلب تغيير موعد» و «مكتمل» ← «مكتملة» (نفس كلمة شارة الحالة).
+- Docs: `docs/GLOSSARY.md` (جديد) · SYSTEMS_INDEX §59 · `CLAUDE.md` (Full Control + Strings Rules) · ARCHITECTURE §57 Admin Endpoints. Tests: `test_strings_system.py` (جديد) · `test_header_nav.py` B / D (النص صار مفاتيح twT).
+- تصحيح CI: `test_legacy_routes_cleanup.py` §2 — كان يفحص النص الثابت `label: 'بنك المواهب'` بقائمة الهيدر؛ صار يفحص `labelKey: 'people.talent_bank'` + `twTalentBankHref` + إن نص المفتاح بـ `tw_strings.json` = «بنك المواهب».
+
 ## PR 3.2 — هيدر واحد + شريط سفلي واحد (DS-HNAV) — 2026-10-07
 
 - نظام جديد: `twMountAppChrome()` بـ `tw_shared.js` بيرسم `<header data-tw-header [data-back]>` + `<nav data-tw-bottom-nav>` — ترتيب ثابت (مسجّل: رئيسية · لوغو · جرس · رسائل · قائمة / زائر: لوغو · دخول · تسجيل) · زر رجوع اختياري بنفس الهيدر (`twNavBack` — NAV-05) · لوغو `/static/33333.svg` بس · شريط سفلي من تعريف واحد `_TW_BOTTOM_NAV` حسب نوع الحساب، بدون `href="#"` · حد شارات واحد 99+ للجرس والرسائل (`twNotifBadgeLabel` — كانت الرسائل 9+). CSS بـ `static/app-header.css` (DS-SIZE / DS-COLOR tokens).

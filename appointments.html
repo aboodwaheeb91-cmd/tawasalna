@@ -4,7 +4,7 @@
 <!--tw:shell-head-->
 <link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <link rel="stylesheet" href="/static/app-header.css">
-<title>مواعيدي — تواصلنا</title>
+<title></title>
 <meta name="tw-page" content="auth">
 <style>
 /* Appointments — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
@@ -75,15 +75,15 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 
 <!-- Unified app header (HEADER-NAV.md — rendered by twMountAppChrome) -->
 <header data-tw-header></header>
-<h1 class="ap-title">مواعيدي</h1>
+<h1 class="ap-title" data-tw-t="appt.title"></h1>
 
 <div class="fbar" id="filterBar">
-  <button class="ftab active" data-f="">الكل</button>
-  <button class="ftab" data-f="pending_response">بانتظار الرد</button>
-  <button class="ftab" data-f="confirmed">مؤكَّد</button>
-  <button class="ftab" data-f="reschedule_requested">طلب تغيير</button>
-  <button class="ftab" data-f="cancelled">ملغي</button>
-  <button class="ftab" data-f="completed">مكتمل</button>
+  <button class="ftab active" data-f="" data-tw-t="common.all"></button>
+  <button class="ftab" data-f="pending_response" data-tw-t="appt.status.pending_response"></button>
+  <button class="ftab" data-f="confirmed" data-tw-t="appt.status.confirmed"></button>
+  <button class="ftab" data-f="reschedule_requested" data-tw-t="appt.status.reschedule_requested"></button>
+  <button class="ftab" data-f="cancelled" data-tw-t="appt.status.cancelled"></button>
+  <button class="ftab" data-f="completed" data-tw-t="appt.status.completed"></button>
 </div>
 
 <div class="content" id="apptList">
@@ -93,9 +93,9 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 </div>
 
 <!-- Company: New Appointment FAB -->
-<button class="fab" id="fabNew" title="دعوة مقابلة جديدة" aria-label="دعوة مقابلة جديدة" style="display:none"><i data-tw-icon="add"></i></button>
+<button class="fab" id="fabNew" data-tw-t-label="appt.new" style="display:none"><i data-tw-icon="add"></i></button>
 
-<!-- Unified bottom nav (HNAV-06) — "مواعيد" is current by path -->
+<!-- Unified bottom nav (HNAV-06) — appointments tab is current by path -->
 <nav data-tw-bottom-nav></nav>
 
 <!--tw:shell-scripts-->
@@ -113,20 +113,17 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   const IS_CO = _snap.userType === 'co';
   let _currentFilter = '';
 
-  // Status labels + badge classes
-  const STATUS_LABEL = {
-    draft: 'مسودة', pending_response: 'بانتظار الرد',
-    reschedule_requested: 'طلب تغيير موعد', confirmed: 'مؤكَّد',
-    cancelled: 'ملغي', expired: 'انتهت المهلة', missed: 'فائت',
-    completed: 'مكتملة', closed: 'مغلق'
-  };
+  // All page text = Strings System keys (twT — SYSTEMS_INDEX §59); static markup via data-tw-t.
+  document.title = twT('page.title', { page: twT('appt.title') });
+  twTApply(document.body);
+
+  // Status labels = twT('appt.status.<status>') · badge classes
   const STATUS_CLASS = {
     draft: 'badge-draft', pending_response: 'badge-pending',
     reschedule_requested: 'badge-reschedule', confirmed: 'badge-confirmed',
     cancelled: 'badge-cancelled', expired: 'badge-expired',
     missed: 'badge-missed', completed: 'badge-completed', closed: 'badge-closed'
   };
-  const MODE_LABEL = { online: 'أونلاين', onsite: 'حضوري' };
 
   // DOM
   const listEl = document.getElementById('apptList');
@@ -191,7 +188,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   function renderCard(a){
     const s = a.computed_status || a.status;
     const cls = STATUS_CLASS[s] || 'badge-draft';
-    const lbl = STATUS_LABEL[s] || s;
+    const lbl = STATUS_CLASS[s] ? twT('appt.status.' + s) : s;
 
     const card = document.createElement('div');
     card.className = 'appt-card';
@@ -200,7 +197,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     });
 
     const displayName = IS_CO ? a.applicant_name : a.company_name;
-    const jobTxt = a.job_title ? a.job_title : 'مقابلة عامة';
+    const jobTxt = a.job_title ? a.job_title : twT('appt.general_interview');
 
     const top = document.createElement('div');
     top.className = 'card-top';
@@ -231,7 +228,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     const meta = document.createElement('div');
     meta.className = 'card-meta';
     if (a.scheduled_at) meta.appendChild(metaItem('clock', formatDate(a.scheduled_at)));
-    meta.appendChild(metaItem('calendar', MODE_LABEL[a.mode] || a.mode));
+    meta.appendChild(metaItem('calendar', a.mode === 'online' || a.mode === 'onsite' ? twT('appt.mode.' + a.mode) : a.mode));
     card.appendChild(meta);
 
     const footer = document.createElement('div');
@@ -240,7 +237,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     btnRoom.className = 'btn-room';
     btnRoom.href = '/appointment-room?id=' + encodeURIComponent(a.id);
     btnRoom.appendChild(twIconEl('log-in', { size: 'sm' }));
-    btnRoom.appendChild(document.createTextNode(' فتح غرفة الموعد'));
+    btnRoom.appendChild(document.createTextNode(' ' + twT('appt.open_room')));
     footer.appendChild(btnRoom);
     card.appendChild(footer);
 
@@ -253,13 +250,13 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     twApi('/api/appointments' + qs).then(res => {
       listEl.innerHTML = '';
       if (!res.ok) {
-        listEl.appendChild(stateBox('alert', 'خطأ في تحميل البيانات',
-          twApiMessage(res, 'تحقق من اتصالك وحاول مرة أخرى')));
+        listEl.appendChild(stateBox('alert', twT('common.load_error'),
+          twApiMessage(res, twT('common.check_connection'))));
         return;
       }
       if (!Array.isArray(res.data) || res.data.length === 0) {
-        listEl.appendChild(stateBox('calendar', 'لا توجد مواعيد',
-          _currentFilter ? 'لا توجد مواعيد بهذه الحالة' : 'لم تصلك دعوات مقابلات بعد'));
+        listEl.appendChild(stateBox('calendar', twT('appt.empty'),
+          twT(_currentFilter ? 'appt.empty_filtered' : 'appt.empty_none')));
         return;
       }
       res.data.forEach(a => listEl.appendChild(renderCard(a)));

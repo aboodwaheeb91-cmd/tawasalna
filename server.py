@@ -804,6 +804,7 @@ async def on_startup():
     for _line in _supabase_storage_status_lines():
         print(_line)
     _run_startup_migrations()
+    await asyncio.to_thread(_strings_load_overrides)
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
@@ -825,9 +826,35 @@ async def on_startup():
 
 # ── Helpers ──
 from page_shell import apply_shell
+import tw_strings
 _html_cache = {}
 
+# Strings System (PR 3.6 · SYSTEMS_INDEX §59): admin overrides live in site_settings, loaded
+# at startup + on admin save (never a DB call while serving a page). The inline block is
+# rebuilt only when the overrides change.
+_STRINGS_OVERRIDES: dict = {}
+_STRINGS_BLOCK = tw_strings.page_block({})
+
+
+def _strings_set_overrides(overrides: dict) -> None:
+    global _STRINGS_OVERRIDES, _STRINGS_BLOCK
+    _STRINGS_OVERRIDES = dict(overrides)
+    _STRINGS_BLOCK = tw_strings.page_block(_STRINGS_OVERRIDES)
+
+
+def _strings_load_overrides() -> None:
+    """site_settings → in-memory overrides. Failure → defaults stay (logged, F9)."""
+    try:
+        _strings_set_overrides(tw_strings.parse_stored(get_site_setting(tw_strings.setting_key())))
+    except Exception as e:
+        print(f"[strings] override load failed — defaults in use: {type(e).__name__}: {e}")
+
+
 def read_html(name: str) -> str:
+    return _read_html_cached(name).replace(tw_strings.MARKER, _STRINGS_BLOCK, 1)
+
+
+def _read_html_cached(name: str) -> str:
     if name in _html_cache:
         return _html_cache[name]
     try:
@@ -3234,6 +3261,33 @@ def get_logos():
             except: pass
         return v
     return {"logo_wide": _get("logo_wide"), "logo_tall": _get("logo_tall")}
+
+# ══ Strings System — admin overrides (PR 3.6 · SYSTEMS_INDEX §59) ══
+@app.get("/admin/strings")
+def admin_get_strings(request: Request):
+    """Defaults + current overrides (lang = ar for now)."""
+    check_admin(request)
+    lang = tw_strings.DEFAULT_LANG
+    return api_ok({"lang": lang, "defaults": tw_strings.DEFAULTS[lang],
+                   "overrides": dict(_STRINGS_OVERRIDES), "max_len": tw_strings.MAX_LEN})
+
+
+@app.put("/admin/strings")
+def admin_put_strings(request: Request, data: dict = Body(...)):
+    """Replace the whole override map: {"overrides": {key: text}}. Empty text = default.
+    Known keys only · ≤ MAX_LEN · no HTML · only the default's {placeholders}."""
+    check_admin(request)
+    try:
+        clean = tw_strings.validate_overrides(data.get("overrides"))
+    except tw_strings.StringsError as e:
+        return api_error(422, e.code, e.message, e.field)
+    ensure_site_settings_table()
+    if not set_site_setting(tw_strings.setting_key(), json.dumps(clean, ensure_ascii=False)):
+        return api_error(500, "save_failed", "تعذّر حفظ النصوص، حاول مرة أخرى")
+    _strings_set_overrides(clean)
+    print(f"[strings] admin saved {len(clean)} override(s)")
+    return api_ok({"overrides": clean})
+
 
 @app.post("/admin/logo-sizes")
 async def save_logo_sizes(data: dict, request: Request):

@@ -94,8 +94,11 @@ tws = read('tw_shared.js')
 home_fn = tws[tws.index('function twHomeHref('):tws.index('function twAccountHref(')]
 check("2. twHomeHref → '/home' for every logged-in type",
       "return '/home';" in home_fn and "'/company'" not in home_fn and "'/edu'" not in home_fn)
-check('2. header menu: "بنك المواهب" uses twTalentBankHref',
-      "label: 'بنك المواهب', href: twTalentBankHref" in tws and 'بحث عن موظفين' not in tws)
+# Label is a Strings System key since PR 3.6 (twT — SYSTEMS_INDEX §59); the text lives in tw_strings.json.
+_strings_ar = json.load(open('tw_strings.json', encoding='utf-8'))['ar']
+check('2. header menu: "بنك المواهب" (twT people.talent_bank) uses twTalentBankHref',
+      "labelKey: 'people.talent_bank', href: twTalentBankHref" in tws
+      and _strings_ar.get('people.talent_bank') == 'بنك المواهب' and 'بحث عن موظفين' not in tws)
 check('2. twTalentBankHref → /u/{tw_id}?cand=',
       "'/u/' + encodeURIComponent(u.tw_id) + '?cand='" in tws)
 check('2. home.nav.js co sidebar → twTalentBankHref (label "بنك المواهب")',
