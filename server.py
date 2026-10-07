@@ -20,6 +20,7 @@ except ImportError:
     _asyncpg = None
 
 import urllib.request
+import ipaddress
 
 # ── IP to country code ──
 IP_TO_COUNTRY_CACHE = {}
@@ -47,14 +48,58 @@ def get_country_from_ip(ip: str) -> str:
     except Exception:
         return 'DEFAULT'
 
+# ── Client IP (PR 1.4) — the ONLY reader of X-Forwarded-For / X-Real-IP ──
+# CLIENT_IP_SOURCE: xff_left (default — pre-PR behaviour) · xff_right (+ TRUSTED_PROXY_HOPS,
+# default 1) · x_real_ip · peer. Unknown source or an invalid IP → request.client.host
+# (warning logged once per kind). Choosing the value: ARCHITECTURE.md → Client IP Resolution.
+_CLIENT_IP_SOURCES = ("xff_left", "xff_right", "x_real_ip", "peer")
+_client_ip_warned: set = set()
+
+
+def _client_ip_warn_once(kind: str, msg: str) -> None:
+    if kind not in _client_ip_warned:
+        _client_ip_warned.add(kind)
+        print(f"⚠️ [client-ip] {msg}")
+
+
+def _valid_ip(value) -> 'str | None':
+    try:
+        return str(ipaddress.ip_address((value or "").strip()))
+    except ValueError:
+        return None
+
+
 def get_client_ip(request) -> str:
-    forwarded = request.headers.get('X-Forwarded-For')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
+    peer = request.client.host if request.client else '127.0.0.1'
+    source = (os.environ.get("CLIENT_IP_SOURCE") or "xff_left").strip().lower()
+    if source not in _CLIENT_IP_SOURCES:
+        _client_ip_warn_once("source", f"CLIENT_IP_SOURCE={source!r} is invalid — using request.client.host")
+        return peer
+    if source == "peer":
+        return peer
+    xff = request.headers.get('X-Forwarded-For')
     real_ip = request.headers.get('X-Real-IP')
-    if real_ip:
-        return real_ip.strip()
-    return request.client.host if request.client else '127.0.0.1'
+    if source == "xff_left":
+        raw = xff.split(',')[0] if xff else real_ip
+    elif source == "x_real_ip":
+        raw = real_ip
+    else:  # xff_right
+        try:
+            hops = int(os.environ.get("TRUSTED_PROXY_HOPS") or "1")
+        except ValueError:
+            hops = 0
+        if hops < 1:
+            _client_ip_warn_once("hops", "TRUSTED_PROXY_HOPS is invalid — using request.client.host")
+            return peer
+        parts = [p.strip() for p in xff.split(',')] if xff else []
+        raw = parts[-hops] if len(parts) >= hops else None
+    if raw is None:
+        return peer
+    ip = _valid_ip(raw)
+    if not ip:
+        _client_ip_warn_once("value", f"{source}: header value is not a valid IP — using request.client.host")
+        return peer
+    return ip
 
 
 from auth import (
@@ -87,7 +132,7 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
-    _migrate_jobs_v2, _migrate_job_lifecycle, _eff_status, _ALLOWED_DURATIONS,
+    _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _eff_status, _ALLOWED_DURATIONS,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -280,7 +325,10 @@ async def security_headers(request, call_next):
 from collections import defaultdict, deque, OrderedDict
 import time as _time
 _rate_store = defaultdict(list)
-_RATE_LIMIT = 60  # requests per minute
+_RATE_LIMIT = 20  # requests per minute per client IP (all _RATE_LIMITED_PATHS together)
+_LOGIN_EMAIL_MAX_FAILS = 5      # failed logins per email …
+_LOGIN_EMAIL_WINDOW    = 900.0  # … in 15 minutes → that email is locked until the window clears
+_LOGIN_LOCKED_MSG = "تم إيقاف تسجيل الدخول لهذا البريد مؤقتاً بسبب محاولات فاشلة متكررة، حاول مرة أخرى بعد 15 دقيقة"
 
 # Per-(user, post) rate limit for appreciation endpoints — guards against auto-clickers
 _appr_rate_store: dict = {}   # "{user_id}:{post_id}" -> list[float]
@@ -348,17 +396,55 @@ def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
     _cmt_edit_rate_store[key].append(now)
     return True
 
+def _rate_prune(key: str, window: float) -> list:
+    now = _time.time()
+    hits = [t for t in _rate_store.get(key, ()) if now - t < window]
+    if hits:
+        _rate_store[key] = hits
+    else:
+        _rate_store.pop(key, None)
+    return hits
+
+
+def _rate_hit(key: str, limit: int, window: float) -> bool:
+    """Sliding window on the shared _rate_store. True = allowed (and counted)."""
+    hits = _rate_prune(key, window)
+    if len(hits) >= limit:
+        return False
+    _rate_store[key] = hits + [_time.time()]
+    return True
+
+
+# Per-email login lockout (PR 1.4) — independent of the client IP.
+def _login_email_key(email: str) -> str:
+    return "login-email:" + (email or "").strip().lower()
+
+
+def _login_email_locked(email: str) -> bool:
+    return len(_rate_prune(_login_email_key(email), _LOGIN_EMAIL_WINDOW)) >= _LOGIN_EMAIL_MAX_FAILS
+
+
+def _login_email_fail(email: str) -> None:
+    _rate_store[_login_email_key(email)].append(_time.time())
+
+
+def _login_email_reset(email: str) -> None:
+    _rate_store.pop(_login_email_key(email), None)
+
+
+_RATE_LIMITED_PATHS = frozenset({
+    "/auth/login", "/auth/register", "/tw-ctrl-login",
+    "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
+})
+
+
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
-    # Only rate limit auth endpoints
-    if request.url.path in ["/auth/login", "/auth/register", "/kyc/email/send", "/kyc/phone/send", "/tw-ctrl-login"]:
-        ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
-        now = _time.time()
-        _rate_store[ip] = [t for t in _rate_store[ip] if now - t < 60]
-        if len(_rate_store[ip]) >= _RATE_LIMIT:
+    # Only rate limit auth / OTP endpoints — IP from get_client_ip() only
+    if request.url.path in _RATE_LIMITED_PATHS:
+        if not _rate_hit("ip:" + get_client_ip(request), _RATE_LIMIT, 60):
             from fastapi.responses import JSONResponse as _JR
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
-        _rate_store[ip].append(now)
     return await call_next(request)
 
 app.add_middleware(
@@ -526,6 +612,11 @@ async def on_startup():
     # Let the exception propagate — FastAPI will refuse to start in a broken schema state.
     _migrate_candidate_status_per_job()
     print("✅ company_candidate_job_refs.candidate_status column ready")
+    try:
+        _migrate_kyc_otp_security()
+        print("✅ KYC OTP security ready (hashed codes, target/expiry/attempts, legacy codes wiped)")
+    except Exception as e:
+        print(f"⚠️ KYC OTP security migration failed: {e}")
     try:
         _migrate_jobs_v2()
         print("✅ jobs v2 columns ready")
@@ -3205,12 +3296,23 @@ def register(data: RegisterInput, request: Request):
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/auth/login")
-def login(data: LoginInput):
+def login(data: LoginInput, request: Request):
+    if os.environ.get("LOG_CLIENT_IP") == "1":
+        # Measurement only (ARCHITECTURE.md → Client IP Resolution) — headers + chosen IP, never body/email/password
+        print(f"[client-ip] /auth/login xff={request.headers.get('X-Forwarded-For')!r} "
+              f"x_real_ip={request.headers.get('X-Real-IP')!r} "
+              f"peer={(request.client.host if request.client else None)!r} chosen={get_client_ip(request)!r}")
     if not data.email.strip() or not data.password:
         raise HTTPException(400, detail="البريد وكلمة المرور مطلوبان")
+    if _login_email_locked(data.email):
+        return JSONResponse(status_code=429, content={
+            "error": _LOGIN_LOCKED_MSG,
+            "detail": {"code": "login_email_locked", "message": _LOGIN_LOCKED_MSG}})
     user = authenticate_user(data.email, data.password)
     if not user:
+        _login_email_fail(data.email)
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
+    _login_email_reset(data.email)
     token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
     return {"status": "success", "user": user, "token": token}
 
@@ -4425,16 +4527,22 @@ async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
 
 # ══ KYC Endpoints ══
 
+_KYC_ERR_MSG = "تعذّر إتمام طلب التحقق حالياً، حاول مرة أخرى لاحقاً"
+_OTP_UNAVAILABLE = {"detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}}
+
+
 @app.post("/kyc/start")
 def kyc_start(token=Depends(verify_token)):
     try:
         uid = int(token.get("user_id"))
         result = start_kyc(uid)
-        return {"status": "success", "kyc": result}
+        # Tier 3 allowlist — start_kyc() row holds OTP hash/target columns (Tier 4)
+        return {"status": "success", "kyc": project_owner_kyc_status(result)}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] start error uid={token.get('user_id')}: {type(e).__name__}: {e}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.get("/kyc/status/{user_id}")
 def kyc_status(user_id: int, token=Depends(verify_token)):
@@ -4446,15 +4554,14 @@ def kyc_status(user_id: int, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] status error uid={user_id}: {type(e).__name__}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/email/send")
 def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
     # Fail Closed: no OTP generated or stored until a real provider is available.
     if not is_email_otp_delivery_available():
-        return JSONResponse(status_code=503, content={
-            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
-        })
+        return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
         start_kyc(uid)
@@ -4464,10 +4571,14 @@ def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] email send error uid={token.get('user_id')}: {type(e).__name__}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/email/verify")
 def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
+    # Fail Closed: no code can have been delivered → nothing can be verified.
+    if not is_email_otp_delivery_available():
+        return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
         ok = verify_email_code(uid, data.code)
@@ -4477,15 +4588,14 @@ def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] email verify error uid={token.get('user_id')}: {type(e).__name__}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/phone/send")
 def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
     # Fail Closed: no OTP generated or stored until a real provider is available.
     if not is_phone_otp_delivery_available():
-        return JSONResponse(status_code=503, content={
-            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
-        })
+        return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
         code = send_phone_code(uid, data.phone)
@@ -4494,20 +4604,25 @@ def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] phone send error uid={token.get('user_id')}: {type(e).__name__}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/phone/verify")
 def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
+    # Fail Closed: no code can have been delivered → nothing can be verified.
+    if not is_phone_otp_delivery_available():
+        return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
         ok = verify_phone_code(uid, data.code)
         if not ok:
-            raise HTTPException(400, "الرمز غير صحيح")
+            raise HTTPException(400, "الرمز غير صحيح أو منتهي الصلاحية")
         return {"status": "success", "message": "تم تأكيد رقم الهاتف ✅"}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[KYC] phone verify error uid={token.get('user_id')}: {type(e).__name__}")
+        raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/docs")
 def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):

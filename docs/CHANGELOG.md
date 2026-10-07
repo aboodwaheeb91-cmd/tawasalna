@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 1.3 + 1.4 — تقوية OTP + IP العميل + حد الدخول لكل إيميل — 2026-10-07
+
+- `auth.py`: **`_otp_issue` / `_otp_verify`** (جديد — SYSTEMS_INDEX §54c) — منطق واحد للإيميل والجوال: `secrets` · hash بس (`v1$` HMAC) · صلاحية 10 دقايق · 5 محاولات (ذرّي) · `hmac.compare_digest` · بينمسح بعد النجاح · مربوط بالإيميل/الجوال الحالي. `_migrate_kyc_otp_security()`: 6 أعمدة `ADD COLUMN IF NOT EXISTS` + مسح الرموز القديمة النصّية.
+- `server.py`: **`get_client_ip`** هي المصدر الوحيد (§54a) — `CLIENT_IP_SOURCE` (الافتراضي `xff_left` = نفس السلوك) / `TRUSTED_PROXY_HOPS` / `LOG_CLIENT_IP=1` للقياس. الـ middleware ما عاد يقرأ XFF لحاله.
+- Rate limit (§54b): `/kyc/email/verify` + `/kyc/phone/verify` انضافوا · حد الـ IP 60 → 20/دقيقة · حد لكل إيميل بالدخول 5 فاشلة / 15 دقيقة → 429 `login_email_locked` (نفس `_rate_store`).
+- KYC: verify بيرجّع 503 لما الإرسال موقّف · رسالة خطأ ثابتة بدل `str(e)` (start / status / send / verify) · `/kyc/start` بيرجّع Tier 3 allowlist بدل `SELECT *`.
+- `index.auth.js` (`auth-gw-v12`): نص ثابت لقفل الإيميل.
+
 ## PR 1.1 — روابط خارجية آمنة (Stored XSS) — 2026-10-07
 
 - `tw_shared.js`: **`twSafeLinkUrl(url)`** (جديد — §54 rule 4b) — `http://` / `https://` + host بس؛ غير هيك `''` → الرابط بينعرض نص بدون `<a>`.

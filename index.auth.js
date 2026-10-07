@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v11
+// Version: auth-gw-v12
 
 'use strict';
 
@@ -152,7 +152,10 @@ async function doLogin(){
       // DS-VAL VAL-09: auth failure → form-level banner (not DS-FEEDBACK toast)
       // HTTP-status-based safe messages only — never expose raw data.detail (API-MUT-11)
       var safeMsg;
-      if(res.status === 429){
+      if(res.status === 429 && data && data.detail && data.detail.code === 'login_email_locked'){
+        // Per-email lockout (PR 1.4) — fixed client text keyed on the code, not raw detail
+        safeMsg = 'تم إيقاف تسجيل الدخول لهذا البريد مؤقتاً بسبب محاولات فاشلة متكررة، حاول بعد 15 دقيقة';
+      } else if(res.status === 429){
         safeMsg = 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً';
       } else if(res.status >= 500){
         safeMsg = 'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً';

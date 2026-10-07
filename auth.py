@@ -3149,10 +3149,117 @@ def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
 
 
 # ══ KYC System ══
-import random, string
+import secrets as _secrets, hmac as _hmac, hashlib as _hashlib
+
+# ── KYC OTP (PR 1.3) — one shared implementation for email + phone ──
+# Stored value = keyed hash only (never the code). Bound to the target it was
+# sent to, expires after _OTP_TTL_MINUTES, dies after _OTP_MAX_ATTEMPTS wrong
+# tries, cleared on success. SYSTEMS_INDEX → KYC OTP Security.
+_OTP_TTL_MINUTES  = 10
+_OTP_MAX_ATTEMPTS = 5
+_OTP_HASH_PREFIX  = "v1$"
+# channel → fixed column names (allowlist — never interpolate caller input into SQL)
+_OTP_COLUMNS = {
+    "email": ("email_code", "email_code_target", "email_code_expires_at", "email_code_attempts"),
+    "phone": ("phone_code", "phone_code_target", "phone_code_expires_at", "phone_code_attempts"),
+}
+
 
 def generate_code(length=6):
-    return ''.join(random.choices(string.digits, k=length))
+    """Cryptographically secure numeric code."""
+    return ''.join(_secrets.choice('0123456789') for _ in range(length))
+
+
+def _otp_norm_target(channel: str, target: str) -> str:
+    t = (target or "").strip()
+    return t.lower() if channel == "email" else re.sub(r"[\s\-()]", "", t)
+
+
+def _otp_hash(user_id: int, channel: str, target: str, code: str) -> str:
+    key = (os.environ.get("JWT_SECRET", "") + ":kyc-otp").encode()
+    msg = f"{int(user_id)}|{channel}|{target}|{code}".encode()
+    return _OTP_HASH_PREFIX + _hmac.new(key, msg, _hashlib.sha256).hexdigest()
+
+
+def _otp_issue(user_id: int, channel: str, target: str) -> str:
+    """Generate a code for (user, channel, target); store hash + target + expiry, reset attempts.
+    Returns the plain code for the delivery provider only — never store or log it."""
+    code_c, target_c, exp_c, att_c = _OTP_COLUMNS[channel]
+    tgt = _otp_norm_target(channel, target)
+    if not tgt:
+        raise ValueError("otp target required")
+    code = generate_code()
+    conn = get_conn()
+    try:
+        conn.run(
+            f"UPDATE kyc_submissions SET {code_c}=:h, {target_c}=:t, "
+            f"{exp_c}=NOW() + INTERVAL '{_OTP_TTL_MINUTES} minutes', {att_c}=0 "
+            "WHERE user_id=:uid",
+            h=_otp_hash(user_id, channel, tgt, code), t=tgt, uid=user_id
+        )
+        return code
+    finally:
+        release_conn(conn)
+
+
+def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> bool:
+    """Check a code. Counts the attempt atomically before comparing (concurrent
+    requests cannot exceed _OTP_MAX_ATTEMPTS). Fails when: no code, expired,
+    attempts exhausted, stored target != expected_target, or hash mismatch.
+    On success the code is cleared (single use) — the caller marks verified."""
+    code_c, target_c, exp_c, att_c = _OTP_COLUMNS[channel]
+    code = (code or "").strip()
+    tgt = _otp_norm_target(channel, expected_target)
+    if not code or not tgt:
+        return False
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            f"UPDATE kyc_submissions SET {att_c}=COALESCE({att_c},0)+1 "
+            f"WHERE user_id=:uid AND {code_c} IS NOT NULL AND {code_c} LIKE 'v1$%' "
+            f"AND {exp_c} > NOW() AND COALESCE({att_c},0) < :mx "
+            f"RETURNING {code_c}, {target_c}, {att_c}",
+            uid=user_id, mx=_OTP_MAX_ATTEMPTS
+        )
+        if not rows:
+            return False
+        stored_hash, stored_target, attempts = rows[0]
+        ok = (stored_target == tgt) and _hmac.compare_digest(
+            stored_hash or "", _otp_hash(user_id, channel, tgt, code))
+        if ok:
+            # Conditional clear — a second concurrent success on the same code matches 0 rows.
+            done = conn.run(
+                f"UPDATE kyc_submissions SET {code_c}=NULL, {target_c}=NULL, {exp_c}=NULL, {att_c}=0 "
+                f"WHERE user_id=:uid AND {code_c}=:h RETURNING id",
+                uid=user_id, h=stored_hash
+            )
+            return bool(done)
+        if attempts >= _OTP_MAX_ATTEMPTS:
+            conn.run(
+                f"UPDATE kyc_submissions SET {code_c}=NULL, {target_c}=NULL, {exp_c}=NULL "
+                f"WHERE user_id=:uid AND {code_c}=:h",
+                uid=user_id, h=stored_hash
+            )
+        return False
+    finally:
+        release_conn(conn)
+
+
+def _migrate_kyc_otp_security():
+    """PR 1.3 — idempotent: OTP binding/expiry/attempt columns + wipe legacy
+    plaintext codes (anything not in the v1$ hash format)."""
+    conn = get_conn()
+    try:
+        for ch in ("email", "phone"):
+            conn.run(f"ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS {ch}_code_target TEXT")
+            conn.run(f"ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS {ch}_code_expires_at TIMESTAMP")
+            conn.run(f"ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS {ch}_code_attempts INTEGER NOT NULL DEFAULT 0")
+            conn.run(
+                f"UPDATE kyc_submissions SET {ch}_code=NULL, {ch}_code_target=NULL, {ch}_code_expires_at=NULL "
+                f"WHERE {ch}_code IS NOT NULL AND {ch}_code NOT LIKE 'v1$%'"
+            )
+    finally:
+        release_conn(conn)
 
 def start_kyc(user_id: int) -> dict:
     """Start or get KYC submission"""
@@ -3173,28 +3280,20 @@ def start_kyc(user_id: int) -> dict:
         release_conn(conn)
 
 def send_email_code(user_id: int, email: str) -> str:
-    """Generate email verification code"""
-    code = generate_code()
-    conn = get_conn()
-    try:
-        conn.run(
-            "UPDATE kyc_submissions SET email_code=:code WHERE user_id=:uid",
-            code=code, uid=user_id
-        )
-        return code  # In production: send via email API
-    finally:
-        release_conn(conn)
+    """Issue an email OTP bound to `email` (shared _otp_issue)."""
+    return _otp_issue(user_id, "email", email)
 
 def verify_email_code(user_id: int, code: str) -> bool:
-    """Verify email code"""
+    """Verify the email OTP — must have been sent to the account's current email."""
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT email_code FROM kyc_submissions WHERE user_id=:uid",
-            uid=user_id
-        )
-        if not rows or rows[0][0] != code:
-            return False
+        rows = conn.run("SELECT email FROM users WHERE id=:uid", uid=user_id)
+    finally:
+        release_conn(conn)
+    if not rows or not _otp_verify(user_id, "email", code, rows[0][0]):
+        return False
+    conn = get_conn()
+    try:
         conn.run(
             "UPDATE kyc_submissions SET email_verified=TRUE, step='phone' WHERE user_id=:uid",
             uid=user_id
@@ -3205,28 +3304,26 @@ def verify_email_code(user_id: int, code: str) -> bool:
         release_conn(conn)
 
 def send_phone_code(user_id: int, phone: str) -> str:
-    """Generate phone verification code"""
-    code = generate_code()
+    """Save the phone and issue a phone OTP bound to it (shared _otp_issue)."""
     conn = get_conn()
     try:
-        conn.run(
-            "UPDATE kyc_submissions SET phone=:phone, phone_code=:code WHERE user_id=:uid",
-            phone=phone, code=code, uid=user_id
-        )
-        return code  # In production: send via SMS API
+        conn.run("UPDATE kyc_submissions SET phone=:phone WHERE user_id=:uid",
+                 phone=_otp_norm_target("phone", phone), uid=user_id)
     finally:
         release_conn(conn)
+    return _otp_issue(user_id, "phone", phone)
 
 def verify_phone_code(user_id: int, code: str) -> bool:
-    """Verify phone code"""
+    """Verify the phone OTP — must have been sent to the phone currently on the submission."""
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT phone_code FROM kyc_submissions WHERE user_id=:uid",
-            uid=user_id
-        )
-        if not rows or rows[0][0] != code:
-            return False
+        rows = conn.run("SELECT phone FROM kyc_submissions WHERE user_id=:uid", uid=user_id)
+    finally:
+        release_conn(conn)
+    if not rows or not _otp_verify(user_id, "phone", code, rows[0][0]):
+        return False
+    conn = get_conn()
+    try:
         conn.run(
             "UPDATE kyc_submissions SET phone_verified=TRUE, step='id_upload' WHERE user_id=:uid",
             uid=user_id

@@ -1088,6 +1088,30 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 54a. Client IP Resolution (PR 1.4)
+**Purpose:** One answer to "what is the client's IP" for rate limiting, registration country, and logs — without trusting a client-forged `X-Forwarded-For`.
+**Source of Truth:** `get_client_ip(request)` in `server.py` — the ONLY reader of `X-Forwarded-For` / `X-Real-IP`. `CLIENT_IP_SOURCE` = `xff_left` (default, pre-PR behaviour) · `xff_right` (+ `TRUSTED_PROXY_HOPS`, default 1) · `x_real_ip` · `peer`. Invalid source / hops / IP → `request.client.host` + one `[client-ip]` warning per kind. `LOG_CLIENT_IP=1` → one measurement line on `/auth/login` (XFF, X-Real-IP, peer, chosen — never email / password / body).
+**Details:** `ARCHITECTURE.md §52 → Client IP Resolution + Auth Rate Limiter` (measurement steps + "if you see X → set Y" table)
+**Do not recreate:** No second XFF parser anywhere. Do not switch `CLIENT_IP_SOURCE` without the measurement. Do not leave `LOG_CLIENT_IP` on permanently.
+
+---
+
+### 54b. Auth Rate Limiter (PR 1.4)
+**Purpose:** Throttle auth / OTP endpoints per client IP, plus a per-email login lockout that does not depend on the IP at all.
+**Source of Truth:** `server.py` → `rate_limit_middleware` + `_rate_hit()` on the single `_rate_store`; `_RATE_LIMITED_PATHS` (`/auth/login`, `/auth/register`, `/tw-ctrl-login`, `/kyc/{email,phone}/{send,verify}`) — 20/min per IP (`_RATE_LIMIT`). Login: `_login_email_locked/_fail/_reset` on the same store, key `login-email:{email lowercased}` — 5 failures / 15 min → 429 `detail.code = "login_email_locked"` (Arabic message; `index.auth.js` shows fixed text for that code); success resets.
+**Details:** `ARCHITECTURE.md §52 → Client IP Resolution + Auth Rate Limiter`
+**Do not recreate:** No second limiter/store for auth paths. Do not remove `/tw-ctrl-login` or the KYC verify paths from the list. Do not key the email lockout on IP. Test: `python -m pytest test_otp_rate_limit_security.py -q`.
+
+---
+
+### 54c. KYC OTP Security (PR 1.3)
+**Purpose:** Email / phone verification codes that cannot be guessed, replayed, reused, or redirected to another target.
+**Source of Truth:** `auth.py` → `_otp_issue()` / `_otp_verify()` (one implementation for both channels, `_OTP_COLUMNS` allowlist) · `generate_code()` (`secrets`) · `_migrate_kyc_otp_security()`. Stored: `{ch}_code` = `v1$` HMAC-SHA256 hash, `{ch}_code_target`, `{ch}_code_expires_at` (10 min), `{ch}_code_attempts` (5 → code dead). `hmac.compare_digest`; cleared after success; target must equal `users.email` / `kyc_submissions.phone`. Legacy plaintext codes wiped by the migration. Send **and** verify routes → 503 `otp_delivery_unavailable` while `is_*_otp_delivery_available()` is False. KYC route errors → fixed `_KYC_ERR_MSG` (never `str(e)`); `/kyc/start` returns the Tier 3 allowlist.
+**Details:** `ARCHITECTURE.md §52 → KYC OTP Security` · `docs/security/PROFILE-DATA-VISIBILITY.md → OTP`
+**Do not recreate:** No plaintext code in DB or logs. No `==`/`!=` on codes. No per-channel copy of the OTP logic. No email/SMS provider before plan item 5.1.
+
+---
+
 ## I — Systems Needing Documentation
 
 These systems exist in code but lack formal documentation in ARCHITECTURE.md or CLAUDE.md:
@@ -1098,4 +1122,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 1.1 safe external links · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 1.3 + 1.4 OTP / client IP / rate limit · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
