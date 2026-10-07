@@ -101,6 +101,7 @@
 - التبويب الحالي: `data-tw-current="<key>"` على الـ `<nav>`، أو تلقائي من المسار (`/home` · `/appointments` · `/messages` · `/notifications` · `/u/{own tw_id}`) → `.is-current` + `aria-current="page"`.
 - **مسجّل بس** (الزائر: `hidden`) · **موبايل/تابلت بس** (`< 1020px`) · `body.tw-has-bnav` بيعطي مسافة تحت المحتوى — الصفحة ما بتحط `padding-bottom` خاص فيه.
 - بيترسم من جديد بس لما يتغيّر `نوع|id|tw_id` (تسجيل واحد على `TwAuthSync.onSessionChange`).
+- **النصوص (PR 3.6):** كل نص بالهيدر والشريط وقائمة الهيدر (تسميات · `aria-label` / `title` · alt اللوغو) مفتاح `twT` (`labelKey` بالـ registries · `_twLbl(key)` للأيقونات) — Strings System SYSTEMS_INDEX §59. ❌ نص عربي ثابت بـ `_twHeaderHtml` / `_TW_BOTTOM_NAV` / `_TW_HEADER_MENU_POLICY`.
 - الصفحات اللي فيها الشريط: `home-v2` · `notifications` · `appointments` · `edu-profile`. بدونه: `messages` (شريط الكتابة تحت) · `job-detail` (شريط «تقدّم» الثابت) · `settings` · `appointment-room` (صفحات فرعية).
 
 ---

@@ -318,6 +318,41 @@ window.addEventListener('unhandledrejection', function(e){
   }).catch(function(){});
 });
 
+// ── Strings System (PR 3.6 · SYSTEMS_INDEX §59 · docs/GLOSSARY.md) ──
+// twT(key, vars): the ONLY way UI text reaches the page. Dictionary = window.TW_STRINGS.dict,
+// put inline at <!--tw:strings--> by read_html (tw_strings.json defaults + admin overrides from
+// site_settings). {name} → vars.name (unknown {x} stays as is). Missing key → returns the key
+// and warns once per key. Result is plain text — escape it like any other text (twEscHtml).
+var _twTWarned = {};
+function twT(key, vars) {
+  var S = window.TW_STRINGS;
+  var d = S && S.dict;
+  var s = d && Object.prototype.hasOwnProperty.call(d, key) ? d[key] : null;
+  if (typeof s !== 'string') {
+    if (!_twTWarned[key]) { _twTWarned[key] = 1; console.warn('[twT] missing string key: ' + key); }
+    return String(key);
+  }
+  if (!vars) return s;
+  return s.replace(/\{([a-z0-9_]+)\}/g, function (m, n) {
+    return Object.prototype.hasOwnProperty.call(vars, n) && vars[n] != null ? String(vars[n]) : m;
+  });
+}
+window.twT = twT;
+
+// Static HTML: <el data-tw-t="key"> → textContent · <el data-tw-t-label="key"> → aria-label + title.
+// Runs once on DOMContentLoaded for the document; call again for markup added later.
+function twTApply(root) {
+  root = root || (typeof document !== 'undefined' ? document : null);
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  root.querySelectorAll('[data-tw-t]').forEach(function (el) { el.textContent = twT(el.getAttribute('data-tw-t')); });
+  root.querySelectorAll('[data-tw-t-label]').forEach(function (el) {
+    var t = twT(el.getAttribute('data-tw-t-label'));
+    el.setAttribute('aria-label', t);
+    el.setAttribute('title', t);
+  });
+}
+window.twTApply = twTApply;
+
 // ── XSS Protection (§54 Safe Rendering — single canonical implementation) ──
 // twEscAttr: canonical escaping for attribute values and text content.
 // Handles null/undefined → ''; handles numeric 0 → "0" (correct; old sanitize returned '').
@@ -738,24 +773,25 @@ function twShareProfile() {
 // accountTypes: optional string[] — if set, item only shows for those user types.
 // Items with show:'auth' appear only when session is authenticated.
 // Items with show:'guest' appear only when session is guest/expired/invalid.
-// Items with disabled:true are shown greyed with "قريباً" — no route yet.
+// Items with disabled:true are shown greyed with twT('common.soon') — no route yet.
+// labelKey = Strings System key (twT) — no fixed text here.
 var _TW_HEADER_MENU_POLICY = [
-  { key: 'settings', label: 'الإعدادات', href: '/settings', show: 'auth',
+  { key: 'settings', labelKey: 'menu.settings', href: '/settings', show: 'auth',
     icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
-  { key: 'candidates', label: 'بنك المواهب', href: twTalentBankHref, show: 'auth',
+  { key: 'candidates', labelKey: 'people.talent_bank', href: twTalentBankHref, show: 'auth',
     accountTypes: ['co'],
     icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' },
-  { key: 'contact', label: 'تواصل معنا', disabled: true, show: 'all',
+  { key: 'contact', labelKey: 'menu.contact', disabled: true, show: 'all',
     icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
-  { key: 'report', label: 'الإبلاغ عن مشكلة', disabled: true, show: 'all',
+  { key: 'report', labelKey: 'menu.report', disabled: true, show: 'all',
     icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
-  { key: 'suggest', label: 'اقترح ميزة', disabled: true, show: 'all',
+  { key: 'suggest', labelKey: 'menu.suggest', disabled: true, show: 'all',
     icon: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
-  { key: 'logout', label: 'تسجيل الخروج', action: 'twLogout', danger: true, show: 'auth',
+  { key: 'logout', labelKey: 'auth.logout', action: 'twLogout', danger: true, show: 'auth',
     icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>' },
-  { key: 'login', label: 'تسجيل الدخول', href: '/login', show: 'guest',
+  { key: 'login', labelKey: 'auth.login', href: '/login', show: 'guest',
     icon: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>' },
-  { key: 'register', label: 'إنشاء حساب', href: '/login#register', show: 'guest',
+  { key: 'register', labelKey: 'auth.register', href: '/login#register', show: 'guest',
     icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>' },
 ];
 
@@ -791,17 +827,19 @@ function _twHeaderMenuItems() {
 function _twHeaderMenuItemHtml(item) {
   var svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     + 'stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true">' + item.icon + '</svg>';
+  var label = twEscHtml(twT(item.labelKey));
   if (item.disabled) {
-    return '<div class="sc-menu-item disabled" title="قريباً">'
-      + svg + twEscHtml(item.label)
-      + '<span class="sc-menu-soon">قريباً</span></div>';
+    var soon = twEscHtml(twT('common.soon'));
+    return '<div class="sc-menu-item disabled" title="' + soon + '">'
+      + svg + label
+      + '<span class="sc-menu-soon">' + soon + '</span></div>';
   }
   var cls = 'sc-menu-item' + (item.danger ? ' danger' : '');
   if (item.action) {
-    return '<button type="button" class="' + cls + '" data-menu-action="' + item.action + '">' + svg + twEscHtml(item.label) + '</button>';
+    return '<button type="button" class="' + cls + '" data-menu-action="' + item.action + '">' + svg + label + '</button>';
   }
   var href = typeof item.href === 'function' ? item.href() : item.href;
-  return '<a class="' + cls + '" href="' + twEscAttr(href) + '" data-key="' + item.key + '">' + svg + twEscHtml(item.label) + '</a>';
+  return '<a class="' + cls + '" href="' + twEscAttr(href) + '" data-key="' + item.key + '">' + svg + label + '</a>';
 }
 
 // ── Declarative Session Visibility (VM-10D) ──────────────────────
@@ -927,14 +965,14 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 var TW_LOGO_SRC = '/static/33333.svg';
 
 // Bottom nav registry (HNAV-06) — the ONE definition per account type. Every item has a real
-// href (never "#"). label / icon may be a {emp, co, edu} map; types (optional) limits an item.
+// href (never "#"). labelKey (twT) / icon may be a {emp, co, edu} map; types (optional) limits an item.
 var _TW_BOTTOM_NAV = [
-  { key: 'home',          label: 'الرئيسية', icon: 'home',          href: function (u) { return twHomeHref(u); } },
-  { key: 'appointments',  label: 'مواعيد',   icon: 'calendar',      href: '/appointments' },
-  { key: 'messages',      label: 'رسائل',    icon: 'messages',      href: '/messages' },
-  { key: 'notifications', label: 'إشعارات',  icon: 'notifications', href: '/notifications' },
+  { key: 'home',          labelKey: 'nav.home',          icon: 'home',          href: function (u) { return twHomeHref(u); } },
+  { key: 'appointments',  labelKey: 'nav.appointments',  icon: 'calendar',      href: '/appointments' },
+  { key: 'messages',      labelKey: 'nav.messages',      icon: 'messages',      href: '/messages' },
+  { key: 'notifications', labelKey: 'nav.notifications', icon: 'notifications', href: '/notifications' },
   { key: 'account',
-    label: { emp: 'ملفي', co: 'شركتي', edu: 'مؤسستي' },
+    labelKey: { emp: 'nav.account.emp', co: 'nav.account.co', edu: 'nav.account.edu' },
     icon:  { emp: 'user', co: 'briefcase', edu: 'graduation-cap' },
     href:  function (u) { return twAccountHref(u); } },
 ];
@@ -948,7 +986,7 @@ function twBottomNavItems(userType, u) {
     return !it.types || it.types.indexOf(type) !== -1;
   }).map(function (it) {
     var href = typeof it.href === 'function' ? it.href(u) : it.href;
-    return { key: it.key, label: _twPick(it.label, type), icon: _twPick(it.icon, type), href: href || '/' };
+    return { key: it.key, label: twT(_twPick(it.labelKey, type)), icon: _twPick(it.icon, type), href: href || '/' };
   });
 }
 window.twBottomNavItems = twBottomNavItems;
@@ -988,32 +1026,38 @@ function twNavBack(fallback) {
 }
 window.twNavBack = twNavBack;
 
+// aria-label + title from one twT key (icon-only buttons).
+function _twLbl(key) {
+  var t = twEscAttr(twT(key));
+  return ' aria-label="' + t + '" title="' + t + '"';
+}
+
 function _twHeaderHtml(hdr, current) {
   var back = hdr.hasAttribute('data-back')
-    ? '<button type="button" class="sc-hicon sc-hicon-bare tw-hdr-back" data-tw-hdr-back aria-label="رجوع" title="رجوع">'
+    ? '<button type="button" class="sc-hicon sc-hicon-bare tw-hdr-back" data-tw-hdr-back' + _twLbl('header.back') + '>'
       + _twIco('back', 'xl') + '</button>' : '';
   function cur(key) { return key === current ? ' is-current" aria-current="page' : ''; }
   var login = twLoginHref(location.pathname + location.search);
   return ''
     + '<div class="sc-head-right">' + back
     +   '<a class="sc-hicon sc-home-btn' + cur('home') + '" href="' + twEscAttr(twHomeHref()) + '" data-key="home"'
-    +   ' aria-label="الرئيسية" title="الرئيسية" data-tw-session="authenticated" hidden>' + _twIco('home', 'xl') + '</a>'
+    +   _twLbl('header.home') + ' data-tw-session="authenticated" hidden>' + _twIco('home', 'xl') + '</a>'
     + '</div>'
-    + '<span class="sc-logo"><img src="' + TW_LOGO_SRC + '" alt="تواصلنا" width="120" height="32"></span>'
+    + '<span class="sc-logo"><img src="' + TW_LOGO_SRC + '" alt="' + twEscAttr(twT('brand.name')) + '" width="120" height="32"></span>'
     + '<div class="sc-head-icons">'
     +   '<a class="sc-hicon sc-hicon-bare tw-hdr-ico' + cur('notifications') + '" href="/notifications" data-key="notifications"'
-    +   ' aria-label="الإشعارات" title="الإشعارات" data-tw-session="authenticated" hidden>' + _twIco('notifications', 'xl')
+    +   _twLbl('header.notifications') + ' data-tw-session="authenticated" hidden>' + _twIco('notifications', 'xl')
     +   '<span class="tw-hdr-badge" data-badge="notif"></span></a>'
     +   '<a class="sc-hicon sc-hicon-bare tw-hdr-ico' + cur('messages') + '" href="/messages" data-key="messages"'
-    +   ' aria-label="الرسائل" title="الرسائل" data-tw-session="authenticated" hidden>' + _twIco('messages', 'xl')
+    +   _twLbl('header.messages') + ' data-tw-session="authenticated" hidden>' + _twIco('messages', 'xl')
     +   '<span class="tw-hdr-badge" data-badge="msgs"></span></a>'
     +   '<div class="sc-menu-wrap" data-tw-session="authenticated" hidden>'
-    +     '<button type="button" class="sc-hicon sc-hicon-bare" id="twHdrMenuBtn" aria-label="القائمة" title="القائمة">'
+    +     '<button type="button" class="sc-hicon sc-hicon-bare" id="twHdrMenuBtn"' + _twLbl('header.menu') + '>'
     +     _twIco('menu', 'xl') + '</button>'
     +     '<div class="sc-menu-dropdown" id="twHdrMenuDd"></div>'
     +   '</div>'
-    +   '<a class="tw-hdr-auth" href="' + twEscAttr(login) + '" data-tw-session="guest" hidden>تسجيل الدخول</a>'
-    +   '<a class="tw-hdr-auth tw-hdr-auth--primary" href="/login#register" data-tw-session="guest" hidden>إنشاء حساب</a>'
+    +   '<a class="tw-hdr-auth" href="' + twEscAttr(login) + '" data-tw-session="guest" hidden>' + twEscHtml(twT('auth.login')) + '</a>'
+    +   '<a class="tw-hdr-auth tw-hdr-auth--primary" href="/login#register" data-tw-session="guest" hidden>' + twEscHtml(twT('auth.register')) + '</a>'
     + '</div>';
 }
 
@@ -1051,7 +1095,7 @@ function twMountAppChrome() {
   if (hdr && !hdr.hasAttribute('data-tw-mounted')) {
     hdr.setAttribute('data-tw-mounted', '');
     hdr.classList.add('sc-header', 'tw-hdr');
-    hdr.setAttribute('aria-label', 'التنقل الرئيسي');
+    hdr.setAttribute('aria-label', twT('header.label'));
     hdr.innerHTML = _twHeaderHtml(hdr, _twNavCurrentKey(hdr, getTwUser()));
     var backBtn = hdr.querySelector('[data-tw-hdr-back]');
     if (backBtn) backBtn.addEventListener('click', function () {
@@ -1064,7 +1108,7 @@ function twMountAppChrome() {
   if (nav && !nav.hasAttribute('data-tw-mounted')) {
     nav.setAttribute('data-tw-mounted', '');
     nav.classList.add('tw-bnav');
-    nav.setAttribute('aria-label', 'التنقل السفلي');
+    nav.setAttribute('aria-label', twT('nav.label'));
     nav.addEventListener('click', _twChromeNavClick);
     _twRenderBottomNav(nav);
   }
@@ -1079,8 +1123,9 @@ function twMountAppChrome() {
 window.twMountAppChrome = twMountAppChrome;
 if (typeof document !== 'undefined' && typeof document.querySelector === 'function') {
   if (document.readyState === 'loading' && typeof document.addEventListener === 'function') {
-    document.addEventListener('DOMContentLoaded', twMountAppChrome);
+    document.addEventListener('DOMContentLoaded', function () { twTApply(document); twMountAppChrome(); });
   } else if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    twTApply(document);
     twMountAppChrome();
   }
 }

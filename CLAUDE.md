@@ -309,6 +309,16 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## Full Control + Strings Rules (mandatory for all AI sessions — PR 3.6)
+
+1. **قاعدة التحكم الكامل (رقم 8 بخطة الإنهاء):** كل نظام جديد إعداداته (نصوص، ألوان، حدود، تشغيل/إيقاف) بمكان واحد قابل للتحكم من الأدمن، مش مكتوبة ثابتة. المرجع: Strings System (`site_settings` override فوق default + endpoint أدمن بتحقق).
+2. **أي نص جديد بالواجهة لازم يكون مفتاح بـ `twT`، مش نص ثابت.** `twT(key, vars)` بـ `tw_shared.js` · المفاتيح بـ `tw_strings.json` · HTML ثابت عبر `data-tw-t` / `data-tw-t-label` · الصفحة لازم فيها `<!--tw:strings-->` قبل `tw_shared.js` (الـ shell فيه).
+3. **الكلمة نفسها من `docs/GLOSSARY.md`:** «وظائف» مش «فرص» · «حساب شخصي / حساب شركة / حساب جهة تعليمية» (الكود `emp` / `co` / `edu` ما بيتغيّر) · «المتقدمون» (قدّموا) ≠ «المرشحون» (مراحل التوظيف) ≠ «بنك المواهب» (المحفوظين).
+- ❌ dictionary أو دالة ترجمة تانية · ❌ HTML جوّا نص · ❌ قراءة `window.TW_STRINGS` مباشرة.
+- Spec: SYSTEMS_INDEX §59 · test `python test_strings_system.py`.
+
+---
+
 ## Shared System First — Architecture Pattern Check (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.

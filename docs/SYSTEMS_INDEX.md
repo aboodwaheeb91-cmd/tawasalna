@@ -1110,6 +1110,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 59. Strings System — نصوص الواجهة + قاموس التسميات (PR 3.6) ✅
+**Purpose:** مكان واحد لكل نص بالواجهة: مفتاح ثابت ← نص، قابل للتعديل من الأدمن (قاعدة التحكم الكامل — CLAUDE.md) وجاهز للغة تانية لاحقاً. والكلمة نفسها من قاموس واحد (`docs/GLOSSARY.md`).
+**Source of Truth:** `tw_strings.json` (الافتراضي — `{"ar": {key: text}}`؛ لغة جديدة = dict تاني جنبه) · `tw_strings.py` (`load_defaults` · `validate_overrides` · `parse_stored` · `page_block`) · `site_settings` key `strings_override.ar` (override JSON) · `read_html()` بـ `server.py` (بيبدّل `<!--tw:strings-->` بـ `<script>window.TW_STRINGS={lang, dict}</script>`) · `twT(key, vars)` + `twTApply(root)` بـ `tw_shared.js` · `docs/GLOSSARY.md`.
+**Details:**
+- **`twT(key, vars)`:** النص من `window.TW_STRINGS.dict` (الافتراضي + override مدموجين بالسيرفر) · `{name}` ← `vars.name` (متغير مش ممرّر بيضل متل ما هو) · مفتاح ناقص ← بيرجّع المفتاح + `console.warn` مرة وحدة للمفتاح. الناتج نص عادي — بيتعمله escape متل أي نص (`twEscHtml` / `twEscAttr` / `textContent`).
+- **HTML ثابت:** `data-tw-t="key"` ← `textContent` · `data-tw-t-label="key"` ← `aria-label` + `title`. `twTApply(document)` بيشتغل لحاله عند `DOMContentLoaded` (قبل `twMountAppChrome`)؛ markup بينضاف بعدين ← `twTApply(el)`.
+- **التسليم:** `<!--tw:strings-->` قبل `tw_shared.js` مباشرة — بـ `partials/shell-scripts.html` لصفحات الـ shell، وسطر بكل صفحة بتحمّل `/tw_shared.js` مباشرة. الـ override بينقرا من `site_settings` عند الـ startup وعند حفظ الأدمن بس (ما في DB call وقت تقديم صفحة)؛ الكتلة بتتبنى مرة وحدة لكل تغيير. فشل القراءة ← النصوص الافتراضية + log (F9).
+- **Admin (بدون واجهة هلق):** `GET /admin/strings` ← `{ok, data:{lang, defaults, overrides, max_len}}` · `PUT /admin/strings` body `{"overrides": {key: text}}` ← بيستبدل الـ map كلها. تحقق: مفتاح معروف بس (`unknown_key`) · نص (`invalid_value`) · ≤ 300 حرف (`too_long`) · بدون `<` `>` (`html_not_allowed`) · بدون control chars · بس متغيرات `{x}` موجودة بالنص الأصلي (`unknown_placeholder`) · نص فاضي = رجوع للافتراضي. خطأ ← 422 `{ok:false, error:{code, message, field:key}}`. `check_admin` (admin JWT).
+- **المستهلكين (PR 3.6):** الهيدر + الشريط السفلي + قائمة الهيدر (`_twHeaderHtml` · `_TW_BOTTOM_NAV.labelKey` · `_TW_HEADER_MENU_POLICY.labelKey`) · `appointments.html`. الباقي صفحة صفحة بالمرحلة 4.
+- **القاموس:** `docs/GLOSSARY.md` — المفهوم ← الكلمة المعتمدة ← مفتاح twT ← ممنوع. «وظائف» مش «فرص» · «حساب شخصي / حساب شركة / حساب جهة تعليمية» · «المتقدمون» ≠ «المرشحون» ≠ «بنك المواهب». الفحص (`test_strings_system.py` F) تقرير بيعدّ الممنوع بالموقع، وبيفشل بس إذا ظهر بمكان محوّل.
+**Do not recreate:** ❌ نص ثابت جديد بالواجهة (HTML / JS) بدل مفتاح `twT` · ❌ dictionary تاني أو دالة ترجمة تانية · ❌ قراءة `TW_STRINGS` مباشرة بدل `twT` · ❌ HTML جوّا نص · ❌ override بمكان غير `site_settings` · ❌ كلمة ممنوعة بالقاموس بنص جديد.
+**Cross-references:** F26 (Multi-language Ready) · F28 (Admin-ready) · §28 DS-HNAV · §58 DS-SHELL · §54 Safe Rendering.
+**Test:** `python test_strings_system.py`
+**Status:** ✅ النظام + الهيدر / الشريط / القائمة + appointments (2026-10-07 — PR 3.6) · واجهة أدمن + باقي الصفحات 🔜 المرحلة 4
+
+---
+
 ### 51. CRS — Change Routing System ✅
 **Purpose:** Workflow يُطبِّق F30/F31 على مستوى الطلب — يُصنِّف نوع التغيير، يُحدِّد المالك عبر F31+SYSTEMS_INDEX، يضبط الحد الأدنى من القراءة، ويُصدر حكماً (PROCEED / STOP / DISCUSS). ليس Source of Truth لأي نظام، وليس طبقة فوق F30/F31.
 **Source of Truth:** `docs/CHANGE_ROUTER.md` — CRS-01 (Routing Engine A–I) · CRS-02 (Architectural Sanity Check) · CRS-03 (Execution Scope / Credit Control)
@@ -1206,4 +1223,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 3.2 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3.6 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
