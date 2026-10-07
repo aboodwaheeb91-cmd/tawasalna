@@ -67,6 +67,9 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
 | `DEV_OTP_LOG` | Optional (dev) | Logs OTP events (never the code) |
+| `CLIENT_IP_SOURCE` | Optional | `xff_left` (default) / `xff_right` / `x_real_ip` / `peer` — how `get_client_ip()` reads the client IP (ARCHITECTURE §52 → Client IP Resolution) |
+| `TRUSTED_PROXY_HOPS` | Optional | With `xff_right`: position from the right of `X-Forwarded-For` (default 1) |
+| `LOG_CLIENT_IP` | Optional (measure) | `1` → one `[client-ip]` line per `/auth/login` (headers + chosen IP, never credentials). Off by default |
 | `TW_DEV_UPLOAD` | Optional (dev) | `1` + missing Supabase keys → `/upload/image` returns the data URL (`dev_mode`). Never set in production (PR-7a) |
 | `PORT` | Yes (auto on Railway) | Server port |
 
@@ -368,6 +371,8 @@ These rules are permanent and apply to all future AI sessions.
 6. **`GET /admin.html` route is permanently deleted.** The admin panel is served only via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
 
 7. **`/tw-ctrl-login` is in the rate_limit_middleware list.** Do not remove it.
+
+8. **`get_client_ip(request)` in `server.py` is the ONLY source of the client IP (PR 1.4).** Rate limiter, registration country, logs — all call it. Never read `X-Forwarded-For` / `X-Real-IP` anywhere else. Source chosen by `CLIENT_IP_SOURCE` (measured, not guessed — `ARCHITECTURE.md §52 → Client IP Resolution`). KYC OTP logic lives only in `auth._otp_issue` / `auth._otp_verify` (SYSTEMS_INDEX §54c).
 
 ---
 

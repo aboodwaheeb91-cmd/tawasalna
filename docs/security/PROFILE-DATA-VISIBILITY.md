@@ -125,7 +125,8 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for al
 - `dev_code` must never appear in production API responses.
 - Raw OTP codes must never appear in any log, response, or error message — not even under `DEV_OTP_LOG`.
 - `DEV_OTP_LOG` environment variable enables event-only logging (e.g. "KYC Email triggered for uid=5") — it logs the event, never the code value itself.
-- `email_code` and `phone_code` columns must never appear in `GET /kyc/status` response.
+- `email_code` and `phone_code` columns (and `*_code_target` / `*_code_expires_at` / `*_code_attempts`) must never appear in `GET /kyc/status` **or `POST /kyc/start`** responses (both use `project_owner_kyc_status`).
+- Since PR 1.3 the columns hold a keyed hash (`v1$…`), never the code; issue/verify only via `auth._otp_issue` / `auth._otp_verify` (expiry 10 min · 5 attempts · single use · bound to target) — `ARCHITECTURE.md §52 → KYC OTP Security`.
 
 ---
 
@@ -135,7 +136,7 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for al
 
 ### When no provider is configured (current state):
 
-`POST /kyc/email/send` and `POST /kyc/phone/send` return:
+`POST /kyc/email/send`, `POST /kyc/phone/send`, **`POST /kyc/email/verify` and `POST /kyc/phone/verify`** (fail closed on both sides — PR 1.3) return:
 
 ```
 HTTP 503 Service Unavailable

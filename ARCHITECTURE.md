@@ -4752,10 +4752,16 @@ CREATE TABLE kyc_submissions (
     user_id         INTEGER UNIQUE NOT NULL REFERENCES users(id),
     step            TEXT NOT NULL,       -- 'email'|'phone'|'id_upload'|'review'|'approved'|'rejected'
     status          TEXT DEFAULT 'pending',  -- 'pending'|'approved'|'rejected'
-    email_code      TEXT,                -- OTP 6 أرقام
+    email_code      TEXT,                -- hash الرمز 'v1$<hmac-sha256>' (مش الرمز نفسه — PR 1.3)
+    email_code_target     TEXT,          -- الإيميل اللي انبعتله الرمز (lowercase)
+    email_code_expires_at TIMESTAMP,     -- NOW() + 10 دقايق
+    email_code_attempts   INTEGER NOT NULL DEFAULT 0,
     email_verified  BOOLEAN DEFAULT FALSE,
     phone           TEXT,
-    phone_code      TEXT,                -- OTP 6 أرقام
+    phone_code      TEXT,                -- hash الرمز (نفس الصيغة)
+    phone_code_target     TEXT,          -- الرقم اللي انبعتله (بدون مسافات / - / أقواس)
+    phone_code_expires_at TIMESTAMP,
+    phone_code_attempts   INTEGER NOT NULL DEFAULT 0,
     phone_verified  BOOLEAN DEFAULT FALSE,
     id_front_url    TEXT,                -- Supabase storage URL
     selfie_url      TEXT,                -- اختياري
@@ -4819,10 +4825,73 @@ CREATE TABLE verify_requests (
 ```
 ✅ kyc_submissions 1:1 per user (UNIQUE user_id)
 ✅ شارة الـ is_verified تُمنح فقط بعد admin approve
-✅ OTP codes: 6 أرقام عشوائية — لا انتهاء صلاحية في الـ DB
+✅ OTP (PR 1.3): 6 أرقام من `secrets` · بيتخزّن hash بس · صلاحية 10 دقايق · 5 محاولات غلط ← الرمز بيبطل · `hmac.compare_digest` · بينمسح بعد النجاح · مربوط بالهدف (→ KYC OTP Security تحت)
+✅ verify + send بيرجعوا 503 `otp_delivery_unavailable` إذا الإرسال موقّف (fail closed للطرفين)
+✅ أخطاء مسارات KYC: رسالة ثابتة `_KYC_ERR_MSG` — ممنوع `str(e)` بالرد
 ❌ لا تُوافق تلقائياً — الموافقة من Admin فقط
 ❌ الموظف لا يستطيع تعيين is_verified لنفسه
 ```
+
+### KYC OTP Security (PR 1.3)
+
+مصدر وحيد بـ `auth.py` للإيميل والجوال: `_otp_issue(user_id, channel, target)` + `_otp_verify(user_id, channel, code, expected_target)` (`channel` ∈ `email` / `phone` → أسماء أعمدة ثابتة بـ `_OTP_COLUMNS`). `send_email_code` / `send_phone_code` / `verify_email_code` / `verify_phone_code` wrappers رفيعة فوقهم.
+
+| البند | السلوك |
+|------|--------|
+| التوليد | `generate_code()` → `secrets.choice` (6 أرقام) |
+| التخزين | `{ch}_code = 'v1$' + HMAC-SHA256(JWT_SECRET + ':kyc-otp', "uid|channel|target|code")` — الرمز نفسه ما بينحفظ ولا بينطبع |
+| الصلاحية | `{ch}_code_expires_at = NOW() + 10 min` (وقت الـ DB) |
+| المحاولات | `UPDATE … attempts = attempts + 1 WHERE … attempts < 5 AND expires_at > NOW() RETURNING` قبل المقارنة (ذرّي — طلبات متوازية ما بتتخطى 5)؛ المحاولة الخامسة الغلط بتمسح الرمز |
+| الربط بالهدف | إيميل: الهدف المخزّن لازم = `users.email` الحالي (رمز انبعت لإيميل تاني ما بيوثّق الحساب) · جوال: لازم = `kyc_submissions.phone` الحالي (تغيير الرقم بعد الإرسال بيبطّل الرمز) |
+| الاستعمال | مرة وحدة — `UPDATE … SET code=NULL … WHERE code=:hash` شرطي |
+| الإرسال موقّف | `/kyc/{email,phone}/{send,verify}` → 503 `{"detail":{"code":"otp_delivery_unavailable"}}` قبل أي DB |
+| `/kyc/start` | بيرجّع Tier 3 allowlist (`project_owner_kyc_status`) — كان `SELECT *` بيرجّع الرمز/الـ hash للمالك |
+| Migration | `_migrate_kyc_otp_security()` (idempotent): `ADD COLUMN IF NOT EXISTS` × 6 + مسح أي رمز مش بصيغة `v1$` (الرموز القديمة النصّية) |
+
+❌ رمز نصّي بالـ DB · ❌ `==` / `!=` على الرمز · ❌ منطق OTP منفصل للإيميل والجوال · ❌ مزوّد إيميل/SMS قبل الخطة 5.1.
+Test: `python -m pytest test_otp_rate_limit_security.py -q`.
+
+### Client IP Resolution + Auth Rate Limiter (PR 1.4)
+
+**`get_client_ip(request)` بـ `server.py` هي المصدر الوحيد لـ IP العميل** — الـ rate limiter + التسجيل (رمز الدولة) + سطر القياس. ممنوع أي قراءة تانية لـ `X-Forwarded-For` / `X-Real-IP`.
+
+| `CLIENT_IP_SOURCE` | القيمة المأخوذة |
+|---|---|
+| `xff_left` (الافتراضي — نفس السلوك قبل الـ PR) | أول قيمة بـ XFF، وإذا ما في XFF → `X-Real-IP`، وإلا `request.client.host` |
+| `xff_right` | القيمة رقم `TRUSTED_PROXY_HOPS` من اليمين (الافتراضي 1 = آخر قيمة)؛ قيم أقل من الـ hops → `request.client.host` |
+| `x_real_ip` | `X-Real-IP` |
+| `peer` | `request.client.host` (اتصال الـ TCP المباشر) |
+
+قيمة غلط لـ `CLIENT_IP_SOURCE` / `TRUSTED_PROXY_HOPS`، أو IP مش صالح (`ipaddress.ip_address`) → `request.client.host` + سطر تحذير `[client-ip]` **مرة وحدة** لكل نوع.
+
+**الـ rate limiter** (`rate_limit_middleware` + `_rate_store` واحد): `_RATE_LIMITED_PATHS` = `/auth/login` · `/auth/register` · `/auth/password` · `/tw-ctrl-login` · `/kyc/email/send` · `/kyc/phone/send` · `/kyc/email/verify` · `/kyc/phone/verify` + `DELETE /auth/user/{id}/delete` (prefix) — **20 طلب/دقيقة لكل IP** (كان 60) → 429 `{"error": "طلبات كثيرة جداً، حاول بعد دقيقة"}`.
+
+**حد الإيميل بالدخول (الحماية الأساسية — ما بيعتمد على الـ IP أبداً):** نفس `_rate_store` بمفتاح `login-email:{email.strip().lower()}`. 5 محاولات فاشلة بـ 15 دقيقة (`_LOGIN_EMAIL_MAX_FAILS` / `_LOGIN_EMAIL_WINDOW`) → 429 `{"error": msg, "detail": {"code": "login_email_locked", "message": msg}}` حتى لو كلمة السر صح، لحد ما تخلص النافذة. دخول ناجح بيصفّر العدّاد. `index.auth.js` بيعرض نص ثابت لما `detail.code === 'login_email_locked'`. ⚠️ trade-off معروف: أي حدا بيعرف إيميل ممكن يقفله 15 دقيقة — مقبول مقابل منع التخمين.
+
+#### القياس: كيف نختار `CLIENT_IP_SOURCE` على Railway
+
+توثيق Railway ما بيحسم سلوك XFF (موظف Railway بيقول بيمسحوه وبيحطّوا IP العميل أول قيمة، ومستخدمين بيقولوا بيضيفوه آخر قيمة)، فلازم نقيس:
+
+1. على Railway: `LOG_CLIENT_IP=1` (بدون تغيير `CLIENT_IP_SOURCE`) → redeploy.
+2. اعرف IP جهازك (`curl https://ifconfig.me`) = **REAL**.
+3. ابعت طلبين:
+   - `curl -X POST https://<domain>/auth/login -H 'Content-Type: application/json' -d '{"email":"","password":""}'`
+   - `curl -X POST https://<domain>/auth/login -H 'Content-Type: application/json' -H 'X-Forwarded-For: 1.2.3.4' -d '{"email":"","password":""}'`
+4. اقرأ سطور `[client-ip] /auth/login xff=… x_real_ip=… peer=… chosen=…` بـ Railway logs (السطر بيطبع الـ headers + الـ IP المختار بس — ما بيطبع إيميل / كلمة سر / body).
+5. اختار حسب الطلب التاني (اللي فيه `1.2.3.4`):
+
+| اللي شفته بالطلب التاني | `CLIENT_IP_SOURCE` |
+|---|---|
+| `xff='REAL'` أو `xff='REAL, <ip داخلي>'` (الـ `1.2.3.4` انمسح) | `xff_left` (الافتراضي — ما في تغيير) |
+| `xff='1.2.3.4, REAL'` | `xff_right` + `TRUSTED_PROXY_HOPS=1` |
+| `xff='1.2.3.4, REAL, <ip داخلي>'` | `xff_right` + `TRUSTED_PROXY_HOPS=2` |
+| XFF مش ثابت، بس `x_real_ip='REAL'` بالطلبين | `x_real_ip` |
+| `peer='REAL'` (ما في proxy بالنص) | `peer` |
+| ولا وحدة = REAL بثبات | خلّي `xff_left` واعتمد على حد الإيميل؛ بلّغ قبل أي تغيير |
+
+6. كرّر بعد يوم-يومين (بلاغات عن تبدّل مسار Railway / Fastly)، ثبّت القيمة، ثم `LOG_CLIENT_IP` → احذفه. ✅ تأكيد: بعد التثبيت، الطلب التاني لازم يطبع `chosen='REAL'`.
+
+❌ قراءة XFF خارج `get_client_ip` · ❌ rate limiter أو مخزن تاني لمسارات الدخول · ❌ تفعيل `LOG_CLIENT_IP` بشكل دائم.
 
 ---
 
@@ -12089,7 +12158,7 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 | Group 11 | 44–45 | Security: cross-company access (404), unauthenticated (401) |
 | Group 12 | 46–51 | Panel isolation: status unchanged, no fake job_links, no new DB rows in ccjr/pipeline_entries/pipeline_events, payload without status/job_id accepted |
 
-Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the 60-requests/minute rate limit. Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
+Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the auth rate limit (20 requests/minute per IP since PR 1.4 — 12 classes × register+login can exceed it against a live server within one minute). Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
 
 ---
 
@@ -12587,5 +12656,5 @@ Test: `python -m pytest test_account_security.py -q`.
 | `courses` | user_id FK, title, provider, completion_date, certificate_url, description |
 | `jobs` | company_id FK → users, title, description, location, job_type (default `'full_time'`), salary_min/max, currency, experience_years, skills[], status (default `'active'`), views, created_at, expires_at (+ later migrations: `profession_id`, archive fields — see Taxonomy / §66b) |
 | `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
-| `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code, email_verified, phone, phone_code, created_at (§52) |
+| `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code (hash), email_code_target/_expires_at/_attempts, email_verified, phone, phone_code (hash), phone_code_target/_expires_at/_attempts, created_at (§52 → KYC OTP Security) |
 | `verify_requests` | user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status (default `'pending'`), created_at |
