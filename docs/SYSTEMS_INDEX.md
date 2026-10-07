@@ -403,6 +403,20 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 23b. Schedule Interview System — زر واحد + نافذة وحدة (PR 3.10) ✅
+**Purpose:** الطريقة الوحيدة لتحديد موعد مقابلة من أي مكان (بروفايل الموظف · بنك المواهب + الاقتراحات · المتقدمين على وظيفة · بطاقات المرشحين + قائمة الوظيفة المنبثقة · هيدر الماسنجر · «+» بصفحة المواعيد). كل موعد مربوط بوظيفة؛ إذا الشخص مش مرشح عليها بينضاف تلقائياً (قرار زعتر).
+**Source of Truth:** `static/shared/tw-schedule.js` (`twScheduleInterview` · `twScheduleButton` · `twScheduleMount`) · `auth.py` (`create_appointment` Path B + `_shortlist_candidate_in_tx` + `list_schedule_jobs` / `get_open_appointments` / `search_schedule_people`) · `server.py` (`POST /api/appointments` · `GET /api/schedule/jobs|open|people`).
+**Details:** `ARCHITECTURE.md §75` (التدفق + قاعدة الربط بالوظيفة) · `docs/APPOINTMENTS_PLAN.md §18` · القوانين: `docs/rules/schedule-interview.md`.
+- Backend: `candidate_id + job_id` بدون pipeline entry → إضافة بنفس الـ transaction عبر `_shortlist_candidate_in_tx` (نفس قلب «ترشيح للوظيفة» — ما في رجوع لورا `_CANDIDATE_STATUS_RANK`)؛ ربط جديد بيحتاج وظيفة فعّالة (`409 job_not_active`)؛ مرفوض / منسحب → `409 candidate_rejected` / `candidate_withdrawn`؛ موعد مفتوح → `409 appointment_exists`؛ وظيفة شركة تانية → 403؛ مش emp → 400. العقد `{ok, data}` / `{ok:false, error}` (§45b).
+- Frontend: نافذة `twModal` (DS-OVL) · DS-DATE DateTime dropdowns (`.ep-select` + `scSelectInit`) · أونلاين عبر `twSafeLinkUrl` (+ `https://`) / حضوري · كل الطلبات `twApi`. الزر بيطلع بس لحساب `co` على `emp` (مش نفسه) من `TwAuthSync`؛ موعد مفتوح → «فتح الموعد» → الغرفة (طلب واحد مجمّع لكل وظيفة).
+- التحميل: `appointments.html` عبر `PAGE_ASSETS` (`tw-schedule.js` · `tw-select.js` · `tw-select.css`)؛ الصفحات غير المحوّلة للـ shell (`company-profile` · `profile-showcase` · `messages`) بـ `?v=sched-v1` يدوي.
+**Do not recreate:**
+- ❌ مودال موعد خاص بصفحة (انحذف `#coApptModal` / `_openApptModal` / `#newApptModal`) · ❌ حقل `application_id` يكتبه المستخدم · ❌ زر «تحديد موعد» مش عبر `twScheduleButton` / `twScheduleMount`.
+- ❌ إنشاء pipeline entry للموعد بغير `_shortlist_candidate_in_tx` · ❌ موعد بدون وظيفة · ❌ قرار إظهار الزر من `tw_user`.
+**Test:** `python -m pytest test_schedule_interview.py -q` (`TW_TEST_DB_URL`) · `node test_schedule_interview_runtime.js`.
+
+---
+
 ## E — Trust & Safety
 
 ### 23. Credential Verification / KYC
@@ -1184,4 +1198,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 3A · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3.10 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

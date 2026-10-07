@@ -243,9 +243,9 @@ console.log('\n5. company suggestions save + namespace');
   btn.disabled = true;
   listeners.forEach(f => f({ target: { closest: () => btn } }));
   assert('disabled (in flight) button → no second request', saves === 1);
-  assert('popover uses TwCompanyPage, no typeof cross-IIFE check',
-    /TwCompanyPage\.openNotesPanel\(/.test(main) && /TwCompanyPage\.openApptModal\(/.test(main)
-    && !/typeof _openNotesPanel/.test(main) && !/typeof _openApptModal/.test(main));
+  assert('popover uses TwCompanyPage + the shared schedule button (PR 3.10), no typeof cross-IIFE check',
+    /TwCompanyPage\.openNotesPanel\(/.test(main) && /twScheduleButton\(/.test(main)
+    && !/typeof _openNotesPanel/.test(main) && !/openApptModal/.test(main));
   assert('namespace created in company.state.js',
     /window\.TwCompanyPage = window\.TwCompanyPage \|\| \{\}/.test(fs.readFileSync('./static/company/company.state.js', 'utf8')));
 }

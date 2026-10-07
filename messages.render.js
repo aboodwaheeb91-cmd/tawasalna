@@ -298,6 +298,18 @@ function renderBubble(isMe, content, time, statusHtml, msgId) {
     + '</div></div></div>';
 }
 
+// ── Chat header schedule button (PR 3.10) ─────────────────────────────────
+// twScheduleButton decides visibility itself (company viewer + emp other side, not self).
+function _renderChatSchedule(otherId, name, type) {
+  var slot = document.getElementById('chatSchedSlot');
+  if (!slot) return;
+  slot.innerHTML = '';
+  if (!otherId || !window.twScheduleButton) return;
+  var btn = twScheduleButton({ candidateId: otherId, candidateName: name, candidateType: type,
+                               className: 'ch-sched-btn' });
+  if (btn) slot.appendChild(btn);
+}
+
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
 function openConversation(otherId, name, type, avatarUrl, headline, twId) {
@@ -358,6 +370,9 @@ function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   if (menuBtn) menuBtn.style.display = '';
   var backArrow = document.getElementById('chBackArrow');
   if (backArrow) backArrow.style.display = '';
+
+  // Schedule Interview (PR 3.10 — shared tw-schedule.js): only for a company talking to an emp
+  _renderChatSchedule(otherId, name, type);
 
   // Show composer — only visible when a conversation is active
   var chatInput = document.getElementById('chatInput');
@@ -591,6 +606,7 @@ function closeConversationUI() {
   if (menuBtn) menuBtn.style.display = 'none';
   var backArrow = document.getElementById('chBackArrow');
   if (backArrow) backArrow.style.display = 'none';
+  _renderChatSchedule(null);
   var nameEl   = document.getElementById('chatName');
   if (nameEl) nameEl.textContent = 'اختر محادثة';
   var avaEl    = document.getElementById('chatAva');

@@ -248,6 +248,8 @@ body.view-owner #scMenuEyeSep { display:block !important; }
   display:flex; flex-direction:row; align-items:center; justify-content:center;
   flex-wrap:nowrap; gap:10px; padding:6px 20px 13px;
 }
+/* Schedule Interview row (PR 3.10) — own row under .sc-actions (frozen buttons untouched) */
+.sc-sched-row { display: flex; justify-content: center; padding: 0 var(--space-10) var(--space-6); }
 .sc-btn {
   height:27px; border-radius:9px; border:none; cursor:pointer;
   font-family:inherit; font-size:11px; font-weight:700;

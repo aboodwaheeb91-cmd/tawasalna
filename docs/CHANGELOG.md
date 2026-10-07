@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.10 — نظام تحديد موعد موحّد (Schedule Interview System) — 2026-10-07
+
+- Backend: `POST /api/appointments` Path B — الشخص مش مرشح على الوظيفة → بينضاف بنفس الـ transaction عبر `_shortlist_candidate_in_tx` (القلب المشترك مع `promote_application_to_shortlist`)؛ ربط جديد بيحتاج وظيفة فعّالة؛ مرفوض / منسحب → 409 (`AppointmentRuleError`). الـ endpoint صار `{ok, data}` / `{ok:false, error}`. جديد: `GET /api/schedule/jobs` · `/api/schedule/open` · `/api/schedule/people`. تغيير سلوك: الترقية بتنقل الطلب لـ `accepted` من `pending` / `viewed` بس.
+- Frontend: `static/shared/tw-schedule.js` (جديد) — `twScheduleInterview` / `twScheduleButton` / `twScheduleMount`. الأماكن: بروفايل الموظف · بنك المواهب + الاقتراحات · المتقدمين (كل متقدم) · قائمة الوظيفة المنبثقة · هيدر الماسنجر · «+» بالمواعيد. انحذف `#coApptModal` + منطقه + `.co-appt-*` CSS + `#newApptModal` وحقل `application_id`. `PAGE_ASSETS` += `tw-schedule.js` · `tw-select.js` · `tw-select.css`.
+- Docs: SYSTEMS_INDEX §23b · ARCHITECTURE §75 (+ §69 Path B) · APPOINTMENTS_PLAN §18 · `docs/rules/schedule-interview.md` + سطر بـ `CLAUDE.md`. Tests: `test_schedule_interview.py` · `test_schedule_interview_runtime.js` (جديدين) · `test_pr2c_session_sockets_runtime.js` (assert الـ popover اتحدّث).
+
 ## PR 3B — DS-OVL Runtime V1: `twConfirm` / `twAlert` / `twModal` (بند 3.3) — 2026-10-07
 
 - `static/shared/tw-overlay.js` (جديد — OVERLAY-SYSTEM.md OVL-39 · `docs/rules/ds-overlay.md`): `twConfirm` → `Promise<boolean>` · `twAlert` → `Promise` · `twModal` → `{close, setBusy, el}`. role=dialog + aria-modal + aria-labelledby · Escape (إلا وقت busy) · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock بالعدّ · backdrop بيسكّر غير الخطرة بس · danger → زر خطر + focus أول على «إلغاء». ألوان/أحجام/أيقونات من DS-COLOR / DS-SIZE / DS-ICON.

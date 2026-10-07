@@ -110,6 +110,8 @@ from auth import (
     list_appointments, get_appointment_room,
     get_appointment_events, get_appointment_messages,
     create_appointment_message,
+    AppointmentRuleError, list_schedule_jobs, get_open_appointments,
+    search_schedule_people,
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
@@ -6001,71 +6003,38 @@ class AppointmentMessageInput(BaseModel):
 def api_create_appointment(body: AppointmentCreateInput,
                             token=Depends(verify_token)):
     """
-    POST /api/appointments
+    POST /api/appointments — Schedule Interview System (PR 3.10 · SYSTEMS_INDEX §23b)
 
     Path A (backward-compat): { application_id }
     Path B (pipeline):        { candidate_id, job_id, appointment_type }
+      Not yet a candidate on this job → added to its pipeline in the same transaction
+      (a new link needs an active job of this company). Rejected / withdrawn → 409.
 
-    company_id always derived from JWT.
-    Returns 409 with code=pipeline_entry_required when no pipeline entry exists (Path B).
-    Returns 409 with code=pipeline_application_conflict on application_id mismatch.
+    company_id always derived from JWT. Contract (PR 3.10): {ok, data} /
+    {ok:false, error:{code, message}} — every caller goes through twApi (tw-schedule.js).
     """
     user_id = int(token["user_id"])
     if token.get("user_type") != "co":
-        raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها إنشاء مواعيد")
 
-    # Complete payload contract enforcement:
-    # Path A: application_id only (candidate_id and job_id must be absent)
-    # Path B: candidate_id + job_id only (application_id must be absent)
-    # All other combinations are rejected with structured 400 errors.
-    from fastapi.responses import JSONResponse as _JR
+    # Path A: application_id only · Path B: candidate_id + job_id only
     _app_set  = body.application_id is not None
     _cand_set = body.candidate_id is not None
     _job_set  = body.job_id is not None
 
     if _app_set and (_cand_set or _job_set):
-        # application_id mixed with any Path B field — ambiguous context
-        return _JR(
-            status_code=400,
-            content={
-                "ok": False,
-                "code": "ambiguous_appointment_context",
-                "message": (
-                    "Payload غير واضح: أرسل application_id فقط (Path A) "
-                    "أو candidate_id + job_id فقط (Path B) — وليس كليهما معاً."
-                ),
-            }
-        )
+        return api_error(400, "ambiguous_appointment_context",
+                         "Payload غير واضح: أرسل application_id فقط (Path A) "
+                         "أو candidate_id + job_id فقط (Path B) — وليس كليهما معاً.")
     if _cand_set and not _job_set:
-        # candidate_id without job_id — incomplete Path B
-        return _JR(
-            status_code=400,
-            content={
-                "ok": False,
-                "code": "invalid_appointment_context",
-                "message": "candidate_id يتطلب job_id (Path B غير مكتمل).",
-            }
-        )
+        return api_error(400, "invalid_appointment_context",
+                         "اختر الوظيفة التي يرتبط بها الموعد", field="job_id")
     if _job_set and not _cand_set:
-        # job_id without candidate_id — incomplete Path B
-        return _JR(
-            status_code=400,
-            content={
-                "ok": False,
-                "code": "invalid_appointment_context",
-                "message": "job_id يتطلب candidate_id (Path B غير مكتمل).",
-            }
-        )
+        return api_error(400, "invalid_appointment_context",
+                         "اختر الشخص الذي تريد تحديد موعد معه", field="candidate_id")
     if not _app_set and not (_cand_set and _job_set):
-        # Neither path provided
-        return _JR(
-            status_code=400,
-            content={
-                "ok": False,
-                "code": "invalid_appointment_context",
-                "message": "يجب إرسال application_id (Path A) أو candidate_id + job_id (Path B).",
-            }
-        )
+        return api_error(400, "invalid_appointment_context",
+                         "يجب إرسال application_id (Path A) أو candidate_id + job_id (Path B).")
 
     try:
         appt = create_appointment(
@@ -6080,34 +6049,65 @@ def api_create_appointment(body: AppointmentCreateInput,
             location_text=body.location_text,
             representative_name=body.representative_name,
         )
-        return {"ok": True, "data": appt}
+        return api_ok(appt)
+    except AppointmentRuleError as e:
+        return api_error(409, e.code, e.message)
     except PipelineApplicationConflictError as e:
-        from fastapi.responses import JSONResponse as _JR
-        return _JR(
-            status_code=409,
-            content={
-                "ok": False,
-                "code": "pipeline_application_conflict",
-                "message": str(e),
-            }
-        )
+        return api_error(409, "pipeline_application_conflict", str(e))
     except PipelineEntryRequiredError as e:
-        from fastapi.responses import JSONResponse as _JR
-        return _JR(
-            status_code=409,
-            content={
-                "ok": False,
-                "code": "pipeline_entry_required",
-                "message": str(e),
-            }
-        )
+        return api_error(409, "pipeline_entry_required", str(e))
     except PermissionError as e:
-        raise HTTPException(403, str(e))
+        return api_error(403, "forbidden", str(e))
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        return api_error(400, "invalid", str(e))
     except Exception as e:
         print(f"[api_create_appointment] {e}")
         raise _server_error("api_create_appointment", e)
+
+
+# ── Schedule Interview System — read endpoints (PR 3.10 · SYSTEMS_INDEX §23b) ──
+# Company JWT only (co) — everything scoped to the JWT company (F6/F21).
+
+@app.get("/api/schedule/jobs")
+def api_schedule_jobs(token=Depends(verify_token)):
+    """The company's active jobs for the scheduling job picker → {ok, data:[{id, title}]}."""
+    if token.get("user_type") != "co":
+        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    try:
+        return api_ok(list_schedule_jobs(int(token["user_id"])))
+    except Exception as e:
+        raise _server_error("api_schedule_jobs", e)
+
+
+@app.get("/api/schedule/open")
+def api_schedule_open(candidate_ids: str = Query("", max_length=600),
+                      job_id: Optional[int] = Query(None, ge=1),
+                      token=Depends(verify_token)):
+    """Open appointment per person (for «فتح الموعد») → {ok, data:{"<uid>": appt | null}}.
+    candidate_ids = comma-separated ids (max 50); job_id → that job only."""
+    if token.get("user_type") != "co":
+        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    parts = [p.strip() for p in candidate_ids.split(",") if p.strip()]
+    if not parts or len(parts) > 50 or not all(p.isascii() and p.isdigit() and len(p) <= 18 for p in parts):
+        return api_error(400, "invalid", "قائمة الأشخاص غير صالحة", field="candidate_ids")
+    try:
+        found = get_open_appointments(int(token["user_id"]), [int(p) for p in parts], job_id)
+        return api_ok({str(k): v for k, v in found.items()})
+    except Exception as e:
+        raise _server_error("api_schedule_open", e)
+
+
+@app.get("/api/schedule/people")
+def api_schedule_people(q: str = Query("", max_length=100),
+                        token=Depends(verify_token)):
+    """Name search among the company's applicants, candidates and Talent Bank (emp only)
+    → {ok, data:[{id, full_name, tw_id, avatar_url, sources}]}."""
+    if token.get("user_type") != "co":
+        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    try:
+        return api_ok(search_schedule_people(int(token["user_id"]), q))
+    except Exception as e:
+        raise _server_error("api_schedule_people", e)
 
 
 @app.get("/api/appointments")

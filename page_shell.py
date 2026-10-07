@@ -37,6 +37,9 @@ SHELL_ASSETS = {
 PAGE_ASSETS = {
     "tw-icons.js": os.path.join("static", "shared", "tw-icons.js"),
     "tw-overlay.js": os.path.join("static", "shared", "tw-overlay.js"),
+    "tw-select.js": os.path.join("static", "shared", "tw-select.js"),
+    "tw-select.css": os.path.join("static", "shared", "tw-select.css"),
+    "tw-schedule.js": os.path.join("static", "shared", "tw-schedule.js"),
 }
 
 _PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")

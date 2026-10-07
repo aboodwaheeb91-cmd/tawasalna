@@ -769,16 +769,6 @@
   var _icFloatTrigger         = null;   // classify btn that opened it
   var _icFloatAppId           = null;   // appId awaiting interview choice
   var _icPrevStatus           = null;   // prev status for rollback if classify fails
-  // ── Appointment scheduling — per accepted applicant ────────────
-  var _apptByAppId         = {};    // { "appId": { id, status } } from GET /api/appointments
-  var _apptByEntryId       = {};    // { "entryId": { id, status } } — pipeline Path B
-  var _apptIndexLoaded     = false; // true after first successful index load
-  var _apptInFlight        = false; // true while create+send is in progress
-  var _apptCurrentAppId    = null;  // appId for Path A (application-based)
-  var _apptCurrentEntryId  = null;  // pipeline_entry_id for Path B
-  var _apptCurrentCandidateId = null; // candidate user_id for Path B
-  var _apptModalInited     = false; // one-time listener guard
-  var _apptMode            = 'online';
   // ── Pipeline Notes panel ────────────────────────────────────────
   var _notesCurrentEntryId = null;  // entry_id whose notes are open
   var _notesInFlight       = false; // create-note in-flight guard
@@ -947,14 +937,9 @@
           + '>ملاحظات الوظيفة' + notesCountBadge + '</button>'
         : '';
 
-      // "تحديد موعد" — for ALL pipeline candidates (not limited to interview status)
-      var schedBtn = entryId
-        ? '<button type="button" class="co-app-sched-btn co-app-act"'
-          + ' data-app-id="' + appId + '"'
-          + ' data-entry-id="' + entryId + '"'
-          + ' data-uid="' + uid + '"'
-          + '>تحديد موعد</button>'
-        : '';
+      // "تحديد موعد" / "فتح الموعد" — every applicant not marked غير مناسب (the server refuses
+      // rejected ones anyway — PR 3.10 · shared tw-schedule.js)
+      var schedBtn = isRejected ? '' : _schedSlotHTML(uid, a.full_name || '');
 
       var savedCtx = isSaved && otherJobTitles.length > 0
         ? '<div class="co-app-saved-ctx">محفوظ · أيضاً في: '
@@ -990,7 +975,19 @@
     });
     list.innerHTML = html;
     _wireApplicantCards(list);
-    _loadApptIndex(function () { _applyApptIndexToCards(); });
+    if (window.twScheduleMount) twScheduleMount(list);
+  }
+
+  // Shared schedule button slot for an applicant of the open job (tw-schedule.js mounts it)
+  function _schedSlotHTML(uid, name) {
+    var job = window.companyState && companyState.jobs
+      ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
+      : null;
+    return '<span data-tw-schedule-slot data-class="co-app-sched-btn co-app-act"'
+      + ' data-candidate-id="' + parseInt(uid, 10) + '"'
+      + ' data-candidate-name="' + _escApp(name) + '"'
+      + ' data-job-id="' + (parseInt(_appJobId, 10) || '') + '"'
+      + ' data-job-title="' + _escApp(job ? job.title : '') + '"></span>';
   }
 
   function _wireApplicantCards(list) {
@@ -1001,8 +998,6 @@
       if (classifyBtn && !classifyBtn.disabled) { _openClassifyFloat(classifyBtn); return; }
       var tbBtn = e.target.closest('.co-talentbank-btn');
       if (tbBtn && !tbBtn.disabled) { _onSaveToTalentBank(tbBtn); return; }
-      var schedBtn = e.target.closest('.co-app-sched-btn');
-      if (schedBtn && !schedBtn.disabled) { _onSchedBtn(schedBtn); return; }
       var notesBtn = e.target.closest('.co-notes-btn');
       if (notesBtn && !notesBtn.disabled) { _onNotesBtn(notesBtn); return; }
     });
@@ -1151,369 +1146,6 @@
       btn.disabled    = false;
       btn.textContent = 'حفظ في بنك المواهب';
       if (window.showToast) showToast('تعذّر الحفظ في بنك المواهب، حاول مجدداً', 'error');
-    });
-  }
-
-  // ── Appointment scheduling — index, modal, submit ──────────────
-
-  function _isApptActive(status) {
-    return ['cancelled', 'expired', 'missed', 'closed'].indexOf(status) === -1;
-  }
-
-  function _isApptDraft(status) { return status === 'draft'; }
-
-  function _loadApptIndex(cb) {
-    var jwt = window._jwt ? _jwt() : '';
-    if (!jwt) { if (cb) cb(); return; }
-    fetch('/api/appointments', {
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      var items = Array.isArray(d) ? d : (d.data || d.appointments || []);
-      _apptByAppId   = {};
-      _apptByEntryId = {};
-      items.forEach(function (a) {
-        var info = { id: a.id, status: a.computed_status || a.status };
-        if (a.application_id != null) {
-          _apptByAppId[String(a.application_id)] = info;
-        }
-        if (a.pipeline_entry_id != null) {
-          _apptByEntryId[String(a.pipeline_entry_id)] = info;
-        }
-      });
-      _apptIndexLoaded = true;
-      if (cb) cb();
-    })
-    .catch(function () { if (cb) cb(); });
-  }
-
-  function _applyApptIndexToCards() {
-    var cards = document.querySelectorAll('#coAppList .co-app-card');
-    cards.forEach(function (card) {
-      var appId   = card.getAttribute('data-app-id');
-      var entryId = card.getAttribute('data-entry-id');
-      // Prefer entry-id lookup (more specific), fall back to app-id
-      var entry   = (entryId && _apptByEntryId[entryId])
-                    || (appId && _apptByAppId[appId]);
-      if (!entry || !_isApptActive(entry.status) || _isApptDraft(entry.status)) return;
-      var foot = card.querySelector('.co-app-card-foot');
-      if (!foot) return;
-      var btn = foot.querySelector('.co-app-sched-btn');
-      if (!btn) return;
-      var link = document.createElement('a');
-      link.href      = '/appointment-room?id=' + entry.id;
-      link.className = 'co-app-open-appt-btn co-app-act';
-      link.textContent = 'فتح الموعد';
-      link.target    = '_blank';
-      link.rel       = 'noopener';
-      foot.replaceChild(link, btn);
-    });
-  }
-
-  function _onSchedBtn(btn) {
-    if (btn.disabled) return;
-    var appId   = parseInt(btn.getAttribute('data-app-id'), 10) || 0;
-    var entryId = parseInt(btn.getAttribute('data-entry-id'), 10) || 0;
-    var uid     = parseInt(btn.getAttribute('data-uid'), 10) || 0;
-
-    var card = appId
-      ? document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]')
-      : document.querySelector('#coAppList .co-app-card[data-entry-id="' + entryId + '"]');
-    var applName = card ? card.getAttribute('data-name') : '';
-    var job = window.companyState && companyState.jobs
-      ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
-      : null;
-    var jobTitle = job ? job.title : '';
-
-    if (_apptIndexLoaded) {
-      var entry = (entryId && _apptByEntryId[String(entryId)])
-                  || (appId && _apptByAppId[String(appId)]);
-      if (entry && _isApptActive(entry.status)) {
-        if (_isApptDraft(entry.status)) {
-          _openApptModal(appId || null, applName, jobTitle, entryId || null, uid || null);
-          return;
-        }
-        window.open('/appointment-room?id=' + entry.id, '_blank');
-        return;
-      }
-    }
-    _openApptModal(appId || null, applName, jobTitle, entryId || null, uid || null);
-  }
-
-  function _openApptModal(appId, applName, jobTitle, entryId, candidateId) {
-    _apptCurrentAppId       = appId       || null;
-    _apptCurrentEntryId     = entryId     || null;
-    _apptCurrentCandidateId = candidateId || null;
-    var el = document.getElementById('coApptModal');
-    if (!el) return;
-    // Fill static info
-    var nameEl = document.getElementById('coApptApplName');
-    var jobEl  = document.getElementById('coApptJobName');
-    if (nameEl) nameEl.textContent = applName || '—';
-    if (jobEl)  jobEl.textContent  = jobTitle  || '—';
-    // Show retry hint if an orphaned draft exists (check both indexes)
-    var existEntry = (_apptCurrentEntryId && _apptByEntryId[String(_apptCurrentEntryId)])
-                     || (_apptCurrentAppId && _apptByAppId[String(_apptCurrentAppId)]);
-    var isDraftRetry = !!(existEntry && _isApptDraft(existEntry.status));
-    var retryHint = document.getElementById('coApptRetryHint');
-    if (retryHint) retryHint.style.display = isDraftRetry ? '' : 'none';
-    // Reset all form fields
-    var fields = ['coApptDate','coApptTime','coApptUrl','coApptLoc','coApptNotes','coApptRep'];
-    fields.forEach(function (id) {
-      var inp = document.getElementById(id);
-      if (inp) inp.value = (id === 'coApptTime') ? '10:00' : '';
-    });
-    var deadlineEl = document.getElementById('coApptDeadline');
-    if (deadlineEl) deadlineEl.value = '48';
-    _apptMode = 'online';
-    _setApptMode('online');
-    var submitBtn = document.getElementById('coApptSubmit');
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = isDraftRetry ? 'إعادة الإرسال' : 'إرسال الدعوة'; }
-    _apptInFlight = false;
-    _initApptModalListeners();
-    el.style.display = 'flex';
-  }
-
-  function _closeApptModal() {
-    var el = document.getElementById('coApptModal');
-    if (el) el.style.display = 'none';
-    _apptCurrentAppId       = null;
-    _apptCurrentEntryId     = null;
-    _apptCurrentCandidateId = null;
-    _apptInFlight = false;
-  }
-
-  function _setApptMode(mode) {
-    _apptMode = mode;
-    var onlineBtn = document.getElementById('coApptModeOnline');
-    var onsiteBtn = document.getElementById('coApptModeOnsite');
-    var urlRow    = document.getElementById('coApptUrlRow');
-    var locRow    = document.getElementById('coApptLocRow');
-    if (onlineBtn) onlineBtn.classList.toggle('active', mode === 'online');
-    if (onsiteBtn) onsiteBtn.classList.toggle('active', mode === 'onsite');
-    if (urlRow)    urlRow.style.display = (mode === 'online') ? '' : 'none';
-    if (locRow)    locRow.style.display = (mode === 'onsite') ? '' : 'none';
-  }
-
-  function _initApptModalListeners() {
-    if (_apptModalInited) return;
-    _apptModalInited = true;
-    var el = document.getElementById('coApptModal');
-    if (!el) return;
-    el.addEventListener('click', function (e) {
-      if (e.target === el) _closeApptModal();
-    });
-    var closeBtn = el.querySelector('.co-fl-close');
-    if (closeBtn) closeBtn.addEventListener('click', _closeApptModal);
-    var onlineBtn = document.getElementById('coApptModeOnline');
-    var onsiteBtn = document.getElementById('coApptModeOnsite');
-    if (onlineBtn) onlineBtn.addEventListener('click', function () { _setApptMode('online'); });
-    if (onsiteBtn) onsiteBtn.addEventListener('click', function () { _setApptMode('onsite'); });
-    var submitBtn = document.getElementById('coApptSubmit');
-    if (submitBtn) submitBtn.addEventListener('click', _submitApptForm);
-  }
-
-  function _submitApptForm() {
-    if (_apptInFlight) return;
-    var appId   = _apptCurrentAppId;
-    var entryId = _apptCurrentEntryId;
-    var uid     = _apptCurrentCandidateId;
-    // Must have either application_id (Path A) or candidate_id + job_id (Path B)
-    if (!appId && !(uid && _appJobId)) {
-      if (window.showToast) showToast('بيانات الموعد غير مكتملة', 'error');
-      return;
-    }
-
-    var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
-    var dateVal     = g('coApptDate');
-    var timeVal     = g('coApptTime') || '09:00';
-    var urlVal      = g('coApptUrl');
-    var locVal      = g('coApptLoc');
-    var notesVal    = g('coApptNotes');
-    var deadlineVal = parseInt(g('coApptDeadline') || '48', 10) || 48;
-    var repVal      = g('coApptRep');
-
-    if (!dateVal) {
-      if (window.showToast) showToast('يرجى تحديد تاريخ المقابلة', 'error');
-      return;
-    }
-
-    if (_apptMode === 'online' && !urlVal) {
-      if (window.showToast) showToast('يرجى إدخال رابط المقابلة الأونلاين', 'error');
-      return;
-    }
-    if (_apptMode === 'onsite' && !locVal) {
-      if (window.showToast) showToast('يرجى إدخال موقع المقابلة', 'error');
-      return;
-    }
-
-    // Convert user's local datetime to UTC ISO (Z-suffix) — backend rejects naive ISO
-    var localScheduled = new Date(dateVal + 'T' + timeVal + ':00');
-    if (!Number.isFinite(localScheduled.getTime())) {
-      if (window.showToast) showToast('تاريخ أو وقت غير صالح', 'error');
-      return;
-    }
-    var scheduledAt = localScheduled.toISOString(); // always Z-suffix
-
-    var scheduledMs = localScheduled.getTime();
-    var deadlineMs  = deadlineVal * 60 * 60 * 1000;
-    if (scheduledMs - Date.now() <= deadlineMs) {
-      if (window.showToast) showToast('مهلة الرد تنتهي بعد وقت الموعد — اختر موعداً أبعد أو مهلة أقصر', 'error');
-      return;
-    }
-    _apptInFlight = true;
-    var submitBtn = document.getElementById('coApptSubmit');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الإرسال…'; }
-
-    var jwt = window._jwt ? _jwt() : '';
-
-    // If an orphaned draft exists, skip create and retry send directly
-    var existingEntry = (entryId && _apptByEntryId[String(entryId)])
-                        || (appId && _apptByAppId[String(appId)]);
-    if (existingEntry && _isApptDraft(existingEntry.status)) {
-      _execSendStep(existingEntry.id, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
-      return;
-    }
-
-    // Build create body: Path A (application_id) or Path B (candidate_id + job_id)
-    var createBody;
-    if (appId) {
-      // Path A
-      createBody = {
-        application_id:      appId,
-        mode:                _apptMode,
-        notes:               notesVal  || null,
-        online_url:          urlVal    || null,
-        location_text:       locVal    || null,
-        representative_name: repVal    || null
-      };
-    } else {
-      // Path B — pipeline
-      createBody = {
-        candidate_id:        uid,
-        job_id:              parseInt(_appJobId, 10),
-        appointment_type:    'interview',
-        mode:                _apptMode,
-        notes:               notesVal  || null,
-        online_url:          urlVal    || null,
-        location_text:       locVal    || null,
-        representative_name: repVal    || null
-      };
-    }
-
-    fetch('/api/appointments', {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(createBody)
-    })
-    .then(function (r) {
-      if (!r.ok) {
-        return r.json().then(function (d) {
-          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail || d.message; throw e;
-        });
-      }
-      return r.json();
-    })
-    .then(function (d) {
-      var apptId = d.data && d.data.id;
-      if (!apptId) throw new Error('missing appointment id');
-      // Store draft in index — if send fails, next retry reuses this id
-      var info = { id: apptId, status: 'draft' };
-      if (appId)   _apptByAppId[String(appId)]     = info;
-      if (entryId) _apptByEntryId[String(entryId)] = info;
-      _execSendStep(apptId, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
-    })
-    .catch(function (err) {
-      _apptInFlight = false;
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إرسال الدعوة'; }
-      var status = err && err.status;
-      var detail = (err && err.detail) || '';
-      var msg;
-      if (detail.indexOf('يوجد موعد نشط') !== -1) {
-        _loadApptIndex(function () { _applyApptIndexToCards(); });
-        msg = 'يوجد موعد نشط — تحقق من صفحة المواعيد';
-      } else if (status === 409) {
-        msg = detail || 'لا يمكن إنشاء الموعد — تحقق من البيانات';
-      } else if (status === 403) {
-        msg = 'انتهت الجلسة أو لا تملك صلاحية إنشاء المواعيد';
-      } else if (status === 401) {
-        msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
-      } else {
-        msg = detail || 'تعذّر إنشاء الموعد، حاول مجدداً';
-      }
-      if (window.showToast) showToast(msg, 'error');
-    });
-  }
-
-  // Handles the /send step independently — draft is preserved in _apptByAppId on failure,
-  // so _submitApptForm will skip create and call _execSendStep directly on the next attempt.
-  function _execSendStep(apptId, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn) {
-    var sendBody = {
-      scheduled_at:        scheduledAt,
-      deadline_hours:      deadlineVal,
-      online_url:          urlVal   || null,
-      location_text:       locVal   || null,
-      notes:               notesVal || null,
-      representative_name: repVal   || null
-    };
-    fetch('/api/appointments/' + apptId + '/send', {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(sendBody)
-    })
-    .then(function (r) {
-      if (!r.ok) {
-        return r.json().then(function (d) {
-          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail; throw e;
-        });
-      }
-      return r.json();
-    })
-    .then(function () {
-      // Update both indexes to sent state
-      var sentInfo = { id: apptId, status: 'pending_response' };
-      if (appId) _apptByAppId[String(appId)] = sentInfo;
-      if (_apptCurrentEntryId) _apptByEntryId[String(_apptCurrentEntryId)] = sentInfo;
-      var card = appId
-        ? document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]')
-        : (_apptCurrentEntryId
-            ? document.querySelector('#coAppList .co-app-card[data-entry-id="' + _apptCurrentEntryId + '"]')
-            : null);
-      if (card) {
-        var foot = card.querySelector('.co-app-card-foot');
-        var oldBtn = foot ? (foot.querySelector('.co-app-sched-btn') || foot.querySelector('.co-app-open-appt-btn')) : null;
-        if (oldBtn && foot) {
-          var link = document.createElement('a');
-          link.href      = '/appointment-room?id=' + apptId;
-          link.className = 'co-app-open-appt-btn co-app-act';
-          link.textContent = 'فتح الموعد';
-          link.target    = '_blank';
-          link.rel       = 'noopener';
-          foot.replaceChild(link, oldBtn);
-        }
-      }
-      _closeApptModal();
-      if (window.showToast) showToast('تم إرسال دعوة المقابلة بنجاح ✓');
-      location.href = '/appointment-room?id=' + apptId;
-    })
-    .catch(function (err) {
-      // Draft entry stays in _apptByAppId — next open of the modal shows retry UI
-      _apptInFlight = false;
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إعادة الإرسال'; }
-      var status = err && err.status;
-      var detail = (err && err.detail) || '';
-      var msg;
-      if (status === 403) {
-        msg = 'انتهت الجلسة أو لا تملك صلاحية إرسال الدعوة';
-      } else if (status === 401) {
-        msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
-      } else if (detail) {
-        msg = detail;
-      } else {
-        msg = 'أُنشئ الموعد لكن تعذّر الإرسال — اضغط "إعادة الإرسال"';
-      }
-      if (window.showToast) showToast(msg, 'error');
     });
   }
 
@@ -1815,11 +1447,14 @@
       var c = card, cBtn = _icFloatTrigger;
       _closeInterviewChoice();
       _execClassify(aId, 'interview', c, cBtn, prv, sv, function () {
-        var name = c ? c.getAttribute('data-name') : '';
         var job  = window.companyState && companyState.jobs
           ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
           : null;
-        _openApptModal(aId, name, job ? job.title : '');
+        if (window.twScheduleInterview) twScheduleInterview({
+          candidateId:   c ? parseInt(c.getAttribute('data-uid'), 10) : null,
+          candidateName: c ? c.getAttribute('data-name') : '',
+          jobId:         _appJobId, jobTitle: job ? job.title : '', applicationId: aId
+        });
       });
     };
 
@@ -1875,7 +1510,6 @@
       .then(function (data) {
         if (card) {
           _reRenderCardFoot(card, newStatus);
-          if (_apptIndexLoaded) _applyApptIndexToCards();
         }
         // Dispatch cross-IIFE event so Saved Candidates screen syncs without refresh.
         // Event is only dispatched on success — never on error.
@@ -1925,7 +1559,6 @@
     var twId        = card.getAttribute('data-tw-id') || '';
     var isRejected  = statusKey === 'rejected';
     var isHired     = statusKey === 'hired';
-    var isInterview = statusKey === 'interview';
 
     // Update or create status badge
     var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
@@ -1971,12 +1604,13 @@
       + (tbAlreadySaved ? ' disabled' : '')
       + '>' + tbLbl + '</button>';
 
-    var schedHtml = isInterview
-      ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
-      : '';
+    var schedHtml = isRejected ? '' : _schedSlotHTML(uid, card.getAttribute('data-name') || '');
 
     var foot = card.querySelector('.co-app-card-foot');
-    if (foot) foot.innerHTML = viewHtml + classifyHtml + talentHtml + schedHtml;
+    if (foot) {
+      foot.innerHTML = viewHtml + classifyHtml + talentHtml + schedHtml;
+      if (window.twScheduleMount) twScheduleMount(foot);
+    }
   }
 
   // Back button: close the topmost open modal on popstate.
@@ -2216,12 +1850,7 @@
   // @vm-extract-end: co-authsync
 
   // Page namespace exports (PR 2C) — used by the candidate-job popover (other IIFE).
-  // jobId (optional) sets the job context the appointment modal books against.
   TwCompanyPage.openNotesPanel = _openNotesPanel;
-  TwCompanyPage.openApptModal  = function (appId, applName, jobTitle, entryId, candidateId, jobId) {
-    if (jobId) _appJobId = jobId;
-    _openApptModal(appId, applName, jobTitle, entryId, candidateId);
-  };
 
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
@@ -3237,6 +2866,7 @@
           });
           _wireSavedCards();
         }
+        if (window.twScheduleMount) twScheduleMount(list);
         _savedOffset = (pg.offset || 0) + items.length;
         var shell = document.getElementById('coCandSavedShell');
         if (pg.has_more && shell) {
@@ -3326,8 +2956,6 @@
     var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
     var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
     var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
-    var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
-    var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
     var extraCls    = appId ? ' co-cand-job-chip--applied' : '';
     return '<button class="co-cand-job-chip' + hiddenCls + extraCls + '" type="button"'
          + ' data-jid="' + _esc(String(jl.job_id)) + '"'
@@ -3337,9 +2965,7 @@
          + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
          + ' data-pe-id="' + _esc(peId) + '"'
          + ' data-app-id="' + _esc(appId) + '"'
-         + ' data-notes-count="' + _esc(notesCount) + '"'
-         + ' data-next-appt-id="' + _esc(nextApptId) + '"'
-         + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
+         + ' data-notes-count="' + _esc(notesCount) + '">'
          + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
   }
 
@@ -3397,6 +3023,14 @@
     return '<div class="co-cand-job-section co-cand-job-status-section">'
       + '<span class="co-cand-job-section-title">تصنيف المرشح لكل وظيفة:</span>'
       + '<div class="co-cand-job-status-list">' + rows + '</div></div>';
+  }
+
+  // Shared schedule button slot (tw-schedule.js mounts it — PR 3.10). No job context here:
+  // the dialog asks for one of the company's active jobs.
+  function _schedSlot(item, cls) {
+    return '<span data-tw-schedule-slot data-class="' + _esc(cls) + '"'
+      + ' data-candidate-id="' + _esc(item.candidate_id) + '"'
+      + ' data-candidate-name="' + _esc(item.full_name || '') + '"></span>';
   }
 
   // Build compact expandable card (V3: single-column, no left/right split)
@@ -3518,6 +3152,7 @@
           + 'عرض الملف العام</a>';
     html += '<button type="button" class="co-csc-btn co-csc-btn--manage co-cand-manage-btn" data-cid="' + cid + '">'
           + 'إدارة الموهبة</button>';
+    html += _schedSlot(item, 'co-csc-btn co-csc-btn--view');
     html += '</div>';
 
     // ── Manage panel (hidden by default) — V2 ────────────────────
@@ -3826,7 +3461,7 @@
   // ── Job chip popover ────────────────────────────────────────────
   // Row 1: per-job candidate classification (company_candidate_job_refs.candidate_status)
   // Row 2: apply_date — shown only when the candidate actually applied (not null)
-  // Row 3 (pipeline only): ملاحظات الوظيفة + تحديد موعد / فتح الموعد buttons
+  // Row 3: ملاحظات الوظيفة (pipeline only) + shared تحديد موعد / فتح الموعد (tw-schedule.js)
   function _showJobChipPop(chip) {
     var title         = chip.getAttribute('data-title') || '';
     var applyDate     = chip.getAttribute('data-apply-date') || '';
@@ -3836,8 +3471,6 @@
     var peId          = chip.getAttribute('data-pe-id') || '';
     var appId         = chip.getAttribute('data-app-id') || '';
     var notesCount    = parseInt(chip.getAttribute('data-notes-count') || '0', 10) || 0;
-    var nextApptId    = chip.getAttribute('data-next-appt-id') || '';
-    var nextApptSt    = chip.getAttribute('data-next-appt-status') || '';
     var jobId         = chip.getAttribute('data-jid') || '';
 
     // Candidate name from parent card
@@ -3858,24 +3491,15 @@
     if (appId && applyDate) {
       html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
     }
-    // Pipeline action buttons — only when this chip has a real pipeline entry
+    // Pipeline action: notes — only when this chip has a real pipeline entry.
+    // Schedule: the shared button (tw-schedule.js — PR 3.10) for every job chip.
+    html += '<div class="co-cjp-actions">';
     if (peId) {
       var notesLbl  = notesCount > 0 ? ('ملاحظات الوظيفة (' + notesCount + ')') : 'ملاحظات الوظيفة';
-      var apptLabel = nextApptId ? 'فتح الموعد' : 'تحديد موعد';
-      html += '<div class="co-cjp-actions">'
-            + '<button type="button" class="co-cjp-btn co-cjp-btn--notes"'
-            + ' data-pe-id="' + _esc(peId) + '">' + _esc(notesLbl) + '</button>'
-            + '<button type="button" class="co-cjp-btn co-cjp-btn--appt"'
-            + ' data-pe-id="' + _esc(peId) + '"'
-            + ' data-app-id="' + _esc(appId) + '"'
-            + ' data-cand-id="' + _esc(candId) + '"'
-            + ' data-cand-name="' + _esc(candName) + '"'
-            + ' data-job-title="' + _esc(title) + '"'
-            + ' data-job-id="' + _esc(jobId) + '"'
-            + ' data-next-appt-id="' + _esc(nextApptId) + '">'
-            + _esc(apptLabel) + '</button>'
-            + '</div>';
+      html += '<button type="button" class="co-cjp-btn co-cjp-btn--notes"'
+            + ' data-pe-id="' + _esc(peId) + '">' + _esc(notesLbl) + '</button>';
     }
+    html += '</div>';
     pop.innerHTML = html;
     pop.style.display = 'block';
 
@@ -3888,34 +3512,17 @@
         if (entryId) TwCompanyPage.openNotesPanel(parseInt(entryId, 10));
       });
     }
-    var apptBtn = pop.querySelector('.co-cjp-btn--appt');
-    if (apptBtn) {
-      apptBtn.addEventListener('click', function () {
-        var nextId  = apptBtn.getAttribute('data-next-appt-id') || '';
-        _closeJobPop();
-        if (nextId) {
-          // Existing appointment — navigate to appointment room
-          window.location.href = '/appointment-room?id=' + encodeURIComponent(nextId);
-        } else {
-          // No appointment yet — open creation modal (Path B)
-          var entryId  = apptBtn.getAttribute('data-pe-id');
-          var appId    = apptBtn.getAttribute('data-app-id');
-          var cndId    = apptBtn.getAttribute('data-cand-id');
-          var cndName  = apptBtn.getAttribute('data-cand-name') || '';
-          var jTitle   = apptBtn.getAttribute('data-job-title') || '';
-          var jId      = apptBtn.getAttribute('data-job-id');
-          if (entryId) {
-            TwCompanyPage.openApptModal(
-              appId   ? parseInt(appId, 10)   : null,
-              cndName, jTitle,
-              parseInt(entryId, 10),
-              cndId   ? parseInt(cndId, 10)   : null,
-              jId     ? parseInt(jId, 10)     : null
-            );
-          }
-        }
-      });
+    var schedBtn = window.twScheduleButton ? twScheduleButton({
+      candidateId: candId, candidateName: candName,
+      jobId: parseInt(jobId, 10) || null, jobTitle: title,
+      className: 'co-cjp-btn co-cjp-btn--appt'
+    }) : null;
+    var actions = pop.querySelector('.co-cjp-actions');
+    if (schedBtn) {
+      schedBtn.addEventListener('click', function () { _closeJobPop(); });
+      actions.appendChild(schedBtn);
     }
+    if (!actions.firstChild) actions.parentNode.removeChild(actions);
 
     _jobPopPositionFromChip(chip, pop);
     _jobPopTarget = chip;
@@ -4377,6 +3984,7 @@
     html += '<div class="co-cand-actions">';
     html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
     html += '<button class="co-sugg-save-btn" data-cid="' + _esc(item.candidate_id) + '">حفظ كمرشح</button>';
+    html += _schedSlot(item, 'co-cand-view-btn');
     html += '</div></div>';
     return html;
   }
@@ -4389,6 +3997,7 @@
     _body.innerHTML = html;
     _wireSaveButtons();
     _wireLoadMore(pg);
+    if (window.twScheduleMount) twScheduleMount(_body);
   }
 
   function _appendSuggestions(items, pg) {
@@ -4401,6 +4010,7 @@
       tmp.innerHTML = _suggItemHTML(item);
       while (tmp.firstChild) list.appendChild(tmp.firstChild);
     });
+    if (window.twScheduleMount) twScheduleMount(list);
     if (pg && pg.has_more) {
       var btn = document.createElement('button');
       btn.className = 'co-sugg-load-more'; btn.id = 'coCandLoadMore'; btn.textContent = 'عرض المزيد';

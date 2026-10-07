@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <!--tw:shell-head-->
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <title>مواعيدي — تواصلنا</title>
 <meta name="tw-page" content="auth">
 <style>
@@ -9,7 +10,6 @@
 :root{
   --ap-border:rgba(255,255,255,.07);
   --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
-  --ap-surface-modal:#0d1526;
   --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
 body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;padding-bottom:80px}
@@ -73,26 +73,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm)}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
 .sk-card{height:120px;margin-bottom:var(--space-6);border-radius:var(--r)}
-/* Create modal */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;
-  align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
-.modal-bg.open{opacity:1;pointer-events:all}
-.modal{background:var(--ap-surface-modal);border-radius:var(--radius-3xl) var(--radius-3xl) 0 0;padding:var(--space-11) var(--space-10) var(--space-13);
-  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
-.modal-bg.open .modal{transform:translateY(0)}
-.modal-title{font-size:17px;font-weight:700;margin-bottom:var(--space-10)}
-.form-group{margin-bottom:var(--space-8)}
-.form-label{font-size:var(--size-font-md);color:var(--ap-text-sub);margin-bottom:var(--space-3);display:block}
-.form-hint{color:var(--ap-text-sub);font-size:var(--size-font-xs);display:block;margin-top:var(--space-2)}
-.form-input{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
-.form-input:focus{outline:none;border-color:var(--color-brand-primary)}
-.form-select{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:var(--ap-surface-modal);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg);cursor:pointer}
-.btn-submit{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-brand-primary);color:var(--color-text-primary);
-  border:none;font-size:var(--size-font-xl);font-weight:700;font-family:var(--font);cursor:pointer;margin-top:var(--space-4)}
-.btn-cancel-modal{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-surface-card);color:var(--ap-text-sub);
-  border:1px solid var(--ap-border);font-size:var(--size-font-xl);font-family:var(--font);cursor:pointer;margin-top:var(--space-4)}
 /* Bottom nav */
 .bnav{position:fixed;bottom:0;left:0;right:0;height:65px;background:rgba(7,11,24,.97);
   backdrop-filter:blur(12px);border-top:1px solid var(--ap-border);display:flex;
@@ -127,39 +107,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 <!-- Company: New Appointment FAB -->
 <button class="fab" id="fabNew" title="دعوة مقابلة جديدة" aria-label="دعوة مقابلة جديدة" style="display:none"><i data-tw-icon="add"></i></button>
 
-<!-- New Appointment Modal (company only) -->
-<div class="modal-bg" id="newApptModal">
-  <div class="modal">
-    <div class="modal-title">دعوة مقابلة جديدة</div>
-    <div class="form-group">
-      <label class="form-label">رقم طلب التوظيف (application_id)</label>
-      <input class="form-input" id="fApplication" type="number" placeholder="رقم الطلب من صفحة التقديمات">
-      <small class="form-hint">احصل على الرقم من صفحة تقديمات الوظيفة</small>
-    </div>
-    <div class="form-group">
-      <label class="form-label">نوع المقابلة</label>
-      <select class="form-select" id="fMode">
-        <option value="online">أونلاين</option>
-        <option value="onsite">حضوري</option>
-      </select>
-    </div>
-    <div class="form-group" id="urlGroup">
-      <label class="form-label">رابط الاجتماع (https://...)</label>
-      <input class="form-input" id="fUrl" type="url" placeholder="https://meet.google.com/...">
-    </div>
-    <div class="form-group" id="locGroup" style="display:none">
-      <label class="form-label">موقع المقابلة</label>
-      <input class="form-input" id="fLoc" type="text" placeholder="العنوان التفصيلي">
-    </div>
-    <div class="form-group">
-      <label class="form-label">ملاحظات (اختياري)</label>
-      <input class="form-input" id="fNotes" type="text" placeholder="أي معلومات إضافية">
-    </div>
-    <button class="btn-submit" id="btnCreateAppt">إنشاء الدعوة</button>
-    <button class="btn-cancel-modal" id="btnCloseModal">إلغاء</button>
-  </div>
-</div>
-
 <nav class="bnav">
   <a class="bnav-item" href="/home">
     <i data-tw-icon="home" data-tw-size="2xl"></i>
@@ -181,6 +128,9 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
 <script>
 (function(){
   'use strict';
@@ -209,10 +159,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   // DOM
   const listEl = document.getElementById('apptList');
   const fabNew = document.getElementById('fabNew');
-  const modal  = document.getElementById('newApptModal');
-  const fMode  = document.getElementById('fMode');
-  const urlGrp = document.getElementById('urlGroup');
-  const locGrp = document.getElementById('locGroup');
 
   twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
   document.getElementById('hdrBack').href = twHomeHref();
@@ -349,40 +295,9 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     });
   }
 
-  // Create appointment modal (company only)
-  fabNew.addEventListener('click', function(){ modal.classList.add('open'); });
-  document.getElementById('btnCloseModal').addEventListener('click', function(){
-    modal.classList.remove('open');
-  });
-  modal.addEventListener('click', function(e){
-    if (e.target === modal) modal.classList.remove('open');
-  });
-
-  fMode.addEventListener('change', function(){
-    urlGrp.style.display = fMode.value === 'online' ? '' : 'none';
-    locGrp.style.display = fMode.value === 'onsite' ? '' : 'none';
-  });
-
-  document.getElementById('btnCreateAppt').addEventListener('click', function(){
-    const application_id = parseInt(document.getElementById('fApplication').value);
-    if (!application_id) { showToast('أدخل رقم طلب التوظيف', 'warning'); return; }
-    const mode = fMode.value;
-    const payload = {
-      application_id,
-      mode,
-      online_url: mode === 'online' ? (document.getElementById('fUrl').value.trim() || null) : null,
-      location_text: mode === 'onsite' ? (document.getElementById('fLoc').value.trim() || null) : null,
-      notes: document.getElementById('fNotes').value.trim() || null
-    };
-    twApi('/api/appointments', { method: 'POST', body: payload }).then(res => {
-      if (res.ok && res.data && res.data.id) {
-        modal.classList.remove('open');
-        location.href = '/appointment-room?id=' + encodeURIComponent(res.data.id);
-      } else {
-        showToast(twApiMessage(res, 'خطأ في إنشاء الموعد'), 'error');
-      }
-    });
-  });
+  // + → the shared Schedule Interview dialog (tw-schedule.js — PR 3.10): pick the person by
+  // name (applicants / candidates / Talent Bank) + an active job. No internal request-number field.
+  fabNew.addEventListener('click', function(){ twScheduleInterview({}); });
 
   loadAppointments();
 })();

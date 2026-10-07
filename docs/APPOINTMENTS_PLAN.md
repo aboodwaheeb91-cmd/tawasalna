@@ -561,6 +561,8 @@ appointment_closed:{appointment_id}:{affected_party_id}
 ## 16. POST /api/appointments — Create Contract (Security Fix)
 
 > **هذا هو العقد الصحيح والمُقدَّم للـ `POST /api/appointments` بعد Security Fix على PR #461.**
+>
+> **PR 3.10:** هذا Path A (لعملاء API فقط). الواجهة كلها صارت ترسل Path B `{candidate_id, job_id}` عبر نظام تحديد الموعد الموحّد — انظر §18. شكل الأخطاء صار `{ok:false, error:{code, message}}`.
 
 ### Request
 
@@ -643,6 +645,33 @@ Method: POST /api/appointments
 ✅ _appt_computed_status() مقبول كحل مؤقت للعرض فقط
 ✅ docs/SCHEDULER_PLAN.md هو المرجع الوحيد لقرار الـ scheduler
 ```
+
+---
+
+## 18. Schedule Interview System — نظام تحديد موعد موحّد (PR 3.10)
+
+> المواصفة التقنية: `ARCHITECTURE.md §75` · الفهرس: `docs/SYSTEMS_INDEX.md §23b` · القوانين: `docs/rules/schedule-interview.md`.
+
+### القاعدة: كل موعد مربوط بوظيفة
+
+- الشركة بتختار الوظيفة (أو بتكون معروفة من المكان). إذا الشخص مش مرشح عليها → السيرفر بيضيفه مرشح (`shortlisted` + `promoted_at`) بنفس الـ transaction تبع إنشاء الموعد، بنفس قلب «ترشيح للوظيفة» (`_shortlist_candidate_in_tx`) — ما في رجوع لورا.
+- ربط جديد بالوظيفة → الوظيفة لازم تكون فعّالة. الشخص الموجود أصلاً على الوظيفة بيضل متل قبل (مش مؤرشفة بس).
+- مرفوض («غير مناسب») أو منسحب على هالوظيفة → رفض برسالة عربية (`409 candidate_rejected` / `candidate_withdrawn`).
+- الوظيفة لازم تكون للشركة نفسها (403) والشخص حساب `emp` (400).
+
+### التدفق
+
+1. زر «تحديد موعد» (`twScheduleButton`) — بيطلع بس لحساب شركة على موظف (مش نفسه). إذا في موعد مفتوح معه → «فتح الموعد» → غرفة الموعد.
+2. النافذة (`twScheduleInterview` عبر `twModal`): الشخص (بحث بالاسم بـ «+» صفحة المواعيد) · الوظيفة (إذا مش معروفة) · التاريخ والوقت (dropdowns) · أونلاين + رابط / حضوري + مكان · مهلة الرد · ممثل الشركة · ملاحظات.
+3. `POST /api/appointments` Path B → مسودة → `POST /api/appointments/{id}/send` → دعوة. فشل الإرسال بيخلّي المسودة، والضغطة الجاية بترسلها.
+
+### Endpoints جديدة (شركة فقط)
+
+| Endpoint | الوظيفة |
+|----------|---------|
+| `GET /api/schedule/jobs` | وظائف الشركة الفعّالة للاختيار |
+| `GET /api/schedule/open?candidate_ids=&job_id=` | الموعد المفتوح مع كل شخص (لزر «فتح الموعد») |
+| `GET /api/schedule/people?q=` | بحث بالاسم بين المتقدمين والمرشحين والمحفوظين |
 
 ---
 
