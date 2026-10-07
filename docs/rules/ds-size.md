@@ -27,7 +27,7 @@
 
 10. **أزرار الهيدر (32/34/40) بدون قرار** — توحيدها PR بصري منفصل فقط (قرار 4).
 
-11. **ممنوع نسخ الـ tokens** لصفحة ما بتحمّل `tw_shared.css` (appointments، appointment-room) — الحل PR تحميل `tw_shared.css` منفصل مع فحص بصري.
+11. **ممنوع نسخ الـ tokens** لصفحة ما بتحمّل `tw_shared.css` — الحل تحويلها للـ Page Shell (F39) مع فحص بصري (appointments + appointment-room ✅ Phase C).
 
 ### Forbidden (permanent)
 

@@ -151,7 +151,7 @@ check('every drawing is a Lucide 0.460 drawing', notLucide.length === 0, notLuci
 check('registry names are unique', new Set(entries.map(e => e.name)).size === entries.length);
 
 // ── 6. consumers = phase-C pages only (one PR per page adds itself here) ──
-const PHASE_C_PAGES = ['job-detail.html', 'landing.html'];
+const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', 'appointment-room.html'];
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {

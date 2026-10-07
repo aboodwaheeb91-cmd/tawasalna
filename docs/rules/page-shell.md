@@ -1,7 +1,7 @@
 # Page Shell V1 (DS-SHELL)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتنشئ صفحة HTML أو بتعدّل الـ `<head>` / السكربتات المشتركة.
-> القاعدة العليا: `ARCHITECTURE_FOUNDATION.md` → F39. المواصفة الكاملة: `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-08).
+> القاعدة العليا: `ARCHITECTURE_FOUNDATION.md` → F39. المواصفة الكاملة: `docs/design-system/PAGE-SHELL.md` (SHELL-00 → SHELL-09).
 
 ## Page Shell Rules (mandatory for all AI sessions)
 
@@ -22,5 +22,7 @@
 8. **ممنوع:** `tw-icons.js` بالـ shell (F37) · `user-scalable=no` · آلية حقن / partial ثانية · خدمة `partials/` مباشرة · نسخ tags الـ shell يدوياً بصفحة محوّلة.
 
 9. **اختبار قديم بيقرأ صفحة محوّلة كملف خام** → حدّثه ليقرأ `apply_shell(...)` (ناتج `read_html`).
+
+10. **صفحة محمية (SHELL-09):** `<meta name="tw-page" content="auth">` + نداء **واحد** لـ `twRequireAuth(opts)` (`tw_shared.js`) بأول سكربت الصفحة قبل أي `fetch` — بيقرأ `TwAuthSync.getSessionSnapshot()` بس؛ guest / expired / stale / invalid → `location.replace(twLoginHref(path + query))`؛ `opts.userTypes` ونوع غلط → `twAccountHref`؛ logout بتاب تاني / bfcache → نفس القرار عبر `TwAuthSync.onSessionChange` (تسجيل واحد)؛ حساب تاني → reload. ❌ قراءة `tw_user` / `tw_jwt` مباشرة لقرار الدخول · ❌ guard محلي ثاني. Test: `node test_appointments_guard_runtime.js`.
 
 Test: `python test_page_shell.py`.

@@ -21,7 +21,7 @@
 
 8. **الغلاف (IMG-10):** 4:1 للموظف والشركة — التنفيذ بالمرحلة C.
 
-9. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة: `job-detail` (`static/job/job-detail.js`). أي صفحة جديدة بتنضاف لـ `PHASE_C` بـ `test_ds_image_runtime.js` (B3) بنفس الـ PR.
+9. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة: `job-detail` (`static/job/job-detail.js`) · `appointments.html` + `appointment-room.html` (الطرف التاني `twAvatarEl` lg). أي صفحة جديدة بتنضاف لـ `PHASE_C` بـ `test_ds_image_runtime.js` (B3) بنفس الـ PR.
 
 ### Forbidden (permanent)
 

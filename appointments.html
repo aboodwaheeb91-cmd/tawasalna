@@ -1,116 +1,111 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--tw:shell-head-->
 <title>مواعيدي — تواصلنا</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+<meta name="tw-page" content="auth">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* Appointments — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
 :root{
-  --bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);
-  --ac:#00c896;--ac2:#2563ff;--ac3:#8b5cf6;
-  --txt:#e8eaf0;--sub:#8892a4;--danger:#ef4444;--warn:#f59e0b;
-  --r:14px;--font:'Cairo',sans-serif
+  --ap-border:rgba(255,255,255,.07);
+  --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
+  --ap-surface-modal:#0d1526;
+  --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
-body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;padding-bottom:80px}
+body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;padding-bottom:80px}
 /* Header */
 .hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px}
-.hdr-title{font-size:17px;font-weight:700;color:var(--txt);flex:1}
-.hdr-back{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--card);
-  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sub);
-  text-decoration:none;font-size:18px}
+  border-bottom:1px solid var(--ap-border);padding:var(--space-7) var(--space-10);display:flex;align-items:center;gap:var(--space-6)}
+.hdr-title{font-size:17px;font-weight:700;color:var(--ap-text);flex:1}
+.hdr-back{width:36px;height:36px;border-radius:var(--radius-md);border:1px solid var(--ap-border);background:var(--color-surface-card);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ap-text-sub);
+  text-decoration:none}
 /* Filter bar */
-.fbar{padding:12px 16px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.fbar{padding:var(--space-6) var(--space-8);display:flex;gap:var(--space-4);overflow-x:auto;scrollbar-width:none}
 .fbar::-webkit-scrollbar{display:none}
-.ftab{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--card);
-  color:var(--sub);font-size:13px;font-family:var(--font);cursor:pointer;white-space:nowrap;transition:.2s}
-.ftab.active{background:rgba(0,200,150,.12);border-color:var(--ac);color:var(--ac)}
+.ftab{padding:var(--space-3) var(--space-8);border-radius:var(--radius-3xl);border:1px solid var(--ap-border);background:var(--color-surface-card);
+  color:var(--ap-text-sub);font-size:var(--size-font-md);font-family:var(--font);cursor:pointer;white-space:nowrap;transition:.2s}
+.ftab.active{background:rgba(var(--color-brand-primary-rgb),.12);border-color:var(--color-brand-primary);color:var(--color-brand-primary)}
 /* Content */
-.content{padding:12px 16px}
+.content{padding:var(--space-6) var(--space-8)}
 /* Cards */
-.appt-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
-  padding:16px;margin-bottom:12px;transition:.2s;cursor:pointer}
-.appt-card:hover{border-color:rgba(0,200,150,.3);background:rgba(255,255,255,.05)}
-.card-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
-.card-ava{width:44px;height:44px;border-radius:50%;background:rgba(37,99,255,.18);
-  display:flex;align-items:center;justify-content:center;color:var(--ac2);font-weight:700;
-  font-size:17px;flex-shrink:0;overflow:hidden}
-.card-ava img{width:100%;height:100%;object-fit:cover}
+.appt-card{background:var(--color-surface-card);border:1px solid var(--ap-border);border-radius:var(--r);
+  padding:var(--space-8);margin-bottom:var(--space-6);transition:.2s;cursor:pointer}
+.appt-card:hover{border-color:rgba(var(--color-brand-primary-rgb),.3);background:rgba(255,255,255,.05)}
+.card-top{display:flex;align-items:flex-start;gap:var(--space-6);margin-bottom:var(--space-6)}
 .card-info{flex:1;min-width:0}
-.card-name{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:3px;
+.card-name{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text);margin-bottom:3px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-job{font-size:13px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;
+.card-job{font-size:var(--size-font-md);color:var(--ap-text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:var(--space-2);padding:3px var(--space-5);border-radius:var(--radius-3xl);
   font-size:11px;font-weight:700}
-.badge-pending{background:rgba(245,158,11,.12);color:var(--warn)}
-.badge-confirmed{background:rgba(0,200,150,.12);color:var(--ac)}
-.badge-cancelled{background:rgba(239,68,68,.12);color:var(--danger)}
-.badge-reschedule{background:rgba(139,92,246,.12);color:var(--ac3)}
-.badge-expired{background:rgba(239,68,68,.1);color:#f87171}
-.badge-completed{background:rgba(37,99,255,.12);color:var(--ac2)}
-.badge-closed{background:rgba(255,255,255,.06);color:var(--sub)}
-.badge-draft{background:rgba(255,255,255,.06);color:var(--sub)}
-.badge-missed{background:rgba(239,68,68,.1);color:#f87171}
-.card-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.meta-item{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub)}
-.meta-item svg{width:13px;height:13px;flex-shrink:0}
-.card-footer{margin-top:12px;display:flex;justify-content:flex-start}
-.btn-room{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:10px;
-  background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.25);color:var(--ac);
-  font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;text-decoration:none;
+.badge-pending{background:rgba(245,158,11,.12);color:var(--ap-warn)}
+.badge-confirmed{background:rgba(var(--color-brand-primary-rgb),.12);color:var(--color-brand-primary)}
+.badge-cancelled{background:rgba(239,68,68,.12);color:var(--ap-danger)}
+.badge-reschedule{background:rgba(139,92,246,.12);color:var(--color-brand-accent)}
+.badge-expired{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-completed{background:rgba(var(--color-brand-secondary-rgb),.12);color:var(--color-brand-secondary)}
+.badge-closed{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
+.badge-draft{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
+.badge-missed{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.card-meta{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center}
+.meta-item{display:flex;align-items:center;gap:var(--space-2);font-size:var(--size-font-xs);color:var(--ap-text-sub)}
+.meta-item .tw-ico{flex-shrink:0}
+.card-footer{margin-top:var(--space-6);display:flex;justify-content:flex-start}
+.btn-room{display:inline-flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-9);border-radius:var(--radius-md);
+  background:rgba(var(--color-brand-primary-rgb),.1);border:1px solid rgba(var(--color-brand-primary-rgb),.25);color:var(--color-brand-primary);
+  font-size:var(--size-font-md);font-weight:700;font-family:var(--font);cursor:pointer;text-decoration:none;
   transition:.2s}
-.btn-room:hover{background:rgba(0,200,150,.2)}
+.btn-room:hover{background:rgba(var(--color-brand-primary-rgb),.2)}
 /* New appointment button */
-.fab{position:fixed;bottom:90px;left:20px;width:52px;height:52px;border-radius:50%;
-  background:var(--ac);color:#fff;border:none;font-size:24px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,200,150,.4);
+.fab{position:fixed;bottom:90px;left:20px;width:52px;height:52px;border-radius:var(--radius-circle);
+  background:var(--color-brand-primary);color:var(--color-text-primary);border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(var(--color-brand-primary-rgb),.4);
   transition:.2s}
 .fab:hover{transform:scale(1.05)}
 /* Empty / loading */
-.empty{text-align:center;padding:60px 20px;color:var(--sub)}
-.empty-icon{font-size:48px;margin-bottom:12px;opacity:.5}
-.empty-txt{font-size:15px;margin-bottom:6px;color:var(--txt)}
-.empty-sub{font-size:13px}
+.empty{text-align:center;padding:60px var(--space-10);color:var(--ap-text-sub)}
+.empty-icon{margin-bottom:var(--space-6);opacity:.5;display:flex;justify-content:center}
+.empty-icon .tw-ico{width:48px;height:48px}
+.empty-txt{font-size:var(--size-font-xl);margin-bottom:var(--space-3);color:var(--ap-text)}
+.empty-sub{font-size:var(--size-font-md)}
 .skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
-  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px}
+  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm)}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
-.sk-card{height:120px;margin-bottom:12px;border-radius:var(--r)}
+.sk-card{height:120px;margin-bottom:var(--space-6);border-radius:var(--r)}
 /* Create modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;
   align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
 .modal-bg.open{opacity:1;pointer-events:all}
-.modal{background:#0d1526;border-radius:20px 20px 0 0;padding:24px 20px 40px;
+.modal{background:var(--ap-surface-modal);border-radius:var(--radius-3xl) var(--radius-3xl) 0 0;padding:var(--space-11) var(--space-10) var(--space-13);
   width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
 .modal-bg.open .modal{transform:translateY(0)}
-.modal-title{font-size:17px;font-weight:700;margin-bottom:20px}
-.form-group{margin-bottom:16px}
-.form-label{font-size:13px;color:var(--sub);margin-bottom:6px;display:block}
-.form-input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
-  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);font-size:14px}
-.form-input:focus{outline:none;border-color:var(--ac)}
-.form-select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
-  background:#0d1526;color:var(--txt);font-family:var(--font);font-size:14px;cursor:pointer}
-.btn-submit{width:100%;padding:12px;border-radius:12px;background:var(--ac);color:#fff;
-  border:none;font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;margin-top:8px}
-.btn-cancel-modal{width:100%;padding:12px;border-radius:12px;background:var(--card);color:var(--sub);
-  border:1px solid var(--border);font-size:15px;font-family:var(--font);cursor:pointer;margin-top:8px}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:var(--space-10)}
+.form-group{margin-bottom:var(--space-8)}
+.form-label{font-size:var(--size-font-md);color:var(--ap-text-sub);margin-bottom:var(--space-3);display:block}
+.form-hint{color:var(--ap-text-sub);font-size:var(--size-font-xs);display:block;margin-top:var(--space-2)}
+.form-input{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
+.form-input:focus{outline:none;border-color:var(--color-brand-primary)}
+.form-select{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:var(--ap-surface-modal);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg);cursor:pointer}
+.btn-submit{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-brand-primary);color:var(--color-text-primary);
+  border:none;font-size:var(--size-font-xl);font-weight:700;font-family:var(--font);cursor:pointer;margin-top:var(--space-4)}
+.btn-cancel-modal{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-surface-card);color:var(--ap-text-sub);
+  border:1px solid var(--ap-border);font-size:var(--size-font-xl);font-family:var(--font);cursor:pointer;margin-top:var(--space-4)}
 /* Bottom nav */
 .bnav{position:fixed;bottom:0;left:0;right:0;height:65px;background:rgba(7,11,24,.97);
-  backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;
+  backdrop-filter:blur(12px);border-top:1px solid var(--ap-border);display:flex;
   align-items:center;justify-content:space-around;z-index:100}
-.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--sub);
-  text-decoration:none;font-size:10px;padding:6px 12px}
-.bnav-item.active{color:var(--ac)}
-.bnav-item svg{width:22px;height:22px}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ap-text-sub);
+  text-decoration:none;font-size:var(--size-font-3xs);padding:var(--space-3) var(--space-6)}
+.bnav-item.active{color:var(--color-brand-primary)}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <a class="hdr-back" href="/home">&#8249;</a>
+  <a class="hdr-back" id="hdrBack" href="/home" aria-label="رجوع"><i data-tw-icon="back" data-tw-size="lg"></i></a>
   <span class="hdr-title">مواعيدي</span>
 </div>
 
@@ -130,7 +125,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 </div>
 
 <!-- Company: New Appointment FAB -->
-<button class="fab" id="fabNew" title="دعوة مقابلة جديدة" style="display:none">+</button>
+<button class="fab" id="fabNew" title="دعوة مقابلة جديدة" aria-label="دعوة مقابلة جديدة" style="display:none"><i data-tw-icon="add"></i></button>
 
 <!-- New Appointment Modal (company only) -->
 <div class="modal-bg" id="newApptModal">
@@ -139,7 +134,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     <div class="form-group">
       <label class="form-label">رقم طلب التوظيف (application_id)</label>
       <input class="form-input" id="fApplication" type="number" placeholder="رقم الطلب من صفحة التقديمات">
-      <small style="color:var(--sub);font-size:12px;display:block;margin-top:4px">احصل على الرقم من صفحة تقديمات الوظيفة</small>
+      <small class="form-hint">احصل على الرقم من صفحة تقديمات الوظيفة</small>
     </div>
     <div class="form-group">
       <label class="form-label">نوع المقابلة</label>
@@ -167,31 +162,33 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 
 <nav class="bnav">
   <a class="bnav-item" href="/home">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <i data-tw-icon="home" data-tw-size="2xl"></i>
     الرئيسية
   </a>
   <a class="bnav-item active" href="/appointments">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <i data-tw-icon="calendar" data-tw-size="2xl"></i>
     مواعيد
   </a>
   <a class="bnav-item" href="/messages">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <i data-tw-icon="messages" data-tw-size="2xl"></i>
     رسائل
   </a>
   <a class="bnav-item" href="/notifications">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <i data-tw-icon="notifications" data-tw-size="2xl"></i>
     إشعارات
   </a>
 </nav>
 
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
 <script>
 (function(){
   'use strict';
-  const _u = JSON.parse(localStorage.getItem('tw_user') || 'null');
-  const _jwt = localStorage.getItem('tw_jwt') || '';
-  if (!_u || !_jwt) { location.href = '/login'; return; }
+  // Protected page guard (tw_shared.js) — TwAuthSync snapshot only; guest → /login?next=
+  const _snap = twRequireAuth();
+  if (!_snap) return;
 
-  const IS_CO = _u.user_type === 'co';
+  const IS_CO = _snap.userType === 'co';
   let _currentFilter = '';
 
   // Status labels + badge classes
@@ -217,6 +214,9 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   const urlGrp = document.getElementById('urlGroup');
   const locGrp = document.getElementById('locGroup');
 
+  twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
+  document.getElementById('hdrBack').href = twHomeHref();
+
   if (IS_CO) { fabNew.style.display = 'flex'; }
 
   // Filter tabs
@@ -229,14 +229,19 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     loadAppointments();
   });
 
+  // Authorization via getAuthHeaders (tw_shared.js). 401 → TwAuthSync.invalidateSession →
+  // the page guard sends the visitor to /login?next= (same path as an expired session).
   function api(path, opts){
-    return fetch(path, Object.assign({
-      headers: { 'Authorization': 'Bearer ' + _jwt, 'Content-Type': 'application/json' }
-    }, opts)).then(r => r.json());
+    return fetch(path, Object.assign({ headers: getAuthHeaders(true) }, opts)).then(function(r){
+      if (r.status === 401 && window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
+      return r.json();
+    });
   }
 
-  function safeText(el, text){
-    el.textContent = String(text || '');
+  // Error text from any API error shape (normalizeErrorResponse — FBK M15)
+  function errMsg(res, fallback){
+    const g = normalizeErrorResponse(res).generalError;
+    return (g && g.code !== 'unknown' && g.message) || fallback;
   }
 
   function formatDate(iso){
@@ -247,10 +252,34 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     } catch(e){ return iso; }
   }
 
-  function initials(name){
-    if (!name) return '?';
-    const parts = name.trim().split(' ');
-    return (parts[0][0] || '') + (parts[1] ? parts[1][0] : '');
+  function metaItem(icon, text){
+    const mi = document.createElement('div');
+    mi.className = 'meta-item';
+    mi.appendChild(twIconEl(icon, { size: 'sm' }));
+    const span = document.createElement('span');
+    safeText(span, text);
+    mi.appendChild(span);
+    return mi;
+  }
+
+  function stateBox(icon, title, sub){
+    const box = document.createElement('div');
+    box.className = 'empty';
+    const ic = document.createElement('div');
+    ic.className = 'empty-icon';
+    ic.appendChild(twIconEl(icon));
+    box.appendChild(ic);
+    const t = document.createElement('div');
+    t.className = 'empty-txt';
+    safeText(t, title);
+    box.appendChild(t);
+    if (sub) {
+      const s = document.createElement('div');
+      s.className = 'empty-sub';
+      safeText(s, sub);
+      box.appendChild(s);
+    }
+    return box;
   }
 
   function renderCard(a){
@@ -261,24 +290,17 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     const card = document.createElement('div');
     card.className = 'appt-card';
     card.addEventListener('click', function(){
-      location.href = '/appointment-room?id=' + a.id;
+      location.href = '/appointment-room?id=' + encodeURIComponent(a.id);
     });
 
     const displayName = IS_CO ? a.applicant_name : a.company_name;
     const jobTxt = a.job_title ? a.job_title : 'مقابلة عامة';
-    const roleTxt = a.viewer_role === 'company' ? 'شركة' :
-                    a.viewer_role === 'applicant' ? 'موظف' : 'ممثل';
-
-    card.innerHTML = '';
 
     const top = document.createElement('div');
     top.className = 'card-top';
 
-    const ava = document.createElement('div');
-    ava.className = 'card-ava';
-    const iniSpan = document.createElement('span');
-    safeText(iniSpan, initials(displayName));
-    ava.appendChild(iniSpan);
+    // DS-IMAGE: the other side — applicant (emp) for a company, company (co) otherwise
+    const ava = twAvatarEl({ full_name: displayName, user_type: IS_CO ? 'emp' : 'co' }, 'lg');
 
     const info = document.createElement('div');
     info.className = 'card-info';
@@ -302,30 +324,16 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 
     const meta = document.createElement('div');
     meta.className = 'card-meta';
-    if (a.scheduled_at) {
-      const mi = document.createElement('div');
-      mi.className = 'meta-item';
-      mi.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-      const span = document.createElement('span');
-      safeText(span, formatDate(a.scheduled_at));
-      mi.appendChild(span);
-      meta.appendChild(mi);
-    }
-    const mi2 = document.createElement('div');
-    mi2.className = 'meta-item';
-    mi2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-    const sp2 = document.createElement('span');
-    safeText(sp2, MODE_LABEL[a.mode] || a.mode);
-    mi2.appendChild(sp2);
-    meta.appendChild(mi2);
+    if (a.scheduled_at) meta.appendChild(metaItem('clock', formatDate(a.scheduled_at)));
+    meta.appendChild(metaItem('calendar', MODE_LABEL[a.mode] || a.mode));
     card.appendChild(meta);
 
     const footer = document.createElement('div');
     footer.className = 'card-footer';
     const btnRoom = document.createElement('a');
     btnRoom.className = 'btn-room';
-    btnRoom.href = '/appointment-room?id=' + a.id;
-    btnRoom.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>';
+    btnRoom.href = '/appointment-room?id=' + encodeURIComponent(a.id);
+    btnRoom.appendChild(twIconEl('log-in', { size: 'sm' }));
     btnRoom.appendChild(document.createTextNode(' فتح غرفة الموعد'));
     footer.appendChild(btnRoom);
     card.appendChild(footer);
@@ -339,37 +347,19 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     api('/api/appointments' + qs).then(res => {
       listEl.innerHTML = '';
       if (!res.ok) {
-        const errEl = document.createElement('div');
-        errEl.className = 'empty';
-        const t = document.createElement('div');
-        t.className = 'empty-txt';
-        safeText(t, 'خطأ في تحميل البيانات');
-        const s = document.createElement('div');
-        s.className = 'empty-sub';
-        safeText(s, res.detail || 'تحقق من اتصالك وحاول مرة أخرى');
-        errEl.appendChild(t);
-        errEl.appendChild(s);
-        listEl.appendChild(errEl);
+        listEl.appendChild(stateBox('alert', 'خطأ في تحميل البيانات',
+          errMsg(res, 'تحقق من اتصالك وحاول مرة أخرى')));
         return;
       }
       if (!res.data || res.data.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty';
-        empty.innerHTML = '<div class="empty-icon">📅</div>';
-        const t = document.createElement('div');
-        t.className = 'empty-txt';
-        safeText(t, 'لا توجد مواعيد');
-        const s = document.createElement('div');
-        s.className = 'empty-sub';
-        safeText(s, _currentFilter ? 'لا توجد مواعيد بهذه الحالة' : 'لم تصلك دعوات مقابلات بعد');
-        empty.appendChild(t);
-        empty.appendChild(s);
-        listEl.appendChild(empty);
+        listEl.appendChild(stateBox('calendar', 'لا توجد مواعيد',
+          _currentFilter ? 'لا توجد مواعيد بهذه الحالة' : 'لم تصلك دعوات مقابلات بعد'));
         return;
       }
       res.data.forEach(a => listEl.appendChild(renderCard(a)));
     }).catch(function(){
-      listEl.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-txt">خطأ في تحميل البيانات</div></div>';
+      listEl.innerHTML = '';
+      listEl.appendChild(stateBox('alert', 'خطأ في تحميل البيانات'));
     });
   }
 
@@ -389,7 +379,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 
   document.getElementById('btnCreateAppt').addEventListener('click', function(){
     const application_id = parseInt(document.getElementById('fApplication').value);
-    if (!application_id) { alert('أدخل رقم طلب التوظيف'); return; }
+    if (!application_id) { showToast('أدخل رقم طلب التوظيف', 'warning'); return; }
     const mode = fMode.value;
     const payload = {
       application_id,
@@ -401,11 +391,11 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     api('/api/appointments', { method: 'POST', body: JSON.stringify(payload) }).then(res => {
       if (res.ok) {
         modal.classList.remove('open');
-        location.href = '/appointment-room?id=' + res.data.id;
+        location.href = '/appointment-room?id=' + encodeURIComponent(res.data.id);
       } else {
-        alert(res.detail || 'خطأ في إنشاء الموعد');
+        showToast(errMsg(res, 'خطأ في إنشاء الموعد'), 'error');
       }
-    }).catch(function(){ alert('خطأ في الاتصال'); });
+    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
   });
 
   loadAppointments();

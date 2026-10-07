@@ -160,7 +160,7 @@ errL[0].fn({ target: makeEl('script') }); errL[0].fn({ target: null });
 check('B2 ignores non-img / null targets', true);
 
 // ── B3 — consumers = phase-C pages only ─────────────────────────────
-const PHASE_C = [path.join('static', 'job', 'job-detail.js')];
+const PHASE_C = [path.join('static', 'job', 'job-detail.js'), 'appointments.html', 'appointment-room.html'];
 const SKIP = new Set(['.git', 'node_modules', 'vendor', '__pycache__', 'docs']);
 const users = [];
 (function walk(dir) {

@@ -4651,7 +4651,9 @@ def public_profile_short_url(tw_id: str):
 
 Every page path also answers at its `.html` variant unless noted.
 
-**Page Shell (PR-8 · F39 · `docs/design-system/PAGE-SHELL.md`):** every page is read through `read_html()`, which calls `page_shell.apply_shell()` once per file (then cached): `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (or `:admin`) → the fixed partials in `partials/` (not servable — `.html` is outside the `/static` allowlist), with `?v=` = 10-hex sha256 of `tw_shared.css` / `tw_shared.js` / `auth-sync.js` computed at startup. A page without markers is served byte-for-byte; half / mixed markers raise. Admin variant: no manifest, no `auth-sync.js`, `<meta name="tw-sw" content="off">` (tw_shared.js skips SW registration). Converted: `home-v2.html`.
+**Page Shell (PR-8 · F39 · `docs/design-system/PAGE-SHELL.md`):** every page is read through `read_html()`, which calls `page_shell.apply_shell()` once per file (then cached): `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` (or `:admin`) → the fixed partials in `partials/` (not servable — `.html` is outside the `/static` allowlist), with `?v=` = 10-hex sha256 of `tw_shared.css` / `tw_shared.js` / `auth-sync.js` computed at startup. A page without markers is served byte-for-byte; half / mixed markers raise. Admin variant: no manifest, no `auth-sync.js`, `<meta name="tw-sw" content="off">` (tw_shared.js skips SW registration). Converted: `home-v2.html` · Phase C: `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`.
+
+**Protected Page Guard (Phase C · `PAGE-SHELL.md` SHELL-09 · CLAUDE.md Auth Gateway rule 14):** a page that needs a session declares `<meta name="tw-page" content="auth">` and calls `twRequireAuth(opts)` (`tw_shared.js` — the only guard) once, first in its script. Decision from `TwAuthSync.getSessionSnapshot()` only: not authenticated (guest / expired / stale / invalid / no TwAuthSync) → `location.replace(twLoginHref(pathname + search))`; `opts.userTypes` without the account type → `location.replace(twAccountHref(u))`; else the snapshot. One `TwAuthSync.onSessionChange` registration: logout / expiry in another tab or bfcache restore → same decision; another account signed in → reload. UX only — the API enforces auth (F6 / F21). Consumers: `appointments.html` · `appointment-room.html` (both: `getAuthHeaders(true)`, `401` → `invalidateSession('api_401')`).
 
 | Path | Serves | Audience / note |
 |------|--------|-----------------|
@@ -4667,8 +4669,8 @@ Every page path also answers at its `.html` variant unless noted.
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
 | `/settings` | `settings.html` | All |
-| `/appointments` | `appointments.html` | All (no `.html` variant) |
-| `/appointment-room` | `appointment-room.html` | All (no `.html` variant) |
+| `/appointments` | `appointments.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
+| `/appointment-room` | `appointment-room.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
 

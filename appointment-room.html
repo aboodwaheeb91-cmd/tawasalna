@@ -1,145 +1,155 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--tw:shell-head-->
 <title>غرفة الموعد — تواصلنا</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+<meta name="tw-page" content="auth">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* Appointment room — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
 :root{
-  --bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);
-  --ac:#00c896;--ac2:#2563ff;--ac3:#8b5cf6;
-  --txt:#e8eaf0;--sub:#8892a4;--danger:#ef4444;--warn:#f59e0b;
-  --r:14px;--font:'Cairo',sans-serif
+  --ap-border:rgba(255,255,255,.07);
+  --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
+  --ap-surface-modal:#0d1526;
+  --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
-body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;
+body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;
   display:flex;flex-direction:column}
 /* Header */
 .hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.97);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px}
-.hdr-back{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
-  background:var(--card);display:flex;align-items:center;justify-content:center;
-  color:var(--sub);text-decoration:none;font-size:18px;flex-shrink:0}
+  border-bottom:1px solid var(--ap-border);padding:var(--space-6) var(--space-8);display:flex;align-items:center;gap:var(--space-5)}
+.hdr-back{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:var(--color-surface-card);display:flex;align-items:center;justify-content:center;
+  color:var(--ap-text-sub);text-decoration:none;flex-shrink:0}
 .hdr-info{flex:1;min-width:0}
-.hdr-title{font-size:15px;font-weight:700;color:var(--txt)}
-.hdr-sub{font-size:12px;color:var(--sub)}
-.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;
+.hdr-title{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text)}
+.hdr-sub{font-size:var(--size-font-xs);color:var(--ap-text-sub)}
+.badge{display:inline-flex;align-items:center;padding:var(--space-1) var(--space-5);border-radius:var(--radius-3xl);
   font-size:11px;font-weight:700}
-.badge-pending{background:rgba(245,158,11,.12);color:var(--warn)}
-.badge-confirmed{background:rgba(0,200,150,.12);color:var(--ac)}
-.badge-cancelled{background:rgba(239,68,68,.12);color:var(--danger)}
-.badge-reschedule{background:rgba(139,92,246,.12);color:var(--ac3)}
-.badge-expired{background:rgba(239,68,68,.1);color:#f87171}
-.badge-completed{background:rgba(37,99,255,.12);color:var(--ac2)}
-.badge-closed{background:rgba(255,255,255,.06);color:var(--sub)}
-.badge-draft{background:rgba(255,255,255,.06);color:var(--sub)}
-.badge-missed{background:rgba(239,68,68,.1);color:#f87171}
+.badge-pending{background:rgba(245,158,11,.12);color:var(--ap-warn)}
+.badge-confirmed{background:rgba(var(--color-brand-primary-rgb),.12);color:var(--color-brand-primary)}
+.badge-cancelled{background:rgba(239,68,68,.12);color:var(--ap-danger)}
+.badge-reschedule{background:rgba(139,92,246,.12);color:var(--color-brand-accent)}
+.badge-expired{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-completed{background:rgba(var(--color-brand-secondary-rgb),.12);color:var(--color-brand-secondary)}
+.badge-closed{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
+.badge-draft{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
+.badge-missed{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
 /* Main layout: scrollable area above fixed bottom */
-.main{flex:1;overflow-y:auto;padding:12px 16px;padding-bottom:8px}
+.main{flex:1;overflow-y:auto;padding:var(--space-6) var(--space-8);padding-bottom:var(--space-4)}
 /* Info card */
-.info-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
-  padding:16px;margin-bottom:12px}
-.ic-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.ic-ava{width:48px;height:48px;border-radius:50%;background:rgba(37,99,255,.18);
-  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;
-  color:var(--ac2);flex-shrink:0;overflow:hidden}
-.ic-ava img{width:100%;height:100%;object-fit:cover}
+.info-card{background:var(--color-surface-card);border:1px solid var(--ap-border);border-radius:var(--r);
+  padding:var(--space-8);margin-bottom:var(--space-6)}
+.ic-row{display:flex;align-items:center;gap:var(--space-5);margin-bottom:var(--space-5)}
 .ic-names{flex:1;min-width:0}
-.ic-main{font-size:15px;font-weight:700;color:var(--txt)}
-.ic-sub{font-size:12px;color:var(--sub);margin-top:2px}
-.ic-detail{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.ic-meta{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub)}
-.ic-meta svg{width:13px;height:13px;flex-shrink:0}
+.ic-main{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text)}
+.ic-sub{font-size:var(--size-font-xs);color:var(--ap-text-sub);margin-top:var(--space-1)}
+.ic-detail{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-5)}
+.ic-meta{display:flex;align-items:center;gap:5px;font-size:var(--size-font-xs);color:var(--ap-text-sub)}
+.ic-meta .tw-ico{flex-shrink:0}
 /* countdown */
-.countdown{font-size:12px;color:var(--warn);font-weight:700;margin-top:6px}
+.countdown{font-size:var(--size-font-xs);color:var(--ap-warn);font-weight:700;margin-top:var(--space-3)}
 /* Online URL */
-.url-card{background:rgba(37,99,255,.06);border:1px solid rgba(37,99,255,.2);
-  border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.url-lbl{font-size:12px;color:var(--sub);margin-bottom:2px}
-.url-link{font-size:13px;color:var(--ac2);word-break:break-all}
+.url-card{background:rgba(var(--color-brand-secondary-rgb),.06);border:1px solid rgba(var(--color-brand-secondary-rgb),.2);
+  border-radius:var(--radius-md);padding:var(--space-5) var(--space-7);margin-bottom:var(--space-6);display:flex;align-items:center;gap:var(--space-4)}
+.url-lbl{font-size:var(--size-font-xs);color:var(--ap-text-sub);margin-bottom:var(--space-1)}
+.url-link{font-size:var(--size-font-md);color:var(--color-brand-secondary);word-break:break-all}
+/* Onsite location */
+.loc-card{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius-md);
+  padding:var(--space-5) var(--space-7);margin-bottom:var(--space-6);font-size:var(--size-font-md)}
+.loc-lbl{font-size:11px;color:var(--ap-text-sub);margin-bottom:3px}
+.loc-txt{color:var(--ap-text)}
 /* Action buttons */
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.btn-act{flex:1;min-width:140px;padding:10px 14px;border-radius:10px;border:none;
-  font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;transition:.2s}
-.btn-accept{background:rgba(0,200,150,.15);border:1px solid rgba(0,200,150,.3);color:var(--ac)}
-.btn-accept:hover{background:rgba(0,200,150,.25)}
-.btn-reschedule{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:var(--ac3)}
-.btn-cancel-act{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--danger)}
-.btn-complete{background:rgba(37,99,255,.12);border:1px solid rgba(37,99,255,.25);color:var(--ac2)}
-.btn-close-room{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--sub)}
-.btn-propose{background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.25);color:var(--ac)}
+.actions{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-bottom:var(--space-6)}
+.btn-act{flex:1;min-width:140px;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:none;
+  font-size:var(--size-font-md);font-weight:700;font-family:var(--font);cursor:pointer;transition:.2s;
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3)}
+.btn-accept{background:rgba(var(--color-brand-primary-rgb),.15);border:1px solid rgba(var(--color-brand-primary-rgb),.3);color:var(--color-brand-primary)}
+.btn-accept:hover{background:rgba(var(--color-brand-primary-rgb),.25)}
+.btn-reschedule{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:var(--color-brand-accent)}
+.btn-cancel-act{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--ap-danger)}
+.btn-complete{background:rgba(var(--color-brand-secondary-rgb),.12);border:1px solid rgba(var(--color-brand-secondary-rgb),.25);color:var(--color-brand-secondary)}
+.btn-close-room{background:rgba(255,255,255,.06);border:1px solid var(--ap-border);color:var(--ap-text-sub)}
+.btn-propose{background:rgba(var(--color-brand-primary-rgb),.12);border:1px solid rgba(var(--color-brand-primary-rgb),.25);color:var(--color-brand-primary)}
 /* Tabs */
-.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:12px}
-.tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;
+.tabs{display:flex;border-bottom:1px solid var(--ap-border);margin-bottom:var(--space-6)}
+.tab{padding:var(--space-5) var(--space-9);font-size:var(--size-font-md);font-weight:600;color:var(--ap-text-sub);cursor:pointer;
   border-bottom:2px solid transparent;transition:.2s}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
+.tab.active{color:var(--color-brand-primary);border-bottom-color:var(--color-brand-primary)}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
 /* Events timeline */
-.evt-item{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
-.evt-dot{width:10px;height:10px;border-radius:50%;background:var(--ac);margin-top:4px;flex-shrink:0}
-.evt-dot.system{background:var(--sub)}
-.evt-dot.cancel{background:var(--danger)}
+.evt-item{display:flex;gap:var(--space-5);margin-bottom:var(--space-6);align-items:flex-start}
+.evt-dot{width:10px;height:10px;border-radius:var(--radius-circle);background:var(--color-brand-primary);margin-top:var(--space-2);flex-shrink:0}
+.evt-dot.system{background:var(--ap-text-sub)}
+.evt-dot.cancel{background:var(--ap-danger)}
 .evt-body{flex:1}
-.evt-type{font-size:13px;color:var(--txt);font-weight:600}
-.evt-meta{font-size:11px;color:var(--sub);margin-top:2px}
-.evt-reason{font-size:12px;color:var(--warn);margin-top:3px}
+.evt-type{font-size:var(--size-font-md);color:var(--ap-text);font-weight:600}
+.evt-meta{font-size:11px;color:var(--ap-text-sub);margin-top:var(--space-1)}
+.evt-reason{font-size:var(--size-font-xs);color:var(--ap-warn);margin-top:3px}
+.panel-note{color:var(--ap-text-sub);font-size:var(--size-font-md);padding:var(--space-5)}
+.panel-empty{text-align:center;padding:var(--space-10);color:var(--ap-text-sub);font-size:var(--size-font-md)}
+.panel-error{color:var(--ap-danger);padding:var(--space-5);font-size:var(--size-font-md)}
 /* Messages thread */
-.msgs-list{display:flex;flex-direction:column;gap:8px;padding-bottom:4px}
-.msg-item{max-width:80%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.5}
-.msg-own{align-self:flex-start;background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.15);color:var(--txt)}
-.msg-other{align-self:flex-end;background:var(--card);border:1px solid var(--border);color:var(--txt)}
-.msg-name{font-size:11px;font-weight:700;color:var(--sub);margin-bottom:4px}
-.msg-time{font-size:10px;color:var(--sub);margin-top:3px;text-align:left}
-.msgs-empty{text-align:center;padding:30px;color:var(--sub);font-size:13px}
+.msgs-list{display:flex;flex-direction:column;gap:var(--space-4);padding-bottom:var(--space-2)}
+.msg-item{max-width:80%;padding:9px var(--space-6);border-radius:var(--radius-lg);font-size:var(--size-font-lg);line-height:1.5}
+.msg-own{align-self:flex-start;background:rgba(var(--color-brand-primary-rgb),.1);border:1px solid rgba(var(--color-brand-primary-rgb),.15);color:var(--ap-text)}
+.msg-other{align-self:flex-end;background:var(--color-surface-card);border:1px solid var(--ap-border);color:var(--ap-text)}
+.msg-name{font-size:11px;font-weight:700;color:var(--ap-text-sub);margin-bottom:var(--space-2)}
+.msg-time{font-size:var(--size-font-3xs);color:var(--ap-text-sub);margin-top:3px;text-align:left}
+.msgs-empty{text-align:center;padding:30px;color:var(--ap-text-sub);font-size:var(--size-font-md)}
 /* Fixed bottom input */
-.msg-input-bar{position:sticky;bottom:0;background:rgba(7,11,24,.97);border-top:1px solid var(--border);
-  padding:10px 16px;display:flex;gap:8px;align-items:flex-end}
+.msg-input-bar{position:sticky;bottom:0;background:rgba(7,11,24,.97);border-top:1px solid var(--ap-border);
+  padding:var(--space-5) var(--space-8);display:flex;gap:var(--space-4);align-items:flex-end}
 .msg-input-bar.hidden{display:none}
-.msg-ta{flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--border);
-  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);
-  font-size:14px;resize:none;rows:1;min-height:38px;max-height:100px}
-.msg-ta:focus{outline:none;border-color:var(--ac)}
-.msg-send-btn{padding:9px 16px;border-radius:10px;background:transparent;
-  border:1.5px solid var(--ac);color:var(--ac);font-family:var(--font);font-size:13px;
+.msg-ta{flex:1;padding:9px var(--space-6);border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);
+  font-size:var(--size-font-lg);resize:none;min-height:38px;max-height:100px}
+.msg-ta:focus{outline:none;border-color:var(--color-brand-primary)}
+.msg-send-btn{padding:9px var(--space-8);border-radius:var(--radius-md);background:transparent;
+  border:1.5px solid var(--color-brand-primary);color:var(--color-brand-primary);font-family:var(--font);font-size:var(--size-font-md);
   font-weight:700;cursor:pointer;flex-shrink:0;transition:.2s;height:38px}
-.msg-send-btn:hover{background:rgba(0,200,150,.15)}
+.msg-send-btn:hover{background:rgba(var(--color-brand-primary-rgb),.15)}
 /* Reschedule/reason modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
   display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
 .modal-bg.open{opacity:1;pointer-events:all}
-.modal{background:#0d1526;border-radius:20px 20px 0 0;padding:24px 20px 40px;
+.modal{background:var(--ap-surface-modal);border-radius:var(--radius-3xl) var(--radius-3xl) 0 0;padding:var(--space-11) var(--space-10) var(--space-13);
   width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
 .modal-bg.open .modal{transform:translateY(0)}
-.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
-.form-group{margin-bottom:14px}
-.form-label{font-size:12px;color:var(--sub);margin-bottom:5px;display:block}
-.form-input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
-  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);font-size:14px}
-.form-input:focus{outline:none;border-color:var(--ac)}
-.form-select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
-  background:#0d1526;color:var(--txt);font-family:var(--font);font-size:14px}
-.btn-submit{width:100%;padding:12px;border-radius:12px;background:var(--ac);color:#fff;
-  border:none;font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;margin-top:4px}
-.btn-cancel-modal{width:100%;padding:12px;border-radius:12px;background:var(--card);
-  color:var(--sub);border:1px solid var(--border);font-size:15px;font-family:var(--font);
-  cursor:pointer;margin-top:8px}
+.modal-title{font-size:var(--size-font-2xl);font-weight:700;margin-bottom:var(--space-8)}
+.form-group{margin-bottom:var(--space-7)}
+.form-label{font-size:var(--size-font-xs);color:var(--ap-text-sub);margin-bottom:5px;display:block}
+.form-input{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
+.form-input:focus{outline:none;border-color:var(--color-brand-primary)}
+.form-select{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
+  background:var(--ap-surface-modal);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
+.btn-submit{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-brand-primary);color:var(--color-text-primary);
+  border:none;font-size:var(--size-font-xl);font-weight:700;font-family:var(--font);cursor:pointer;margin-top:var(--space-2)}
+.btn-cancel-modal{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-surface-card);
+  color:var(--ap-text-sub);border:1px solid var(--ap-border);font-size:var(--size-font-xl);font-family:var(--font);
+  cursor:pointer;margin-top:var(--space-4)}
 /* closed overlay */
-.closed-banner{background:rgba(255,255,255,.04);border:1px solid var(--border);
-  border-radius:10px;padding:12px 16px;text-align:center;color:var(--sub);font-size:13px;
-  margin-bottom:12px}
-.error-page{text-align:center;padding:80px 20px;color:var(--sub)}
+.closed-banner{background:rgba(255,255,255,.04);border:1px solid var(--ap-border);
+  border-radius:var(--radius-md);padding:var(--space-6) var(--space-8);color:var(--ap-text-sub);font-size:var(--size-font-md);
+  margin-bottom:var(--space-6);display:flex;align-items:center;justify-content:center;gap:var(--space-3)}
+.error-page{text-align:center;padding:80px var(--space-10);color:var(--ap-text-sub)}
+.error-icon{display:flex;justify-content:center;margin-bottom:var(--space-6)}
+.error-icon .tw-ico{width:40px;height:40px}
+.error-title{font-size:var(--size-font-xl);color:var(--ap-text)}
+.error-sub{font-size:var(--size-font-md);margin-top:var(--space-3)}
+.error-link{display:inline-block;margin-top:var(--space-10);color:var(--color-brand-primary);font-size:var(--size-font-md)}
+.error-fail{font-size:var(--size-font-md);color:var(--ap-danger)}
 .skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
-  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px;margin-bottom:10px}
+  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm);margin-bottom:var(--space-5)}
+.sk-info{height:100px}.sk-url{height:60px}.sk-panel{height:200px}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <a class="hdr-back" href="/appointments">&#8249;</a>
+  <a class="hdr-back" href="/appointments" aria-label="رجوع للمواعيد"><i data-tw-icon="back" data-tw-size="lg"></i></a>
   <div class="hdr-info">
     <div class="hdr-title" id="hdrTitle">غرفة الموعد</div>
     <div class="hdr-sub" id="hdrSub"></div>
@@ -148,9 +158,9 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 </div>
 
 <div class="main" id="mainContent">
-  <div class="skeleton" style="height:100px"></div>
-  <div class="skeleton" style="height:60px"></div>
-  <div class="skeleton" style="height:200px"></div>
+  <div class="skeleton sk-info"></div>
+  <div class="skeleton sk-url"></div>
+  <div class="skeleton sk-panel"></div>
 </div>
 
 <div class="msg-input-bar hidden" id="msgInputBar">
@@ -231,12 +241,13 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   </div>
 </div>
 
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
 <script>
 (function(){
   'use strict';
-  const _u = JSON.parse(localStorage.getItem('tw_user') || 'null');
-  const _jwt = localStorage.getItem('tw_jwt') || '';
-  if (!_u || !_jwt) { location.href = '/login'; return; }
+  // Protected page guard (tw_shared.js) — TwAuthSync snapshot only; guest → /login?next=/appointment-room?id=N
+  if (!twRequireAuth()) return;
 
   const params = new URLSearchParams(location.search);
   const APPT_ID = parseInt(params.get('id'));
@@ -274,25 +285,35 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   };
   const MODE_LABEL = { online:'أونلاين', onsite:'حضوري' };
 
+  // Authorization via getAuthHeaders (tw_shared.js). 401 → TwAuthSync.invalidateSession →
+  // the page guard sends the visitor to /login?next= (same path as an expired session).
   function api(path, opts){
-    return fetch(path, Object.assign({
-      headers:{'Authorization':'Bearer '+_jwt,'Content-Type':'application/json'}
-    }, opts)).then(r => r.json());
+    return fetch(path, Object.assign({ headers: getAuthHeaders(true) }, opts)).then(function(r){
+      if (r.status === 401 && window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
+      return r.json();
+    });
   }
 
-  function safeText(el, text){ el.textContent = String(text || ''); }
+  // Error text from any API error shape (normalizeErrorResponse — FBK M15)
+  function errMsg(res, fallback){
+    const g = normalizeErrorResponse(res).generalError;
+    return (g && g.code !== 'unknown' && g.message) || fallback;
+  }
+
+  // Action button: DS-ICON icon + label (no emoji — F37)
+  function actBtn(cls, icon, label){
+    const b = document.createElement('button');
+    b.className = 'btn-act ' + cls;
+    b.appendChild(twIconEl(icon, { size: 'sm' }));
+    b.appendChild(document.createTextNode(label));
+    return b;
+  }
 
   function formatDate(iso){
     if (!iso) return '';
     try {
       return new Date(iso).toLocaleString('ar-JO',{dateStyle:'medium',timeStyle:'short'});
     } catch(e){ return iso; }
-  }
-
-  function initials(name){
-    if (!name) return '?';
-    const p = name.trim().split(' ');
-    return (p[0][0]||'')+(p[1]?p[1][0]:'');
   }
 
   function countdown(iso){
@@ -318,6 +339,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   const reschedModal= document.getElementById('reschedModal');
   const sendModal   = document.getElementById('sendModal');
 
+  twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
+
   function renderRoom(appt){
     _appt = appt;
     const s = appt.computed_status || appt.status;
@@ -339,11 +362,10 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     const icRow = document.createElement('div');
     icRow.className = 'ic-row';
 
-    const ava = document.createElement('div');
-    ava.className = 'ic-ava';
-    const iniEl = document.createElement('span');
-    safeText(iniEl, IS_CO ? initials(appt.applicant_name) : initials(appt.company_name));
-    ava.appendChild(iniEl);
+    // DS-IMAGE: the other side — applicant (emp) for the company, company (co) otherwise
+    const ava = twAvatarEl(IS_CO
+      ? { full_name: appt.applicant_name, avatar_url: appt.applicant_avatar, user_type: 'emp' }
+      : { full_name: appt.company_name, avatar_url: appt.company_avatar, user_type: 'co' }, 'lg');
 
     const names = document.createElement('div');
     names.className = 'ic-names';
@@ -362,23 +384,23 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     const details = document.createElement('div');
     details.className = 'ic-detail';
 
-    function addMeta(iconPath, text){
+    function addMeta(icon, text){
       if (!text) return;
       const d = document.createElement('div');
       d.className = 'ic-meta';
-      d.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">' + iconPath + '</svg>';
+      d.appendChild(twIconEl(icon, { size: 'sm' }));
       const sp = document.createElement('span');
       safeText(sp, text);
       d.appendChild(sp);
       details.appendChild(d);
     }
 
-    addMeta('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    addMeta('clock',
             appt.scheduled_at ? formatDate(appt.scheduled_at) : 'لم يُحدَّد بعد');
-    addMeta('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    addMeta('calendar',
             MODE_LABEL[appt.mode]||appt.mode);
     if (appt.representative_name) {
-      addMeta('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      addMeta('user',
               'ممثل الشركة: ' + appt.representative_name);
     }
 
@@ -404,7 +426,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (appt.online_url && appt.mode === 'online' && !isClosed) {
       const urlCard = document.createElement('div');
       urlCard.className = 'url-card';
-      urlCard.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+      urlCard.appendChild(twIconEl('link', { size: 'md' }));
       const info2 = document.createElement('div');
       const lbl2 = document.createElement('div');
       lbl2.className = 'url-lbl';
@@ -424,12 +446,12 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     // Location (onsite)
     if (appt.location_text && appt.mode === 'onsite') {
       const locCard = document.createElement('div');
-      locCard.style.cssText = 'background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px';
+      locCard.className = 'loc-card';
       const ll = document.createElement('div');
-      ll.style.cssText = 'font-size:11px;color:var(--sub);margin-bottom:3px';
+      ll.className = 'loc-lbl';
       safeText(ll, 'موقع المقابلة');
       const lt = document.createElement('div');
-      lt.style.cssText = 'color:var(--txt)';
+      lt.className = 'loc-txt';
       safeText(lt, appt.location_text);
       locCard.appendChild(ll);
       locCard.appendChild(lt);
@@ -440,7 +462,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (isClosed) {
       const banner = document.createElement('div');
       banner.className = 'closed-banner';
-      safeText(banner, '🔒 هذه الغرفة مغلقة — القراءة فقط');
+      banner.appendChild(twIconEl('lock', { size: 'sm' }));
+      banner.appendChild(document.createTextNode('هذه الغرفة مغلقة — القراءة فقط'));
       mainContent.appendChild(banner);
     }
 
@@ -450,9 +473,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
       actDiv.className = 'actions';
 
       if (IS_CO && s === 'draft') {
-        const b = document.createElement('button');
-        b.className = 'btn-act btn-accept';
-        safeText(b, '📤 إرسال الدعوة');
+        const b = actBtn('btn-accept', 'send', 'إرسال الدعوة');
         b.addEventListener('click', function(){
           const m = (_appt && _appt.mode) || 'online';
           document.getElementById('sendUrlGrp').style.display = m === 'online' ? '' : 'none';
@@ -467,22 +488,16 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         actDiv.appendChild(b);
       }
       if (IS_EMP && s === 'pending_response') {
-        const b1 = document.createElement('button');
-        b1.className = 'btn-act btn-accept';
-        safeText(b1, '✅ موافق على الموعد');
+        const b1 = actBtn('btn-accept', 'check', 'موافق على الموعد');
         b1.addEventListener('click', function(){ doAccept(); });
-        const b2 = document.createElement('button');
-        b2.className = 'btn-act btn-reschedule';
-        safeText(b2, '📅 طلب موعد آخر');
+        const b2 = actBtn('btn-reschedule', 'calendar-clock', 'طلب موعد آخر');
         b2.addEventListener('click', function(){
           _reasonAction = 'request-reschedule';
           document.getElementById('reasonModalTitle').textContent = 'طلب تغيير الموعد';
           document.getElementById('reasonInput').value = '';
           reasonModal.classList.add('open');
         });
-        const b3 = document.createElement('button');
-        b3.className = 'btn-act btn-cancel-act';
-        safeText(b3, '❌ اعتذار / إلغاء');
+        const b3 = actBtn('btn-cancel-act', 'close', 'اعتذار / إلغاء');
         b3.addEventListener('click', function(){
           _reasonAction = 'cancel';
           document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
@@ -494,9 +509,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         actDiv.appendChild(b3);
       }
       if (IS_CO && s === 'reschedule_requested') {
-        const b = document.createElement('button');
-        b.className = 'btn-act btn-propose';
-        safeText(b, '📅 اقتراح موعد جديد');
+        const b = actBtn('btn-propose', 'calendar-clock', 'اقتراح موعد جديد');
         b.addEventListener('click', function(){
           const m = (_appt && _appt.mode) || 'online';
           document.getElementById('reschedUrlGrp').style.display = m === 'online' ? '' : 'none';
@@ -508,9 +521,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
           document.getElementById('newSchedAt').min = new Date(Date.now() + 60000).toISOString().slice(0,16);
           reschedModal.classList.add('open');
         });
-        const bc = document.createElement('button');
-        bc.className = 'btn-act btn-cancel-act';
-        safeText(bc, '❌ إلغاء الموعد');
+        const bc = actBtn('btn-cancel-act', 'close', 'إلغاء الموعد');
         bc.addEventListener('click', function(){
           _reasonAction = 'cancel';
           document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
@@ -521,24 +532,18 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         actDiv.appendChild(bc);
       }
       if (IS_CO && s === 'confirmed') {
-        const b = document.createElement('button');
-        b.className = 'btn-act btn-complete';
-        safeText(b, '🏁 إنهاء المقابلة');
+        const b = actBtn('btn-complete', 'circle-check', 'إنهاء المقابلة');
         b.addEventListener('click', function(){ doComplete(); });
         actDiv.appendChild(b);
       }
       if (IS_CO && (s === 'completed' || s === 'cancelled')) {
-        const b = document.createElement('button');
-        b.className = 'btn-act btn-close-room';
-        safeText(b, '🔒 إغلاق الغرفة');
+        const b = actBtn('btn-close-room', 'lock', 'إغلاق الغرفة');
         b.addEventListener('click', function(){ doClose(); });
         actDiv.appendChild(b);
       }
       // Any participant can cancel confirmed/pending
       if (IS_EMP && (s === 'confirmed')) {
-        const b = document.createElement('button');
-        b.className = 'btn-act btn-cancel-act';
-        safeText(b, '❌ إلغاء الموعد');
+        const b = actBtn('btn-cancel-act', 'close', 'إلغاء الموعد');
         b.addEventListener('click', function(){
           _reasonAction = 'cancel';
           document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
@@ -600,19 +605,19 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   }
 
   function loadEvents(container){
-    container.innerHTML = '<div style="color:var(--sub);font-size:13px;padding:10px">جاري التحميل...</div>';
+    container.innerHTML = '<div class="panel-note">جاري التحميل...</div>';
     api('/api/appointments/'+APPT_ID+'/events').then(res => {
       container.innerHTML = '';
       if (!res.ok || !res.data || res.data.length === 0) {
         const e = document.createElement('div');
-        e.style.cssText = 'text-align:center;padding:20px;color:var(--sub);font-size:13px';
+        e.className = 'panel-empty';
         safeText(e, 'لا توجد أحداث بعد');
         container.appendChild(e);
         return;
       }
       res.data.forEach(ev => container.appendChild(buildEvtItem(ev)));
     }).catch(function(){
-      container.innerHTML = '<div style="color:var(--danger);padding:10px;font-size:13px">خطأ في تحميل الأحداث</div>';
+      container.innerHTML = '<div class="panel-error">خطأ في تحميل الأحداث</div>';
     });
   }
 
@@ -672,7 +677,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
       container.appendChild(list);
       scrollMsgsToBottom();
     }).catch(function(){
-      container.innerHTML = '<div style="color:var(--danger);padding:10px;font-size:13px">خطأ في تحميل الرسائل</div>';
+      container.innerHTML = '<div class="panel-error">خطأ في تحميل الرسائل</div>';
     });
   }
 
@@ -765,9 +770,9 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
             scrollMsgsToBottom();
           }
         } else {
-          alert(res.detail || 'خطأ في إرسال الرسالة');
+          showToast(errMsg(res, 'خطأ في إرسال الرسالة'), 'error');
         }
-      }).catch(function(){ alert('خطأ في الاتصال'); })
+      }).catch(function(){ showToast('خطأ في الاتصال', 'error'); })
       .finally(function(){ msgSendBtn.disabled = false; });
   }
 
@@ -776,8 +781,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (!confirm('هل تؤكد قبول الموعد؟')) return;
     api('/api/appointments/'+APPT_ID+'/accept',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
-      else alert(res.detail || 'خطأ');
-    }).catch(function(){ alert('خطأ في الاتصال'); });
+      else showToast(errMsg(res, 'خطأ'), 'error');
+    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
   }
 
   // Complete
@@ -785,8 +790,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (!confirm('هل تؤكد إنهاء المقابلة؟')) return;
     api('/api/appointments/'+APPT_ID+'/complete',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
-      else alert(res.detail || 'خطأ');
-    }).catch(function(){ alert('خطأ في الاتصال'); });
+      else showToast(errMsg(res, 'خطأ'), 'error');
+    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
   }
 
   // Close room
@@ -794,8 +799,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (!confirm('هل تريد إغلاق الغرفة نهائياً؟ لن يمكن إرسال رسائل بعد الإغلاق.')) return;
     api('/api/appointments/'+APPT_ID+'/close',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
-      else alert(res.detail || 'خطأ');
-    }).catch(function(){ alert('خطأ في الاتصال'); });
+      else showToast(errMsg(res, 'خطأ'), 'error');
+    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
   }
 
   // Reason modal
@@ -810,10 +815,10 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     reasonModal.classList.remove('open');
     if (_reasonAction === 'cancel') {
       api('/api/appointments/'+APPT_ID+'/cancel',{method:'POST',body:JSON.stringify({reason})})
-        .then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+        .then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
     } else if (_reasonAction === 'request-reschedule') {
       api('/api/appointments/'+APPT_ID+'/request-reschedule',{method:'POST',body:JSON.stringify({reason})})
-        .then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+        .then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
     }
   });
 
@@ -826,24 +831,24 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   });
   document.getElementById('btnConfirmResched').addEventListener('click', function(){
     const newSched = document.getElementById('newSchedAt').value;
-    if (!newSched) { alert('اختر التاريخ والوقت'); return; }
+    if (!newSched) { showToast('اختر التاريخ والوقت', 'warning'); return; }
     const deadlineHrs = parseInt(document.getElementById('newDeadlineHrs').value);
     const iso = new Date(newSched).toISOString();
     const m = (_appt && _appt.mode) || 'online';
     const urlVal = document.getElementById('reschedUrl').value.trim() || null;
     const locVal = document.getElementById('reschedLoc').value.trim() || null;
     if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
-      alert('رابط المقابلة مطلوب للمواعيد الأونلاين'); return;
+      showToast('رابط المقابلة مطلوب للمواعيد الأونلاين', 'warning'); return;
     }
     if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
-      alert('موقع المقابلة مطلوب للمواعيد الحضورية'); return;
+      showToast('موقع المقابلة مطلوب للمواعيد الحضورية', 'warning'); return;
     }
     reschedModal.classList.remove('open');
     api('/api/appointments/'+APPT_ID+'/reschedule',{
       method:'POST',
       body:JSON.stringify({new_scheduled_at:iso,deadline_hours:deadlineHrs,
                            online_url:urlVal,location_text:locVal})
-    }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+    }).then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
   });
 
   // Send modal
@@ -855,36 +860,36 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   });
   document.getElementById('btnConfirmSend').addEventListener('click', function(){
     const sched = document.getElementById('sendSchedAt').value;
-    if (!sched) { alert('اختر التاريخ والوقت'); return; }
+    if (!sched) { showToast('اختر التاريخ والوقت', 'warning'); return; }
     const deadlineHrs = parseInt(document.getElementById('sendDeadlineHrs').value);
     const iso = new Date(sched).toISOString();
     const m = (_appt && _appt.mode) || 'online';
     const urlVal = document.getElementById('sendUrl').value.trim() || null;
     const locVal = document.getElementById('sendLoc').value.trim() || null;
     if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
-      alert('رابط المقابلة مطلوب للمواعيد الأونلاين'); return;
+      showToast('رابط المقابلة مطلوب للمواعيد الأونلاين', 'warning'); return;
     }
     if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
-      alert('موقع المقابلة مطلوب للمواعيد الحضورية'); return;
+      showToast('موقع المقابلة مطلوب للمواعيد الحضورية', 'warning'); return;
     }
     sendModal.classList.remove('open');
     api('/api/appointments/'+APPT_ID+'/send',{
       method:'POST',
       body:JSON.stringify({scheduled_at:iso,deadline_hours:deadlineHrs,
                            online_url:urlVal,location_text:locVal})
-    }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+    }).then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
   });
 
   // Load room
   api('/api/appointments/'+APPT_ID).then(res => {
     if (!res.ok) {
-      mainContent.innerHTML = '<div class="error-page"><div style="font-size:40px;margin-bottom:12px">🔒</div><div style="font-size:15px;color:var(--txt)">غير مصرح</div><div style="font-size:13px;margin-top:6px">لا تملك صلاحية الوصول لهذه الغرفة</div><br><a href="/appointments" style="color:var(--ac);font-size:13px">العودة للمواعيد</a></div>';
+      mainContent.innerHTML = '<div class="error-page"><div class="error-icon">' + twIcon('lock') + '</div><div class="error-title">غير مصرح</div><div class="error-sub">لا تملك صلاحية الوصول لهذه الغرفة</div><a class="error-link" href="/appointments">العودة للمواعيد</a></div>';
       msgInputBar.classList.add('hidden');
       return;
     }
     renderRoom(res.data);
   }).catch(function(){
-    mainContent.innerHTML = '<div class="error-page"><div style="font-size:13px;color:var(--danger)">خطأ في تحميل بيانات الغرفة</div></div>';
+    mainContent.innerHTML = '<div class="error-page"><div class="error-fail">خطأ في تحميل بيانات الغرفة</div></div>';
   });
 })();
 </script>

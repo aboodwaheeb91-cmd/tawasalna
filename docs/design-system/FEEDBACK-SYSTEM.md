@@ -926,8 +926,8 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 | **M9** | `settings.html:478` و10 ملفات أخرى | Local `showToast` مكررة (XSS) | P2 | Migration FBK-23 — PR منفصل لكل صفحة |
 | **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Canonical أزالها، Local copies ما زالت تستخدمها | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
 | **M11** | `tw_shared.js` | لا `pointer-events: none` على المستوى الصحيح | P3 | توضيح لا يكسر V2 Action Zone |
-| **M12** | `company.html` `appointment-room.html` `appointments.html` | `alert()` Category A+B | P2 | استبدال بـ DS-FEEDBACK |
-| **M13** | `appointment-room.html` `appointments.html` | `alert()` Category C — validation | P2 | استبدال بـ DS-VAL |
+| **M12** | `company.html` ~~`appointment-room.html` `appointments.html`~~ | `alert()` Category A+B | P2 | استبدال بـ DS-FEEDBACK — ✅ appointments + appointment-room (Phase C 2026-10-07: `showToast(…, 'error')` + `normalizeErrorResponse` — M15) |
+| **M13** | `appointment-room.html` `appointments.html` | `alert()` Category C — validation | P2 | استبدال بـ DS-VAL — مؤقتاً `showToast(…, 'warning')` (Phase C 2026-10-07 — ما في `alert()`)؛ الرسائل لسا مش inline على الحقل لحد runtime DS-VAL |
 | **M14** | `company.html:624` | `alert()` لعرض قائمة متقدمين | P3 | Modal أو DS-OVL solution |
 | **M15** | متعدد | `showToast(res.detail, 'error')` بدون normalization | P2 | Wrap بـ `normalizeErrorResponse()` |
 | **M16** ✅ | `index.ui.js` / `index.html` / `index.css` | Login page كانت تملك محرك Feedback منفصل (`#toast` + CSS محلي) يتعارض مع Single Global Surface | ~~P1~~ **مُصلَح** | `toast()` في `index.ui.js` أصبح Compatibility Wrapper (`window.showToast(msg, type||'success')`)؛ `#toast` div أُزيل من `index.html`؛ `.toast`/`.toast.show` + `.tw-toast[aria-live]` CSS أُزيل من `index.css` |
