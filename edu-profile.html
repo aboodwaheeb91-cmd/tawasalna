@@ -208,14 +208,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="hero-bg" id="heroBg"></div>
   <div class="hero-orb ho1"></div>
   <div class="hero-orb ho2"></div>
-  <img loading="lazy" id="coverImg" alt="">
-  <label id="coverUploadBtn" class="cover-upload-btn" title="رفع صورة الغلاف">
-    <input type="file" accept="image/*" onchange="uploadCover(this)" style="display:none">
-    📷 تغيير صورة الغلاف
-  </label>
 </div>
 
 <!-- ══ PROFILE HEADER ══ -->
+<!-- PR 1.7: only API-backed fields (name · avatar · bio · location · website). -->
 <div class="profile-header">
   <div class="ph-card">
     <div class="edu-logo" id="profileLogo">🎓</div>
@@ -223,161 +219,28 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       <div class="ph-top">
         <div>
           <div class="edu-name" id="profileName">اسم الجهة التعليمية</div>
-          <div class="edu-type-badge" id="profileType">🎓 مركز تدريب</div>
+          <div class="edu-type-badge">🎓 جهة تعليمية</div>
           <div class="edu-desc" id="profileDesc">لا يوجد وصف بعد.</div>
           <div class="edu-meta">
             <div class="edu-meta-item" id="profileLoc">📍 —</div>
-            <div class="edu-meta-item" id="profileFounded">📅 —</div>
+            <div class="edu-meta-item">🌐 <a href="#" id="aboutWeb">—</a></div>
           </div>
         </div>
         <div class="ph-actions" id="visitorActions">
-          <button class="nb nb-follow" id="followBtn" onclick="toggleFollow()">+ متابعة</button>
-          <button class="nb nb-ghost" onclick="openContact()">💬 تواصل</button>
+          <button class="nb nb-ghost" id="contactBtn" onclick="openContact()" hidden>💬 تواصل</button>
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- ══ STATS ══ -->
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="sbi"><div class="sbi-n" id="statCourses">3</div><div class="sbi-l">دورة منشورة</div></div>
-    <div class="sbi"><div class="sbi-n" id="statStudents">17</div><div class="sbi-l">متسجل</div></div>
-    <div class="sbi"><div class="sbi-n" id="statFollowers">0</div><div class="sbi-l">متابع</div></div>
-    <div class="sbi"><div class="sbi-n" id="statRating">4.8</div><div class="sbi-l">تقييم</div></div>
-  </div>
-</div>
-
-<!-- ══ TABS ══ -->
-<div class="tabs-wrap">
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('courses',this)">📚 الدورات</div>
-    <div class="tab" onclick="switchTab('posts',this)">📢 المنشورات</div>
-    <div class="tab" onclick="switchTab('about',this)">ℹ️ عن الجهة</div>
   </div>
 </div>
 
 <!-- ══ CONTENT ══ -->
-<div class="content">
-
-  <!-- COURSES TAB -->
-  <div id="tab-courses">
-    <div class="grid-2">
-      <div>
-        <div class="course-card tw-card-lift">
-          <div class="cc-inner">
-            <div class="cc-thumb" style="background:linear-gradient(135deg,#1a0a2e,#2d1b69)">🐍</div>
-            <div class="cc-body">
-              <div class="cc-title">Python للمبتدئين من الصفر</div>
-              <div class="cc-meta"><span>⏱ 8 ساعات</span><span>📹 24 درس</span><span>⭐ 4.8</span><span>🖥️ أونلاين</span></div>
-              <div class="cc-tags"><span class="cc-tag">برمجة</span><span class="cc-tag">Python</span><span class="free-badge">مجاني</span></div>
-            </div>
-            <button class="enroll-btn">سجّل الآن</button>
-          </div>
-        </div>
-        <div class="course-card tw-card-lift">
-          <div class="cc-inner">
-            <div class="cc-thumb" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">⚛️</div>
-            <div class="cc-body">
-              <div class="cc-title">React.js المتقدم</div>
-              <div class="cc-meta"><span>⏱ 24 ساعة</span><span>📹 68 درس</span><span>⭐ 4.9</span><span>🖥️ أونلاين</span></div>
-              <div class="cc-tags"><span class="cc-tag">برمجة</span><span class="cc-tag">React</span><span class="paid-badge">49$</span></div>
-            </div>
-            <button class="enroll-btn">سجّل الآن</button>
-          </div>
-        </div>
-        <div class="course-card tw-card-lift">
-          <div class="cc-inner">
-            <div class="cc-thumb" style="background:linear-gradient(135deg,#1a1205,#2a2010)">🤖</div>
-            <div class="cc-body">
-              <div class="cc-title">الذكاء الاصطناعي العملي</div>
-              <div class="cc-meta"><span>⏱ 40 ساعة</span><span>📹 110 درس</span><span>⭐ —</span><span>🏫 وجاهي</span></div>
-              <div class="cc-tags"><span class="cc-tag">AI</span><span class="cc-tag">ML</span><span class="paid-badge">89$</span></div>
-            </div>
-            <button class="enroll-btn">سجّل الآن</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sidebar -->
-      <div>
-        <div class="side-card">
-          <div class="sc-title">معلومات الجهة</div>
-          <div class="sc-item"><span class="sc-ico">🎓</span><div><div class="sc-key">النوع</div><div class="sc-val" id="aboutType">مركز تدريب</div></div></div>
-          <div class="sc-item"><span class="sc-ico">📍</span><div><div class="sc-key">الموقع</div><div class="sc-val" id="aboutLoc">—</div></div></div>
-          <div class="sc-item"><span class="sc-ico">📅</span><div><div class="sc-key">سنة التأسيس</div><div class="sc-val" id="aboutFounded">—</div></div></div>
-          <div class="sc-item"><span class="sc-ico">🌐</span><div><div class="sc-key">الموقع الإلكتروني</div><div class="sc-val"><a href="#" id="aboutWeb">—</a></div></div></div>
-          <div class="sc-item"><span class="sc-ico">📧</span><div><div class="sc-key">البريد</div><div class="sc-val" id="aboutEmail">—</div></div></div>
-        </div>
-
-        <div class="side-card">
-          <div class="sc-title">⭐ التقييم</div>
-          <div class="stars">⭐⭐⭐⭐⭐</div>
-          <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:10px">
-            <span class="rating-n">4.8</span>
-            <span class="rating-sub">من 5 — 34 تقييم</span>
-          </div>
-          <div class="bar-row"><span class="bar-lbl">5 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span style="font-size:.62rem;color:var(--t3)">72%</span></div>
-          <div class="bar-row"><span class="bar-lbl">4 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:20%"></div></div><span style="font-size:.62rem;color:var(--t3)">20%</span></div>
-          <div class="bar-row"><span class="bar-lbl">3 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:8%"></div></div><span style="font-size:.62rem;color:var(--t3)">8%</span></div>
-          <div class="bar-row"><span class="bar-lbl">2 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><span style="font-size:.62rem;color:var(--t3)">0%</span></div>
-          <div class="bar-row"><span class="bar-lbl">1 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><span style="font-size:.62rem;color:var(--t3)">0%</span></div>
-        </div>
-      </div>
-    </div>
+<!-- PR 1.7: courses / ratings / students / posts / verification badge removed (were hardcoded) — rebuilt in plan 5.2 (docs/FUTURE_ROADMAP.md). -->
+<div class="content" id="main-content">
+  <div class="side-card tw-empty">
+    <span class="tw-empty-ico">🛠️</span>
+    <div class="tw-empty-title">صفحات الجهات التعليمية قيد التطوير — قريباً</div>
   </div>
-
-  <!-- POSTS TAB -->
-  <div id="tab-posts" style="display:none">
-    <div class="post-card">
-      <div class="post-head">
-        <div class="post-ava">🎓</div>
-        <div><div class="post-nm" id="postName">الجهة التعليمية</div><div class="post-date">منذ 3 أيام</div></div>
-      </div>
-      <div class="post-body">نعلن عن إطلاق دورة Python للمبتدئين مجاناً! انضم الآن وابدأ رحلتك في البرمجة. 🐍🚀</div>
-      <div class="post-acts">
-        <div class="pa">👍 إعجاب <span>24</span></div>
-        <div class="pa">💬 تعليق <span>7</span></div>
-        <div class="pa">↗️ مشاركة</div>
-      </div>
-    </div>
-    <div class="post-card">
-      <div class="post-head">
-        <div class="post-ava">🎓</div>
-        <div><div class="post-nm" id="postName2">الجهة التعليمية</div><div class="post-date">منذ أسبوع</div></div>
-      </div>
-      <div class="post-body">عرض خاص للشركات: خصم 30% على دورة React لموظفيكم هذا الشهر. تواصلوا معنا للحصول على التفاصيل. ⚛️</div>
-      <div class="post-acts">
-        <div class="pa">👍 إعجاب <span>18</span></div>
-        <div class="pa">💬 تعليق <span>4</span></div>
-        <div class="pa">↗️ مشاركة</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ABOUT TAB -->
-  <div id="tab-about" style="display:none">
-    <div class="grid-2">
-      <div class="side-card">
-        <div class="sc-title">عن الجهة</div>
-        <div style="font-size:.8rem;color:var(--t2);line-height:1.7;margin-bottom:14px" id="aboutFullDesc">لا يوجد وصف مفصل بعد.</div>
-        <div class="sc-item"><span class="sc-ico">🎓</span><div><div class="sc-key">نوع الجهة</div><div class="sc-val" id="aType">مركز تدريب</div></div></div>
-        <div class="sc-item"><span class="sc-ico">📍</span><div><div class="sc-key">الموقع</div><div class="sc-val" id="aLoc">—</div></div></div>
-        <div class="sc-item"><span class="sc-ico">📅</span><div><div class="sc-key">سنة التأسيس</div><div class="sc-val" id="aFounded">—</div></div></div>
-        <div class="sc-item"><span class="sc-ico">🌐</span><div><div class="sc-key">الموقع الإلكتروني</div><div class="sc-val"><a href="#" id="aWeb">—</a></div></div></div>
-        <div class="sc-item"><span class="sc-ico">📧</span><div><div class="sc-key">البريد الإلكتروني</div><div class="sc-val" id="aEmail">—</div></div></div>
-        <div class="sc-item"><span class="sc-ico">✅</span><div><div class="sc-key">التوثيق</div><div class="sc-val">جهة موثقة من تواصلنا</div></div></div>
-      </div>
-      <div class="side-card" style="height:fit-content">
-        <div class="sc-title">📊 إحصائيات</div>
-        <div class="sc-item"><span class="sc-ico">📚</span><div><div class="sc-key">دورات منشورة</div><div class="sc-val">3 دورات</div></div></div>
-        <div class="sc-item"><span class="sc-ico">👥</span><div><div class="sc-key">إجمالي المتسجلين</div><div class="sc-val">17 طالب</div></div></div>
-        <div class="sc-item"><span class="sc-ico">✅</span><div><div class="sc-key">شهادات موثقة</div><div class="sc-val">12 شهادة</div></div></div>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <!-- EDIT MODAL -->
@@ -386,19 +249,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <div class="modal-title">✏️ تعديل ملف الجهة</div>
     <div class="mf"><label>اسم الجهة</label><input id="e-name"></div>
     <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تقدم جهتك؟"></textarea></div>
-    <div class="mrow">
-      <div class="mf"><label>نوع الجهة</label>
-        <select id="e-type">
-          <option>جامعة / كلية</option>
-          <option>مدرسة</option>
-          <option>مركز تدريب</option>
-        </select>
-      </div>
-      <div class="mf"><label>سنة التأسيس</label><input id="e-founded" type="number" placeholder="2010"></div>
-    </div>
     <div class="mf"><label>الموقع</label><input id="e-loc" placeholder="عمان، الأردن"></div>
     <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
-    <div class="mf"><label>البريد الإلكتروني</label><input id="e-email" placeholder="info@..."></div>
     <div class="mact">
       <button class="mbtn mbtn-ok" onclick="saveEdit()">حفظ</button>
       <button class="mbtn mbtn-no" onclick="document.getElementById('editOverlay').classList.remove('show')">إلغاء</button>
@@ -406,40 +258,24 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 </div>
 
-<!-- CONTACT MODAL -->
-<div class="overlay" id="contactOverlay" onclick="if(event.target===this)document.getElementById('contactOverlay').classList.remove('show')">
-  <div class="modal">
-    <div class="modal-title">💬 التواصل مع الجهة</div>
-    <div class="mf"><label>رسالتك</label><textarea id="c-msg" placeholder="اكتب رسالتك..." style="min-height:90px"></textarea></div>
-    <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="sendContact()">إرسال</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('contactOverlay').classList.remove('show')">إلغاء</button>
-    </div>
-  </div>
-</div>
-
 <script src="/tw_shared.js?v=safe-link-v1"></script>
 <script src="/static/shared/auth-sync.js"></script>
 <script>
-let _user=null, _isOwner=false, _following=false;
-let _data={name:'',desc:'',type:'مركز تدريب',loc:'',founded:'',web:'',email:''};
-
-try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+let _isOwner=false;
+let _data={name:'',desc:'',loc:'',web:'',avatar:'',twId:''};
 
 // Resolve profile id: 1) injected by Smart Router (/u/T…), 2) ?id= query param
 var _urlId = (window._eduProfileIdFromRoute != null)
   ? String(window._eduProfileIdFromRoute)
   : new URLSearchParams(window.location.search).get('id');
-
-// Determine ownership: must be edu type AND visiting own profile (no id → own, or id matches session)
-_isOwner = _user && _user.user_type==='edu' && (!_urlId || String(_user.id) === _urlId);
+if (window._eduTwIdFromRoute) _data.twId = String(window._eduTwIdFromRoute);
 
 // ── VM-01-BFCACHE: live owner guard ──
-// Reads TwAuthSync snapshot at call-time — never relies on stale closure variables.
-// Must be called before every owner mutation (openEditModal, saveEdit, uploadCover).
+// Ownership comes ONLY from the TwAuthSync snapshot (PR 1.7 — never the localStorage user cache).
+// Must be called before every owner mutation (openEditModal, saveEdit).
 // See: docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE
 function _isCurrentEduOwner() {
-  // Fail-closed: without TwAuthSync ownership cannot be confirmed — localStorage alone is not safe.
+  // Fail-closed: without TwAuthSync ownership cannot be confirmed.
   if (!window.TwAuthSync || !TwAuthSync.getSessionSnapshot) return false;
   var _snap = TwAuthSync.getSessionSnapshot();
   if (!_snap || !_snap.isAuthenticated || _snap.userType !== 'edu') return false;
@@ -448,93 +284,53 @@ function _isCurrentEduOwner() {
 }
 
 // Unified owner/guest mode controller — single function for all owner UI transitions.
-function _applyEduOwnerMode(isOwner, snap) {
+function _applyEduOwnerMode(isOwner) {
   var ownerEl   = document.getElementById('ownerActions');
   var visitorEl = document.getElementById('visitorActions');
-  var coverBtn  = document.getElementById('coverUploadBtn');
   var editOv    = document.getElementById('editOverlay');
-  if (isOwner) {
-    _isOwner = true;
-    if (snap && snap.userId != null) {
-      if (!_user) _user = {};
-      _user.id = snap.userId;
-      try {
-        var _tw = JSON.parse(localStorage.getItem('tw_user') || 'null');
-        if (_tw && String(_tw.id) === String(snap.userId)) _user = _tw;
-      } catch(e) {}
-    }
-    if (ownerEl)   ownerEl.style.display   = 'flex';
-    if (visitorEl) visitorEl.style.display = 'none';
-    if (coverBtn)  coverBtn.style.display  = 'flex';
-  } else {
-    _isOwner = false;
-    _user    = null;
-    if (ownerEl)   ownerEl.style.display   = 'none';
-    if (visitorEl) visitorEl.style.display = 'flex';
-    if (coverBtn)  coverBtn.style.display  = 'none';
-    if (editOv)    editOv.classList.remove('show');
-  }
+  _isOwner = !!isOwner;
+  if (ownerEl)   ownerEl.style.display   = _isOwner ? 'flex' : 'none';
+  if (visitorEl) visitorEl.style.display = _isOwner ? 'none' : 'flex';
+  if (!_isOwner && editOv) editOv.classList.remove('show');
 }
 
-if(_isOwner){
-  document.getElementById('ownerActions').style.display='flex';
-  document.getElementById('visitorActions').style.display='none';
-  // Show cover upload btn
-  document.getElementById('coverUploadBtn').style.display='flex';
-  // Load saved cover
-  const savedCover=localStorage.getItem('tw_cover_edu_'+(_user&&_user.id));
-  if(savedCover) setCover(savedCover);
-  // Set name from session
-  if(_user.full_name){
-    _data.name=_user.full_name;
-    updateDisplay();
-  }
-}
+_applyEduOwnerMode(_isCurrentEduOwner());
 
 function updateDisplay(){
   document.getElementById('profileName').textContent=_data.name||'اسم الجهة';
-  document.getElementById('profileType').textContent='🎓 '+_data.type;
   document.getElementById('profileDesc').textContent=_data.desc||'لا يوجد وصف بعد.';
   document.getElementById('profileLoc').textContent='📍 '+(_data.loc||'—');
-  document.getElementById('profileFounded').textContent=_data.founded?'📅 '+_data.founded:'📅 —';
-  document.getElementById('aboutType').textContent=_data.type;
-  document.getElementById('aType').textContent=_data.type;
-  document.getElementById('aboutLoc').textContent=_data.loc||'—';
-  document.getElementById('aLoc').textContent=_data.loc||'—';
-  document.getElementById('aboutFounded').textContent=_data.founded||'—';
-  document.getElementById('aFounded').textContent=_data.founded||'—';
-  document.getElementById('aboutEmail').textContent=_data.email||'—';
-  document.getElementById('aEmail').textContent=_data.email||'—';
-  if(_data.web){
+  var a=document.getElementById('aboutWeb');
+  if(a){
     // §54 rule 4b — only a safe http(s) URL becomes a link; otherwise plain text (no href)
-    var _webSafe=twSafeLinkUrl(_data.web);
-    ['aboutWeb','aWeb'].forEach(function(id){
-      var a=document.getElementById(id);
-      if(_webSafe){ a.href=_webSafe; a.target='_blank'; a.rel='noopener noreferrer'; } else a.removeAttribute('href');
-      a.textContent=_data.web;
-    });
+    var _webSafe=_data.web?twSafeLinkUrl(_data.web):'';
+    if(_webSafe){ a.href=_webSafe; a.target='_blank'; a.rel='noopener noreferrer'; } else if(a.removeAttribute) a.removeAttribute('href');
+    a.textContent=_data.web||'—';
   }
-  // Update post names
-  const pName=_data.name||'الجهة التعليمية';
-  document.querySelectorAll('[id^="postName"]').forEach(el=>el.textContent=pName);
+  // DS-IMAGE — logo via the shared avatar builder (validated URL + letter fallback)
+  var logo=document.getElementById('profileLogo');
+  if(logo && _data.avatar && window.twAvatarEl && logo.replaceChildren){
+    logo.replaceChildren(twAvatarEl({full_name:_data.name, avatar_url:_data.avatar, user_type:'edu'}, 'xl', {eager:true}));
+  }
+  var cBtn=document.getElementById('contactBtn');
+  if(cBtn) cBtn.hidden=!_data.twId;
 }
 
-function switchTab(name,el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  ['courses','posts','about'].forEach(t=>{
-    const el2=document.getElementById('tab-'+t);
-    if(el2) el2.style.display=t===name?'':'none';
-  });
+// Applies the public profile payload (GET /profile/{id}) — the only data source of this page.
+function _applyEduProfile(data){
+  var p = data && data.profile ? data.profile : {};
+  if (p.full_name)  _data.name   = p.full_name;
+  if (p.bio)        _data.desc   = p.bio;
+  if (p.location)   _data.loc    = p.location;
+  if (p.website)    _data.web    = p.website;
+  if (p.avatar_url) _data.avatar = p.avatar_url;
+  if (p.tw_id)      _data.twId   = String(p.tw_id);
+  updateDisplay();
 }
-
-function toggleFollow(){
-  _following=!_following;
-  const btn=document.getElementById('followBtn');
-  btn.textContent=_following?'✓ متابَع':'+  متابعة';
-  btn.classList.toggle('following',_following);
-  const cur=parseInt(document.getElementById('statFollowers').textContent)||0;
-  document.getElementById('statFollowers').textContent=_following?cur+1:cur-1;
+function _loadEduProfile(uid){
+  if(!uid) return;
+  fetch('/profile/'+uid).then(function(r){return r.json();}).then(_applyEduProfile)
+    .catch(function(e){ console.error('[edu-profile] load failed', e); });
 }
 
 function openEditModal(){
@@ -542,78 +338,49 @@ function openEditModal(){
   document.getElementById('e-name').value=_data.name;
   document.getElementById('e-desc').value=_data.desc;
   document.getElementById('e-loc').value=_data.loc;
-  document.getElementById('e-founded').value=_data.founded;
   document.getElementById('e-web').value=_data.web;
-  document.getElementById('e-email').value=_data.email;
   document.getElementById('editOverlay').classList.add('show');
 }
 
 function saveEdit(){
   if (!_isCurrentEduOwner()) return;
-  // Use live snapshot userId — _user.id could be stale after an account switch.
-  var _snapNow = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
-  var _liveUserId = _snapNow && _snapNow.userId != null ? String(_snapNow.userId) : null;
-  if (!_liveUserId) return;
+  // Use live snapshot userId — never a cached user object.
+  var _snapNow = TwAuthSync.getSessionSnapshot();
+  var _liveUserId = String(_snapNow.userId);
   var _webIn=(document.getElementById('e-web')?.value||'').trim();
   if(_webIn && !twSafeLinkUrl(_webIn)){ showToast('الموقع الإلكتروني غير صالح — يجب أن يبدأ بـ https:// أو http://','error'); return; }   // §54 rule 4b
-  _data.name=document.getElementById('e-name').value.trim()||_data.name;
-  _data.desc=document.getElementById('e-desc').value.trim();
-  _data.type=document.getElementById('e-type')?.value||_data.type;
-  _data.loc=document.getElementById('e-loc')?.value||_data.loc;
-  _data.web=_webIn||_data.web;
-  updateDisplay();
-  document.getElementById('editOverlay').classList.remove('show');
-  // Save to DB using live userId and fresh JWT.
+  var _name=document.getElementById('e-name').value.trim()||_data.name;
+  var _desc=document.getElementById('e-desc').value.trim();
+  var _loc=(document.getElementById('e-loc')?.value||'').trim()||_data.loc;
+  var _web=_webIn||_data.web;
+  var _nameChanged=_name!==_data.name;
   var _jwt = localStorage.getItem('tw_jwt') || '';
-  fetch('/profile/'+_liveUserId, {
-    method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-    body:JSON.stringify({full_name:_data.name, bio:_data.desc, location:_data.loc, website:_data.web})
-  }).catch(function(){});
-  if (!_user || _user.full_name !== _data.name) {
-    fetch('/auth/user/'+_liveUserId+'/name', {
-      method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-      body:JSON.stringify({full_name:_data.name})
-    }).catch(function(){});
-    if (_user) { _user.full_name = _data.name; localStorage.setItem('tw_user', JSON.stringify(_user)); }
-  }
+  var _hdr = {'Content-Type':'application/json','Authorization':'Bearer '+_jwt};
+  var reqs=[fetch('/profile/'+_liveUserId, {
+    method:'PUT', headers:_hdr,
+    body:JSON.stringify({full_name:_name, bio:_desc, location:_loc, website:_web})
+  })];
+  if (_nameChanged) reqs.push(fetch('/auth/user/'+_liveUserId+'/name', {
+    method:'PUT', headers:_hdr, body:JSON.stringify({full_name:_name})
+  }));
+  Promise.all(reqs).then(function(rs){
+    if (!rs.every(function(r){ return r.ok; })) throw new Error('save failed');
+    _data.name=_name; _data.desc=_desc; _data.loc=_loc; _data.web=_web;
+    updateDisplay();
+    document.getElementById('editOverlay').classList.remove('show');
+    showToast('تم الحفظ ✓');
+  }).catch(function(e){
+    console.error('[edu-profile] save failed', e);
+    showToast('تعذر الحفظ — حاول مرة أخرى','error');
+  });
 }
 
-
-function openContact(){document.getElementById('contactOverlay').classList.add('show');}
-function sendContact(){
-  const msg = document.getElementById('c-msg')?.value?.trim();
-  if(!msg){ showToast('أدخل رسالتك','error'); return; }
-  const urlId = new URLSearchParams(window.location.search).get('id');
-  if(urlId){
-    fetch('/admin/message',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('tw_adm_token')||''},
-      body:JSON.stringify({user_id:parseInt(urlId)||0, subject:'تواصل', message:msg})
-    }).catch(function(){});
-  }
-  showToast('تم إرسال رسالتك ✓');
-  document.getElementById('contactOverlay').classList.remove('show');
-}
-
-// Cover photo
-function setCover(src){
-  const img=document.getElementById('coverImg');
-  const bg=document.getElementById('heroBg');
-  if(!img)return;
-  img.src=src; img.style.display='block';
-  setTimeout(()=>img.style.opacity='1',50);
-  if(bg) bg.style.opacity='0';
-  document.querySelectorAll('.hero-orb').forEach(o=>o.style.display='none');
-}
-function uploadCover(input){
-  if(!input.files[0])return;
-  if (!_isCurrentEduOwner()) { input.value=''; return; }
-  const reader=new FileReader();
-  reader.onload=e=>{
-    setCover(e.target.result);
-    try{localStorage.setItem('tw_cover_edu_'+(_user&&_user.id),e.target.result);}catch(ex){}
-  };
-  reader.readAsDataURL(input.files[0]);
+// Contact → the shared messenger deep-link (same as emp / co). Guests go to login first (NAV-07).
+function openContact(){
+  if(!_data.twId) return;
+  var dest='/messages?with='+encodeURIComponent(_data.twId);
+  var snap=window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null;
+  window.location.href=(snap && snap.isAuthenticated) ? dest : twLoginHref(dest);
 }
 
 function goHome(){
@@ -622,15 +389,8 @@ function goHome(){
 
 // ── Load profile from API ──
 (function(){
-  var urlId = _urlId;
-  var uid = urlId || (_user && _user.id);
-  if(!uid) return;
-  fetch('/profile/'+uid).then(function(r){return r.json();}).then(function(data){
-    var p = data.profile || {};
-    if(p.full_name){ _data.name = p.full_name; updateDisplay(); }
-    if(p.bio){ _data.desc = p.bio; updateDisplay(); }
-    if(p.location){ _data.loc = p.location; updateDisplay(); }
-  }).catch(function(){});
+  var snap = window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null;
+  _loadEduProfile(_urlId || (_isOwner && snap ? String(snap.userId) : null));
 })();
 
 
@@ -695,15 +455,7 @@ if (window.initGlobalHeaderMenu) {
         snapshot.userId != null &&
         (!_urlId || String(snapshot.userId) === String(_urlId)) &&
         _isOwner) {
-      var _uid = _urlId || String(snapshot.userId);
-      if (_uid) {
-        fetch('/profile/'+_uid).then(function(r){return r.json();}).then(function(data){
-          var p = data && data.profile ? data.profile : {};
-          if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
-          if (p.bio){ _data.desc = p.bio; updateDisplay(); }
-          if (p.location){ _data.loc = p.location; updateDisplay(); }
-        }).catch(function(){});
-      }
+      _loadEduProfile(_urlId || String(snapshot.userId));
       return;
     }
 
@@ -712,18 +464,10 @@ if (window.initGlobalHeaderMenu) {
     var nowOwner = _isCurrentEduOwner();
 
     // Apply owner/guest mode unconditionally — also handles Guest→Owner on token refresh.
-    _applyEduOwnerMode(nowOwner, snapshot);
+    _applyEduOwnerMode(nowOwner);
 
-    // Background re-render with public data (or owner data if now owner).
-    var _uid2 = _urlId || (snapshot && snapshot.userId != null ? String(snapshot.userId) : null);
-    if (_uid2) {
-      fetch('/profile/'+_uid2).then(function(r){return r.json();}).then(function(data){
-        var p = data && data.profile ? data.profile : {};
-        if (p.full_name){ _data.name = p.full_name; updateDisplay(); }
-        if (p.bio){ _data.desc = p.bio; updateDisplay(); }
-        if (p.location){ _data.loc = p.location; updateDisplay(); }
-      }).catch(function(){});
-    }
+    // Background re-render with public data.
+    _loadEduProfile(_urlId || (nowOwner && snapshot && snapshot.userId != null ? String(snapshot.userId) : null));
   });
 })();
 // @vm-extract-end: edu-authsync

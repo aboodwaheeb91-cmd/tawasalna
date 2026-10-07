@@ -19,6 +19,14 @@
 - `tw_shared.js` → `normalizeErrorResponse`: بيفهم `detail.message` (dict بدون field) و `error` كنص — متل عقد API-MUT-11 الموثّق.
 - اختبار: `test_server_error_leak.py` (فحص AST ثابت + runtime). تحديث تأكيد 114d بـ `test_post_comments.py` (الرسالة صارت بدون f-string).
 
+## PR 1.7 — شيل المحتوى الوهمي (صفحة الشركة + الجهة التعليمية «قريباً») — 2026-10-07
+
+- `company-profile.html` + `company.render.js`: سطر «جهة موثقة من تواصلنا» (تبويب عن الشركة) مخفي افتراضياً وبيطلع بس لما `is_verified=true` من الـ API — ما في نص «غير موثقة».
+- `edu-profile.html`: انشال المحتوى الثابت (3 دورات وأسعار · تقييم 4.8 / 34 · 17 متسجل · 12 شهادة · منشوران · شارة «جهة موثقة» · نوع «مركز تدريب» وسنة التأسيس والبريد) + زر المتابعة الوهمي + رفع الغلاف (data URL بـ localStorage). مكانهم بطاقة «صفحات الجهات التعليمية قيد التطوير — قريباً». الظاهر من `GET /profile/{id}` بس: الاسم · اللوغو (`twAvatarEl`) · النبذة · الموقع · الموقع الإلكتروني.
+- التواصل: `/messages?with=<tw_id>` (الضيف → `twLoginHref`) بدل `/admin/message` + `tw_adm_token`. الملكية من `TwAuthSync` بس (ما في `tw_user`). الحفظ بيبيّن نجاح بس بعد `r.ok`.
+- التوثيق: FUTURE_ROADMAP (خطة 5.2 — كل اللي انشال بيرجع من الـ API) · SYSTEMS_INDEX §10 · ARCHITECTURE (Ownership Check edu) · `docs/rules/vm01-bfcache.md` + VIEWER-MODES (انشال `uploadCover`).
+- اختبار: `test_no_dummy_content.py` (جديد). `test_vm01_bfcache_runtime.js`: انشال تأكيد `coverUploadBtn`.
+
 ## PR 1.5 + 1.8 — توكن أدمن مؤقت موقّع + إبطال الجلسات بعد تغيير كلمة السر — 2026-10-07
 
 - `server.py`: **`_jwt_sign` / `_jwt_verify`** — تطبيق HS256 واحد لسرّين. **`/tw-ctrl-login`** بيرجّع JWT أدمن (`ADMIN_JWT_SECRET`، `role=admin` · `sub=owner` · `perms=["*"]` · ساعة) بدل `ADMIN_TOKEN` الخام. **`check_admin`** بيقبل هاد الـ JWT بس (401 للخام / المنتهي / JWT مستخدم · 403 دور ناقص · 503 بدون سر). SYSTEMS_INDEX §25.

@@ -607,7 +607,7 @@ function _isCurrentEduOwner() {
 ```
 
 **المتطلب الجديد:** بدون TwAuthSync → `false` مباشرة (لا fallback إلى localStorage).
-**تُستدعى قبل:** `openEditModal()` · `saveEdit()` · `uploadCover()`.
+**تُستدعى قبل:** `openEditModal()` · `saveEdit()` (`uploadCover()` انشال بـ PR 1.7).
 
 ### Edu Profile — `_applyEduOwnerMode(isOwner, snap)` (Unified State Controller)
 
