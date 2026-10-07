@@ -122,7 +122,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Educational institution profile, course publishing, student credential verification.
 **Source of Truth:** `profiles` (edu user_type) · `courses` table · `edu-profile.html`
 **Details:** `ARCHITECTURE.md §63` (routing) · `CLAUDE.md → Smart Public Profile Router Rules`
-**Do not recreate:** Ownership check requires both `user_type==='edu'` AND numeric ID match — not type alone.
+**Do not recreate:** Ownership check requires both `user_type==='edu'` AND numeric ID match — not type alone — from `TwAuthSync.getSessionSnapshot()` only (`_isCurrentEduOwner()`; never `tw_user`).
+**PR 1.7 — «قريباً» state (until plan 5.2):** the page shows only `GET /profile/{id}` fields (name · avatar via `twAvatarEl` · bio · location · website) + one card «صفحات الجهات التعليمية قيد التطوير — قريباً». Contact → `/messages?with=<tw_id>` (guest → `twLoginHref`). ❌ hardcoded courses / ratings / counts / posts / verified badge · ❌ fake follow · ❌ `/admin/message` or admin token · ❌ cover as data URL in localStorage. Test: `python -m pytest test_no_dummy_content.py -q`.
 
 ---
 
@@ -1142,4 +1143,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 1.5 + 1.8 admin JWT / session invalidation · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 1.7 remove dummy content · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

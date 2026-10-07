@@ -6299,7 +6299,7 @@ def check_admin(request, perm=None) -> dict:
 4. `static/shared/admin-session.js` (`TwAdminSession`) stores it in `sessionStorage.tw_adm_token` (per tab, never `localStorage`) and sends it as `X-Admin-Token` through `TwAdminSession.fetch()`
 5. Expiry: `TwAdminSession` fires `onExpired` at `exp` (timer) **or** on any 401/403 from an admin call → `admin.html` returns to its login screen with «انتهت جلسة الإدارة (صلاحيتها ساعة واحدة) — سجّل الدخول من جديد.» · `admin-view.html` stops with the same message + «ارجع للوحة الإدارة.» (it cannot link to the secret panel URL). No silent hang, no reload loop.
 
-**`TwAdminSession` API (admin pages only):** `getToken()` · `setToken(t)` · `clear()` · `hasLiveToken()` · `headers()` · `fetch(url, opts)` · `onExpired(cb)` · `EXPIRED_MSG`. ❌ reading `tw_adm_token` directly in a page · ❌ routing a **user** endpoint (Bearer JWT) through `TwAdminSession.fetch` (its 401 would end the admin session). Known debt: `edu-profile.html → sendContact()` reads `tw_adm_token` directly (pre-existing, outside the admin pages).
+**`TwAdminSession` API (admin pages only):** `getToken()` · `setToken(t)` · `clear()` · `hasLiveToken()` · `headers()` · `fetch(url, opts)` · `onExpired(cb)` · `EXPIRED_MSG`. ❌ reading `tw_adm_token` directly in a page · ❌ routing a **user** endpoint (Bearer JWT) through `TwAdminSession.fetch` (its 401 would end the admin session). (The old `edu-profile.html → sendContact()` read of `tw_adm_token` was removed in PR 1.7.)
 
 ### admin.html — Sections
 
@@ -10039,7 +10039,9 @@ Returns `{ id, tw_id, user_type }` or `None`. Single DB query on `users.tw_id` (
 
 ### Ownership Check (edu-profile.html)
 
-Ownership is determined by: `user_type === 'edu'` **AND** (no id in URL **OR** `user.id === urlId`). This prevents an edu account from seeing owner controls on another edu account's public profile.
+Ownership is determined by `_isCurrentEduOwner()` from the `TwAuthSync` snapshot only (PR 1.7 — `localStorage.tw_user` is never read): `userType === 'edu'` **AND** (no id in URL **OR** `snap.userId === urlId`). This prevents an edu account from seeing owner controls on another edu account's public profile.
+
+**PR 1.7 — honest «قريباً» page (until plan 5.2 · `docs/FUTURE_ROADMAP.md`):** only API fields are rendered (`GET /profile/{id}` → `full_name` · `avatar_url` (DS-IMAGE `twAvatarEl`) · `bio` · `location` · `website` (`twSafeLinkUrl`) · `tw_id`). Courses / ratings / student counts / posts / verified badge / follow button / cover upload were removed (all hardcoded or localStorage-only) and replaced by one card «صفحات الجهات التعليمية قيد التطوير — قريباً». Contact → `/messages?with=<tw_id>` like emp/co (guest → `twLoginHref(dest)`). Owner edit modal keeps name · bio · location · website (PUT `/profile/{id}` + `/auth/user/{id}/name`; toast only after `r.ok`).
 
 ### Empty URL Handling
 

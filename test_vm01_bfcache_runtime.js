@@ -120,11 +120,9 @@ function mkEduContext(opts) {
   var registeredCb = null;
   var ownerEl   = mkElement('ownerActions');
   var visitorEl = mkElement('visitorActions');
-  var coverBtn  = mkElement('coverUploadBtn');
   var editOv    = mkElement('editOverlay');
   ownerEl.style.display   = opts.startAsOwner ? 'flex' : 'none';
   visitorEl.style.display = opts.startAsOwner ? 'none' : 'flex';
-  coverBtn.style.display  = opts.startAsOwner ? 'flex' : 'none';
 
   var ctx = vm.createContext({
     window: null,
@@ -133,7 +131,6 @@ function mkEduContext(opts) {
       getElementById: function(id) {
         if (id === 'ownerActions')   return ownerEl;
         if (id === 'visitorActions') return visitorEl;
-        if (id === 'coverUploadBtn') return coverBtn;
         if (id === 'editOverlay')    return editOv;
         return mkElement(id);
       },
@@ -170,7 +167,6 @@ function mkEduContext(opts) {
   // ownerEl etc. are the actual objects passed back from getElementById — same refs modified by vm code
   ctx._ownerEl   = ownerEl;
   ctx._visitorEl = visitorEl;
-  ctx._coverBtn  = coverBtn;
   ctx._editOv    = editOv;
   return ctx;
 }
@@ -360,7 +356,6 @@ console.log('\nScenario 8: Edu profile — logout fires, owner revoked via _appl
   // Note: _isOwner uses `let` inside the vm — observable behavior is DOM state.
   assert('ownerActions hidden',            ctx._ownerEl.style.display   === 'none');
   assert('visitorActions shown',           ctx._visitorEl.style.display === 'flex');
-  assert('coverUploadBtn hidden',          ctx._coverBtn.style.display  === 'none');
 })();
 
 // ════════════════════════════════════════════════════════════════════════════
