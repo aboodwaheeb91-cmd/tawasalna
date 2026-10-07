@@ -1020,8 +1020,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 50. Color System V1 [DS-COLOR]
 **Purpose:** النظام الرسمي الوحيد لكل color tokens في منصة تواصلنا. يُحدِّد الـ `--color-*` namespace، يُقسِّم الـ palette إلى ثلاث طبقات (Foundation/Semantic/Legacy Aliases)، ويُعرِّف سياسة التوجيه وقواعد الترحيل وحدود المسؤولية بين الأنظمة.
-**Source of Truth:** `tw_shared.css` (Runtime Source of Truth — `--color-*` tokens added, Phase 1 ✅) · `docs/design-system/COLOR-SYSTEM.md`
-**Details:** `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً) · `docs/rules/ds-color.md`. أبرز قواعد:
+**Source of Truth:** `tw_shared.css` (Runtime Source of Truth — `--color-*` tokens, Phase 1 ✅ · Phase 2 full set ✅) · `theme_tokens.py` + `/theme.css` (admin override — CLR-36) · `docs/design-system/COLOR-SYSTEM.md`
+**Details:** `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-36) · `docs/rules/ds-color.md`. أبرز قواعد:
 - **`--color-*` Namespace Reservation** (CLR-04): محجوز حصراً لـ DS-COLOR. لا يُعرَّف أو يُعاد تعريف `--color-*` خارج `tw_shared.css`. Page CSS files ممنوع أن تُنشئ أو تُعيد تعريف أي `--color-*` variable.
 - **Three Logical Layers** (CLR-03): Foundation/Primitive (`--color-prim-*`) → Semantic (`--color-brand-*`, `--color-surface-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, `--color-categorical-*`) → Legacy Aliases. Feature CSS يستخدم Semantic فقط — لا يلمس Foundation مباشرةً. Semantic RGB channels (`--color-brand-primary-rgb`, `--color-status-success-rgb`) يُستهلكان من feature CSS — لا Primitive channels مباشرةً.
 - **Token Identity ≠ Token Value** (CLR-12): رمزان مختلفان قد يتشاركان نفس hex value لكنهما يبقيان مستقلَّين. تغيير قيمة `--color-brand-primary` لا يُغيِّر `--color-categorical-teal` تلقائياً حتى لو القيمة الحالية متساوية.
@@ -1032,10 +1032,13 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Alpha Policy** (CLR-19): 6 مستويات موثَّقة كنص (subtle/.06, soft/.12, muted/.20, medium/.28, strong/.35, overlay/.70). لا CSS custom properties للألفا.
 - **Migration ≠ Redesign** (CLR-27): `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية صريحة.
 - **No Token Without Real Consumer in V1** (CLR-28): لا tokens افتراضية. كل token مُضاف يجب أن يملك مستهلكاً حقيقياً في نطاق V1.
+- **Phase 2 Token Set + Twin Rule** (CLR-35, PR 3.8): كل لون بالموقع إله Semantic token (brand text/hover · `--color-ink(-rgb)` / `--color-overlay(-rgb)` · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status `*-strong` · categorical لوحة المنشور). شفافية = `rgba(var(--color-<token>-rgb), a)` وكل `-rgb` توأم لتوكن أساسي. جدول دمج (من ← إلى) للصفحات بالمرحلة 4. الملفات المشتركة (`tw_shared.css` خارج أسطر التعريف · `static/app-header.css` · `static/home-v2.css` · `static/shared/*`) = صفر لون ثابت (`test_ds_color_tokens.py`)؛ تقرير باقي الملفات `scripts/ds_color_audit.py`؛ استثناء بس بتعليق `tw-color-literal: <سبب>`.
+- **Admin Color Override** (CLR-36, PR 3.8): آلية وحدة — `site_settings.theme_color_tokens` (JSON) → `GET /theme.css` (`:root{}`، فاضي بدون override) محمّل بالـ shell head بعد `tw_shared.css` · `GET/PUT /admin/theme/colors` (`check_admin`، مفاتيح Semantic معروفة + قيم ألوان صالحة بس، كل حفظ بالـ log). المصدر `theme_tokens.py`. بدون واجهة أدمن بعد.
+- **Theme readiness** (CLR-23): مجموعة نهارية لاحقاً = `:root[data-theme="light"]` بـ `tw_shared.css` تعيد تعريف Section B بس (`--color-ink` بينقلب)، و `data-theme` على `<html>` بس.
 - **Color Role Assignment Contract** (CLR-33): كل عنصر مرئي يجب أن يحمل Color Role مقصود ومعروف. الوراثة مسموحة فقط إذا كانت مقصودة وقابلة للتتبع إلى Color Role رسمي. فجوات النظام تُوثَّق في نفس PR.
 **Do not recreate:** لا تُنشئ `--color-*` variable خارج `tw_shared.css`. لا تُعرِّف color tokens per-page (architectural violation). لا color system موازٍ. لا تغيِّر قيمة legacy token (`--ac`, `--bg`, إلخ) إلا في PR DS-COLOR معلن. لا تُضيف tokens بدون مستهلك حقيقي في V1 scope. لا `--color-status-*` لتصنيف بيانات. لا `--color-categorical-*` لإشارات UX. لا تلمس `company.css --ac/--ac2` إلا في PR migration مستقل (CLR-16).
 **Cross-references:** DS-INP §42 (Input field colors — CLR-20). DS-BTN §39 (Button colors — CLR-20). DS-FEEDBACK §49 (CLR-21: `--fbk-bdr-*` = DS-FEEDBACK semantic tokens في namespace مستقل — ليست DS-COLOR canonical). `tw_shared.css` (Runtime Source of Truth — Phase 1 ✅). `company.css` (architectural debt — CLR-16; separate migration PR).
-**Status:** V1 Documentation ✅ (2026-07-26) · Phase 1 (Runtime Tokens Foundation in `tw_shared.css`) ✅ (2026-07-26) · Phase 2 (page-by-page migration) 🔄 [Index/Auth `index.css` ✅ 2026-07-26] · Phase 4 (remove legacy aliases at zero consumers) 🔜
+**Status:** V1 Documentation ✅ (2026-07-26) · Phase 1 (Runtime Tokens Foundation in `tw_shared.css`) ✅ (2026-07-26) · Phase 2 (page-by-page migration) 🔄 [Index/Auth `index.css` ✅ 2026-07-26 · full token set + admin override + shared files ✅ PR 3.8 2026-10-07 · باقي الصفحات مع صفحتها بالمرحلة 4] · Phase 4 (remove legacy aliases at zero consumers) 🔜
 
 ---
 
@@ -1223,4 +1226,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 3.6 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3.8 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

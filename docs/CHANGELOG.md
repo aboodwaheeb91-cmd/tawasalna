@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.8 — DS-COLOR المرحلة 2: كل لون من التوكنز + override أدمن — 2026-10-07
+
+- `tw_shared.css`: مجموعة توكنز كاملة (COLOR-SYSTEM CLR-35) — brand text/hover · `--color-ink(-rgb)` / `--color-overlay(-rgb)` · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status `*-strong` · categorical لوحة المنشور. قاعدة التوأم `-rgb` + جدول دمج (من ← إلى). القواعد الموجودة صارت مبنية على `--color-ink-rgb` (نفس القيمة) — جاهزة لـ `[data-theme="light"]` (CLR-23، بدون بناء).
+- Override أدمن واحد (CLR-36): `theme_tokens.py` (جديد) · `GET /theme.css` (فاضي بدون override) · `GET/PUT /admin/theme/colors` (`check_admin` · مفاتيح معروفة + ألوان صالحة · log لكل حفظ) · `<link href="/theme.css">` بـ `partials/shell-head*.html`.
+- محوّل لصفر ألوان ثابتة: `tw_shared.css` · `static/app-header.css` · `static/home-v2.css` · `static/shared/{tw-select.css, tw-skeleton.css, tw-options-data.js, tw-image-cropper.js}`. تقرير الباقي: `scripts/ds_color_audit.py` (2339 بـ 31 ملف).
+- Docs: COLOR-SYSTEM (CLR-04 · CLR-23 · CLR-28 · CLR-35 · CLR-36 · CLR-34) · `docs/rules/ds-color.md` (12–15) · SYSTEMS_INDEX §50 · ARCHITECTURE §57 Admin Endpoints. Test: `test_ds_color_tokens.py` (جديد).
+
 ## PR 3.6 — نظام نصوص واحد + قاموس تسميات (Strings System) — 2026-10-07
 
 - نظام جديد: `tw_strings.json` (افتراضي `{"ar": …}`) + `tw_strings.py` + override أدمن بـ `site_settings` (`strings_override.ar`) + `GET` / `PUT /admin/strings` (تحقق: مفاتيح معروفة · ≤ 300 · بدون HTML · بدون متغيرات جديدة) + `twT(key, vars)` / `twTApply` بـ `tw_shared.js`. `read_html` بيبدّل `<!--tw:strings-->` (بـ `shell-scripts.html` + كل صفحة بتحمّل `/tw_shared.js`).

@@ -6,7 +6,7 @@
 ## Color System V1 (DS-COLOR) Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.
-Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 sections).
+Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-36).
 
 1. **Always check CLR-00 first.** Any task involving color (adding a new color, changing a color, defining a token, migrating a hardcoded hex) must start at CLR-00 (Routing Protocol) in `COLOR-SYSTEM.md`. Do NOT guess which token to use — follow the routing table.
 
@@ -41,6 +41,14 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 
 11. **Color Role Assignment (CLR-33).** Every visible UI element must have an intentional known Color Role. Do not let color be determined by accidental inheritance or browser defaults. When no suitable role exists in DS-COLOR, use a Tier 2/3 domain role and document it as a gap if it could become shared.
 
+12. **Phase 2 — full token set (PR 3.8 · CLR-35).** Every color the site uses has a Semantic token in `tw_shared.css`; near colors are merged (CLR-35 merge table — from → to). Alpha = `rgba(var(--color-<token>-rgb), a)`; every `-rgb` channel is the twin of a base token with the same name. Neutral translucency is built only from `--color-ink-rgb` (foreground ink — flips in a future light theme) or `--color-overlay-rgb` (scrim / shadow).
+
+13. **Shared files carry zero hardcoded colors.** `tw_shared.css` (except `--color-*` definition lines) · `static/app-header.css` · `static/home-v2.css` · `static/shared/*` — enforced by `python -m pytest test_ds_color_tokens.py -q` (C4). No `var(--x, #hex)` fallbacks either. The only exception is a same-line comment `tw-color-literal: <reason>` (image data, never UI). JS/canvas reads a token with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`; a CSS value set from JS is the string `var(--color-…)`. Other files: report only (`python scripts/ds_color_audit.py`) — each page migrates with its page (Phase 4) using the CLR-35 table and lists its visual difference in its PR.
+
+14. **One admin override (CLR-36).** `site_settings.theme_color_tokens` (JSON `{token: color}`) → `GET /theme.css` (one `:root{}` — empty without an override) loaded by the shell head right after `tw_shared.css` · `GET/PUT /admin/theme/colors` (`check_admin`; known Semantic tokens + strict color values only; twin `-rgb` derived by the server; every save logged). Source: `theme_tokens.py`. No admin UI yet.
+
+15. **Light theme readiness (CLR-23).** A future `:root[data-theme="light"]` block in `tw_shared.css` remaps Section B only; `data-theme` goes on `<html>` only. Do not build it without an explicit task.
+
 ### Forbidden (permanent)
 
 ```
@@ -54,6 +62,9 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 ❌ Adding a token with no real V1 consumer
 ❌ DS-COLOR Phase 2 page migration without explicit approval per page/system
 ❌ Parallel color system outside DS-COLOR
+❌ A second color-override source (localStorage, inline style, another CSS file) — /theme.css only
+❌ A hardcoded color (or var() fallback color) in tw_shared.css rules / app-header.css / home-v2.css / static/shared/*
+❌ An -rgb channel without its base token (twin rule)
 ❌ --color-prim-*-rgb used directly in feature CSS (use Semantic RGB channels)
 ❌ --color-status-info: var(--color-brand-secondary) (Semantic→Semantic coupling — both must reference --color-prim-blue independently)
 ❌ Using --t4 as a canonical Semantic token (--t4 remains raw rgba(255,255,255,.2) pending Phase 2 consumer separation)

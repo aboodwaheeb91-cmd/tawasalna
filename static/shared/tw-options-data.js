@@ -418,15 +418,17 @@
   ];
 
   // ── Post theme color palette (controlled, 8 named values) ───────
+  // Values are DS-COLOR categorical tokens (tw_shared.css · CLR-35) — consumers only
+  // set them as CSS values (--pa / --pa-s / --pa-g, swatch background), never parse them.
   TW.POST_THEME_COLORS = {
-    teal:   { name_ar: 'أخضر تواصلنا', accent: '#00c896', soft: 'rgba(0,200,150,.12)',   glow: 'rgba(0,200,150,.18)'   },
-    blue:   { name_ar: 'أزرق',          accent: '#3b82f6', soft: 'rgba(59,130,246,.12)',  glow: 'rgba(59,130,246,.18)'  },
-    purple: { name_ar: 'بنفسجي',        accent: '#8b5cf6', soft: 'rgba(139,92,246,.12)',  glow: 'rgba(139,92,246,.18)'  },
-    orange: { name_ar: 'برتقالي',       accent: '#f97316', soft: 'rgba(249,115,22,.12)',  glow: 'rgba(249,115,22,.18)'  },
-    pink:   { name_ar: 'وردي',          accent: '#ec4899', soft: 'rgba(236,72,153,.12)',  glow: 'rgba(236,72,153,.18)'  },
-    red:    { name_ar: 'أحمر هادئ',     accent: '#ef4444', soft: 'rgba(239,68,68,.12)',   glow: 'rgba(239,68,68,.18)'   },
-    gold:   { name_ar: 'ذهبي',          accent: '#f59e0b', soft: 'rgba(245,158,11,.12)',  glow: 'rgba(245,158,11,.18)'  },
-    gray:   { name_ar: 'رمادي احترافي', accent: '#64748b', soft: 'rgba(100,116,139,.12)', glow: 'rgba(100,116,139,.18)' },
+    teal:   { name_ar: 'أخضر تواصلنا', accent: 'var(--color-categorical-teal)', soft: 'rgba(var(--color-categorical-teal-rgb),.12)', glow: 'rgba(var(--color-categorical-teal-rgb),.18)' },
+    blue:   { name_ar: 'أزرق', accent: 'var(--color-categorical-azure)', soft: 'rgba(var(--color-categorical-azure-rgb),.12)', glow: 'rgba(var(--color-categorical-azure-rgb),.18)' },
+    purple: { name_ar: 'بنفسجي', accent: 'var(--color-categorical-purple)', soft: 'rgba(var(--color-categorical-purple-rgb),.12)', glow: 'rgba(var(--color-categorical-purple-rgb),.18)' },
+    orange: { name_ar: 'برتقالي', accent: 'var(--color-categorical-orange)', soft: 'rgba(var(--color-categorical-orange-rgb),.12)', glow: 'rgba(var(--color-categorical-orange-rgb),.18)' },
+    pink:   { name_ar: 'وردي', accent: 'var(--color-categorical-pink)', soft: 'rgba(var(--color-categorical-pink-rgb),.12)', glow: 'rgba(var(--color-categorical-pink-rgb),.18)' },
+    red:    { name_ar: 'أحمر هادئ', accent: 'var(--color-categorical-red)', soft: 'rgba(var(--color-categorical-red-rgb),.12)', glow: 'rgba(var(--color-categorical-red-rgb),.18)' },
+    gold:   { name_ar: 'ذهبي', accent: 'var(--color-categorical-gold)', soft: 'rgba(var(--color-categorical-gold-rgb),.12)', glow: 'rgba(var(--color-categorical-gold-rgb),.18)' },
+    gray:   { name_ar: 'رمادي احترافي', accent: 'var(--color-categorical-slate)', soft: 'rgba(var(--color-categorical-slate-rgb),.12)', glow: 'rgba(var(--color-categorical-slate-rgb),.18)' },
   };
 
   // ── Fill founded-year dropdown (current year → 1900, idempotent) ─

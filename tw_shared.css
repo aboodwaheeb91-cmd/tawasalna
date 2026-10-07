@@ -7,9 +7,14 @@
 */
 
 /* ══════════════════════════════════════════════════════════════════
-   1. DS-COLOR Phase 1 — Runtime Tokens Foundation
+   1. DS-COLOR — Runtime Tokens (Phase 1 foundation · Phase 2 full set, PR 3.8)
    Runtime Source of Truth (CLR-02): three sections per CLR-03.
    Zero Visual Change Contract (CLR-27): hex values unchanged.
+   Phase 2 (CLR-35): every color the site uses has a Semantic token here;
+   page colors map to them through the CLR-35 merge table.
+   Admin override (CLR-36): GET /theme.css re-declares Section B base tokens
+   from site_settings — a base token and its -rgb twin always change together.
+   Hardcoded hex / rgb() is allowed ONLY on --color-* definition lines.
    ══════════════════════════════════════════════════════════════════ */
 
 /* ─── Section A: Foundation / Primitive ────────────────────────────
@@ -17,73 +22,155 @@
    Feature CSS must NOT use --color-prim-* directly.              */
 :root {
   /* Hue primitives */
-  --color-prim-teal:     #00c896;
-  --color-prim-blue:     #2563ff;
-  --color-prim-purple:   #8b5cf6;
-  --color-prim-dark-950: #070b18;
-  --color-prim-dark-900: #0d1426;
-  --color-prim-white:    #ffffff;
-  --color-prim-green:    #34d399;
-  --color-prim-amber:    #fbbf24;
-  --color-prim-red:      #f87171;
+  --color-prim-teal:       #00c896;
+  --color-prim-teal-600:   #00b386;
+  --color-prim-blue:       #2563ff;
+  --color-prim-blue-500:   #3b82f6;
+  --color-prim-blue-400:   #60a5fa;
+  --color-prim-purple:     #8b5cf6;
+  --color-prim-purple-400: #a78bfa;
+  --color-prim-dark-950:   #070b18;
+  --color-prim-dark-900:   #0d1426;
+  --color-prim-dark-850:   #141a24;
+  --color-prim-white:      #ffffff;
+  --color-prim-black:      #000000;
+  --color-prim-green:      #34d399;
+  --color-prim-green-500:  #22c55e;
+  --color-prim-amber:      #fbbf24;
+  --color-prim-amber-500:  #f59e0b;
+  --color-prim-red:        #f87171;
+  --color-prim-red-500:    #ef4444;
+  --color-prim-orange:     #f97316;
+  --color-prim-pink:       #ec4899;
+  --color-prim-slate-200:  #e2e8f0;
+  --color-prim-slate-300:  #cbd5e1;
+  --color-prim-slate-400:  #94a3b8;
+  --color-prim-slate-500:  #64748b;
 
-  /* Primitive RGB channels — for Semantic RGB only, never for feature CSS */
-  --color-prim-teal-rgb:  0,200,150;
-  --color-prim-blue-rgb:  37,99,255;
-  --color-prim-red-rgb:   248,113,113;
-  --color-prim-amber-rgb: 251,191,36;
-  --color-prim-green-rgb: 52,211,153;
+  /* RGB channels (for rgba() composition in Section B only) */
+  --color-prim-teal-rgb:       0,200,150;
+  --color-prim-blue-rgb:       37,99,255;
+  --color-prim-blue-500-rgb:   59,130,246;
+  --color-prim-blue-400-rgb:   96,165,250;
+  --color-prim-purple-rgb:     139,92,246;
+  --color-prim-purple-400-rgb: 167,139,250;
+  --color-prim-dark-950-rgb:   7,11,24;
+  --color-prim-white-rgb:      255,255,255;
+  --color-prim-black-rgb:      0,0,0;
+  --color-prim-green-rgb:      52,211,153;
+  --color-prim-green-500-rgb:  34,197,94;
+  --color-prim-amber-rgb:      251,191,36;
+  --color-prim-amber-500-rgb:  245,158,11;
+  --color-prim-red-rgb:        248,113,113;
+  --color-prim-red-500-rgb:    239,68,68;
+  --color-prim-orange-rgb:     249,115,22;
+  --color-prim-pink-rgb:       236,72,153;
+  --color-prim-slate-400-rgb:  148,163,184;
+  --color-prim-slate-500-rgb:  100,116,139;
 }
 
 /* ─── Section B: Semantic ───────────────────────────────────────────
    Role-based tokens. Feature CSS uses ONLY these (and Legacy in §C).
-   Never reference --color-prim-* from page CSS files.            */
+   Never reference --color-prim-* from page CSS files.
+   Alpha variants: rgba(var(--color-<token>-rgb), <alpha>) — every -rgb
+   channel is the twin of the base token with the same name (CLR-35).
+   Theme-ready (CLR-23): a future :root[data-theme="light"] block remaps
+   THIS section only (ink → dark, surfaces → light); Section A never changes. */
 :root {
   /* Brand */
-  --color-brand-primary:         var(--color-prim-teal);
-  --color-brand-secondary:       var(--color-prim-blue);
-  --color-brand-accent:          var(--color-prim-purple);
+  --color-brand-primary:            var(--color-prim-teal);
+  --color-brand-primary-hover:      var(--color-prim-teal-600);   /* pressed / hover fill of a teal button */
+  --color-brand-secondary:          var(--color-prim-blue);
+  --color-brand-secondary-text:     var(--color-prim-blue-400);   /* readable blue text / icon on dark (info chips, links) */
+  --color-brand-accent:             var(--color-prim-purple);
+  --color-brand-accent-text:        var(--color-prim-purple-400); /* readable purple text on dark */
   /* Brand RGB channels — for rgba() in feature CSS (e.g. hover states) */
-  --color-brand-primary-rgb:     var(--color-prim-teal-rgb);
-  --color-brand-secondary-rgb:   var(--color-prim-blue-rgb);
+  --color-brand-primary-rgb:        var(--color-prim-teal-rgb);
+  --color-brand-secondary-rgb:      var(--color-prim-blue-rgb);
+  --color-brand-secondary-text-rgb: var(--color-prim-blue-400-rgb);
+  --color-brand-accent-rgb:         var(--color-prim-purple-rgb);
+  --color-brand-accent-text-rgb:    var(--color-prim-purple-400-rgb);
+
+  /* Ink + overlay — the two neutral channels every translucent color is built from.
+     ink = foreground tint over a surface (lines, hover fills, soft text) — light theme flips it.
+     overlay = scrims + shadows (black in every theme). */
+  --color-ink:                var(--color-prim-white);
+  --color-ink-rgb:            var(--color-prim-white-rgb);
+  --color-overlay:            var(--color-prim-black);
+  --color-overlay-rgb:        var(--color-prim-black-rgb);
+  --color-overlay-scrim:      rgba(var(--color-overlay-rgb), .7);   /* modal / sheet backdrop */
 
   /* Surface */
   --color-surface-page:          var(--color-prim-dark-950);
+  --color-surface-page-rgb:      var(--color-prim-dark-950-rgb);
   --color-surface-card-solid:    var(--color-prim-dark-900);
-  --color-surface-card:          rgba(255,255,255,.03); /* translucent glassmorphism card */
-  --color-surface-input:         rgba(255,255,255,.06); /* input/select field background — confirmed consumer: index.css + Phase 2 */
+  --color-surface-elevated:      var(--color-prim-dark-850);   /* solid panel above a card (page dropdowns, popovers) */
+  --color-surface-glass:         rgba(var(--color-surface-page-rgb), .95); /* sticky bar / menu / toast over blurred content */
+  --color-surface-card:          rgba(var(--color-ink-rgb), .03); /* translucent glassmorphism card */
+  --color-surface-raised:        rgba(var(--color-ink-rgb), .04); /* ghost button / chip / small card on a card */
+  --color-surface-input:         rgba(var(--color-ink-rgb), .06); /* input/select field background — confirmed consumer: index.css + Phase 2 */
+  --color-surface-hover:         rgba(var(--color-ink-rgb), .07); /* hover / keyboard-active row, track of a bar */
 
   /* Border */
-  --color-border-default: rgba(255,255,255,.08);
-  --color-border-strong:  rgba(255,255,255,.16);
+  --color-border-subtle:  rgba(var(--color-ink-rgb), .06);
+  --color-border-default: rgba(var(--color-ink-rgb), .08);
+  --color-border-medium:  rgba(var(--color-ink-rgb), .12);
+  --color-border-strong:  rgba(var(--color-ink-rgb), .16);
   --color-border-focus:   var(--color-brand-primary);
 
   /* Text */
   --color-text-primary:     var(--color-prim-white);
-  --color-text-secondary:   rgba(255,255,255,.7);
-  --color-text-muted:       rgba(255,255,255,.4);
-  --color-text-placeholder: rgba(255,255,255,.28);
-  --color-text-disabled:    rgba(255,255,255,.20);
+  --color-text-body:        var(--color-prim-slate-200);  /* long-form / feed body copy */
+  --color-text-soft:        var(--color-prim-slate-300);  /* post / summary paragraph */
+  --color-text-secondary:   rgba(var(--color-ink-rgb), .7);
+  --color-text-meta:        var(--color-prim-slate-400);  /* meta line, timestamps, labels */
+  --color-text-meta-rgb:    var(--color-prim-slate-400-rgb);
+  --color-text-muted:       rgba(var(--color-ink-rgb), .4);
+  --color-text-placeholder: rgba(var(--color-ink-rgb), .28);
+  --color-text-disabled:    rgba(var(--color-ink-rgb), .20);
+  --color-text-on-brand:    var(--color-prim-dark-950);   /* text on a solid teal fill */
+  --color-text-on-fill:     var(--color-prim-white);      /* text on a solid colored fill (badge, gradient button) — white in every theme */
 
   /* Status */
-  --color-status-success: var(--color-prim-green);
-  --color-status-warning: var(--color-prim-amber);
-  --color-status-danger:  var(--color-prim-red);
-  --color-status-info:    var(--color-prim-blue);
+  --color-status-success:        var(--color-prim-green);
+  --color-status-success-strong: var(--color-prim-green-500);
+  --color-status-warning:        var(--color-prim-amber);
+  --color-status-warning-strong: var(--color-prim-amber-500);
+  --color-status-danger:         var(--color-prim-red);
+  --color-status-danger-strong:  var(--color-prim-red-500);  /* solid danger fill (count badge, destructive tint) */
+  --color-status-info:           var(--color-prim-blue);
   /* Status RGB channels */
-  --color-status-success-rgb: var(--color-prim-green-rgb);
-  --color-status-danger-rgb:  var(--color-prim-red-rgb);
-  --color-status-warning-rgb: var(--color-prim-amber-rgb);
-  --color-status-info-rgb:    var(--color-prim-blue-rgb);
+  --color-status-success-rgb:        var(--color-prim-green-rgb);
+  --color-status-success-strong-rgb: var(--color-prim-green-500-rgb);
+  --color-status-danger-rgb:         var(--color-prim-red-rgb);
+  --color-status-danger-strong-rgb:  var(--color-prim-red-500-rgb);
+  --color-status-warning-rgb:        var(--color-prim-amber-rgb);
+  --color-status-warning-strong-rgb: var(--color-prim-amber-500-rgb);
+  --color-status-info-rgb:           var(--color-prim-blue-rgb);
 
   /* Categorical — data classification; never use for UX status signals (CLR-13) */
   /* Skill level mapping: beginner=neutral, intermediate=blue, good=purple,
      advanced=teal, expert=amber  (CLR-11, CLR-13, CLR-14)                    */
-  --color-categorical-neutral: rgba(255,255,255,.4);
+  --color-categorical-neutral: rgba(var(--color-ink-rgb), .4);
   --color-categorical-blue:    var(--color-prim-blue);
   --color-categorical-purple:  var(--color-prim-purple);
   --color-categorical-teal:    var(--color-prim-teal);
   --color-categorical-amber:   var(--color-prim-amber);
+  /* Post theme palette (TW.POST_THEME_COLORS — 8 named values) */
+  --color-categorical-azure:   var(--color-prim-blue-500);
+  --color-categorical-orange:  var(--color-prim-orange);
+  --color-categorical-pink:    var(--color-prim-pink);
+  --color-categorical-red:     var(--color-prim-red-500);
+  --color-categorical-gold:    var(--color-prim-amber-500);
+  --color-categorical-slate:   var(--color-prim-slate-500);
+  --color-categorical-teal-rgb:   var(--color-prim-teal-rgb);
+  --color-categorical-purple-rgb: var(--color-prim-purple-rgb);
+  --color-categorical-azure-rgb:  var(--color-prim-blue-500-rgb);
+  --color-categorical-orange-rgb: var(--color-prim-orange-rgb);
+  --color-categorical-pink-rgb:   var(--color-prim-pink-rgb);
+  --color-categorical-red-rgb:    var(--color-prim-red-500-rgb);
+  --color-categorical-gold-rgb:   var(--color-prim-amber-500-rgb);
+  --color-categorical-slate-rgb:  var(--color-prim-slate-500-rgb);
 }
 
 /* ─── Section C: Legacy Aliases ────────────────────────────────────
@@ -100,7 +187,7 @@
   --t1:      var(--color-text-primary);
   --t2:      var(--color-text-secondary);
   --t3:      var(--color-text-muted);        /* audit: all consumers are muted-role text — safe */
-  --t4:      rgba(255,255,255,.2);           /* audit: mixed consumers (placeholder + subtitle) — mapping deferred Phase 2 */
+  --t4:      rgba(var(--color-ink-rgb), .2); /* audit: mixed consumers (placeholder + subtitle) — canonical mapping deferred to the page migrations (Phase 4) */
   --danger:  var(--color-status-danger);
   --warning: var(--color-status-warning);
   --success: var(--color-status-success);
@@ -224,7 +311,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  background: rgba(7,11,24,.95);
+  background: var(--color-surface-glass);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--bdr);
 }
@@ -252,7 +339,7 @@ body {
   border-radius: 10px;
   border: none;
   background: linear-gradient(135deg, var(--ac), var(--ac2));
-  color: #fff;
+  color: var(--color-text-on-fill);
   font-family: 'Cairo', sans-serif;
   font-size: .82rem;
   font-weight: 700;
@@ -270,7 +357,7 @@ body {
   padding: 8px 16px;
   border-radius: 10px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.04);
+  background: var(--color-surface-raised);
   color: var(--t2);
   font-family: 'Cairo', sans-serif;
   font-size: .8rem;
@@ -279,7 +366,7 @@ body {
 }
 
 .tw-btn-ghost:hover {
-  border-color: rgba(0,200,150,.3);
+  border-color: rgba(var(--color-brand-primary-rgb), .3);
   color: var(--ac);
 }
 
@@ -287,8 +374,8 @@ body {
 .tw-btn-danger {
   padding: 7px 14px;
   border-radius: 8px;
-  border: 1px solid rgba(239,68,68,.2);
-  background: rgba(239,68,68,.08);
+  border: 1px solid rgba(var(--color-status-danger-strong-rgb), .2);
+  background: rgba(var(--color-status-danger-strong-rgb), .08);
   color: var(--danger);
   font-family: 'Cairo', sans-serif;
   font-size: .75rem;
@@ -300,14 +387,14 @@ body {
   padding: 5px 10px;
   border-radius: 8px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.04);
+  background: var(--color-surface-raised);
   color: var(--t3);
   font-family: 'Cairo', sans-serif;
   font-size: .68rem;
   cursor: pointer;
   transition: border-color .2s, color .2s;
 }
-.tw-ab:hover { border-color: rgba(0,200,150,.3); color: var(--ac); }
+.tw-ab:hover { border-color: rgba(var(--color-brand-primary-rgb), .3); color: var(--ac); }
 
 /* ══════════════════════════════════════
    5. Inputs & Forms
@@ -317,7 +404,7 @@ body {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.05);
+  background: var(--color-surface-input);
   color: var(--t1);
   font-family: 'Cairo', sans-serif;
   font-size: .82rem;
@@ -326,7 +413,7 @@ body {
 
 .tw-input:focus {
   outline: none;
-  border-color: rgba(0,200,150,.4);
+  border-color: rgba(var(--color-brand-primary-rgb), .4);
 }
 
 .tw-input::placeholder { color: var(--t4); }
@@ -336,7 +423,7 @@ body {
   padding: 9px 12px;
   border-radius: 10px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.05);
+  background: var(--color-surface-input);
   color: var(--t2);
   font-family: 'Cairo', sans-serif;
   font-size: .8rem;
@@ -348,7 +435,7 @@ body {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.05);
+  background: var(--color-surface-input);
   color: var(--t1);
   font-family: 'Cairo', sans-serif;
   font-size: .82rem;
@@ -371,14 +458,14 @@ body {
    6. Cards (البطاقات)
    ══════════════════════════════════════ */
 .tw-card {
-  background: rgba(255,255,255,.04);
+  background: var(--color-surface-raised);
   border: 1px solid var(--bdr);
   border-radius: 16px;
   padding: 16px;
 }
 
 .tw-card-sm {
-  background: rgba(255,255,255,.04);
+  background: var(--color-surface-raised);
   border: 1px solid var(--bdr);
   border-radius: 12px;
   padding: 12px;
@@ -386,8 +473,8 @@ body {
 
 /* Accent Card */
 .tw-card-accent {
-  background: rgba(0,200,150,.06);
-  border: 1px solid rgba(0,200,150,.15);
+  background: rgba(var(--color-brand-primary-rgb), .06);
+  border: 1px solid rgba(var(--color-brand-primary-rgb), .15);
   border-radius: 14px;
   padding: 14px;
 }
@@ -399,14 +486,14 @@ body {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0,0,0,.7);
+  background: var(--color-overlay-scrim);
   display: flex;
   align-items: flex-end;
   justify-content: center;
 }
 
 .tw-modal-box {
-  background: #0d1426;
+  background: var(--color-surface-card-solid);
   border-radius: 20px 20px 0 0;
   padding: 20px;
   width: 100%;
@@ -430,7 +517,7 @@ body {
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   opacity: 0;
-  background: rgba(7,11,24,.97);
+  background: var(--color-surface-glass);
   border: 1px solid var(--bdr);
   border-radius: 14px;
   padding: 10px 16px;
@@ -451,9 +538,9 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
-.tw-toast.success { border-color: rgba(0,200,150,.3); }
-.tw-toast.error   { border-color: rgba(239,68,68,.3); }
-.tw-toast.info    { border-color: rgba(37,99,255,.3); }
+.tw-toast.success { border-color: rgba(var(--color-brand-primary-rgb), .3); }
+.tw-toast.error   { border-color: rgba(var(--color-status-danger-strong-rgb), .3); }
+.tw-toast.info    { border-color: rgba(var(--color-status-info-rgb), .3); }
 
 /* ── DS-FEEDBACK V1 Canonical (FBK-28 Runtime Direction) ── */
 .tw-snackbar {
@@ -462,7 +549,7 @@ body {
   transform: translateX(-50%) translateY(20px);
   bottom: var(--tw-feedback-bottom, 24px);   /* FBK-09: --tw-feedback-bottom in :root = 80px (over bottom nav) */
   opacity: 0;
-  background: rgba(7,11,24,.97);
+  background: var(--color-surface-glass);
   border: 1px solid var(--bdr);
   border-radius: 14px;
   padding: 10px 16px;
@@ -511,27 +598,27 @@ body {
 }
 
 .tw-badge-success {
-  background: rgba(0,200,150,.1);
+  background: rgba(var(--color-brand-primary-rgb), .1);
   color: var(--ac);
-  border: 1px solid rgba(0,200,150,.2);
+  border: 1px solid rgba(var(--color-brand-primary-rgb), .2);
 }
 
 .tw-badge-warning {
-  background: rgba(251,191,36,.1);
+  background: rgba(var(--color-status-warning-rgb), .1);
   color: var(--warning);
-  border: 1px solid rgba(251,191,36,.2);
+  border: 1px solid rgba(var(--color-status-warning-rgb), .2);
 }
 
 .tw-badge-danger {
-  background: rgba(239,68,68,.1);
+  background: rgba(var(--color-status-danger-strong-rgb), .1);
   color: var(--danger);
-  border: 1px solid rgba(239,68,68,.2);
+  border: 1px solid rgba(var(--color-status-danger-strong-rgb), .2);
 }
 
 .tw-badge-blue {
-  background: rgba(37,99,255,.1);
-  color: #60a5fa;
-  border: 1px solid rgba(37,99,255,.2);
+  background: rgba(var(--color-brand-secondary-rgb), .1);
+  color: var(--color-brand-secondary-text);
+  border: 1px solid rgba(var(--color-brand-secondary-rgb), .2);
 }
 
 /* ══════════════════════════════════════
@@ -540,9 +627,9 @@ body {
 .tw-skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255,255,255,.06) 25%,
-    rgba(255,255,255,.1) 50%,
-    rgba(255,255,255,.06) 75%
+    rgba(var(--color-ink-rgb), .06) 25%,
+    rgba(var(--color-ink-rgb), .1) 50%,
+    rgba(var(--color-ink-rgb), .06) 75%
   );
   background-size: 200% 100%;
   animation: tw-skeleton-wave 1.5s infinite;
@@ -557,7 +644,7 @@ body {
 .tw-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255,255,255,.1);
+  border: 2px solid var(--color-border-default);
   border-top-color: var(--ac);
   border-radius: 50%;
   animation: tw-spin .7s linear infinite;
@@ -609,7 +696,7 @@ body {
   padding: 5px 12px;
   border-radius: 8px;
   border: 1px solid var(--bdr);
-  background: rgba(255,255,255,.04);
+  background: var(--color-surface-raised);
   color: var(--t3);
   font-family: 'Cairo', sans-serif;
   font-size: .72rem;
@@ -619,9 +706,9 @@ body {
 
 .tw-pag-btn.active,
 .tw-pag-btn:hover {
-  background: rgba(0,200,150,.1);
+  background: rgba(var(--color-brand-primary-rgb), .1);
   color: var(--ac);
-  border-color: rgba(0,200,150,.3);
+  border-color: rgba(var(--color-brand-primary-rgb), .3);
 }
 
 /* ══════════════════════════════════════
