@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 1.6 — منع تسريب تفاصيل السيرفر برسائل الخطأ — 2026-10-07
+
+- `server.py`: **`_server_error(where, e)`** (جديد — SYSTEMS_INDEX §54d) — log كامل + traceback، والعميل بياخد 500 «خطأ في الخادم، حاول مرة أخرى». استبدل 60 مكان `HTTPException(500, str(e))` / `detail=f"خطأ: {str(e)}"`.
+- `http_exception_handler`: `detail` dict → JSON حقيقي `{"error": message, "detail": {...}}` بدل `str(dict)` · النص بيضل `{"error": "..."}`. `validation_exception_handler`: `details` = `[{loc, type}]` بدل `str(exc)` (بدون قيم المستخدم). `general_exception_handler`: نفس الرسالة الثابتة.
+- `auth.py`: رسائل `RuntimeError` الثابتة بدون نص DB (`promote_application_to_shortlist` · `update_application_status` · `create_company_post_comment` · `update_candidate_job_status` · backfill / partial index · scheduler) — التفاصيل بالـ log. `save/remove_profile_interest` + `get_pipeline_application_index_status` → خطأ ثابت.
+- `tw_shared.js` → `normalizeErrorResponse`: بيفهم `detail.message` (dict بدون field) و `error` كنص — متل عقد API-MUT-11 الموثّق.
+- اختبار: `test_server_error_leak.py` (فحص AST ثابت + runtime). تحديث تأكيد 114d بـ `test_post_comments.py` (الرسالة صارت بدون f-string).
+
 ## PR 1.5 + 1.8 — توكن أدمن مؤقت موقّع + إبطال الجلسات بعد تغيير كلمة السر — 2026-10-07
 
 - `server.py`: **`_jwt_sign` / `_jwt_verify`** — تطبيق HS256 واحد لسرّين. **`/tw-ctrl-login`** بيرجّع JWT أدمن (`ADMIN_JWT_SECRET`، `role=admin` · `sub=owner` · `perms=["*"]` · ساعة) بدل `ADMIN_TOKEN` الخام. **`check_admin`** بيقبل هاد الـ JWT بس (401 للخام / المنتهي / JWT مستخدم · 403 دور ناقص · 503 بدون سر). SYSTEMS_INDEX §25.

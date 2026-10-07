@@ -410,18 +410,44 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# ── Internal Error Responses (PR 1.6 — SYSTEMS_INDEX §54d) ──
+# An unexpected exception (DB error, bug) never reaches the client: its text can
+# carry table / constraint / column names. Full details go to the log only.
+# Usage in an endpoint:  except Exception as e: raise _server_error("endpoint_name", e)
+# ❌ HTTPException(500, str(e)) · ❌ detail=f"...{e}" · ❌ {"error": str(e)} in any response.
+# Intended errors (ValueError / PermissionError with an Arabic message written in code,
+# ContentValidationError …) keep their own 4xx message — this is for the unexpected only.
+_SERVER_ERROR_MSG = "خطأ في الخادم، حاول مرة أخرى"
+
+def _server_error(where: str, e: BaseException) -> HTTPException:
+    import traceback
+    print(f"[server-error] {where}: {type(e).__name__}: {e}")
+    traceback.print_exception(type(e), e, e.__traceback__)
+    return HTTPException(500, _SERVER_ERROR_MSG)
+
+def _http_error_content(detail) -> dict:
+    """HTTPException.detail → response body. str → {"error": str} (unchanged shape).
+    dict → real JSON {"error": <message>, "detail": {...}} — never str(dict)."""
+    if isinstance(detail, dict):
+        msg = detail.get("message") or detail.get("error")
+        return {"error": msg if isinstance(msg, str) and msg else "حدث خطأ", "detail": detail}
+    return {"error": str(detail)}
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
-    return JSONResponse(status_code=exc.status_code, content={"error": str(exc.detail)})
+    return JSONResponse(status_code=exc.status_code, content=_http_error_content(exc.detail))
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    return JSONResponse(status_code=422, content={"error": "بيانات غير صحيحة", "details": str(exc)})
+    # Field location + error type only — never the submitted values (str(exc) echoes them).
+    details = [{"loc": [p for p in err.get("loc", ()) if isinstance(p, (str, int))],
+                "type": str(err.get("type", ""))} for err in exc.errors()]
+    return JSONResponse(status_code=422, content={"error": "بيانات غير صحيحة", "details": details})
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
-    print(f"[ERROR] {request.url}: {exc}")
-    return JSONResponse(status_code=500, content={"error": "خطأ في السيرفر"})
+    print(f"[ERROR] {request.url.path}: {type(exc).__name__}: {exc}")
+    return JSONResponse(status_code=500, content={"error": _SERVER_ERROR_MSG})
 
 # ── Security Headers ──
 @app.middleware("http")
@@ -3152,7 +3178,7 @@ async def submit_report(data: ReportInput, request: Request, token=Depends(verif
         # (GET /admin/reports + pending badge).
         return {"status": "success", "message": "تم إرسال البلاغ"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("submit_report", e)
 
 @app.get("/admin/reports")
 def admin_get_reports(request: Request):
@@ -3199,7 +3225,7 @@ def resolve_report(report_id: int, request: Request):
             release_conn(conn)
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("resolve_report", e)
 
 
 @app.post("/log/error")
@@ -3273,7 +3299,7 @@ def profile_score(user_id: int):
             release_conn(conn)
         return {"score": data["score"], "tips": data["tips"], "level": data["level"]}
     except HTTPException: raise
-    except Exception as e: raise HTTPException(500, str(e))
+    except Exception as e: raise _server_error("profile_score", e)
 
 
 class ResetPasswordInput(BaseModel):
@@ -3528,7 +3554,7 @@ async def update_user_name(user_id: int, request: Request, token=Depends(verify_
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("update_user_name", e)
 
 @app.get("/auth/user/{user_id}")
 def get_user(user_id: int, token=Depends(verify_token)):
@@ -4171,7 +4197,7 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
         finally:
             release_conn(conn)
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("add_user_skill", e)
 
 @app.delete("/skills/{skill_id}")
 def delete_user_skill(skill_id: int, token=Depends(verify_token)):
@@ -4192,7 +4218,7 @@ def delete_user_skill(skill_id: int, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("delete_user_skill", e)
 
 @app.post("/langs/{user_id}")
 def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
@@ -4216,7 +4242,7 @@ def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
         finally:
             release_conn(conn)
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("add_user_lang", e)
 
 @app.delete("/langs/{lang_id}")
 def delete_user_lang(lang_id: int, token=Depends(verify_token)):
@@ -4237,7 +4263,7 @@ def delete_user_lang(lang_id: int, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("delete_user_lang", e)
 
 @app.post("/links/{user_id}")
 def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
@@ -4256,7 +4282,7 @@ def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
         finally:
             release_conn(conn)
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("add_user_link", e)
 
 @app.delete("/links/{link_id}")
 def delete_user_link(link_id: int, token=Depends(verify_token)):
@@ -4277,7 +4303,7 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("delete_user_link", e)
 
 # ══ Messages & Notifications ══
 
@@ -4359,7 +4385,7 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("send_msg", e)
 
 @app.get("/messages/conversations/{user_id}")
 def get_convs(user_id: int, token=Depends(verify_token)):
@@ -4370,7 +4396,7 @@ def get_convs(user_id: int, token=Depends(verify_token)):
         return {"status": "success", "conversations": convs}
     except Exception as e:
         print(f"[get_convs] user_id={user_id} error={type(e).__name__}: {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("get_convs", e)
 
 @app.get("/messages/unread/{user_id}")
 def unread_msgs(user_id: int, token=Depends(verify_token)):
@@ -4380,7 +4406,7 @@ def unread_msgs(user_id: int, token=Depends(verify_token)):
         count = get_unread_count(user_id)
         return {"status": "success", "count": count}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("unread_msgs", e)
 
 @app.get("/messages/{user_id}/{other_id}")
 async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
@@ -4396,7 +4422,7 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
             })
         return {"status": "success", "messages": msgs}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("get_msgs", e)
 
 
 
@@ -4409,7 +4435,7 @@ def notifications_unread_count(user_id: int, token=Depends(verify_token)):
         count = get_unread_notifications(user_id)
         return {"ok": True, "data": {"count": count}}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("notifications_unread_count", e)
 
 @app.get("/notifications/{user_id}")
 def user_notifications(user_id: int, token=Depends(verify_token),
@@ -4426,7 +4452,7 @@ def user_notifications(user_id: int, token=Depends(verify_token),
         return {"status": "success", "notifications": notifs, "unread": unread,
                 "page": page, "per_page": per_page}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("user_notifications", e)
 
 @app.put("/notifications/{user_id}/read")
 def read_notifications(user_id: int, token=Depends(verify_token)):
@@ -4437,7 +4463,7 @@ def read_notifications(user_id: int, token=Depends(verify_token)):
         mark_notifications_read(user_id)
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("read_notifications", e)
 
 @app.put("/notifications/{user_id}/read/{notif_id}")
 def read_single_notification(user_id: int, notif_id: int, token=Depends(verify_token)):
@@ -4448,7 +4474,7 @@ def read_single_notification(user_id: int, notif_id: int, token=Depends(verify_t
         mark_notification_read(user_id, notif_id)
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("read_single_notification", e)
 
 # ══ Storage Upload ══
 # PR-7a — Upload security (SYSTEMS_INDEX §29a · docs/rules/upload.md).
@@ -4830,7 +4856,7 @@ def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("kyc_upload_docs", e)
 
 @app.get("/admin/kyc")
 def admin_get_kyc(request: Request):
@@ -4841,7 +4867,7 @@ def admin_get_kyc(request: Request):
         submissions = get_all_kyc_submissions()
         return {"status": "success", "submissions": submissions, "count": len(submissions)}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_get_kyc", e)
 
 @app.put("/admin/kyc/{user_id}/approve")
 def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
@@ -4850,7 +4876,7 @@ def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
         result = admin_approve_kyc(user_id, data.note)
         return {"status": "success", **result}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_kyc_approve", e)
 
 @app.put("/admin/kyc/{user_id}/reject")
 def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
@@ -4859,7 +4885,7 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
         result = admin_reject_kyc(user_id, data.note)
         return {"status": "success", **result}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_kyc_reject", e)
 
 # ══ PR-7c — Admin KYC document viewing (signed URLs) ══
 # kyc-docs is private (_PRIVATE_BUCKETS): kyc_submissions stores the object path
@@ -5401,7 +5427,7 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
         raise HTTPException(403, str(e))
     except RuntimeError as e:
         print(f"[ERROR] update_application_status app {app_id}: {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("update_app_status", e)
 
 
 @app.post("/jobs/applications/{app_id}/promote")
@@ -5427,7 +5453,7 @@ def promote_applicant(app_id: int, token=Depends(verify_token)):
         raise HTTPException(409, str(e))
     except RuntimeError as e:
         print(f"[ERROR] promote_application_to_shortlist app {app_id}: {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("promote_applicant", e)
 
 
 @app.get("/admin/jobs")
@@ -5462,7 +5488,7 @@ def stats():
             "jobs_count": conn.run("SELECT COUNT(*) FROM jobs WHERE status='active' AND archived_at IS NULL")[0][0] if True else 0
         }
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("stats", e)
     finally:
         release_conn(conn)
 
@@ -5499,7 +5525,7 @@ def get_all_users(request: Request):
         return {"users": users, "total": len(users)}
     except Exception as e:
         print(f"get_all_users error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("get_all_users", e)
     finally:
         release_conn(conn)
 
@@ -5524,7 +5550,7 @@ def admin_verify_requests(request: Request):
         return {"requests": reqs, "total": len(reqs)}
     except Exception as e:
         print(f"verify_requests error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("admin_verify_requests", e)
     finally:
         release_conn(conn)
 
@@ -5561,7 +5587,7 @@ def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
         raise
     except Exception as e:
         print(f"update_verify error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("admin_update_verify", e)
     finally:
         release_conn(conn)
 
@@ -5579,7 +5605,7 @@ def admin_get_profile(user_id: int, request: Request):
         import traceback
         err = traceback.format_exc()
         print(f"admin_get_profile error: {err}")
-        raise HTTPException(500, detail=f"خطأ: {str(e)}")
+        raise _server_error("admin_get_profile", e)
 
 @app.delete("/auth/user/{user_id}/delete")
 def delete_own_account(user_id: int, data: AccountDeleteInput, token=Depends(verify_token)):
@@ -5623,7 +5649,7 @@ def delete_user(user_id: int, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("delete_user", e)
     finally:
         release_conn(conn)
 
@@ -5639,7 +5665,7 @@ async def change_user_type(user_id: int, request: Request):
         conn.run("UPDATE users SET user_type = :utype WHERE id = :uid", utype=new_type, uid=user_id)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("change_user_type", e)
     finally:
         release_conn(conn)
 
@@ -5657,7 +5683,7 @@ async def verify_user(user_id: int, request: Request):
             conn.run("INSERT INTO profiles (user_id, is_verified) VALUES (:uid, :v)", uid=user_id, v=is_v)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("verify_user", e)
     finally:
         release_conn(conn)
 
@@ -5673,7 +5699,7 @@ async def admin_reset_password(user_id: int, request: Request):
         _password_changed_cache_set(user_id, set_user_password(user_id, pw))
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_reset_password", e)
 
 @app.delete("/admin/experience/{exp_id}")
 def admin_delete_exp(exp_id: int, request: Request):
@@ -5683,7 +5709,7 @@ def admin_delete_exp(exp_id: int, request: Request):
         conn.run("DELETE FROM experience WHERE id = :id", id=exp_id)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_delete_exp", e)
     finally:
         release_conn(conn)
 
@@ -5695,7 +5721,7 @@ def admin_delete_edu(edu_id: int, request: Request):
         conn.run("DELETE FROM education WHERE id = :id", id=edu_id)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_delete_edu", e)
     finally:
         release_conn(conn)
 
@@ -5707,7 +5733,7 @@ def admin_delete_course(course_id: int, request: Request):
         conn.run("DELETE FROM courses WHERE id = :id", id=course_id)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_delete_course", e)
     finally:
         release_conn(conn)
 
@@ -5732,7 +5758,7 @@ def delete_experience(exp_id: int, token=Depends(verify_token)):
             release_conn(conn)
     except Exception as e:
         print(f"[delete_experience] error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("delete_experience", e)
 
 @app.put("/education/{edu_id}")
 def update_education_entry(edu_id: int, data: EducationInput, token=Depends(verify_token)):
@@ -5767,7 +5793,7 @@ def delete_education(edu_id: int, token=Depends(verify_token)):
             release_conn(conn)
     except Exception as e:
         print(f"[delete_education] error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("delete_education", e)
 
 @app.put("/course/{course_id}")
 def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_token)):
@@ -5803,7 +5829,7 @@ def delete_course(course_id: int, token=Depends(verify_token)):
             release_conn(conn)
     except Exception as e:
         print(f"[delete_course] error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise _server_error("delete_course", e)
 
 
 # ══ News Posts (admin-managed editorial content) ══
@@ -6064,7 +6090,7 @@ def api_create_appointment(body: AppointmentCreateInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_create_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_create_appointment", e)
 
 
 @app.get("/api/appointments")
@@ -6078,7 +6104,7 @@ def api_list_appointments(status: Optional[str] = None,
         return {"ok": True, "data": result, "count": len(result)}
     except Exception as e:
         print(f"[api_list_appointments] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_list_appointments", e)
 
 
 @app.get("/api/appointments/{appointment_id}")
@@ -6093,7 +6119,7 @@ def api_get_appointment_room(appointment_id: int, token=Depends(verify_token)):
         raise HTTPException(404, str(e))
     except Exception as e:
         print(f"[api_get_appointment_room] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_get_appointment_room", e)
 
 
 @app.post("/api/appointments/{appointment_id}/send")
@@ -6120,7 +6146,7 @@ def api_send_appointment(appointment_id: int, body: AppointmentSendInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_send_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_send_appointment", e)
 
 
 @app.post("/api/appointments/{appointment_id}/accept")
@@ -6135,7 +6161,7 @@ def api_accept_appointment(appointment_id: int, token=Depends(verify_token)):
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_accept_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_accept_appointment", e)
 
 
 @app.post("/api/appointments/{appointment_id}/request-reschedule")
@@ -6152,7 +6178,7 @@ def api_request_reschedule(appointment_id: int, body: CancelInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_request_reschedule] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_request_reschedule", e)
 
 
 @app.post("/api/appointments/{appointment_id}/reschedule")
@@ -6176,7 +6202,7 @@ def api_reschedule_appointment(appointment_id: int, body: RescheduleInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_reschedule_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_reschedule_appointment", e)
 
 
 @app.post("/api/appointments/{appointment_id}/cancel")
@@ -6192,7 +6218,7 @@ def api_cancel_appointment(appointment_id: int, body: CancelInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_cancel_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_cancel_appointment", e)
 
 
 @app.post("/api/appointments/{appointment_id}/complete")
@@ -6207,7 +6233,7 @@ def api_complete_appointment(appointment_id: int, token=Depends(verify_token)):
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_complete_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_complete_appointment", e)
 
 
 @app.post("/api/appointments/{appointment_id}/close")
@@ -6222,7 +6248,7 @@ def api_close_appointment(appointment_id: int, token=Depends(verify_token)):
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_close_appointment] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_close_appointment", e)
 
 
 @app.get("/api/appointments/{appointment_id}/events")
@@ -6237,7 +6263,7 @@ def api_get_appointment_events(appointment_id: int, token=Depends(verify_token))
         raise HTTPException(404, str(e))
     except Exception as e:
         print(f"[api_get_appointment_events] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_get_appointment_events", e)
 
 
 @app.get("/api/appointments/{appointment_id}/messages")
@@ -6255,7 +6281,7 @@ def api_get_appointment_messages(appointment_id: int,
         raise HTTPException(404, str(e))
     except Exception as e:
         print(f"[api_get_appointment_messages] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_get_appointment_messages", e)
 
 
 @app.post("/api/appointments/{appointment_id}/messages")
@@ -6272,7 +6298,7 @@ def api_create_appointment_message(appointment_id: int,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_create_appointment_message] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_create_appointment_message", e)
 
 
 # ── Scheduler Internal Endpoint — S3 ─────────────────────────────────────────
@@ -6352,7 +6378,7 @@ def admin_pipeline_backfill(
     except HTTPException:
         raise
     except RuntimeError as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_pipeline_backfill", e)
 
 
 @app.get("/admin/pipeline/backfill/dry-run")
@@ -6366,7 +6392,7 @@ def admin_pipeline_backfill_dry_run(request: Request):
     try:
         return pipeline_backfill_dry_run()
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_pipeline_backfill_dry_run", e)
 
 
 @app.post("/admin/pipeline/migrate-index")
@@ -6421,7 +6447,7 @@ def admin_pipeline_migrate_index(
     except BlockingConflictError as e:
         return JSONResponse(status_code=409, content=e.report)
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise _server_error("admin_pipeline_migrate_index", e)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6451,7 +6477,7 @@ def api_list_pipeline_notes(entry_id: int, token=Depends(verify_token)):
         raise HTTPException(403, str(e))
     except Exception as e:
         print(f"[api_list_pipeline_notes] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_list_pipeline_notes", e)
 
 
 @app.post("/company/pipeline/{entry_id}/notes")
@@ -6470,7 +6496,7 @@ def api_create_pipeline_note(entry_id: int, body: PipelineNoteCreateInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_create_pipeline_note] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_create_pipeline_note", e)
 
 
 @app.patch("/company/pipeline/notes/{note_id}")
@@ -6489,7 +6515,7 @@ def api_update_pipeline_note(note_id: int, body: PipelineNoteUpdateInput,
         raise HTTPException(400, str(e))
     except Exception as e:
         print(f"[api_update_pipeline_note] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_update_pipeline_note", e)
 
 
 @app.delete("/company/pipeline/notes/{note_id}")
@@ -6505,6 +6531,6 @@ def api_delete_pipeline_note(note_id: int, token=Depends(verify_token)):
         raise HTTPException(403, str(e))
     except Exception as e:
         print(f"[api_delete_pipeline_note] {e}")
-        raise HTTPException(500, str(e))
+        raise _server_error("api_delete_pipeline_note", e)
 
 

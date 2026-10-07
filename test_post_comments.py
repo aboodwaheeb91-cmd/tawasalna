@@ -1242,7 +1242,7 @@ check(
 )
 check(
     "114d. auth.py raises RuntimeError with Arabic message on transaction failure (no silent failure)",
-    'raise RuntimeError(f"فشل حفظ التعليق والمنشنات' in auth_src
+    'raise RuntimeError("فشل حفظ التعليق والمنشنات' in auth_src
 )
 check(
     "114e. auth.py no bare 'except: pass' inside transaction block (no swallowed errors)",

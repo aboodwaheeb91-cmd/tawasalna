@@ -3007,7 +3007,8 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
                     conn.run("ROLLBACK")
                 except Exception:
                     pass
-            raise RuntimeError(f"فشل تحديث حالة الطلب: {_tx_err}") from _tx_err
+            print(f"[update_application_status] tx failed: {type(_tx_err).__name__}: {_tx_err}")
+            raise RuntimeError("فشل تحديث حالة الطلب") from _tx_err
 
     finally:
         release_conn(conn)
@@ -4794,7 +4795,8 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                     conn.run("ROLLBACK")
                 except Exception:
                     pass
-            raise RuntimeError(f"فشل حفظ التعليق والمنشنات: {_tx_err}") from _tx_err
+            print(f"[create_company_post_comment] tx failed: {type(_tx_err).__name__}: {_tx_err}")
+            raise RuntimeError("فشل حفظ التعليق والمنشنات") from _tx_err
         # ── Post-commit: read-only queries to build return value ──
         cols = ["id", "body", "created_at", "updated_at", "reply_to_comment_id"]
         d = _serialize(_row_to_dict(cols, rows[0]))
@@ -5293,7 +5295,9 @@ def save_profile_interest(actor_user_id: int, target_user_id: int) -> dict:
 
         return {"success": True, "interest_type": interest_type, "is_active": True}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        # DB text never reaches the client (PR 1.6) — details to the log only.
+        print(f"[save_profile_interest] actor={actor_user_id} target={target_user_id}: {type(e).__name__}: {e}")
+        return {"success": False, "error": "تعذّر الحفظ"}
     finally:
         release_conn(conn)
 
@@ -5309,7 +5313,8 @@ def remove_profile_interest(actor_user_id: int, target_user_id: int) -> dict:
             aid=actor_user_id, tid=target_user_id)
         return {"success": True, "is_active": False}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        print(f"[remove_profile_interest] actor={actor_user_id} target={target_user_id}: {type(e).__name__}: {e}")
+        return {"success": False, "error": "تعذّرت الإزالة"}
     finally:
         release_conn(conn)
 
@@ -6594,7 +6599,8 @@ def update_candidate_job_status(
                 conn.run("ROLLBACK")
             except Exception:
                 pass
-        raise RuntimeError(f"فشل تحديث حالة المرشح في الوظيفة: {_e}") from _e
+        print(f"[update_candidate_job_status] tx failed: {type(_e).__name__}: {_e}")
+        raise RuntimeError("فشل تحديث حالة المرشح في الوظيفة") from _e
     finally:
         release_conn(conn)
 
@@ -6715,7 +6721,8 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     conn.run("ROLLBACK")
                 except Exception:
                     pass
-            raise RuntimeError(f"فشلت عملية الترقية: {_tx_err}") from _tx_err
+            print(f"[promote_application_to_shortlist] tx failed app={app_id}: {type(_tx_err).__name__}: {_tx_err}")
+            raise RuntimeError("فشلت عملية الترقية") from _tx_err
 
         return {
             "application": {
@@ -9366,7 +9373,8 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
                 conn.run("ROLLBACK")
             except Exception:
                 pass
-        raise RuntimeError(f"فشل backfill الـ pipeline: {_e}") from _e
+        print(f"[run_pipeline_backfill] failed: {type(_e).__name__}: {_e}")
+        raise RuntimeError("فشل backfill الـ pipeline") from _e
 
     finally:
         release_conn(conn)
@@ -9481,7 +9489,8 @@ def _migrate_partial_unique_application_id() -> None:
                 pass
         if '42710' in str(_e) or 'duplicate_object' in str(_e):
             return  # Index already exists — idempotent
-        raise RuntimeError(f"فشل إنشاء الـ partial unique index: {_e}") from _e
+        print(f"[_migrate_partial_unique_application_id] failed: {type(_e).__name__}: {_e}")
+        raise RuntimeError("فشل إنشاء الـ partial unique index") from _e
 
     finally:
         release_conn(conn)
@@ -9540,12 +9549,13 @@ def get_pipeline_application_index_status() -> dict:
         }
 
     except Exception as _e:
+        print(f"[get_pipeline_application_index_status] failed: {type(_e).__name__}: {_e}")
         return {
             "exists":          False,
             "is_unique":       False,
             "predicate_valid": False,
             "ready":           False,
-            "error":           str(_e),
+            "error":           "index_status_query_failed",
         }
 
     finally:
@@ -9673,7 +9683,8 @@ def schedule_job(
     except RuntimeError:
         raise
     except Exception as exc:
-        raise RuntimeError(f"schedule_job: unexpected DB error: {exc}") from exc
+        print(f"[scheduler] schedule_job unexpected DB error: {type(exc).__name__}: {exc}")
+        raise RuntimeError("schedule_job: unexpected DB error") from exc
     finally:
         release_conn(conn)
 
@@ -10226,7 +10237,8 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
                 conn.run("ROLLBACK")
             except Exception as rollback_exc:
                 print(f"[scheduler] ERROR rollback failed — runner={runner_id}: {rollback_exc}")
-        raise RuntimeError(f"run_due_scheduler_jobs: {exc}") from exc
+        print(f"[scheduler] run_due_scheduler_jobs failed — runner={runner_id}: {type(exc).__name__}: {exc}")
+        raise RuntimeError("run_due_scheduler_jobs failed") from exc
     finally:
         release_conn(conn)
 

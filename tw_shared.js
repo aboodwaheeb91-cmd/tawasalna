@@ -91,6 +91,8 @@ function initScrollProg() {
 //     2. body.error{} (general) is only consumed if fieldErrors.length === 0 AND no generalError yet
 //        (Separation of shapes: field-specific shape NEVER coexists with body.error{})
 //     3. body.detail → legacy FastAPI backward compat (only when both official shapes absent)
+//        — object with field/code → fieldErrors; object with message only → generalError (PR 1.6)
+//     3b. body.error as a string (global handler shape) → generalError (PR 1.6)
 //     4. Unknown/null body → generalError.message = 'حدث خطأ، حاول مجدداً' (F9 — no silent failure)
 //   Consumers: profile-v2.edit.js save handler → _routeFieldError() per fieldError
 //   DO NOT call fetch('/profile') directly — use tw_shared.js exports only
@@ -120,12 +122,17 @@ function normalizeErrorResponse(body) {
     if (det && typeof det === 'object') {
       if (det.field || det.code) {
         fieldErrors.push({ field: det.field || '', code: det.code || '', message: det.error || det.message || '' });
-      } else if (typeof det === 'string') {
-        generalError = { code: '', message: det };
+      } else if (typeof det.message === 'string' && det.message) {
+        // dict detail without field (PR 1.6 handler: {error, detail:{status, message}})
+        generalError = { code: '', message: det.message };
       }
     } else if (typeof det === 'string') {
       generalError = { code: '', message: det };
     }
+  }
+  // Global handler string shape {"error": "..."} (string HTTPException detail · 422 validation · 500 server error)
+  if (!fieldErrors.length && !generalError && typeof body.error === 'string' && body.error) {
+    generalError = { code: '', message: body.error };
   }
   // Unknown shape fallback: caller always has something to display
   if (!fieldErrors.length && !generalError) {
