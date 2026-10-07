@@ -15,6 +15,7 @@
 # DB: PostgreSQL ≥ 14 with ssl=on (auth.get_conn always connects with SSL, like Supabase),
 #     superuser tawasalna_test_user / test_pass_pr1 @ 127.0.0.1:5432 — the URL the
 #     integration tests already use. Override with TW_TEST_DB_URL.
+# Git: a full clone with origin/main (two tests diff against `git merge-base origin/main HEAD`).
 set -u
 cd "$(dirname "$0")"
 

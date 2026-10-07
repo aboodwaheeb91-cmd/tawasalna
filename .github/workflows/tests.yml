@@ -39,6 +39,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # full history + origin/main: test_ds_size_tokens (S4) and test_landing_shell (F05)
+          # diff the change against `git merge-base origin/main HEAD`
+          fetch-depth: 0
 
       - name: Set up Python (same as runtime.txt)
         uses: actions/setup-python@v5
