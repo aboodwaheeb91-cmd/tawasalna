@@ -115,55 +115,43 @@ class TestCheckAdminBehavior(unittest.TestCase):
         req.headers.get = lambda k, d="": token_value if k == "X-Admin-Token" else d
         return req
 
-    def test_check_admin_raises_503_when_token_not_set(self):
-        """503 when ADMIN_TOKEN is empty — fail closed."""
+    # PR 1.5: check_admin accepts ONLY an admin JWT (ADMIN_JWT_SECRET) — the raw
+    # ADMIN_TOKEN is the login password, never a session. Full matrix:
+    # test_admin_session_security.py.
+    def test_check_admin_raises_503_when_admin_jwt_secret_not_set(self):
+        """503 when ADMIN_JWT_SECRET is empty — fail closed."""
         import server as srv
-        original = srv.ADMIN_TOKEN
+        original = srv.ADMIN_JWT_SECRET
         try:
-            srv.ADMIN_TOKEN = ""
+            srv.ADMIN_JWT_SECRET = ""
             with self.assertRaises(Exception) as ctx:
                 srv.check_admin(self._make_request("anything"))
-            exc = ctx.exception
-            # FastAPI HTTPException has status_code attribute
-            self.assertEqual(exc.status_code, 503)
-        finally:
-            srv.ADMIN_TOKEN = original
-
-    def test_check_admin_raises_503_when_token_too_short(self):
-        """503 when ADMIN_TOKEN is shorter than 32 chars."""
-        import server as srv
-        original = srv.ADMIN_TOKEN
-        try:
-            srv.ADMIN_TOKEN = "short"
-            with self.assertRaises(Exception) as ctx:
-                srv.check_admin(self._make_request("short"))
             self.assertEqual(ctx.exception.status_code, 503)
         finally:
-            srv.ADMIN_TOKEN = original
+            srv.ADMIN_JWT_SECRET = original
 
-    def test_check_admin_raises_403_on_wrong_token(self):
-        """403 when ADMIN_TOKEN is set but header value is wrong."""
+    def test_check_admin_rejects_raw_admin_token(self):
+        """401 when the header carries the raw ADMIN_TOKEN instead of an admin JWT."""
         import server as srv
-        original = srv.ADMIN_TOKEN
+        o_tok, o_sec = srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET
         try:
-            srv.ADMIN_TOKEN = "a" * 64
+            srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = "a" * 64, "s" * 64
             with self.assertRaises(Exception) as ctx:
-                srv.check_admin(self._make_request("wrong_token"))
-            self.assertEqual(ctx.exception.status_code, 403)
+                srv.check_admin(self._make_request("a" * 64))
+            self.assertEqual(ctx.exception.status_code, 401)
         finally:
-            srv.ADMIN_TOKEN = original
+            srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = o_tok, o_sec
 
-    def test_check_admin_passes_with_correct_token(self):
-        """No exception when correct token is provided."""
+    def test_check_admin_passes_with_admin_jwt(self):
+        """Claims returned when a valid admin JWT is provided."""
         import server as srv
-        original = srv.ADMIN_TOKEN
+        original = srv.ADMIN_JWT_SECRET
         try:
-            srv.ADMIN_TOKEN = "b" * 64
-            # Should not raise
-            result = srv.check_admin(self._make_request("b" * 64))
-            self.assertIsNone(result)
+            srv.ADMIN_JWT_SECRET = "s" * 64
+            claims = srv.check_admin(self._make_request(srv._admin_jwt_issue()))
+            self.assertEqual(claims["role"], "admin")
         finally:
-            srv.ADMIN_TOKEN = original
+            srv.ADMIN_JWT_SECRET = original
 
     def test_admin_login_returns_503_when_token_not_set(self):
         """admin_login returns 503 when ADMIN_TOKEN is unconfigured."""
@@ -199,11 +187,16 @@ class TestCheckAdminBehavior(unittest.TestCase):
         original = srv.ADMIN_TOKEN
         try:
             srv.ADMIN_TOKEN = "d" * 64
+            o_sec = srv.ADMIN_JWT_SECRET
+            srv.ADMIN_JWT_SECRET = "s" * 64
             data = MagicMock()
             data.password = "d" * 64
             result = srv.admin_login(data)
             self.assertTrue(result.get("success"))
-            self.assertEqual(result.get("token"), "d" * 64)
+            # PR 1.5: an admin JWT, never the raw ADMIN_TOKEN
+            self.assertNotEqual(result.get("token"), "d" * 64)
+            self.assertTrue(srv._admin_jwt_claims(result.get("token")))
+            srv.ADMIN_JWT_SECRET = o_sec
         finally:
             srv.ADMIN_TOKEN = original
 

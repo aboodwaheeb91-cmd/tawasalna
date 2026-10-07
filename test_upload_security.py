@@ -10,6 +10,7 @@ import base64, os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 os.environ.setdefault("JWT_SECRET", "test-secret-pr7a-" + "x" * 32)
 os.environ.setdefault("ADMIN_TOKEN", "a" * 40)
+os.environ.setdefault("ADMIN_JWT_SECRET", "test-admin-jwt-pr7a-" + "s" * 32)
 
 import httpx
 import pytest
@@ -147,11 +148,13 @@ def test_requires_jwt(storage):
 
 
 def test_admin_logo_validation(storage):
-    h = {"X-Admin-Token": os.environ["ADMIN_TOKEN"]}
+    if not server._admin_jwt_secret_ok():   # server imported earlier by another test file
+        server.ADMIN_JWT_SECRET = os.environ["ADMIN_JWT_SECRET"]
+    h = {"X-Admin-Token": server._admin_jwt_issue()}   # PR 1.5: admin session JWT
     assert client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/svg+xml", SVG)}, headers=h).status_code == 400
     assert client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/png", HTML)}, headers=h).status_code == 400
     assert client.post("/admin/logo", json={"filename": "../x", "data_url": durl("image/png", PNG)}, headers=h).status_code == 400
-    assert client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/png", PNG)}).status_code == 403
+    assert client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/png", PNG)}).status_code == 401
     storage.status = 500
     r = client.post("/admin/logo", json={"filename": "logo_wide", "data_url": durl("image/png", PNG)}, headers=h)
     assert r.status_code == 502 and "data:" not in r.text

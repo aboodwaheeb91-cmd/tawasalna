@@ -4891,6 +4891,19 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 
 6. كرّر بعد يوم-يومين (بلاغات عن تبدّل مسار Railway / Fastly)، ثبّت القيمة، ثم `LOG_CLIENT_IP` → احذفه. ✅ تأكيد: بعد التثبيت، الطلب التاني لازم يطبع `chosen='REAL'`.
 
+#### نتيجة القياس على Railway — 2026-10-07 ✅
+
+| الملاحظة | النتيجة |
+|---|---|
+| `X-Forwarded-For` اللي بيبعته العميل (`1.2.3.4`) | **Railway بيمسحه** — ما بيوصل للتطبيق |
+| شكل XFF الواصل | `REAL, <hop داخلي>` — IP العميل أول قيمة، وبعده hop داخلي **بيتغيّر كل طلب** |
+| `X-Real-IP` | = IP العميل (REAL) بالطلبين |
+
+**القيمة المعتمدة على Railway: `CLIENT_IP_SOURCE=x_real_ip`.**
+- ❌ `xff_right` غلط على Railway: آخر قيمة هي الـ hop الداخلي المتغيّر، فكل طلب بيطلع بـ IP مختلف → الـ rate limiter ما بيعدّ صح.
+- `xff_left` كان رح يعطي REAL كمان (لأن Railway بيمسح XFF العميل)، بس `x_real_ip` هو الأوضح ومش معتمد على ترتيب القائمة.
+- بعد ضبط المتغير على Railway: `LOG_CLIENT_IP` → احذفه.
+
 ❌ قراءة XFF خارج `get_client_ip` · ❌ rate limiter أو مخزن تاني لمسارات الدخول · ❌ تفعيل `LOG_CLIENT_IP` بشكل دائم.
 
 ---
@@ -6240,40 +6253,53 @@ score_data       = _calc_profile_score(uid, conn)  # يُعيد exp/edu/skill/li
 **URL:** `/tw-ctrl-{ADMIN_URL_TOKEN}` — ADMIN_URL_TOKEN is an environment variable, never hardcoded
 **Files:** `admin.html`, `admin-view.html`
 
-### Token Authentication
+### Token Authentication (PR 1.5 — admin session JWT)
 
-All three secrets are independent environment variables — no hardcoded values, no fallbacks:
+All secrets are independent environment variables — no hardcoded values, no fallbacks:
 
 ```
-ADMIN_TOKEN     — random 32+ byte hex (e.g. openssl rand -hex 32)
-JWT_SECRET      — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
-ADMIN_URL_TOKEN — random slug for the admin panel URL path
+ADMIN_TOKEN      — random 32+ byte hex — the admin LOGIN password only (never a session token)
+ADMIN_JWT_SECRET — random 32+ byte hex — signs admin session JWTs; must differ from JWT_SECRET and ADMIN_TOKEN
+JWT_SECRET       — random 32+ byte hex — user JWTs, INDEPENDENT of ADMIN_TOKEN
+ADMIN_URL_TOKEN  — random slug for the admin panel URL path (unchanged)
 ```
+
+One HS256 implementation for both secrets: `_jwt_sign(payload, secret)` / `_jwt_verify(token, secret)` in `server.py`. User tokens: `_jwt_encode` / `_jwt_decode` (`JWT_SECRET`). Admin tokens: `_admin_jwt_issue()` / `_admin_jwt_claims()` (`ADMIN_JWT_SECRET`). A token signed with one secret never verifies with the other — a user JWT is never an admin session and an admin JWT is never a user session.
+
+**Admin JWT claims (fixed shape — plan 5.3 adds values, not fields):**
+
+| Claim | Now | Plan 5.3 (staff accounts) |
+|-------|-----|---------------------------|
+| `iss` / `aud` | `"tawasalna"` / `"tw-admin"` | same |
+| `sub` | `"owner"` | `"staff:<id>"` |
+| `role` | `"admin"` | e.g. `"moderator"` (added to `_ADMIN_ROLES`) |
+| `perms` | `["*"]` | e.g. `["reports.read", "kyc.review"]` → `check_admin(request, perm="kyc.review")` |
+| `iat` / `exp` | `exp = iat + _ADMIN_JWT_TTL` (3600s) | same (a token with `exp − iat > 3600` is refused) |
+| `jti` | random 24 hex | key for a future denylist / revoke |
 
 ```python
-# server.py — all values from environment only
-ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "").strip()
-JWT_SECRET      = os.environ.get("JWT_SECRET", "").strip()
-ADMIN_URL_TOKEN = os.environ.get("ADMIN_URL_TOKEN", "").strip()
-
-def check_admin(request: Request):
-    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
-        raise HTTPException(503, "Service temporarily unavailable")
-    token = request.headers.get("X-Admin-Token", "")
-    if not hmac.compare_digest(token.encode(), ADMIN_TOKEN.encode()):
-        raise HTTPException(403, "Forbidden")
+def check_admin(request, perm=None) -> dict:
+    # 503 — ADMIN_JWT_SECRET missing / < 32 chars / equal to JWT_SECRET or ADMIN_TOKEN
+    # 401 — X-Admin-Token missing, not an admin JWT, bad signature, expired, wrong iss/aud
+    #       (includes the raw ADMIN_TOKEN and any user JWT)
+    # 403 — valid admin JWT whose role ∉ _ADMIN_ROLES, or perm not in perms (and no "*")
+    # → returns the claims
 ```
 
 **Startup behaviour:**
 - `JWT_SECRET` missing → `RuntimeError` at startup → server refuses to start
-- `ADMIN_TOKEN` missing → warning logged → all admin endpoints return 503
+- `ADMIN_TOKEN` missing → warning → `/tw-ctrl-login` returns 503
+- `ADMIN_JWT_SECRET` missing / invalid → warning → `/tw-ctrl-login` **and** every admin endpoint return 503 (fail closed — never falls back to `JWT_SECRET`)
 - `ADMIN_URL_TOKEN` missing → warning logged → admin panel URL not accessible
 
 **Admin Login Flow:**
-1. POST `/tw-ctrl-login` with `password = ADMIN_TOKEN` value
-2. Server compares using `hmac.compare_digest` (timing-safe)
-3. Returns `{"success": true, "token": ADMIN_TOKEN}` — stored in `sessionStorage`
-4. Every admin API call sends `X-Admin-Token: <token>`
+1. POST `/tw-ctrl-login` `{password}` (rate limited — `_RATE_LIMITED_PATHS`)
+2. Server compares with `ADMIN_TOKEN` via `hmac.compare_digest` (timing-safe) → 401 on mismatch
+3. Returns `{"success": true, "token": <admin JWT>, "expires_in": 3600}` — the raw `ADMIN_TOKEN` never reaches the browser
+4. `static/shared/admin-session.js` (`TwAdminSession`) stores it in `sessionStorage.tw_adm_token` (per tab, never `localStorage`) and sends it as `X-Admin-Token` through `TwAdminSession.fetch()`
+5. Expiry: `TwAdminSession` fires `onExpired` at `exp` (timer) **or** on any 401/403 from an admin call → `admin.html` returns to its login screen with «انتهت جلسة الإدارة (صلاحيتها ساعة واحدة) — سجّل الدخول من جديد.» · `admin-view.html` stops with the same message + «ارجع للوحة الإدارة.» (it cannot link to the secret panel URL). No silent hang, no reload loop.
+
+**`TwAdminSession` API (admin pages only):** `getToken()` · `setToken(t)` · `clear()` · `hasLiveToken()` · `headers()` · `fetch(url, opts)` · `onExpired(cb)` · `EXPIRED_MSG`. ❌ reading `tw_adm_token` directly in a page · ❌ routing a **user** endpoint (Bearer JWT) through `TwAdminSession.fetch` (its 401 would end the admin session). Known debt: `edu-profile.html → sendContact()` reads `tw_adm_token` directly (pre-existing, outside the admin pages).
 
 ### admin.html — Sections
 
@@ -6300,7 +6326,7 @@ def check_admin(request: Request):
 
 ### Admin Endpoints (source: `server.py` — single table; PR-3b moved it from `CLAUDE.md`, PR-4 merged the §66c pipeline table into it)
 
-All rows below call `check_admin(request)` (`X-Admin-Token` header, `hmac.compare_digest`) unless marked otherwise.
+All rows below call `check_admin(request)` (`X-Admin-Token` header = admin session JWT from `/tw-ctrl-login` — PR 1.5) unless marked otherwise.
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
@@ -6426,6 +6452,8 @@ Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages a
 ---
 
 ## [P2] 58. Reports System
+
+**Admin visibility (PR 1.5):** a submitted report is stored in `reports` (`status='pending'`) and shown in the admin panel → البلاغات tab (`GET /admin/reports` + pending badge; resolve via `PUT /admin/reports/{id}/resolve`). No user notification is sent — the old `create_notification(1, …)` went to user id 1, an ordinary account, not an admin. ❌ notifying any user id as "the admin".
 
 **Database Table: `reports`**
 
@@ -12609,13 +12637,28 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|
-| `PUT /auth/password` | JWT (401) · `rate_limit_middleware` | `{current_password, new_password}` | 422 field: `current_password/required` · `current_password/wrong_password` (bcrypt) · `new_password/weak_password` (`_password_policy_error`) · `new_password/same_password` · 404 user missing · 500 fixed message | `{ok:true, status:"success"}` |
+| `PUT /auth/password` | JWT (401) · `rate_limit_middleware` | `{current_password, new_password}` | 422 field: `current_password/required` · `current_password/wrong_password` (bcrypt) · `new_password/weak_password` (`_password_policy_error`) · `new_password/same_password` · 404 user missing · 500 fixed message | `{ok:true, status:"success", token}` — fresh JWT for this device (PR 1.8) |
 | `DELETE /auth/user/{id}/delete` | JWT + `token.user_id == id` (403) · rate limited (path prefix) | `{password}` | 422 `password/required` · `password/wrong_password` · 404 · 500 fixed «تعذّر حذف الحساب، حاول لاحقاً» (never `str(e)`) | `{ok:true, success:true}` |
 
 - 422 shape = `AccountFieldError` handler: `{ok:false, error, errors:[{field, code, message}], detail:{status, message, field}}` (same as `ExternalUrlError` / `PUT /profile`).
 - **One password rule:** `_password_policy_error(pw)` (≥ 6 chars) — used by `POST /auth/register` (400, unchanged message) and `PUT /auth/password`. ❌ a second length check.
 - DB access only via `check_user_password(uid, pw)` (None = no user · False · True) and `set_user_password(uid, pw)` in `auth.py`.
-- Existing JWTs stay valid after a password change (no token version yet) — FUTURE_ROADMAP → Security.
+- **Session invalidation (PR 1.8 — SYSTEMS_INDEX §2a):** a password change (self or admin reset) stamps `users.password_changed_at`; every user JWT with `iat` earlier than that second is rejected by `_jwt_decode` (→ `verify_token` 401 and every optional-auth reader). The response carries a fresh `token`; `settings.html` stores it only through `TwAuthSync.renewToken(token)` — if missing / refused, the page signs out via `TwAuthSync.invalidateSession('password_changed')`.
+
+### Session invalidation after password change (PR 1.8)
+
+| Piece | Where | Rule |
+|-------|-------|------|
+| Column | `users.password_changed_at TIMESTAMPTZ NULL` · `auth._migrate_password_changed_at()` (startup-critical, `ADD COLUMN IF NOT EXISTS`, no backfill — NULL = no change since ship → existing sessions stay valid) | |
+| Write | `auth.set_user_password(uid, pw) → epoch` — the only writer; used by `PUT /auth/password` **and** `PUT /admin/user/{id}/password` | stamp = `int(time.time())` from the **app clock** (same clock as JWT `iat`), stored with `to_timestamp(:ts)` |
+| Read | `auth.get_password_changed_epoch(uid)` → only via `server._password_changed_epoch(uid)` | in-memory cache `_pwd_changed_cache`, TTL `_PWD_CHANGED_TTL` = 60s — no DB query per request |
+| Check | `server._jwt_decode` → `_jwt_revoked_by_password_change(payload)` | reject when `iat < password_changed_at` (seconds); no `iat` + a stamp → reject |
+| Cache refresh | `_password_changed_cache_set(uid, epoch)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
+| DB error on lookup | logged `[session-invalidation]`, not cached, token allowed | the request then fails at its own DB call; rejecting would log everyone out on a DB blip |
+| New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id})` | `iat ≥ stamp` → survives |
+| Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
+
+Known edge: a JWT issued **in the same second** as the change (iat == stamp) stays valid — accepted (second granularity of `iat`).
 
 ### `settings.html` contract
 
@@ -12646,7 +12689,7 @@ Test: `python -m pytest test_account_security.py -q`.
 
 | Table | Key Columns (from `CREATE TABLE` + migrations) |
 |-------|-------------------------------------------------|
-| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at |
+| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) |
 | `profiles` | user_id (UNIQUE FK → users, CASCADE), headline, bio, location, skills[], avatar_url, website, is_verified, updated_at + migrated: dob, phone, country, city, avail, availability_status (deprecated — see `docs/rules/profile-v2.md`), title, sections_order, custom_sections, profile_color, profile_style, first_name, middle_name, last_name, cover_url, short_bio |
 | `experience` | user_id FK, title, company, location, start_date, end_date, is_current, description, sort_order, created_at |
 | `education` | user_id FK, institution, degree, field, start_year, end_year, description, created_at |

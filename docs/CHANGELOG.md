@@ -11,6 +11,15 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 1.5 + 1.8 — توكن أدمن مؤقت موقّع + إبطال الجلسات بعد تغيير كلمة السر — 2026-10-07
+
+- `server.py`: **`_jwt_sign` / `_jwt_verify`** — تطبيق HS256 واحد لسرّين. **`/tw-ctrl-login`** بيرجّع JWT أدمن (`ADMIN_JWT_SECRET`، `role=admin` · `sub=owner` · `perms=["*"]` · ساعة) بدل `ADMIN_TOKEN` الخام. **`check_admin`** بيقبل هاد الـ JWT بس (401 للخام / المنتهي / JWT مستخدم · 403 دور ناقص · 503 بدون سر). SYSTEMS_INDEX §25.
+- `static/shared/admin-session.js` (جديد — `TwAdminSession`): `admin.html` + `admin-view.html` — 401/403 أو انتهاء الساعة → شاشة الدخول برسالة واضحة.
+- البلاغات: انشال `create_notification(1, …)` — البلاغ محفوظ وبيبيّن بتبويب البلاغات بلوحة الأدمن.
+- **إبطال الجلسات** (§2a): `users.password_changed_at` (`_migrate_password_changed_at`) · `set_user_password` بيختمه (تغيير ذاتي + reset الأدمن) · `_jwt_decode` بيرفض `iat` الأقدم · كاش بالذاكرة 60 ثانية بينمسح للمستخدم لحظة التغيير · `PUT /auth/password` بيرجّع `token` جديد · `TwAuthSync.renewToken()` (جديد) بـ `settings.html`.
+- ARCHITECTURE → Client IP Resolution: نتيجة قياس Railway — `CLIENT_IP_SOURCE=x_real_ip` (`xff_right` غلط).
+- اختبار: `test_admin_session_security.py`. تحديث تأكيدات قديمة بـ `test_security_admin_jwt.py` / `test_kyc_docs_migration.py` / `test_upload_security.py`.
+
 ## PR 1.3 + 1.4 — تقوية OTP + IP العميل + حد الدخول لكل إيميل — 2026-10-07
 
 - `auth.py`: **`_otp_issue` / `_otp_verify`** (جديد — SYSTEMS_INDEX §54c) — منطق واحد للإيميل والجوال: `secrets` · hash بس (`v1$` HMAC) · صلاحية 10 دقايق · 5 محاولات (ذرّي) · `hmac.compare_digest` · بينمسح بعد النجاح · مربوط بالإيميل/الجوال الحالي. `_migrate_kyc_otp_security()`: 6 أعمدة `ADD COLUMN IF NOT EXISTS` + مسح الرموز القديمة النصّية.
