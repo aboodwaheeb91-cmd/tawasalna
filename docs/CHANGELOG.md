@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 1.2 — صفحة الإعدادات: عمليات حقيقية بدل «تم» الكاذبة — 2026-10-07
+
+- `server.py`: **`PUT /auth/password`** (جديد — JWT + bcrypt للقديمة + `_password_policy_error` نفس قاعدة التسجيل + لازم تختلف + rate limiter) · `AccountFieldError` → 422 عربي على الحقل · `POST /auth/register` صار يستعمل `_password_policy_error` (نفس الرسالة والـ 400).
+- `DELETE /auth/user/{id}/delete`: بدها `{password}` (bcrypt) · خطأ ثابت بدل `str(e)` · على الـ rate limiter. `auth.py`: `check_user_password` / `set_user_password`.
+- `settings.html`: `twRequireAuth()` + `auth-sync.js` · البيانات من `GET /profile/{uid}/full` بدل `tw_user` / `tw_profile_data` · كلمة السر عبر `PUT /auth/password` · الجوال بـ JWT + `r.ok` + إعادة تحميل من الـ API · تغيير الإيميل **مخفي** (قريباً — 5.1) و`saveEmail` انحذفت · حذف الحساب **مخفي** (قرار زعتر — soft delete أولاً، F27) · النجاح بس عند `r.ok`.
+- توثيق: SYSTEMS_INDEX §1a · ARCHITECTURE → Account Security Operations (مع جدول أثر حذف `users`) · FUTURE_ROADMAP → Security. اختبار: `test_account_security.py`.
+
 ## PR 1.1 — روابط خارجية آمنة (Stored XSS) — 2026-10-07
 
 - `tw_shared.js`: **`twSafeLinkUrl(url)`** (جديد — §54 rule 4b) — `http://` / `https://` + host بس؛ غير هيك `''` → الرابط بينعرض نص بدون `<a>`.
