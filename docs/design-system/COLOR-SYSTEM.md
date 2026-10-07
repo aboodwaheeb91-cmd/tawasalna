@@ -2,6 +2,7 @@
 
 > **Phase 0 ✅ Architecture & Documentation Foundation (مكتمل)**
 > **Phase 1 ✅ Runtime Tokens Foundation (مكتمل — PR #520)**
+> **Phase 2 ✅ Full Token Set + Admin Override + shared files migrated (PR 3.8 — CLR-35 / CLR-36)** — الصفحات بتتحوّل مع صفحتها (المرحلة 4)
 >
 > هذا الملف هو الـ contract المعماري الرسمي لنظام الألوان في منصة تواصلنا.
 > `tw_shared.css` يحتوي الآن على `--color-*` tokens في ثلاثة أقسام (Foundation/Semantic/Legacy Aliases).
@@ -189,6 +190,8 @@ DS-COLOR V1 يُنظِّم `tw_shared.css` في ثلاثة أقسام منطقي
 ### الاستثناء الوحيد
 
 DS-FEEDBACK يعرِّف `--fbk-bdr-*` tokens — هذه ليست في `--color-*` namespace. (راجع CLR-21)
+
+**Admin override (CLR-36):** `GET /theme.css` بيعيد تعريف Semantic tokens من `site_settings` — هو المكان الوحيد خارج `tw_shared.css` المسموح يعرّف `--color-*`، وبيولّده السيرفر بس (مفاتيح من `tw_shared.css` + قيم ألوان صالحة).
 
 ---
 
@@ -860,6 +863,13 @@ body { background: var(--color-surface-page); }
 
 لا تُعرِّف `@media (prefers-color-scheme: dark)` أو `[data-theme="dark"]` في Phase 1. الـ theme الوحيد هو Dark Default.
 
+### جاهزية Phase 2 (PR 3.8)
+
+- كل شفاف محايد مبني على **`--color-ink-rgb`** (حبر فوق السطح) أو **`--color-overlay-rgb`** (ستارة/ظل) — مجموعة نهارية بتقلب `--color-ink` / `--color-ink-rgb` لغامق + تعيد تعريف `--color-surface-*` و `--color-text-*` (Section B بس).
+- `--color-text-on-fill` (أبيض على تعبئة ملوّنة) و `--color-overlay` ما بينقلبوا.
+- المجموعة النهارية لاحقاً = بلوك `:root[data-theme="light"] { … }` بـ `tw_shared.css` و `data-theme` على `<html>` **بس** (الـ Legacy Aliases بتتحسب على `:root`). specificity (0,2,0) > override الأدمن `:root` (0,1,0) → override الأدمن الحالي بيخص الوضع الافتراضي؛ override نهاري = مفتاح JSON تاني لاحقاً (CLR-36).
+- ما انبنت مجموعة نهارية بهالـ PR.
+
 ---
 
 ## CLR-24 — Flutter Readiness
@@ -980,6 +990,8 @@ Phase 1 ممنوع:   تغيير #00c896 إلى #00b386  حتى لو "أفضل"
 ❌ --color-brand-quaternary: لا يوجد له consumer حالي — لا يُضاف في V1
 ❌ --color-categorical-pink: لا يوجد له consumer حالي — يُؤجَّل لـ V2
 ```
+
+**Phase 2 (PR 3.8):** المستهلك الحقيقي لتوكن جديد ممكن يكون لون ثابت موجود بصفحة (جدول الدمج CLR-35) — الصفحة بتتحوّل بالمرحلة 4.
 
 ### شرط إضافة Token جديد في Phase 1
 
@@ -1153,10 +1165,113 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 
 ---
 
+## CLR-35 — Phase 2 Token Set (PR 3.8)
+
+**كل لون مستعمل بالموقع إله Semantic token بـ `tw_shared.css`.** الصفحات بتتحوّل مع صفحتها (المرحلة 4) عبر جدول الدمج تحت — ما في توكن لكل درجة عشوائية.
+
+### قاعدة الشفافية الموحّدة (Twin Rule)
+
+- أي لون بشفافية = `rgba(var(--color-<token>-rgb), <alpha>)`.
+- كل قناة `-rgb` هي **توأم** لتوكن أساسي بنفس الاسم (`--color-brand-primary` ↔ `--color-brand-primary-rgb`). ممنوع قناة `-rgb` بدون توكن أساسي (`test_ds_color_tokens.py` C3).
+- قناتين محايدتين بيتبنى منهن كل الشفاف المحايد:
+  - **`--color-ink` / `--color-ink-rgb`** = حبر فوق السطح (خطوط، hover، نص خفيف) — أبيض بالوضع الليلي، وبينقلب بالوضع النهاري (CLR-23).
+  - **`--color-overlay` / `--color-overlay-rgb`** = ستارة وظلال — أسود بكل الأوضاع. `--color-overlay-scrim` = خلفية المودال (.7).
+
+### التوكنز الجديدة (Section B)
+
+| المجموعة | التوكن | القيمة الحالية | الدور |
+|----------|--------|----------------|-------|
+| Brand | `--color-brand-primary-hover` | `#00b386` | hover / ضغط زر teal |
+| Brand | `--color-brand-secondary-text` (+`-rgb`) | `#60a5fa` | نص / أيقونة زرقاء مقروءة (chips، روابط) |
+| Brand | `--color-brand-accent-rgb` | `139,92,246` | شفافيات البنفسجي |
+| Brand | `--color-brand-accent-text` (+`-rgb`) | `#a78bfa` | نص بنفسجي مقروء |
+| Ink / Overlay | `--color-ink` (+`-rgb`) · `--color-overlay` (+`-rgb`) · `--color-overlay-scrim` | `#fff` · `#000` · `rgba(0,0,0,.7)` | القنوات المحايدة |
+| Surface | `--color-surface-page-rgb` | `7,11,24` | شفافيات الصفحة |
+| Surface | `--color-surface-glass` | `rgba(7,11,24,.95)` | هيدر / قائمة / toast فوق محتوى مموّه |
+| Surface | `--color-surface-elevated` | `#141a24` | لوحة صلبة فوق بطاقة (dropdown صفحات) |
+| Surface | `--color-surface-raised` | ink .04 | زر ghost / chip / بطاقة صغيرة |
+| Surface | `--color-surface-hover` | ink .07 | hover / صف نشط / مسار شريط |
+| Border | `--color-border-subtle` · `--color-border-medium` | ink .06 · ink .12 | بين default (.08) و strong (.16) |
+| Text | `--color-text-body` | `#e2e8f0` | نص المحتوى الطويل (feed) |
+| Text | `--color-text-soft` | `#cbd5e1` | فقرة منشور / ملخص |
+| Text | `--color-text-meta` (+`-rgb`) | `#94a3b8` | سطر meta، وقت، label |
+| Text | `--color-text-on-brand` | `#070b18` | نص على تعبئة teal |
+| Text | `--color-text-on-fill` | `#fff` | نص على تعبئة ملوّنة صلبة (badge، زر gradient) — أبيض بكل الأوضاع |
+| Status | `--color-status-{success,warning,danger}-strong` (+`-rgb`) | `#22c55e` · `#f59e0b` · `#ef4444` | تعبئة صلبة / tint أقوى |
+| Categorical | `azure` · `orange` · `pink` · `red` · `gold` · `slate` (+`-rgb`) + `teal-rgb` · `purple-rgb` | `#3b82f6` · `#f97316` · `#ec4899` · `#ef4444` · `#f59e0b` · `#64748b` | لوحة ألوان المنشور `TW.POST_THEME_COLORS` |
+
+`--color-surface-card` · `--color-surface-input` · `--color-border-default/strong` · `--color-text-secondary/muted/placeholder/disabled` · `--color-categorical-neutral` صاروا مكتوبين بـ `--color-ink-rgb` (نفس القيمة بالزبط).
+
+### جدول الدمج (من ← إلى)
+
+**طُبّق بهالـ PR على الملفات المشتركة (فرق ≤ .02 شفافية أو ≤ 6 درجات RGB — غير مرئي):**
+
+| من | إلى | وين |
+|----|-----|-----|
+| `rgba(255,255,255,.05)` (خلفية حقل) | `--color-surface-input` (.06) | `.tw-input` · `.tw-select` · `.tw-textarea` · `.sc-sel-trg` |
+| `rgba(7,11,24,.93)` · `rgba(7,11,24,.97)` · `rgba(10,14,24,.95)` · `rgba(10,14,24,.97)` | `--color-surface-glass` (`rgba(7,11,24,.95)`) | `--ah-bg` · `.tw-toast` · `.tw-snackbar` · `.sc-menu-dropdown` · `.sc-sel-dd` |
+| `rgba(255,255,255,.09)` · `rgba(255,255,255,.1)` (خط) | `--color-border-default` (.08) | `--ah-brd` · `.tw-spinner` · `.sc-sel-trg` |
+| `rgba(255,255,255,.11)` · `.13` | `--color-border-medium` (.12) | `.hw-card:hover` · `.sc-menu-dropdown` |
+| `rgba(255,255,255,.07)` (خط) | `--color-border-subtle` (.06) | `.hw-fbar` · `.sc-sel-grp` |
+| `rgba(255,255,255,.08)` (خلفية hover) | `--color-surface-hover` (.07) | `.sc-sel-item-kb` |
+| `rgba(255,255,255,.27)` | `--color-text-placeholder` (.28) | عنصر قائمة معطّل · شارة «قريباً» |
+| `#0f1420` (canvas) | `--color-surface-card-solid` (`#0d1426`) | خلفية القصّاص |
+
+**للصفحات بالمرحلة 4 (نفس القاعدة — كل صفحة بتذكر فرقها بالـ PR):**
+
+- أبيض .02–.035 → `--color-surface-card` · .04–.05 → `--color-surface-raised` · .06 (حقل) → `--color-surface-input` · .07–.08 (hover) → `--color-surface-hover`
+- أبيض خط .05–.07 → `--color-border-subtle` · .08–.10 → `--color-border-default` · .11–.14 → `--color-border-medium` · .15–.18 → `--color-border-strong`
+- أبيض نص .85–.92 → `--color-text-primary` (أو ink بنفس الألفا) · .6–.75 → `--color-text-secondary` · .35–.45 → `--color-text-muted` · .25–.3 → `--color-text-placeholder` · .2 → `--color-text-disabled`
+- `#6b7686` → `--color-text-muted` · `#9aa5b4` · `#9ca3af` · `#8892a4` → `--color-text-meta` · `#4a5568` → `--color-text-disabled`
+- `#e8eaf0` · `#f1f5f9` · `#e0e0e0` · `rgb(225,230,240)` → `--color-text-body`
+- `#0d1526` · `#0d1428` · `#0d1a2e` · `#0f1420` → `--color-surface-card-solid` · `#0a0f1e` · `#0a0e14` · `#09101f` → `--color-surface-page` · `#151c28` · `#161a26` · `#141928` · `#161b2c` → `--color-surface-elevated`
+- `rgba(7–10, 11–14, 18–24, .9–.99)` (زجاج داكن) → `--color-surface-glass` · أسود ظل → `rgba(var(--color-overlay-rgb), a)` · ستارة .7–.78 → `--color-overlay-scrim`
+- `#93c5fd` · `rgb(96,165,250)` → `--color-brand-secondary-text` · `#c4b5fd` → `--color-brand-accent-text`
+- `#ef4444` · `#dc2626` · `rgb(239,68,68)` · `rgb(255,80–100,…)` → `--color-status-danger-strong` · `#eab308` · `#ca8a04` → `--color-status-warning-strong` · `#10b981` → `--color-status-success-strong`
+- `#00b386` · `#00d4b4` · `#20e0c0` → `--color-brand-primary-hover` / `--color-brand-primary`
+
+لون مش بالجدول (مثل cyan المحلي بـ `messages.css`) → CLR-26 (Promotion) قبل ما ينضاف توكن.
+
+### الفحص الثابت
+
+- `scripts/ds_color_audit.py` — يعدّ الألوان الثابتة (hex · `rgb()` · `hsl()` بأرقام) لكل ملف — **تقرير** (`python scripts/ds_color_audit.py`). وقت PR 3.8: 2339 لون بـ 31 ملف (أكبرها `company.css` 886 · `profile-v2.css` 518).
+- **فاشل:** `tw_shared.css` (خارج أسطر تعريف `--color-*`) · `static/app-header.css` · `static/home-v2.css` · `static/shared/*` = صفر (`test_ds_color_tokens.py` C4).
+- استثناء موثّق بس: تعليق `tw-color-literal: <سبب>` على نفس السطر (مثال وحيد: خلفية JPEG البيضاء بـ `tw-image-cropper.js` — بيانات صورة، مش UI).
+- JS / canvas ما بيقرأ `var()` → بيقرأ التوكن من `getComputedStyle(document.documentElement)` وقت الرسم (`tw-image-cropper.js`)؛ قيمة CSS بـ JS (مثل `TW.POST_THEME_COLORS`) = نص `var(--color-…)`.
+
+---
+
+## CLR-36 — Admin Color Override (PR 3.8)
+
+**آلية override وحدة — بدون واجهة أدمن هلق.**
+
+| الجزء | العقد |
+|-------|-------|
+| التخزين | `site_settings.key = 'theme_color_tokens'` — JSON `{ "--color-<token>": "<لون>" }` (مفتاح واحد) |
+| الإخراج | `GET /theme.css` (عام) → `:root { … }` واحد. بدون override → **body فاضي** = ألوان `tw_shared.css` بالزبط. `Cache-Control: no-cache` + `ETag` (304) · cache بالعملية 60 ث (ما في DB بكل صفحة) |
+| التحميل | `partials/shell-head.html` + `shell-head.admin.html`: `<link rel="stylesheet" href="/theme.css">` مباشرة بعد `tw_shared.css` → نفس الـ specificity، الأخير بيغلب. الصفحات اللي مش على الـ shell بتاخده لما تنتقل للـ shell (المرحلة 4) — نفس توقيت ترحيل ألوانها |
+| قراءة | `GET /admin/theme/colors` (`check_admin`) → `{ok, data:{overrides, tokens}}` |
+| كتابة | `PUT /admin/theme/colors` (`check_admin`) body `{"overrides": {...}}` — **يستبدل الكل** (`{}` = رجوع للافتراضي). كله أو لا شي: أول خطأ → 422 `{ok:false, error:{code: unknown_token | invalid_color | invalid_body, message, field}}`. كل حفظ بينكتب بالـ log: `[theme] color overrides saved by admin sub=… count=… values=…` |
+| المفاتيح المسموحة | من `tw_shared.css` نفسه (`theme_tokens.known_tokens()`): كل `--color-*` مش `--color-prim-*` ومش `-rgb` |
+| القيم المسموحة | `#rgb` · `#rrggbb` · `#rrggbbaa` · `rgb(r,g,b)` · `rgba(r,g,b,a)` بأرقام بس (≤ 40 حرف). توكن إله توأم `-rgb` → hex معتم بس، والسيرفر بيكتب التوأم لحاله (`--color-brand-primary-rgb: …`) |
+| المصدر | `theme_tokens.py` (دوال صافية: `known_tokens` · `validate_overrides` · `render_css` · `parse_stored`) + endpoints بـ `server.py` |
+
+### ممنوعات CLR-36
+
+```
+❌ مصدر override تاني (localStorage، inline style، ملف CSS تاني)
+❌ قيمة مش لون (var() / كلمة / CSS حر) — ما بتوصل لنص الـ CSS أبداً
+❌ override لـ --color-prim-* أو قناة -rgb مباشرة (التوأم بيتولّد)
+❌ تعديل <meta name="theme-color"> من الـ override — بيضل مرآة يدوية (Non-CSS Color Mirror)
+```
+
+---
+
 ## CLR-34 — Changelog
 
 | التاريخ | التغيير |
 |---------|---------|
+| 2026-10-07 | **DS-COLOR Phase 2 — PR 3.8** — مجموعة توكنز كاملة (CLR-35: brand text/hover · ink/overlay · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status strong · categorical لوحة المنشور) + قاعدة التوأم `-rgb` + جدول الدمج · override أدمن واحد (CLR-36: `site_settings.theme_color_tokens` → `/theme.css` · `GET/PUT /admin/theme/colors`) · تحويل `tw_shared.css` · `app-header.css` · `home-v2.css` · `static/shared/*` (صفر ألوان ثابتة — `test_ds_color_tokens.py`) · تقرير `scripts/ds_color_audit.py` · جاهزية `[data-theme="light"]` (CLR-23). |
 | 2026-07-26 | **DS-COLOR Phase 2 — Index/Auth Full Color Migration** — `index.css` fully migrated to DS-COLOR. Changes: (1) Removed `:root{--ac:#00c896;--ac2:#2563ff;}` shadow from `index.css` L5 (was overriding the canonical chain in `tw_shared.css`). (2) Added Auth Local Color Roles block (CLR-15 Tier 3, `--auth-*` namespace, 34 tokens) for page-scoped roles with no Shared Semantic meaning. (3) All hardcoded hex/rgba values migrated by role: Brand glows → `rgba(var(--color-brand-primary-rgb),X)`; page-bg → `--color-surface-page`; input/select surface → `--color-surface-input`; text roles → `--color-text-*`; focus states → `--color-border-focus`; field/form errors → `--color-status-danger-rgb`. (4) Autofill blocks: `-webkit-box-shadow` and `background-color` now use `var(--auth-ctrl-surface)` with `!important` (CSS custom properties DO work with `!important`). (5) Password strength: `index.ui.js` updated — no raw hex in JS; levels now use `--auth-strength-*` CSS var strings via `'var(' + level.tok + ')'`. (6) System Gap resolved: `--color-surface-input: rgba(255,255,255,.06)` added to `tw_shared.css` Section B Surface (confirmed independent consumer distinct from `--color-surface-card`). (7) Same-value traps avoided: `--auth-logo-sub` ≠ `--color-text-placeholder` (different roles); `--auth-strength-bar-track` ≠ `--color-border-default` (decorative track); OR divider line `.08` = `--color-border-default` (IS a border). (8) Error banner documented as Legacy Visual Exception (`--auth-error-banner-*` = red-500 #ef4444; `--color-status-danger` = red-400; normalization requires explicit Visual Redesign approval). (9) `<meta name="theme-color" content="#00c896">` in `index.html` documented as Non-CSS Color Mirror — cannot use CSS vars; must stay manually aligned to `--color-brand-primary` during any Brand Redesign. Zero visual change contract (CLR-27): all computed values identical before/after except the addition of `--color-surface-input` (same computed value as before). |
 | 2026-07-26 | Phase 0 — Document created. DS-COLOR V1 Architecture & Documentation Foundation. 33 sections (CLR-00 → CLR-32). No runtime changes. SYSTEMS_INDEX.md §50 added. ARCHITECTURE_FOUNDATION.md F35 + F31 row added. DESIGN_SYSTEM.md updated. CLAUDE.md DS-COLOR routing rule added. |
 | 2026-07-26 | **DS-COLOR Phase 1 — Runtime Tokens Foundation** — Three-section `:root` block added to `tw_shared.css`. Section A (Foundation/Primitive): 9 hue primitives (teal/blue/purple/dark-950/dark-900/white/green/amber/red) + 5 RGB channels. Section B (Semantic): Brand (primary/secondary/accent + 2 RGB), Surface (page/card-solid/card), Border (default/strong/focus), Text (primary/secondary/muted/placeholder/disabled), Status (success/warning/danger/info + 4 RGB), Categorical (neutral/blue/purple/teal/amber). Section C (Legacy Aliases): 16 legacy entries preserved — 15 map to Semantic tokens; --t4 remains raw rgba(255,255,255,.2) as temporary backward-compat exception pending Phase 2 consumer separation. Consumer audit results: `--t3` → `var(--color-text-muted)` safe (all muted-role consumers). `--t4` → raw `rgba(255,255,255,.2)` kept (mixed consumers: placeholder + subtitle; mapping deferred Phase 2). `--color-brand-accent` (purple) added after confirming consumers across profile-v2/messages/company/home-v2. No Categorical RGB channels added (no alpha consumers found). Zero visual change — all hex values identical to pre-Phase-1 state. DS-FEEDBACK `--fbk-bdr-*` chain verified: `--ac-rgb → --color-brand-primary-rgb → --color-prim-teal-rgb = 0,200,150` unchanged. company.css not touched (CLR-16 architectural debt; separate PR). CLR-30 checklist: all items complete. |

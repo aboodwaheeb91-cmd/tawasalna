@@ -1839,6 +1839,66 @@ def manifest():
     except:
         return Response(content="{}", media_type="application/json")
 
+# ── DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36 · SYSTEMS_INDEX §50) ──
+# site_settings[theme_color_tokens] (JSON {token: color}) → one :root{} block served at
+# /theme.css, loaded by the shell head right after tw_shared.css. No override → empty body.
+# Per-process cache (60s) so a page view never hits the DB; a save clears this process's
+# cache, other workers pick it up within the TTL. ETag → 304 (NoCacheMiddleware forces
+# revalidation on every .css).
+import hashlib as _hashlib
+import theme_tokens as _theme
+_THEME_CSS_TTL = 60
+_theme_css_cache = {"css": None, "etag": "", "at": 0.0}
+
+def _theme_css() -> tuple:
+    c = _theme_css_cache
+    now = time.monotonic()
+    if c["css"] is not None and now - c["at"] < _THEME_CSS_TTL:
+        return c["css"], c["etag"]
+    css = ""
+    try:
+        css = _theme.render_css(_theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY)))
+    except Exception as e:
+        print(f"[theme] stored color overrides unreadable — serving defaults: {e!r}")
+    etag = '"' + _hashlib.sha256(css.encode("utf-8")).hexdigest()[:16] + '"'
+    c.update(css=css, etag=etag, at=now)
+    return css, etag
+
+@app.get("/theme.css", include_in_schema=False)
+def theme_css(request: Request):
+    css, etag = _theme_css()
+    headers = {"Cache-Control": "no-cache", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=css, media_type="text/css", headers=headers)
+
+@app.get("/admin/theme/colors")
+def admin_theme_colors_get(request: Request):
+    """Admin: saved color overrides + the overridable token names (CLR-36)."""
+    check_admin(request)
+    try:
+        overrides = _theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY))
+    except Exception as e:
+        raise _server_error("admin_theme_colors_get", e)
+    return api_ok({"overrides": overrides, "tokens": sorted(_theme.KNOWN)})
+
+@app.put("/admin/theme/colors")
+def admin_theme_colors_put(request: Request, data: dict = Body(...)):
+    """Admin: replace ALL color overrides — body {"overrides": {token: color}}; {} = defaults.
+    Known Semantic tokens + valid colors only (all-or-nothing). Every save is logged."""
+    claims = check_admin(request)
+    clean, errors = _theme.validate_overrides(data.get("overrides"))
+    if errors:
+        e = errors[0]
+        return api_error(422, e["code"], e["message"], e["field"])
+    ensure_site_settings_table()
+    if not set_site_setting(_theme.THEME_SETTING_KEY, json.dumps(clean, sort_keys=True)):
+        return api_error(500, "save_failed", "تعذّر حفظ الألوان، حاول مرة أخرى")
+    _theme_css_cache["css"] = None
+    print(f"[theme] color overrides saved by admin sub={claims.get('sub')!r} "
+          f"count={len(clean)} values={json.dumps(clean, sort_keys=True)}")
+    return api_ok({"overrides": clean})
+
 # App icons (PWA + favicon) — real files in static/icons/, generated from the
 # official logo by scripts/gen_app_icons.py (SYSTEMS_INDEX §32). Fixed allowlist.
 _APP_ICON_FILES = {

@@ -51,6 +51,7 @@ PY_SCRIPT=(
   test_auth_gateway.py
   test_company_save_static.py
   test_ds_size_tokens.py
+  test_ds_color_tokens.py
   test_edit_profile_phase1.py
   test_global_ui_visibility.py
   test_header_nav.py

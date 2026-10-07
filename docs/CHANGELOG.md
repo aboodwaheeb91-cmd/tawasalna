@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.8 — DS-COLOR المرحلة 2: كل لون من التوكنز + override أدمن — 2026-10-07
+
+- `tw_shared.css`: مجموعة توكنز كاملة (COLOR-SYSTEM CLR-35) — brand text/hover · `--color-ink(-rgb)` / `--color-overlay(-rgb)` · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status `*-strong` · categorical لوحة المنشور. قاعدة التوأم `-rgb` + جدول دمج (من ← إلى). القواعد الموجودة صارت مبنية على `--color-ink-rgb` (نفس القيمة) — جاهزة لـ `[data-theme="light"]` (CLR-23، بدون بناء).
+- Override أدمن واحد (CLR-36): `theme_tokens.py` (جديد) · `GET /theme.css` (فاضي بدون override) · `GET/PUT /admin/theme/colors` (`check_admin` · مفاتيح معروفة + ألوان صالحة · log لكل حفظ) · `<link href="/theme.css">` بـ `partials/shell-head*.html`.
+- محوّل لصفر ألوان ثابتة: `tw_shared.css` · `static/app-header.css` · `static/home-v2.css` · `static/shared/{tw-select.css, tw-skeleton.css, tw-options-data.js, tw-image-cropper.js}`. تقرير الباقي: `scripts/ds_color_audit.py` (2339 بـ 31 ملف).
+- Docs: COLOR-SYSTEM (CLR-04 · CLR-23 · CLR-28 · CLR-35 · CLR-36 · CLR-34) · `docs/rules/ds-color.md` (12–15) · SYSTEMS_INDEX §50 · ARCHITECTURE §57 Admin Endpoints. Test: `test_ds_color_tokens.py` (جديد).
+
 ## PR 3.2 — هيدر واحد + شريط سفلي واحد (DS-HNAV) — 2026-10-07
 
 - نظام جديد: `twMountAppChrome()` بـ `tw_shared.js` بيرسم `<header data-tw-header [data-back]>` + `<nav data-tw-bottom-nav>` — ترتيب ثابت (مسجّل: رئيسية · لوغو · جرس · رسائل · قائمة / زائر: لوغو · دخول · تسجيل) · زر رجوع اختياري بنفس الهيدر (`twNavBack` — NAV-05) · لوغو `/static/33333.svg` بس · شريط سفلي من تعريف واحد `_TW_BOTTOM_NAV` حسب نوع الحساب، بدون `href="#"` · حد شارات واحد 99+ للجرس والرسائل (`twNotifBadgeLabel` — كانت الرسائل 9+). CSS بـ `static/app-header.css` (DS-SIZE / DS-COLOR tokens).

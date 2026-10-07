@@ -19,6 +19,12 @@
 
   if (!window.TW) window.TW = {};
 
+  // Canvas can't read var() — DS-COLOR tokens are resolved from :root at draw time
+  // (tw_shared.css · CLR-35), so an admin override (/theme.css) reaches the canvas too.
+  function _tok(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
   TW.createCropper = function (opts) {
     var canvas  = opts.canvas;
     var ratio   = opts.ratio   || 1;       // width ÷ height  e.g. 6/1, 4/1, 1/1
@@ -90,7 +96,7 @@
       if (!_img) return;
 
       ctx.clearRect(0, 0, _dw, _dh);
-      ctx.fillStyle = '#0f1420';
+      ctx.fillStyle = _tok('--color-surface-card-solid');
       ctx.fillRect(0, 0, _dw, _dh);
 
       if (shape === 'circle') {
@@ -110,12 +116,12 @@
         var r2 = Math.min(_dw, _dh) / 2 - 1;
         ctx.beginPath();
         ctx.arc(_dw / 2, _dh / 2, r2, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0,200,150,.5)';
+        ctx.strokeStyle = 'rgba(' + _tok('--color-brand-primary-rgb') + ',.5)';
         ctx.lineWidth = 2;
         ctx.stroke();
       } else {
         // Subtle guide border
-        ctx.strokeStyle = 'rgba(0,200,150,.2)';
+        ctx.strokeStyle = 'rgba(' + _tok('--color-brand-primary-rgb') + ',.2)';
         ctx.lineWidth = 1;
         ctx.strokeRect(0.5, 0.5, _dw - 1, _dh - 1);
       }
@@ -211,7 +217,7 @@
         var ec = exp.getContext('2d');
 
         // White background (fills transparent areas if image is PNG)
-        ec.fillStyle = '#ffffff';
+        ec.fillStyle = '#ffffff'; // tw-color-literal: JPEG export matte — image data, not UI (same in every theme)
         ec.fillRect(0, 0, outputW, outputH);
 
         if (_img) {
