@@ -191,6 +191,12 @@
       logoBadge.style.display = p.is_verified ? 'flex' : 'none';
     }
 
+    // About → verification row (PR 1.7): shown only when the API says is_verified — no "unverified" text
+    var verifiedRow = document.getElementById('coAboutVerifiedRow');
+    if (verifiedRow) {
+      verifiedRow.style.display = p.is_verified ? '' : 'none';
+    }
+
     // Industry label (replaces generic type badge)
     var badge = document.getElementById('coTypeBadge');
     if (badge) {

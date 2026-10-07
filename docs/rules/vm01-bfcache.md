@@ -18,7 +18,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACH
 
 5. **`renderProfile` with a non-owner response must immediately discard private owner state.** When `_vt !== 'owner'`, increment `_scOwnerHydrationGeneration`, clear `_scOwnerProfile`, clear `_scOwnerProfilePromise`. This runs on every renderProfile call, including background re-verify results.
 
-6. **`_isCurrentEduOwner()` is fail-closed.** Without TwAuthSync available → always returns `false`. No localStorage fallback is permitted. Covered operations: `openEditModal()`, `saveEdit()`, `uploadCover()`. Any new owner-only function in `edu-profile.html` must call this guard first.
+6. **`_isCurrentEduOwner()` is fail-closed.** Without TwAuthSync available → always returns `false`. No localStorage fallback is permitted. Covered operations: `openEditModal()`, `saveEdit()` (`uploadCover()` removed in PR 1.7). Any new owner-only function in `edu-profile.html` must call this guard first.
 
 7. **`_applyEduOwnerMode(isOwner, snap)` is the only approved state controller** for edu-profile owner/guest UI transitions. Do not duplicate the show/hide logic outside this function. It handles both Revoke (isOwner=false) and Guest→Owner activation (isOwner=true) on token refresh.
 
