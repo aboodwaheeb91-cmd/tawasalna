@@ -54,24 +54,29 @@ class TestNoHardcodedSecrets(unittest.TestCase):
             if "JWT_SECRET" in line and "ADMIN_TOKEN" in line and "=" in line:
                 self.fail(f"JWT_SECRET must not be derived from ADMIN_TOKEN: {line!r}")
 
-    def test_hmac_compare_digest_used_in_check_admin(self):
-        # Extract check_admin function body
+    # PR 1.5 / 1.8: the signature check lives in ONE place — _jwt_verify — shared by
+    # the user JWT (_jwt_decode) and the admin JWT (check_admin → _admin_jwt_claims).
+    def _fn_body(self, name):
         m = re.search(
-            r"def check_admin\(request.*?\n(?:.*\n)*?(?=\ndef |\n@app\.)",
+            r"def " + name + r"\(.*?\n(?:.*\n)*?(?=\ndef |\n@app\.)",
             SERVER_SRC
         )
-        self.assertIsNotNone(m, "check_admin function not found")
-        self.assertIn("hmac.compare_digest", m.group(),
-            "check_admin must use hmac.compare_digest")
+        self.assertIsNotNone(m, name + " function not found")
+        return m.group()
 
-    def test_hmac_compare_digest_used_in_jwt_decode(self):
-        m = re.search(
-            r"def _jwt_decode\(.*?\n(?:.*\n)*?(?=\ndef |\n@app\.)",
-            SERVER_SRC
-        )
-        self.assertIsNotNone(m, "_jwt_decode function not found")
-        self.assertIn("hmac.compare_digest", m.group(),
-            "_jwt_decode must use hmac.compare_digest")
+    def test_hmac_compare_digest_used_in_jwt_verify(self):
+        self.assertIn("hmac.compare_digest", self._fn_body("_jwt_verify"),
+            "_jwt_verify must use hmac.compare_digest")
+
+    def test_check_admin_verifies_through_jwt_verify(self):
+        self.assertIn("_admin_jwt_claims(", self._fn_body("check_admin"),
+            "check_admin must verify the admin JWT via _admin_jwt_claims")
+        self.assertIn("_jwt_verify(", self._fn_body("_admin_jwt_claims"),
+            "_admin_jwt_claims must verify the signature via _jwt_verify")
+
+    def test_jwt_decode_verifies_through_jwt_verify(self):
+        self.assertIn("_jwt_verify(", self._fn_body("_jwt_decode"),
+            "_jwt_decode must verify the signature via _jwt_verify")
 
     def test_no_secrets_in_architecture_docs(self):
         self.assertNotIn("tw@admin", ARCH_SRC,
@@ -170,16 +175,17 @@ class TestCheckAdminBehavior(unittest.TestCase):
     def test_admin_login_returns_401_on_wrong_password(self):
         """admin_login returns 401 when password doesn't match ADMIN_TOKEN."""
         import server as srv
-        original = srv.ADMIN_TOKEN
+        original, o_sec = srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET
         try:
-            srv.ADMIN_TOKEN = "c" * 64
+            # PR 1.5: without a valid ADMIN_JWT_SECRET admin_login is 503 (fail closed)
+            srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = "c" * 64, "s" * 64
             data = MagicMock()
             data.password = "wrong"
             with self.assertRaises(Exception) as ctx:
                 srv.admin_login(data)
             self.assertEqual(ctx.exception.status_code, 401)
         finally:
-            srv.ADMIN_TOKEN = original
+            srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = original, o_sec
 
     def test_admin_login_succeeds_with_correct_admin_token(self):
         """admin_login returns success when password == ADMIN_TOKEN."""

@@ -269,6 +269,9 @@ print("\n── Group 5: HTTP — TestClient (real PostgreSQL) ──")
 from fastapi.testclient import TestClient
 import server as _srv
 
+# TestClient without `with` never fires on_startup — build the real schema with the
+# canonical startup migration list (PR 2B) so a fresh test database works.
+_srv._run_startup_migrations()
 _client = TestClient(_srv.app, raise_server_exceptions=False)
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -277,10 +280,17 @@ _co_email    = f"tb_co_{_TS}@tbtest.example"
 _emp_emails  = [f"tb_emp{i}_{_TS}@tbtest.example" for i in range(30)]
 
 def _register(email, utype, name):
-    r = _client.post('/auth/register', json={
+    payload = {
         'full_name': name, 'email': email,
         'password': 'Test1234!', 'user_type': utype, 'country_code': '9620'
-    })
+    }
+    if utype == 'emp':
+        # Employee Name Fields Contract: emp registration requires first + last name
+        payload['first_name'], payload['last_name'] = name, 'اختبار'
+    # Setup registers 31 accounts from one test IP — reset the per-IP auth rate
+    # limiter (_RATE_LIMIT/min) so setup is not throttled; the limiter is not under test here.
+    _srv._rate_store.clear()
+    r = _client.post('/auth/register', json=payload)
     if r.status_code != 200:
         return None
     d = r.json()
@@ -289,6 +299,7 @@ def _register(email, utype, name):
 
 def _login(email):
     """Returns (user_id, jwt_token). Token is in response['token']."""
+    _srv._rate_store.clear()
     r = _client.post('/auth/login', json={'email': email, 'password': 'Test1234!'})
     if r.status_code != 200:
         return None, None

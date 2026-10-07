@@ -7,9 +7,9 @@ validation logic is exercised.
 Run: python test_pipeline_backfill_http.py
 
 Tests:
-  http-p-01  POST /admin/pipeline/backfill without X-Admin-Token → 403
-  http-p-02  GET  /admin/pipeline/backfill/dry-run without token  → 403
-  http-p-03  POST /admin/pipeline/migrate-index without token     → 403
+  http-p-01  POST /admin/pipeline/backfill without X-Admin-Token → 401
+  http-p-02  GET  /admin/pipeline/backfill/dry-run without token  → 401
+  http-p-03  POST /admin/pipeline/migrate-index without token     → 401
   http-p-04  POST /admin/pipeline/backfill with confirm=false     → 400
   http-p-05  GET  /admin/pipeline/backfill/dry-run (valid token)  → 200 dict
   http-p-06  POST /admin/pipeline/backfill dry_run=true           → 200 dict
@@ -18,18 +18,21 @@ Tests:
   http-p-09  409 body has conflicts_by_type + blocking=True structure
   http-p-10  POST /admin/pipeline/backfill confirm=true (no conflict) → 200 dict
   http-p-11  POST /admin/pipeline/migrate-index without confirm   → 400
-  http-p-12  POST /admin/pipeline/migrate-index confirm=true      → 200 {status, message}
+  http-p-12  POST /admin/pipeline/migrate-index confirm=true      → 200 {status, action, index_status}
   http-p-13  POST /admin/pipeline/migrate-index → BlockingConflictError → 409
   http-p-14  409 from migrate-index not wrapped in error/detail
 
   Exit code: 0 on all pass, 1 on any failure
 """
 
-import sys, os, hashlib, json
+import sys, os, json
 from unittest.mock import patch, MagicMock
 
 # Point to a dummy DB URL — all DB calls are patched in these tests
 os.environ.setdefault('SUPABASE_DB_URL', 'postgresql://x:x@127.0.0.1:5432/notused')
+# PR 1.5: admin endpoints accept ONLY an admin JWT signed with ADMIN_JWT_SECRET
+os.environ.setdefault('ADMIN_TOKEN', 'a' * 40)
+os.environ.setdefault('ADMIN_JWT_SECRET', 'test-admin-secret-' + 's' * 32)
 
 # Import server (and transitively auth) — app is built at import time
 import server
@@ -39,9 +42,8 @@ from fastapi.testclient import TestClient
 
 client = TestClient(app, raise_server_exceptions=True)
 
-# Compute the real admin token — same formula as server.py
-ADMIN_PASSWORD = "tw@admin2025"
-VALID_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
+# PR 1.5: a real admin session JWT (the raw ADMIN_TOKEN is the login password only)
+VALID_TOKEN = server._admin_jwt_issue()
 WRONG_TOKEN  = "not-the-right-token"
 
 # ── Result tracking ────────────────────────────────────────────────────────────
@@ -91,25 +93,25 @@ print("PR-2 Pipeline Backfill — Admin HTTP Endpoint Tests (TestClient)")
 print("=" * 64)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# http-p-01  POST /admin/pipeline/backfill without token → 403
+# http-p-01  POST /admin/pipeline/backfill without token → 401
 # ─────────────────────────────────────────────────────────────────────────────
 _r01 = client.post("/admin/pipeline/backfill")
-check("http-p-01. POST /admin/pipeline/backfill (no token) → 403",
-      _r01.status_code == 403, f"status={_r01.status_code}")
+check("http-p-01. POST /admin/pipeline/backfill (no token) → 401",
+      _r01.status_code == 401, f"status={_r01.status_code}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# http-p-02  GET /admin/pipeline/backfill/dry-run without token → 403
+# http-p-02  GET /admin/pipeline/backfill/dry-run without token → 401
 # ─────────────────────────────────────────────────────────────────────────────
 _r02 = client.get("/admin/pipeline/backfill/dry-run")
-check("http-p-02. GET /admin/pipeline/backfill/dry-run (no token) → 403",
-      _r02.status_code == 403, f"status={_r02.status_code}")
+check("http-p-02. GET /admin/pipeline/backfill/dry-run (no token) → 401",
+      _r02.status_code == 401, f"status={_r02.status_code}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# http-p-03  POST /admin/pipeline/migrate-index without token → 403
+# http-p-03  POST /admin/pipeline/migrate-index without token → 401
 # ─────────────────────────────────────────────────────────────────────────────
 _r03 = client.post("/admin/pipeline/migrate-index")
-check("http-p-03. POST /admin/pipeline/migrate-index (no token) → 403",
-      _r03.status_code == 403, f"status={_r03.status_code}")
+check("http-p-03. POST /admin/pipeline/migrate-index (no token) → 401",
+      _r03.status_code == 401, f"status={_r03.status_code}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # http-p-04  POST /admin/pipeline/backfill with valid token but confirm=false → 400
@@ -201,9 +203,12 @@ check("http-p-11. POST /admin/pipeline/migrate-index (confirm=false) → 400",
       _r11.status_code == 400, f"status={_r11.status_code}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# http-p-12  POST /admin/pipeline/migrate-index?confirm=true → 200 + {status, message}
+# http-p-12  POST /admin/pipeline/migrate-index?confirm=true → 200 + {status, action, index_status}
+#            (PR6 index guard: the endpoint re-reads the index status after creation)
 # ─────────────────────────────────────────────────────────────────────────────
-with patch('server._migrate_partial_unique_application_id', return_value=None):
+_READY = {"exists": True, "is_unique": True, "predicate_valid": True, "ready": True}
+with patch('server._migrate_partial_unique_application_id', return_value=None), \
+     patch('server.get_pipeline_application_index_status', return_value=_READY):
     _r12 = client.post("/admin/pipeline/migrate-index?confirm=true", headers=_headers)
 
 check("http-p-12a. migrate-index (confirm=true) → 200",
@@ -211,8 +216,8 @@ check("http-p-12a. migrate-index (confirm=true) → 200",
 _body12 = _r12.json()
 check("http-p-12b. migrate-index response has 'status'='ok'",
       _body12.get("status") == "ok", f"body={_body12}")
-check("http-p-12c. migrate-index response has 'message'",
-      "message" in _body12, f"body={_body12}")
+check("http-p-12c. migrate-index response has 'action' + 'index_status'",
+      _body12.get("action") == "already_exists" and "index_status" in _body12, f"body={_body12}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # http-p-13  POST /admin/pipeline/migrate-index → BlockingConflictError → 409

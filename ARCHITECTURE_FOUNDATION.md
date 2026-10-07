@@ -453,8 +453,9 @@ Pre-push GitHub State Check:
 // نجاح مع قائمة:
 { "ok": true, "data": [...], "total": 42, "page": 1 }
 
-// فشل:
-{ "ok": false, "error": "رسالة واضحة للمستخدم أو المطوّر" }
+// فشل (عقد PR 3A / #572 — api_error(status, code, message, field=None) في server.py):
+{ "ok": false, "error": { "code": "invalid_url", "message": "رسالة عربية واضحة", "field": "url" } }
+//   code = معرّف ثابت للمطوّر · message = نص للمستخدم · field = اختياري (خطأ حقل)
 ```
 
 ### قواعد التطبيق
@@ -462,7 +463,7 @@ Pre-push GitHub State Check:
 ```
 ✅ كل endpoint يُرجع "ok": true أو "ok": false
 ✅ البيانات دائماً تحت "data" أو "result"
-✅ الأخطاء دائماً تحت "error" أو "message"
+✅ الأخطاء دائماً تحت "error" ككائن {code, message, field?} — الواجهة تقرأ النص عبر twApiMessage(res, fallback)
 ✅ HTTP status codes صحيحة (200/201/400/401/403/404/422/500)
 ❌ ممنوع: endpoint يُرجع list مباشرة بدون wrapper
 ❌ ممنوع: كل endpoint بشكل مختلف تماماً بدون سبب

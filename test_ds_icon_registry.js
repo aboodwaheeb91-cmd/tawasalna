@@ -162,6 +162,9 @@ const consumers = [];
     if (!/\.(html|js|mjs|css|json)$/.test(f.name) || /^test_/.test(f.name)) continue;
     if (p === path.join('static', 'shared', 'tw-icons.js')) continue;
     if (p === 'sw.js') continue;  // §32 precache list for the offline page (landing) — not a consumer
+    // DS-OVL shared runtime (PR 3B) — calls twIconEl only when the PAGE loaded tw-icons.js
+    // (docs/rules/ds-overlay.md rules 6–7); it is not a page and never loads the file itself.
+    if (p === path.join('static', 'shared', 'tw-overlay.js')) continue;
     if (read(p).includes('tw-icons')) consumers.push(p);
   }
 }('.'));
