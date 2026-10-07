@@ -43,18 +43,13 @@ img { display: block; max-width: 100%; }
 }
 .skip-link:focus { top: 0; }
 
-/* === Navigation — uses shared .sc-header from app-header.css === */
-.jd-header-bar {
-  position: fixed;
-  top: 0; inset-inline: 0;
-  z-index: 100;
-}
+/* === Navigation = unified app header (app-header.css · HEADER-NAV.md) — sticky, no offset === */
 
 /* === Shell === */
 .jd-shell {
   max-width: 860px;
   margin: 0 auto;
-  padding: calc(var(--ah-h) + var(--space-8)) var(--space-8) 90px;
+  padding: var(--space-8) var(--space-8) 90px;
 }
 
 /* === Job Header Card === */

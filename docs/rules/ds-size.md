@@ -25,7 +25,7 @@
 
 9. **ما في tokens للمسافات الفردية** (3/5/7/9/11/13px) — تبقى محلية لحد redesign معلن (قرار 5).
 
-10. **أزرار الهيدر (32/34/40) بدون قرار** — توحيدها PR بصري منفصل فقط (قرار 4).
+10. **أزرار الهيدر** — اتوحّدت بـ PR 3.2 (الهيدر الموحّد — `docs/design-system/HEADER-NAV.md`): رئيسية `--size-control-icon-lg` (40) + `--radius-md`، أيقونات `--size-icon-xl` (20)، أيقونات الشريط السفلي `--size-icon-2xl`. `static/app-header.css` بقائمة `_PHASE_C_FILES` بـ `test_ds_size_tokens.py`. الصفحتين الباقيتين (`profile-showcase` · `company-profile`) بالمرحلة 4.
 
 11. **ممنوع نسخ الـ tokens** لصفحة ما بتحمّل `tw_shared.css` — الحل تحويلها للـ Page Shell (F39) مع فحص بصري (appointments + appointment-room ✅ Phase C).
 

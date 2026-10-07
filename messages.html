@@ -14,36 +14,17 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/shared/tw-select.css">
-<link rel="stylesheet" href="/static/messages.css?v=v23">
+<link rel="stylesheet" href="/static/messages.css?v=v24">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
 <body>
 
-<!-- ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ── -->
-<div class="sc-header">
-  <button type="button" class="sc-hicon sc-home-btn" onclick="goMessengerHome()" title="الرئيسية">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/></svg>
-  </button>
-  <div class="sc-logo">
-    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg" alt="تواصلنا">
-  </div>
-  <div class="sc-head-icons">
-    <button type="button" class="sc-hicon sc-hicon-bare" onclick="location.href='/notifications'" title="الإشعارات" data-tw-session="authenticated" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-    </button>
-    <button type="button" class="sc-hicon sc-hicon-bare" onclick="goMessengerProfile()" title="ملفي الشخصي" data-tw-session="authenticated" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-    </button>
-    <div class="sc-menu-wrap" id="scMenuWrap">
-      <button type="button" class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-      </button>
-      <div class="sc-menu-dropdown" id="scMenuDropdown"></div>
-    </div>
-  </div>
-</div>
+<!-- ── Unified app header (HEADER-NAV.md — rendered by twMountAppChrome). No bottom nav here:
+     the full-height chat keeps its input bar at the bottom. ── -->
+<header data-tw-header></header>
 
 <div class="layout" id="main-content">
 
@@ -142,13 +123,14 @@
 
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/auth-sync.js"></script>
+<script src="/static/shared/tw-icons.js"></script>
 <script src="/static/shared/tw-select.js"></script>
 <script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
 <script src="/static/shared/tw-schedule.js?v=sched-v1"></script>
 <script src="/static/messages.state.js?v=v22"></script>
 <script src="/static/messages.debug.js?v=v22"></script>
 <script src="/static/messages.api.js?v=v22"></script>
-<script src="/static/messages.ws.js?v=v23"></script>
-<script src="/static/messages.render.js?v=v23"></script>
+<script src="/static/messages.ws.js?v=v24"></script>
+<script src="/static/messages.render.js?v=v24"></script>
 </body>
 </html>

@@ -11,76 +11,12 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
-/* ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ──
-   position:fixed here (not sticky, as in the source) because messages.html is a fixed-viewport
-   app-shell — body does not scroll, so sticky would have no scrolling ancestor to stick within. */
-.sc-header{
-  position:fixed;top:0;left:0;right:0;z-index:1000;
-  display:flex;align-items:center;justify-content:space-between;
-  height:42px;padding:7px 16px;
-  background:rgba(10,14,20,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border-bottom:1px solid rgba(255,255,255,.06);font-family:'Cairo',sans-serif;
-}
-.sc-header .sc-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;}
-.sc-logo img{height:38px;width:auto;max-width:140px;object-fit:contain;display:block;}
-.sc-head-icons{display:flex;align-items:center;gap:8px;}
-.sc-hicon{width:34px;height:34px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--t1,#fff);font-size:1rem;display:flex;align-items:center;justify-content:center;}
-/* Icon-only ghost variant — used by every header button incl. the home
-   button (see "الرئيسية" pill removal): no background/border, sized by
-   its padding+icon rather than the fixed 34px box above, so it stays
-   visually consistent with the rest of the header on both sides. */
-.sc-hicon-bare{width:auto;height:auto;padding:4px;background:none!important;border:none!important;}
-/* Home button — deliberately NOT icon-sized like the rest of the header
-   (it's the most important nav action) and NOT the old oversized text pill
-   either: a medium circular button, slightly larger than the other ghost
-   icons, with a brand-identity gradient so it stays visually anchored. */
-.sc-home-btn{
-  width:34px;height:34px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,#00c896,#00b8c4,#2563ff);
-  box-shadow:0 2px 10px rgba(0,184,196,.35);
-  color:#06121c;
-}
-.sc-home-btn .sc-svg-icon{width:18px;height:18px;}
-.sc-home-btn:active{transform:scale(.94);}
-
-/* ── Header icons — inline local SVG (no external icon CDN) ── */
-.sc-svg-icon{width:20px;height:20px;flex-shrink:0;}
-.sc-svg-icon-sm{width:14px;height:14px;flex-shrink:0;}
-
-/* ── Header ☰ menu dropdown — same visual pattern as Profile V2's .sc-eye-menu ── */
-.sc-menu-wrap{position:relative;}
-.sc-menu-dropdown{
-  display:none;position:absolute;top:calc(100% + 8px);left:0;min-width:180px;
-  background:rgba(10,14,24,.95);border:1px solid rgba(255,255,255,.13);
-  border-radius:13px;padding:5px;z-index:200;
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  box-shadow:0 10px 30px rgba(0,0,0,.45);
-}
-.sc-menu-dropdown.open{display:block;}
-.sc-menu-item{
-  display:flex;align-items:center;gap:9px;width:100%;
-  padding:9px 12px;border:none;background:none;
-  color:var(--t1,#fff);font-family:inherit;font-size:12px;font-weight:600;
-  border-radius:8px;cursor:pointer;text-align:right;
-  transition:background .15s;
-}
-.sc-menu-item:hover{background:rgba(255,255,255,.07);}
-.sc-menu-item .sc-svg-icon-sm{color:var(--ac,#00c896);}
-/* Current page — shown so the list stays complete/predictable, but not a
-   clickable link to itself (rendered as a <div>, not an <a>/<button>). */
-.sc-menu-item.current{background:rgba(255,255,255,.05);color:var(--t2,rgba(255,255,255,.5));cursor:default;}
-.sc-menu-item.current .sc-svg-icon-sm{color:var(--t2,rgba(255,255,255,.5));}
-.sc-menu-item.disabled{color:var(--t3,rgba(255,255,255,.27));cursor:default;pointer-events:none;justify-content:space-between;}
-.sc-menu-item.disabled .sc-svg-icon-sm{color:var(--t3,rgba(255,255,255,.27));}
-.sc-menu-item.disabled:hover{background:none;}
-.sc-menu-soon{font-size:.6rem;font-weight:700;background:rgba(255,255,255,.07);color:var(--t3,rgba(255,255,255,.27));border-radius:999px;padding:1px 6px;margin-right:auto;}
-.sc-menu-sep{height:1px;background:rgba(255,255,255,.08);margin:3px 8px;}
-.sc-menu-item.danger{color:#f87171;}
-.sc-menu-item.danger .sc-svg-icon-sm{color:#f87171;}
-.sc-menu-item.danger:hover{background:rgba(248,113,113,.1);}
+/* ── Header = the unified app header (app-header.css · HEADER-NAV.md). body does not scroll,
+   so the sticky header simply sits on top and .layout fills the rest of the viewport. ── */
+.sc-svg-icon-sm{width:14px;height:14px;flex-shrink:0;}   /* chat-options menu icons */
 
 /* ── Layout ── */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 42px);height:calc(100dvh - 42px);margin-top:42px;}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - var(--ah-h));height:calc(100dvh - var(--ah-h));}
 
 /* ── Conversations list ── */
 .conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
@@ -263,7 +199,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 /* ── Chat-options menu (beside avatar) — replaces the old inert ☰ "back" button
    and the separate "👤 الملف" action button; same dropdown pattern as the
-   site-header's .sc-menu-dropdown ── */
+   app header menu ── */
 .ch-menu-wrap{position:relative;flex-shrink:0;}
 .ch-btn.ch-menu-btn{
   padding:6px;border-radius:8px;border:1px solid var(--border);
@@ -396,9 +332,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 /* ── Mobile ── */
 @media(max-width:700px){
-  .layout{grid-template-columns:1fr;height:calc(100dvh - 42px);}
+  .layout{grid-template-columns:1fr;height:calc(100dvh - var(--ah-h));}
   .conv-list{display:none;}
-  .conv-list.mobile-show{display:flex;position:fixed;inset:42px 0 0 0;z-index:50;background:var(--bg2);}
+  .conv-list.mobile-show{display:flex;position:fixed;inset:var(--ah-h) 0 0 0;z-index:50;background:var(--bg2);}
   .messages{padding:16px 14px 10px;}
   .chat-input{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));}
   .msg{max-width:82%;}

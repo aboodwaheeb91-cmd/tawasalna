@@ -3456,27 +3456,27 @@ import os as _os151
 _notif151 = open('notifications.html', encoding='utf-8').read() if _os151.path.exists('notifications.html') else ''
 
 check(
-    "151a. notifications.html uses shared .sc-header class (same pattern as company-profile.html)",
-    'sc-header' in _notif151 and 'notif-hdr' in _notif151
+    "151a. notifications.html uses the unified app header (HEADER-NAV.md — data-tw-header)",
+    '<header data-tw-header></header>' in _notif151 and 'notif-hdr' not in _notif151
 )
 check(
     "151b. app-header.css is loaded in notifications.html",
     '/static/app-header.css' in _notif151
 )
 check(
-    "151c. Logo /static/33333.svg present in header",
-    '33333.svg' in _notif151
+    "151c. Logo comes from the unified header only (TW_LOGO_SRC /static/33333.svg in tw_shared.js)",
+    "var TW_LOGO_SRC = '/static/33333.svg';" in open('tw_shared.js', encoding='utf-8').read()
 )
 check(
-    "151d. Lucide local vendor loaded — no new CDN (no unpkg/cdnjs/jsdelivr for icons)",
-    '/static/vendor/lucide/lucide.min.js' in _notif151 and
+    "151d. Icons via DS-ICON (tw-icons.js) — no Lucide bundle, no icon CDN (no unpkg/cdnjs/jsdelivr)",
+    '/static/shared/tw-icons.js' in _notif151 and 'lucide' not in _notif151 and
     'unpkg.com/lucide' not in _notif151 and
     'cdnjs.cloudflare.com/ajax/libs/lucide' not in _notif151 and
     'jsdelivr.net' not in _notif151
 )
 check(
-    "151e. lucide.createIcons() called after loading the vendor script",
-    'lucide.createIcons()' in _notif151
+    "151e. no lucide.createIcons() — header icons are rendered by twMountAppChrome",
+    'lucide.createIcons()' not in _notif151
 )
 check(
     "151f. Hero section exists with class notif-hero",
@@ -3558,10 +3558,9 @@ check(
     r'/^\//' in _notif151
 )
 check(
-    "151t. Bottom nav uses class notif-bnav and notif-bn — SVG icons only",
-    'notif-bnav' in _notif151 and
-    'notif-bn' in _notif151 and
-    'class="notif-bnav"' in _notif151
+    "151t. Bottom nav = the unified one (data-tw-bottom-nav — HNAV-06), no page copy",
+    '<nav data-tw-bottom-nav></nav>' in _notif151 and
+    'notif-bnav' not in _notif151
 )
 check(
     "151u. Bottom nav has no emoji characters",

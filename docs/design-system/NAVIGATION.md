@@ -392,7 +392,7 @@ context.from يُقبَل فقط إذا تحقق كل ما يلي:
 
 | الثغرة | الموقع | الـ gap |
 |--------|--------|---------|
-| `history.back()` مباشر بدون back-trust check | `static/job/job-detail.js:729` | Deep Link يخرج من الموقع |
+| ~~`history.back()` مباشر بدون back-trust check~~ ✅ PR 3.2 (`twNavBack` — `HEADER-NAV.md` HNAV-03) | `static/job/job-detail.js` | — |
 | `popstate` listener مزدوج | `company.main.js:1975` و `:4624` | قد يتعارضان |
 | ~~`redirect()` لا تحفظ `?next=`~~ ✅ PR #558 (`twSafeNext` / `twLoginHref`) | `index.auth.js` | — |
 

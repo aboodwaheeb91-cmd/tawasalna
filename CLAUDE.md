@@ -479,6 +479,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Icon System V1 (DS-ICON) Rules | `docs/rules/ds-icon.md` |
 | Image Display System V1 (DS-IMAGE) Rules — أفاتار / لوغو / رابط صورة | `docs/rules/ds-image.md` |
 | Overlay System (DS-OVL) Runtime V1 — `twConfirm` / `twAlert` / `twModal` · ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس | `docs/rules/ds-overlay.md` |
+| Header & Bottom Nav V1 (DS-HNAV) — هيدر واحد (`<header data-tw-header>`) + شريط سفلي واحد (`<nav data-tw-bottom-nav>`) بيرسمهم `twMountAppChrome` بـ `tw_shared.js` · ممنوع هيدر / شريط خاص بصفحة (PR 3.2) | `docs/design-system/HEADER-NAV.md` |
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
 | Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |

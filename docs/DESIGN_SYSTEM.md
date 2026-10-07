@@ -38,6 +38,7 @@
 | فهم Authentication vs Authorization vs Ownership | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-05 |
 | Backend كمرجع نهائي للصلاحيات | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-06 + VM-07 |
 | Back Button / History / سلوك الرجوع | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-05 + NAV-06 |
+| هيدر الموقع / الشريط السفلي / زر رجوع بالهيدر | [HEADER-NAV.md](design-system/HEADER-NAV.md) | HNAV-01 → HNAV-08 |
 | رابط navigation أو URL جديد | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-02 + BTN-12 |
 | Deep Link / صفحة تعمل من URL مباشر | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-08 |
 | Auth redirect + ?next= | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-10 + NAV-07 |

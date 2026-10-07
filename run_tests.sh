@@ -53,6 +53,7 @@ PY_SCRIPT=(
   test_ds_size_tokens.py
   test_edit_profile_phase1.py
   test_global_ui_visibility.py
+  test_header_nav.py
   test_job_archive_http.py
   test_job_detail_shell.py
   test_landing_shell.py

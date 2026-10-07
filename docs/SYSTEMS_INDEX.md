@@ -465,11 +465,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 28. App Header / Shared Header
-**Purpose:** Unified header component with navigation, user menu, notification badge for all authenticated pages.
-**Source of Truth:** `static/app-header.css` (CSS vars, `.sc-header`, `.sc-*` classes) · `static/app-header.js` (`initAppHeader`)
-**Details:** `docs/rules/home-v2.md §11`
-**Do not recreate:** Do not create page-specific header styles. All header changes go in `app-header.css` only.
+### 28. App Header + Bottom Nav — هيدر واحد وشريط سفلي واحد [DS-HNAV] (PR 3.2)
+**Purpose:** One header and one mobile bottom nav for the whole site. A page declares `<header data-tw-header [data-back="home|account|/path"]>` + optional `<nav data-tw-bottom-nav>`; `tw_shared.js` renders them.
+**Source of Truth:** `tw_shared.js` → `twMountAppChrome()` (auto at DOMContentLoaded) · `_twHeaderHtml()` · `_TW_BOTTOM_NAV` / `twBottomNavItems(userType, u)` · `twNavBack(fallback)` (NAV-05) · `TW_LOGO_SRC = '/static/33333.svg'` · CSS `static/app-header.css` (DS-SIZE / DS-COLOR tokens). Menu = `initGlobalHeaderMenu('twHdrMenuBtn','twHdrMenuDd')` (VM-10 §53); badges `[data-badge="notif"|"msgs"]` = `loadGlobalBadges` + Badge WS, one cap `twNotifBadgeLabel` (99+) for both.
+**Details:** `docs/design-system/HEADER-NAV.md` (HNAV-00 → HNAV-08). Order: auth `[back?] home · logo · bell · messages · menu` · guest `[back?] logo · login (twLoginHref) · register (/login#register)`. Bottom nav per type: home · appointments · messages · notifications · account (ملفي / شركتي / مؤسستي) — no `href="#"`, current tab `.is-current` + `aria-current`, authenticated + `< 1020px` only. Converted: `home-v2` · `notifications` · `messages` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail`. Phase 4: `profile-showcase` · `company-profile` (still `.sc-header` + `app-header.js`). Test: `python test_header_nav.py`.
+**Do not recreate:** ❌ a page-specific header or bottom nav (HTML / CSS / JS) · ❌ page buttons inside the header · ❌ another logo source · ❌ `href="#"` in the bottom nav or an item outside `_TW_BOTTOM_NAV` · ❌ a second badge cap · ❌ `history.back()` for a back button (`twNavBack`) · ❌ `initGlobalHeaderMenu` from a converted page.
 
 ---
 
@@ -528,7 +528,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **JWT Claims Contract:** server.py always sets `user_id` (int), `user_type` (str), `exp` (Unix timestamp, 7-day lifetime). All three are mandatory in the state machine.
 **Session Fingerprint:** `_prevJwt` + `_prevUserStr` — both JWT and `tw_user` changes trigger callbacks.
 **Menu Policy:** `_TW_HEADER_MENU_POLICY` in `tw_shared.js` — each item declares `show: 'auth' | 'guest' | 'all'` and optional `accountTypes: string[]`. Candidates search = `auth` + `accountTypes:['co']`. Settings/Logout = `auth`. Login/Register = `guest`.
-**Notifications badge cap:** `twNotifBadgeLabel(count)` in `tw_shared.js` is the only cap rule (`> 99` → `99+`) — used by `loadGlobalBadges()` for `[data-badge="notif"]` / `[data-ah-notif-badge]` (PR #559; regressed to `9+` in VM-10 #532). The bell has no active-glow class (`.ah-bell--active` removed — no consumer).
+**Badge cap (notifications + messages — PR 3.2):** `twNotifBadgeLabel(count)` in `tw_shared.js` is the only cap rule (`> 99` → `99+`) — used by `loadGlobalBadges()` + Badge WS + `messages.ws.js` for `[data-badge="notif"]` / `[data-ah-notif-badge]` / `[data-badge="msgs"]` (PR #559; regressed to `9+` in VM-10 #532). The bell has no active-glow class (`.ah-bell--active` removed — no consumer).
 **401 vs 403:** `loadGlobalBadges()` calls `invalidateSession('api_401')` on HTTP 401 from BOTH `/notifications/` AND `/messages/unread/` — not on 403/5xx/network (forbidden/server error preserves session).
 **WS Lifecycle:** Generation-based (`_gen` counter + `_activeUid`) via `_clearSocket()` — stale `onclose` callbacks discarded; account switch forces stop+restart. First-message JWT auth protocol: `ws.onopen` sends `{"type":"auth","token":"..."}`, `ws.onmessage` processes badge_update only after `auth_ok` with user_id match. Codes 4001–4007 = no reconnect. Exponential backoff (max 5 retries, 30s cap). `_clearBadges()` clears `[data-badge="msgs"],[data-badge="notif"],[data-ah-notif-badge]`. `window._twBadgeWsStop()` / `window._twBadgeWsStart()` exposed for pages that need manual lifecycle control.
 **Badge Race Prevention:** `_badgeGeneration` module-level counter in `tw_shared.js` (defined before `loadGlobalBadges` and the Badge WS IIFE) — `loadGlobalBadges()` captures `gen = ++_badgeGeneration`; every HTTP callback guards `if (gen !== _badgeGeneration) return` before any DOM write. `_twBadgeWsStop()` increments `_badgeGeneration` to cancel in-flight HTTP requests on account switch. `_guardOk(gen, uid)` triple-guard: generation match + activeUid match + isAuthenticated check. `_on401()` calls `_twBadgeWsStop()` + `loadGlobalBadges._sibling = null` to cancel the badge sibling on 401. `_bindBadgeAuthSync()` is idempotent and order-independent — safe whether `TwAuthSync` loads before or after `tw_shared.js`. `data-ah-notif-badge` cleared alongside `[data-badge="msgs"]` and `[data-badge="notif"]`. Badges cleared before fetch starts. All JS files must use allowlist `['tw_jwt', 'tw_user']` — `Object.keys(localStorage)` and `startsWith('tw_')` for session scanning are permanently forbidden repository-wide (enforced by M07/M08 guards in `test_global_ui_visibility.py`).
@@ -538,7 +538,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Runtime Tests (Phase 3 — final):** `test_auth_sync_runtime.js` — 54 Node.js behavioral assertions. `test_tw_shared_runtime.js` — 55 Node.js behavioral assertions (menu policy, Login≠Register URL contract, 401/403, stale-generation, badge clear, twLogout fallback, index.auth.js login path storage contract T15–T16b). `test_ws_client.mjs` — 42 Node.js WS client assertions (T24–T34: `_badgeGeneration` in scope via `// ══ Global Badge Loader ══` marker extraction, `_twBadgeWsStop` increments generation, stale-generation guard, account-switch cancel, 401 cancel, `_clearBadges` on stop, auth-ok/reject flows).
 **Static Tests (Phase 3 — final):** `test_global_ui_visibility.py` — 154 checks across A–M sections (B25/B26 verify `_gen`/`_activeUid`; M07 — no `Object.keys(localStorage)` in any JS file; M08 — no `startsWith('tw_')` session scan in any JS file; M09 — no `setInterval` badge polling in `static/**/*.js`).
 **Declarative Visibility:** `data-tw-session="authenticated|guest|all"` on any element + `data-tw-account-types="co"` for account-type filtering. Elements with `data-tw-session="authenticated" hidden` start hidden on public pages and are revealed by `_twApplyDeclarativeVisibility()`.
-**Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html` · `home-v2.html` · `edu-profile.html`
+**Pages adopted:** `profile-showcase.html` · `company-profile.html` (own `.sc-header`) · every page on the unified app header §28 (PR 3.2 — `home-v2` · `notifications` · `messages` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail`)
 **Do not recreate:**
 - Never add `show: settings` or `show: logout` logic per page — use `_TW_HEADER_MENU_POLICY`
 - Never repeat session check inside a page module — use `initGlobalHeaderMenu` + `data-tw-session`
@@ -840,7 +840,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `?next=` محجوز لـ Auth Return Destination فقط — ليس Back fallback عام. التنفيذ الوحيد: `twSafeNext` / `twLoginHref` بـ `tw_shared.js` + قراءة `?next=` بـ `index.auth.js` فقط (NAV-07 — PR #558).
 - لا تستخدم flat namespace موازٍ مثل `{ds_nav:'*'}` — canonical namespace هو `history.state.nav` (NAV-03).
 - `replaceState` يجب أن يدمج مع الـ state الموجود (Object.assign pattern) — لا يُلغيه.
-**Gaps documented (not fixed):** `history.back()` بدون fallback في `job-detail.js:729`، `popstate` listener مزدوج في `company.main.js:1975+4624`. (`?next=` ✅ PR #558.)
+**Gaps documented (not fixed):** `popstate` listener مزدوج في `company.main.js:1975+4624`. (`?next=` ✅ PR #558 · `history.back()` بـ job-detail ✅ PR 3.2 — `twNavBack` §28.)
 **Status:** V1 Documentation ✅ · Partial Runtime Adoption ✅ — Auth Gateway (NAV-13) · Remaining migrations 🔄/🔜
 
 ---
@@ -1099,6 +1099,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **`H`:** أول 10 hex من sha256 للملف، مرة وحدة عند بدء السيرفر.
 - **admin:** بدون manifest / auth-sync · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل SW.
 - **`{{v:<asset>}}` بالصفحة:** صفحة shell بتكتب `?v={{v:<name>}}` لأصول `PAGE_ASSETS` فقط (allowlist ثابتة — حالياً `tw-icons.js`؛ landing · job-detail · و `tw-overlay.js` (DS-OVL §48)؛ appointment-room) → نفس الـ hash. اسم مش معروف أو placeholder بصفحة بدون markers → `ValueError`.
+- **الهيدر والشريط السفلي مش من الـ shell:** placeholders `data-tw-header` / `data-tw-bottom-nav` + `twMountAppChrome` (§28 DS-HNAV — JS لأن المحتوى بيعتمد على الجلسة، ولأن صفحات مش shell بتستعمله).
 - **مستهلكين:** `home-v2.html` (Phase B — تجريبية) · `job-detail.html` · `landing.html` (Phase C — entry، صفحة الـ offline fallback: ملفات الـ shell بالـ precache §32) · `appointments.html` + `appointment-room.html` (Phase C — أول صفحات محمية).
 - **Guard الصفحات المحمية (SHELL-09):** `<meta name="tw-page" content="auth">` + نداء واحد `twRequireAuth(opts)` (`tw_shared.js` — المصدر الوحيد) بأول سكربت الصفحة: قرار من `TwAuthSync.getSessionSnapshot()` بس — guest / expired / stale / invalid → `location.replace(twLoginHref(path + query))` · `opts.userTypes` ونوع غلط → `twAccountHref` · تسجيل واحد على `onSessionChange` (logout بتاب تاني / bfcache → نفس القرار · حساب تاني → reload). Auth Gateway rule 14 (CLAUDE.md). Test: `node test_appointments_guard_runtime.js`.
 **Do not recreate:** لا آلية حقن ثانية ولا partial ثاني. لا نسخ tags الـ shell يدوياً بصفحة محوّلة. لا `?v=` يدوي لملف مشترك. لا بيانات مستخدم بالحقن (§54). لا `tw-icons.js` ولا `user-scalable=no` بالـ shell. لا تحويل صفحة بدون screenshots. لا guard محلي ثاني ولا قراءة `tw_user` / `tw_jwt` مباشرة لقرار الدخول بصفحة محمية — `twRequireAuth` فقط.
@@ -1204,4 +1205,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 3.10 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3.2 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

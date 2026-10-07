@@ -227,17 +227,16 @@ print("\nD — notifications.html")
 
 notif = read("notifications.html")
 
-check("D01 — ntMenuDynamic container exists",
-      'id="ntMenuDynamic"' in notif)
+check("D01 — unified app header placeholder (HEADER-NAV.md)",
+      '<header data-tw-header></header>' in notif)
 check("D02 — static Settings link removed",
-      'href="/settings"' not in notif
-      or notif.find('href="/settings"') > notif.find('ntMenuDropdown'))
+      'href="/settings"' not in notif)
 check("D03 — static Logout button removed",
       'data-ah-logout' not in notif)
 check("D04 — inline toggle script removed",
       "dd.classList.toggle('open')" not in notif)
-check("D05 — initGlobalHeaderMenu call present",
-      "initGlobalHeaderMenu('ntMenuBtn'" in notif)
+check("D05 — no page-local initGlobalHeaderMenu (the unified header wires it)",
+      "initGlobalHeaderMenu(" not in notif)
 check("D06 — auth-sync.js loaded",
       "auth-sync.js" in notif)
 check("D07 — inline logout handler removed",
@@ -281,16 +280,14 @@ check("J01 — auth-sync.js loaded in messages.html",
 check("J02 — auth-sync.js loads before messages.render.js",
       "auth-sync.js" in msg
       and msg.index("auth-sync.js") < msg.index("messages.render.js"))
-check("J03 — notifications button has data-tw-session=authenticated",
-      'onclick="location.href=\'/notifications\'"' in msg
-      and 'data-tw-session="authenticated"' in msg)
-check("J04 — profile button has data-tw-session=authenticated",
-      'onclick="goMessengerProfile()"' in msg
-      and msg.count('data-tw-session="authenticated"') >= 2)
-check("J05 — both nav icons start hidden (hidden attribute)",
-      msg.count('data-tw-session="authenticated" hidden') >= 2)
-check("J06 — initGlobalHeaderMenu wired in messages.render.js",
-      "initGlobalHeaderMenu('scMenuBtn'" in msg_render)
+check("J03 — unified app header placeholder (HEADER-NAV.md)",
+      '<header data-tw-header></header>' in msg)
+check("J04 — old header buttons removed (goMessengerHome / goMessengerProfile)",
+      "goMessenger" not in msg and "goMessenger" not in msg_render)
+check("J05 — no page-local initGlobalHeaderMenu (the unified header wires it)",
+      "initGlobalHeaderMenu(" not in msg_render)
+check("J06 — twBeforeHeaderNav cleanup hook kept for header links",
+      "window.twBeforeHeaderNav = function" in msg_render)
 
 
 # ═══════════════════════════════════════════════════════
@@ -299,35 +296,27 @@ check("J06 — initGlobalHeaderMenu wired in messages.render.js",
 print("\nK — home-v2.html")
 
 hv2       = read_page("home-v2.html")
-hv2_hdr   = read("static/home/home.header.js")
+tws_hdr   = read("tw_shared.js").split("function _twHeaderHtml")[1].split("\nfunction ")[0]
 
 check("K01 — tw_shared.js loaded in home-v2.html",
       "/tw_shared.js" in hv2)
 check("K02 — auth-sync.js loaded in home-v2.html",
       "auth-sync.js" in hv2)
-check("K03 — auth-sync.js loads before home.header.js",
-      "auth-sync.js" in hv2
-      and hv2.index("auth-sync.js") < hv2.index("home.header.js"))
-check("K04 — notifications link has data-tw-session=authenticated",
-      'href="/notifications"' in hv2
-      and 'data-tw-session="authenticated"' in hv2)
-check("K05 — messages link has data-tw-session=authenticated",
-      'href="/messages"' in hv2
-      and hv2.count('data-tw-session="authenticated"') >= 2)
-check("K06 — both nav icons start hidden (hidden attribute)",
-      hv2.count('data-tw-session="authenticated" hidden') >= 2)
+check("K03 — auth-sync.js loads before home.main.js; home.header.js deleted",
+      hv2.index("auth-sync.js") < hv2.index("home.main.js")
+      and "home.header.js" not in hv2 and not os.path.exists("static/home/home.header.js"))
+check("K04 — unified app header + bottom nav placeholders",
+      '<header data-tw-header></header>' in hv2 and '<nav data-tw-bottom-nav></nav>' in hv2)
+check("K05 — no page copy of the bottom nav (hw-bnav) and no empty href",
+      "hw-bnav" not in hv2 and 'href="#"' not in hv2)
+check("K06 — unified header: bell + messages start hidden (data-tw-session)",
+      tws_hdr.count('data-tw-session="authenticated" hidden') >= 3)
 check("K07 — static Settings link removed from dropdown",
       re.search(r'<a[^>]+href=["\']?/settings["\']?[^>]*>.*?الإعدادات', hv2) is None)
 check("K08 — static hwLogoutBtn removed from dropdown",
       'id="hwLogoutBtn"' not in hv2)
-check("K09 — home.header.js has no startsWith logout violation",
-      "startsWith('tw_')" not in hv2_hdr
-      and 'startsWith("tw_")' not in hv2_hdr)
-check("K10 — home.header.js calls initGlobalHeaderMenu",
-      "initGlobalHeaderMenu('hwMenuBtn'" in hv2_hdr)
-check("K11 — home.header.js has no local menu toggle",
-      "menuDrop.classList.toggle" not in hv2_hdr
-      and "classList.toggle('open')" not in hv2_hdr)
+check("K09 — unified header wires the menu via initGlobalHeaderMenu",
+      "initGlobalHeaderMenu('twHdrMenuBtn', 'twHdrMenuDd')" in read("tw_shared.js"))
 
 
 # ═══════════════════════════════════════════════════════
@@ -566,7 +555,7 @@ check("M05 — loadGlobalBadges writes data-ah-notif-badge in notif update path 
 # M06: No setInterval badge/unread polling in any root or key shared JS files
 _badge_poll_files = [
     "tw_shared.js", "index.auth.js", "index.ui.js",
-    "static/app-header.js", "static/home/home.header.js",
+    "static/app-header.js",
 ]
 _setinterval_badge_violators = []
 for _bpf in _badge_poll_files:
@@ -644,15 +633,14 @@ check("L01 — tw_shared.js loaded in edu-profile.html",
       "/tw_shared.js" in ep)
 check("L02 — auth-sync.js loaded in edu-profile.html",
       "auth-sync.js" in ep)
-check("L03 — auth-sync.js loads before initGlobalHeaderMenu call",
-      "auth-sync.js" in ep
-      and ep.index("auth-sync.js") < ep.index("initGlobalHeaderMenu"))
+check("L03 — unified app header placeholder (HEADER-NAV.md)",
+      '<header data-tw-header></header>' in ep)
 check("L04 — app-header.css loaded",
       "app-header.css" in ep)
-check("L05 — sc-menu-dropdown element present",
-      'sc-menu-dropdown' in ep)
-check("L06 — initGlobalHeaderMenu wired to epMenuBtn",
-      "initGlobalHeaderMenu('epMenuBtn'" in ep)
+check("L05 — old .nav header removed",
+      'class="nav"' not in ep and 'nav-logo' not in ep)
+check("L06 — no page-local initGlobalHeaderMenu (the unified header wires it)",
+      "initGlobalHeaderMenu(" not in ep)
 check("L07 — static doLogout() function removed",
       "function doLogout" not in ep)
 check("L08 — static toggleMenu() function removed",
@@ -663,14 +651,8 @@ check("L10 — static #dropMenu div removed",
       'id="dropMenu"' not in ep)
 check("L11 — static logout button removed from nav",
       'onclick="doLogout()"' not in ep)
-check("L12 — notifications link has data-tw-session=authenticated",
-      'href="/notifications"' in ep
-      and 'data-tw-session="authenticated"' in ep)
-check("L13 — messages link has data-tw-session=authenticated",
-      'href="/messages"' in ep
-      and ep.count('data-tw-session="authenticated"') >= 1)
-check("L14 — both session nav icons start hidden",
-      ep.count('data-tw-session="authenticated" hidden') >= 2)
+check("L12 — no emoji header buttons (🔔 💬 ☰)",
+      '🔔' not in ep and '>💬<' not in ep and '☰' not in ep)
 check("L15 — owner actions still present (VM-01 separation)",
       'id="ownerActions"' in ep
       and 'onclick="openEditModal()"' in ep)

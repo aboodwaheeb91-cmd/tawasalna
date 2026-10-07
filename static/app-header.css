@@ -14,11 +14,12 @@
   --ah-blur: blur(14px);
   --ah-brd:  rgba(255,255,255,.09);
   --ah-muted: rgba(255,255,255,.5);
-  --ah-g: #00c896;
-  --ah-b: #2563ff;
+  --ah-g: var(--color-brand-primary, #00c896);
+  --ah-b: var(--color-brand-secondary, #2563ff);
+  --ah-bnav-h: 60px;   /* unified bottom nav (HEADER-NAV.md HNAV-06) */
 
   /* Home button — pages can override these three vars for per-page theming */
-  --hdr-home-accent: #00c896;
+  --hdr-home-accent: var(--color-brand-primary, #00c896);
   --hdr-home-glow:   rgba(0,200,150,.28);
   --hdr-home-bg:     rgba(0,200,150,.07);
 }
@@ -166,3 +167,74 @@
   pointer-events: none; z-index: 20;
 }
 
+
+/* ══ Unified App Header + Bottom Nav (docs/design-system/HEADER-NAV.md) ══════
+ * Rendered by twMountAppChrome() (tw_shared.js) into <header data-tw-header>
+ * and <nav data-tw-bottom-nav>. Sizes = DS-SIZE tokens · colours = DS-COLOR tokens.
+ * Pages never restyle these — one header for the whole site. */
+[data-tw-header] { display: flex; height: var(--ah-h); }   /* reserves the height before mount */
+.sc-header.tw-hdr {
+  position: sticky; top: 0; inset-inline: 0;
+  padding: 0 var(--space-8);
+  font-family: 'Cairo', sans-serif;
+}
+.tw-hdr .sc-home-btn {
+  width: var(--size-control-icon-lg); height: var(--size-control-icon-lg);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+.tw-hdr .sc-hicon-bare { color: var(--color-text-secondary); position: relative; }
+.tw-hdr .sc-hicon-bare:hover { color: var(--color-text-primary); }
+.tw-hdr .tw-hdr-ico.is-current { color: var(--color-brand-primary); }
+.tw-hdr .sc-head-icons { gap: var(--space-4); }
+.tw-hdr .sc-head-right { gap: var(--space-3); }
+.tw-hdr .sc-logo img { height: 32px; width: auto; max-width: 120px; }
+
+/* Header badges — bell + messages, one style, one cap (twNotifBadgeLabel → 99+) */
+.tw-hdr-badge {
+  display: none;   /* loadGlobalBadges / Badge WS set inline-block when count > 0 */
+  position: absolute; top: -2px; right: -4px;   /* physical — no RTL flip */
+  min-width: 16px; height: 16px; padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-status-danger); color: var(--color-text-primary);
+  font-size: var(--size-font-3xs); font-weight: 700;
+  line-height: 16px; text-align: center;
+  pointer-events: none;
+}
+
+/* Guest actions — login / register */
+.tw-hdr-auth {
+  display: inline-flex; align-items: center;
+  height: var(--size-control-sm); padding: 0 var(--space-5);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary); text-decoration: none;
+  font-size: var(--size-font-xs); font-weight: 700; white-space: nowrap;
+}
+.tw-hdr-auth--primary { background: var(--color-brand-primary); border-color: var(--color-brand-primary); color: var(--color-surface-page); }
+
+/* Bottom nav — mobile / tablet only, authenticated only */
+.tw-bnav {
+  position: fixed; bottom: 0; inset-inline: 0; z-index: 100;
+  height: calc(var(--ah-bnav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex; align-items: stretch;
+  background: var(--ah-bg);
+  backdrop-filter: var(--ah-blur); -webkit-backdrop-filter: var(--ah-blur);
+  border-top: 1px solid var(--color-border-default);
+  font-family: 'Cairo', sans-serif;
+}
+.tw-bnav[hidden] { display: none; }
+.tw-bnav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-1); min-width: 0;
+  color: var(--color-text-muted); text-decoration: none;
+  font-size: var(--size-font-2xs); font-weight: 600;
+  transition: color .15s;
+}
+.tw-bnav-item:hover, .tw-bnav-item.is-current { color: var(--color-brand-primary); }
+body.tw-has-bnav { padding-bottom: calc(var(--ah-bnav-h) + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1020px) {
+  .tw-bnav { display: none; }
+  body.tw-has-bnav { padding-bottom: 0; }
+}

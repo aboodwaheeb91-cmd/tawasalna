@@ -134,7 +134,7 @@
     if (type === 'error') {
       var btn = document.createElement('button');
       btn.className = 'jd-retry'; _label(btn, 'رجوع', 'back', true);
-      btn.onclick = function () { history.back(); };
+      btn.onclick = function () { twNavBack(twHomeHref()); };   // NAV-05 resolver (tw_shared.js)
       box.appendChild(btn);
     }
     box.classList.remove('hidden');
@@ -698,10 +698,7 @@
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
     twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
-    if (window.initAppHeader) initAppHeader(_user);
-
-    var backBtn = _el('jdBackBtn');
-    if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
+    // Header + back button = unified app chrome (tw_shared.js twMountAppChrome — HEADER-NAV.md)
 
     document.querySelectorAll('.jd-apply-trigger').forEach(function (btn) {
       btn.addEventListener('click', openApply);

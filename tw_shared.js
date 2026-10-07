@@ -451,7 +451,8 @@ function safeText(el, text){
 // the current account's badge counts after a cross-tab or within-tab account switch.
 var _badgeGeneration = 0;
 
-// twNotifBadgeLabel: the ONLY cap rule for the notifications badge (§52) — 1..99 → "N", > 99 → "99+".
+// twNotifBadgeLabel: the ONLY cap rule for BOTH header badges — notifications and messages
+// (§52 · HEADER-NAV.md HNAV-05) — 1..99 → "N", > 99 → "99+".
 function twNotifBadgeLabel(count) {
   var n = Number(count) || 0;
   return n > 99 ? '99+' : String(n);
@@ -523,7 +524,7 @@ function loadGlobalBadges() {
       if (!d || !_guardOk()) return;
       var count = d.count || 0;
       document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
-        el.textContent = count > 9 ? '9+' : String(count);
+        el.textContent = twNotifBadgeLabel(count);
         el.style.display = count > 0 ? 'inline-block' : 'none';
       });
     }).catch(function() {});
@@ -913,6 +914,177 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   _twApplyDeclarativeVisibility();
 }
 
+// ══ App Header + Bottom Nav — ONE header for the whole site (docs/design-system/HEADER-NAV.md) ══
+// A page declares placeholders; this file renders them once at DOMContentLoaded:
+//   <header data-tw-header [data-back="home|account|/internal/path"]></header>   (first child of <body>)
+//   <nav data-tw-bottom-nav [data-tw-current="home|appointments|messages|notifications|account"]></nav>
+// Header order (HNAV-02): authenticated → [back?] home · logo · bell · messages · menu
+//                         guest         → [back?] · logo · login · register
+// Both groups are in the DOM; data-tw-session + _twApplyDeclarativeVisibility (VM-10) pick one.
+// Icons: twIcon (DS-ICON registry — loaded by the page, never by this file). Logo: /static/33333.svg only (HNAV-04).
+// Badges: [data-badge="notif"] / [data-badge="msgs"] filled by loadGlobalBadges + Badge WS,
+// one cap rule twNotifBadgeLabel (99+) for both (HNAV-05). Menu: initGlobalHeaderMenu (VM-10).
+var TW_LOGO_SRC = '/static/33333.svg';
+
+// Bottom nav registry (HNAV-06) — the ONE definition per account type. Every item has a real
+// href (never "#"). label / icon may be a {emp, co, edu} map; types (optional) limits an item.
+var _TW_BOTTOM_NAV = [
+  { key: 'home',          label: 'الرئيسية', icon: 'home',          href: function (u) { return twHomeHref(u); } },
+  { key: 'appointments',  label: 'مواعيد',   icon: 'calendar',      href: '/appointments' },
+  { key: 'messages',      label: 'رسائل',    icon: 'messages',      href: '/messages' },
+  { key: 'notifications', label: 'إشعارات',  icon: 'notifications', href: '/notifications' },
+  { key: 'account',
+    label: { emp: 'ملفي', co: 'شركتي', edu: 'مؤسستي' },
+    icon:  { emp: 'user', co: 'briefcase', edu: 'graduation-cap' },
+    href:  function (u) { return twAccountHref(u); } },
+];
+
+function _twPick(v, type) { return (v && typeof v === 'object') ? (v[type] || v.emp) : v; }
+
+// Resolved items for one account type → [{key, label, icon, href}] (no "#", no empty href).
+function twBottomNavItems(userType, u) {
+  var type = (userType === 'co' || userType === 'edu') ? userType : 'emp';
+  return _TW_BOTTOM_NAV.filter(function (it) {
+    return !it.types || it.types.indexOf(type) !== -1;
+  }).map(function (it) {
+    var href = typeof it.href === 'function' ? it.href(u) : it.href;
+    return { key: it.key, label: _twPick(it.label, type), icon: _twPick(it.icon, type), href: href || '/' };
+  });
+}
+window.twBottomNavItems = twBottomNavItems;
+
+// Current tab: data-tw-current on the placeholder wins, else the path.
+function _twNavCurrentKey(el, u) {
+  var k = el && el.getAttribute('data-tw-current');
+  if (k) return k;
+  var p = location.pathname.replace(/\/+$/, '') || '/';
+  if (p === '/home' || p === '/appointments' || p === '/messages' || p === '/notifications') return p.slice(1);
+  if (u && u.tw_id && p === '/u/' + u.tw_id) return 'account';
+  return '';
+}
+
+function _twIco(name, size) {
+  return typeof window.twIcon === 'function' ? window.twIcon(name, { size: size }) : '';
+}
+
+// Back destination when there is no trusted in-site history (NAV-05 step 4/5 · NAV-06).
+function _twBackFallback(v) {
+  if (v === 'account') {
+    var d = twAccountHref(getTwUser());
+    return d === '/login' ? twHomeHref() : d;
+  }
+  var safe = v && v !== 'home' ? twSafeNext(v) : '';
+  return safe || twHomeHref();
+}
+
+// Interceptable Back (NAV-05): pushed in-site entry → history.back(); trusted context.from →
+// go there; otherwise the page fallback. Never a bare history.back() (deep link would leave the site).
+function twNavBack(fallback) {
+  var nav = (history.state && history.state.nav) || null;
+  if (nav && nav.entryType === 'push') { history.back(); return; }
+  var from = nav && nav.context && twSafeNext(nav.context.from);
+  if (from && from.indexOf('/login') !== 0) { location.href = from; return; }
+  location.href = fallback || twHomeHref();
+}
+window.twNavBack = twNavBack;
+
+function _twHeaderHtml(hdr, current) {
+  var back = hdr.hasAttribute('data-back')
+    ? '<button type="button" class="sc-hicon sc-hicon-bare tw-hdr-back" data-tw-hdr-back aria-label="رجوع" title="رجوع">'
+      + _twIco('back', 'xl') + '</button>' : '';
+  function cur(key) { return key === current ? ' is-current" aria-current="page' : ''; }
+  var login = twLoginHref(location.pathname + location.search);
+  return ''
+    + '<div class="sc-head-right">' + back
+    +   '<a class="sc-hicon sc-home-btn' + cur('home') + '" href="' + twEscAttr(twHomeHref()) + '" data-key="home"'
+    +   ' aria-label="الرئيسية" title="الرئيسية" data-tw-session="authenticated" hidden>' + _twIco('home', 'xl') + '</a>'
+    + '</div>'
+    + '<span class="sc-logo"><img src="' + TW_LOGO_SRC + '" alt="تواصلنا" width="120" height="32"></span>'
+    + '<div class="sc-head-icons">'
+    +   '<a class="sc-hicon sc-hicon-bare tw-hdr-ico' + cur('notifications') + '" href="/notifications" data-key="notifications"'
+    +   ' aria-label="الإشعارات" title="الإشعارات" data-tw-session="authenticated" hidden>' + _twIco('notifications', 'xl')
+    +   '<span class="tw-hdr-badge" data-badge="notif"></span></a>'
+    +   '<a class="sc-hicon sc-hicon-bare tw-hdr-ico' + cur('messages') + '" href="/messages" data-key="messages"'
+    +   ' aria-label="الرسائل" title="الرسائل" data-tw-session="authenticated" hidden>' + _twIco('messages', 'xl')
+    +   '<span class="tw-hdr-badge" data-badge="msgs"></span></a>'
+    +   '<div class="sc-menu-wrap" data-tw-session="authenticated" hidden>'
+    +     '<button type="button" class="sc-hicon sc-hicon-bare" id="twHdrMenuBtn" aria-label="القائمة" title="القائمة">'
+    +     _twIco('menu', 'xl') + '</button>'
+    +     '<div class="sc-menu-dropdown" id="twHdrMenuDd"></div>'
+    +   '</div>'
+    +   '<a class="tw-hdr-auth" href="' + twEscAttr(login) + '" data-tw-session="guest" hidden>تسجيل الدخول</a>'
+    +   '<a class="tw-hdr-auth tw-hdr-auth--primary" href="/login#register" data-tw-session="guest" hidden>إنشاء حساب</a>'
+    + '</div>';
+}
+
+function _twRenderBottomNav(nav) {
+  var snap = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
+  var u    = getTwUser();
+  var auth = !!(snap && snap.isAuthenticated);
+  var key  = auth ? snap.userType + '|' + snap.userId + '|' + ((u && u.tw_id) || '') : 'guest';
+  if (nav._twKey === key) return;
+  nav._twKey = key;
+  nav.hidden = !auth;
+  document.body.classList.toggle('tw-has-bnav', auth);
+  if (!auth) { nav.innerHTML = ''; return; }
+  var current = _twNavCurrentKey(nav, u);
+  nav.innerHTML = twBottomNavItems(snap.userType, u).map(function (it) {
+    var on = it.key === current;
+    return '<a class="tw-bnav-item' + (on ? ' is-current" aria-current="page' : '') + '" href="'
+      + twEscAttr(it.href) + '" data-key="' + it.key + '">' + _twIco(it.icon, '2xl')
+      + '<span>' + twEscHtml(it.label) + '</span></a>';
+  }).join('');
+}
+
+// Links in the header / bottom nav run the page cleanup hook first (messages.html —
+// same hook initGlobalHeaderMenu runs for menu links).
+function _twChromeNavClick(e) {
+  var a = e.target.closest('a[data-key]');
+  if (!a || a.closest('.sc-menu-dropdown')) return;
+  if (typeof window.twBeforeHeaderNav === 'function') window.twBeforeHeaderNav(a.getAttribute('data-key'));
+}
+
+var _twChromeBound = false;
+function twMountAppChrome() {
+  var hdr = document.querySelector('[data-tw-header]');
+  var nav = document.querySelector('[data-tw-bottom-nav]');
+  if (hdr && !hdr.hasAttribute('data-tw-mounted')) {
+    hdr.setAttribute('data-tw-mounted', '');
+    hdr.classList.add('sc-header', 'tw-hdr');
+    hdr.setAttribute('aria-label', 'التنقل الرئيسي');
+    hdr.innerHTML = _twHeaderHtml(hdr, _twNavCurrentKey(hdr, getTwUser()));
+    var backBtn = hdr.querySelector('[data-tw-hdr-back]');
+    if (backBtn) backBtn.addEventListener('click', function () {
+      twNavBack(_twBackFallback(hdr.getAttribute('data-back')));
+    });
+    hdr.addEventListener('click', _twChromeNavClick);
+    initGlobalHeaderMenu('twHdrMenuBtn', 'twHdrMenuDd');   // menu + data-tw-session visibility (VM-10)
+    if (typeof loadGlobalBadges === 'function') loadGlobalBadges();
+  }
+  if (nav && !nav.hasAttribute('data-tw-mounted')) {
+    nav.setAttribute('data-tw-mounted', '');
+    nav.classList.add('tw-bnav');
+    nav.setAttribute('aria-label', 'التنقل السفلي');
+    nav.addEventListener('click', _twChromeNavClick);
+    _twRenderBottomNav(nav);
+  }
+  if ((hdr || nav) && !_twChromeBound && window.TwAuthSync && typeof TwAuthSync.onSessionChange === 'function') {
+    _twChromeBound = true;
+    TwAuthSync.onSessionChange(function () {
+      var n = document.querySelector('[data-tw-bottom-nav]');
+      if (n) _twRenderBottomNav(n);
+    });
+  }
+}
+window.twMountAppChrome = twMountAppChrome;
+if (typeof document !== 'undefined' && typeof document.querySelector === 'function') {
+  if (document.readyState === 'loading' && typeof document.addEventListener === 'function') {
+    document.addEventListener('DOMContentLoaded', twMountAppChrome);
+  } else if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    twMountAppChrome();
+  }
+}
+
 // ══ Global Real-time Badge WebSocket ══
 // Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
 // Handles badge_update events to update [data-badge="msgs"] in real time.
@@ -1004,7 +1176,7 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
         if (data.type === 'badge_update' && data.badge === 'messages') {
           var count = data.count || 0;
           document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
-            el.textContent = count > 9 ? '9+' : String(count);
+            el.textContent = twNotifBadgeLabel(count);
             el.style.display = count > 0 ? 'inline-block' : 'none';
           });
         }

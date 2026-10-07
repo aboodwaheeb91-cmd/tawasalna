@@ -66,8 +66,9 @@ check("B03 no _lucideIcon / createIcons", "_lucideIcon" not in JS and "createIco
 check("B04 icons via twIconEl", JS.count("twIconEl(") >= 10, JS.count("twIconEl("))
 check("B05 skill icons: TW.getSkillIcon → twIconEl",
       "TW.getSkillIcon(skillName)" in JS and "twIconEl(_skillIconName(s)" in JS)
-check("B06 back button = 'prev' (chevron, dir:true)",
-      'id="jdBackBtn" aria-label="رجوع"><i data-tw-icon="prev" data-tw-size="xl"></i>' in RAW)
+check("B06 back button = unified app header with back (HEADER-NAV.md HNAV-03)",
+      '<header data-tw-header data-back="home"></header>' in RAW and "jdBackBtn" not in RAW + JS
+      and "history.back()" not in JS)
 check("B10 static icons = <i data-tw-icon> placeholders hydrated once (twIcon.hydrate)",
       RAW.count("<i data-tw-icon=") >= 20 and JS.count("twIcon.hydrate(document.body)") == 1
       and "_paintStaticIcons" not in JS and "_prependIcon" not in JS)

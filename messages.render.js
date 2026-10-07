@@ -138,15 +138,9 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
 }
 
-// ── Header ☰ menu dropdown — shared Global Header Menu (tw_shared.js); see
-// ARCHITECTURE.md "Global Header Menu Contract". "messages" marks "الرسائل"
-// as the current/disabled page since this IS the messages page. ──
-if (typeof initGlobalHeaderMenu === 'function') {
-  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown');
-}
-// Run the same open-conversation cleanup the dedicated home/profile buttons
-// already do (sendInactiveConversation over the existing WS) before ANY
-// shared-menu link navigates away from this page.
+// ── Header = unified app chrome (tw_shared.js twMountAppChrome — HEADER-NAV.md). ──
+// Run the open-conversation cleanup (sendInactiveConversation over the existing WS)
+// before ANY header / menu link navigates away from this page.
 window.twBeforeHeaderNav = function() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
 };
@@ -163,20 +157,6 @@ document.addEventListener('click', function(e) {
   var dd = document.getElementById('chMenuDropdown');
   if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
 });
-
-// ── Unified header nav buttons (.sc-header, Profile V2 source) — home goes to
-// twHomeHref() (/home for every account type; Home V2 renders a per-type view) ──
-function goMessengerHome() {
-  if (_currentConvId) sendInactiveConversation(_currentConvId);
-  if (!_user) { window.location.href = '/'; return; }
-  window.location.href = twHomeHref(_user);
-}
-
-function goMessengerProfile() {
-  if (_currentConvId) sendInactiveConversation(_currentConvId);
-  if (!_user) { window.location.href = '/'; return; }
-  window.location.href = _user.tw_id ? '/u/' + _user.tw_id : '/profile';
-}
 
 // ── Unread count ──────────────────────────────────────────────────────────
 

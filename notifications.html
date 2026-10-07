@@ -13,7 +13,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الإشعارات</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<!-- Shared app header system — same pattern as company-profile.html and profile-showcase.html -->
+<!-- Unified app header + bottom nav (HEADER-NAV.md) -->
 <link rel="stylesheet" href="/static/app-header.css">
 <style>
 /* ── Base ── */
@@ -37,17 +37,11 @@ body {
   min-height: 100vh;
 }
 
-/* ── Notifications-page header modifier (sticky, same as co-hdr) ── */
-.notif-hdr {
-  position: sticky;
-  top: 0;
-}
-
 /* ── Page wrapper ── */
 .notif-page {
   max-width: 680px;
   margin: 0 auto;
-  padding: 0 16px 100px; /* 100px bottom = bottom-nav height + safe area */
+  padding: 0 16px 40px; /* bottom nav clearance = body.tw-has-bnav (app-header.css) */
 }
 
 /* ── Hero ── */
@@ -294,46 +288,6 @@ body {
   border-radius: 14px;
 }
 
-/* ── Bottom navigation ── */
-.notif-bnav {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 100;
-  background: rgba(7,11,24,.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border);
-  padding: 8px 0 env(safe-area-inset-bottom, 6px);
-  justify-content: space-around;
-}
-.notif-bn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  cursor: pointer;
-  padding: 5px 12px;
-  text-decoration: none;
-  color: var(--t3);
-  font-family: 'Cairo', sans-serif;
-  border: none;
-  background: none;
-  transition: color .15s;
-  min-width: 52px;
-}
-.notif-bn-lbl {
-  font-size: .57rem;
-  font-weight: 700;
-}
-.notif-bn.active { color: var(--ac); }
-.notif-bn:hover  { color: var(--t2); }
-
-@media (max-width: 600px) {
-  .notif-bnav { display: flex; }
-  .notif-page { padding-bottom: calc(68px + env(safe-area-inset-bottom, 8px) + 16px); }
-}
-
 /* ── Toast ── */
 .tw-toast[aria-live="polite"] {
   position: fixed;
@@ -401,30 +355,8 @@ body {
 </head>
 <body>
 
-<!-- ██ SHARED HEADER — same pattern as company-profile.html / profile-showcase.html ██ -->
-<div class="sc-header notif-hdr">
-  <a href="/home" class="sc-hicon sc-home-btn" title="الرئيسية" aria-label="الرئيسية">
-    <i data-lucide="home" class="ico"></i>
-  </a>
-  <div class="sc-logo">
-    <img src="/static/33333.svg" alt="تواصلنا">
-    <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
-  </div>
-  <div class="sc-head-icons">
-    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل">
-      <i data-lucide="message-circle-more" class="ico"></i>
-    </a>
-    <div class="sc-menu-wrap" id="ntMenuWrap">
-      <button class="sc-hicon sc-hicon-bare" id="ntMenuBtn" title="القائمة" aria-label="القائمة">
-        <i data-lucide="menu" class="ico"></i>
-      </button>
-      <div class="sc-menu-dropdown" id="ntMenuDropdown">
-        <!-- Dynamic session-aware items rendered by initGlobalHeaderMenu() -->
-        <div id="ntMenuDynamic"></div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- ██ UNIFIED APP HEADER (HEADER-NAV.md — rendered by twMountAppChrome) ██ -->
+<header data-tw-header></header>
 
 <!-- ██ HERO ██ -->
 <div class="notif-hero" id="main-content">
@@ -511,80 +443,17 @@ body {
 
 </div>
 
-<!-- ██ BOTTOM NAV — SVG icons only, no emoji ██ -->
-<nav class="notif-bnav" aria-label="التنقل الرئيسي">
-  <a href="/home" class="notif-bn" id="bnHome">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
-    </svg>
-    <span class="notif-bn-lbl">الرئيسية</span>
-  </a>
-  <a href="/home" class="notif-bn" id="bnJobs">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="2" y="7" width="20" height="14" rx="2"/>
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-    </svg>
-    <span class="notif-bn-lbl">وظائف</span>
-  </a>
-  <a href="/profile" class="notif-bn" id="bnProfile">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-    <span class="notif-bn-lbl">ملفي</span>
-  </a>
-  <a href="/notifications" class="notif-bn active" id="bnNotif" aria-current="page">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-    </svg>
-    <span class="notif-bn-lbl">إشعارات</span>
-  </a>
-  <a href="/messages" class="notif-bn" id="bnMsgs" style="position:relative">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-    <span class="notif-bn-lbl">رسائل</span>
-    <span data-badge="msgs" style="display:none;position:absolute;top:4px;inset-inline-end:8px;
-      background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;
-      font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
-  </a>
-</nav>
+<!-- ██ UNIFIED BOTTOM NAV (HNAV-06) ██ -->
+<nav data-tw-bottom-nav></nav>
 
-<!-- Lucide icons (local vendor — no CDN) -->
-<script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/auth-sync.js"></script>
+<script src="/static/shared/tw-icons.js"></script>
 <script>
 /* ── Auth guard ── */
 var _user = null;
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
 if (!_user || !_user.id) { window.location.href = '/login'; }
-
-/* ── Init lucide icons for header ── */
-if (window.lucide) lucide.createIcons();
-
-/* ── Menu (session-aware via shared system — VM-10) ── */
-if (window.initGlobalHeaderMenu) initGlobalHeaderMenu('ntMenuBtn', 'ntMenuDropdown', 'ntMenuDynamic');
-
-/* ── Dynamic profile link in bottom nav ── */
-(function(){
-  var bnProfile = document.getElementById('bnProfile');
-  if (!bnProfile || !_user) return;
-  if (_user.user_type === 'co') {
-    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/company-profile';
-  } else if (_user.user_type === 'edu') {
-    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/edu-profile';
-  } else {
-    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/profile';
-  }
-})();
 
 /* ── Toast ── */
 var _twToast = null;
@@ -963,7 +832,6 @@ function markAll() {
 
 /* ── Bootstrap ── */
 loadRealNotifications();
-if (typeof loadGlobalBadges === 'function') loadGlobalBadges();
 setTimeout(loadJobApplications, 800);
 
 /* Fallback empty state if API returns nothing after timeout */

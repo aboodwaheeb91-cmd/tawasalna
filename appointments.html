@@ -3,6 +3,7 @@
 <head>
 <!--tw:shell-head-->
 <link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<link rel="stylesheet" href="/static/app-header.css">
 <title>مواعيدي — تواصلنا</title>
 <meta name="tw-page" content="auth">
 <style>
@@ -12,14 +13,9 @@
   --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
   --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
-body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;padding-bottom:80px}
-/* Header */
-.hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--ap-border);padding:var(--space-7) var(--space-10);display:flex;align-items:center;gap:var(--space-6)}
-.hdr-title{font-size:17px;font-weight:700;color:var(--ap-text);flex:1}
-.hdr-back{width:36px;height:36px;border-radius:var(--radius-md);border:1px solid var(--ap-border);background:var(--color-surface-card);
-  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ap-text-sub);
-  text-decoration:none}
+body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh}
+/* Header + bottom nav = unified app chrome (app-header.css · HEADER-NAV.md) */
+.ap-title{font-size:17px;font-weight:700;color:var(--ap-text);padding:var(--space-7) var(--space-10) 0}
 /* Filter bar */
 .fbar{padding:var(--space-6) var(--space-8);display:flex;gap:var(--space-4);overflow-x:auto;scrollbar-width:none}
 .fbar::-webkit-scrollbar{display:none}
@@ -73,21 +69,13 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm)}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
 .sk-card{height:120px;margin-bottom:var(--space-6);border-radius:var(--r)}
-/* Bottom nav */
-.bnav{position:fixed;bottom:0;left:0;right:0;height:65px;background:rgba(7,11,24,.97);
-  backdrop-filter:blur(12px);border-top:1px solid var(--ap-border);display:flex;
-  align-items:center;justify-content:space-around;z-index:100}
-.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ap-text-sub);
-  text-decoration:none;font-size:var(--size-font-3xs);padding:var(--space-3) var(--space-6)}
-.bnav-item.active{color:var(--color-brand-primary)}
 </style>
 </head>
 <body>
 
-<div class="hdr">
-  <a class="hdr-back" id="hdrBack" href="/home" aria-label="رجوع"><i data-tw-icon="back" data-tw-size="lg"></i></a>
-  <span class="hdr-title">مواعيدي</span>
-</div>
+<!-- Unified app header (HEADER-NAV.md — rendered by twMountAppChrome) -->
+<header data-tw-header></header>
+<h1 class="ap-title">مواعيدي</h1>
 
 <div class="fbar" id="filterBar">
   <button class="ftab active" data-f="">الكل</button>
@@ -107,24 +95,8 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 <!-- Company: New Appointment FAB -->
 <button class="fab" id="fabNew" title="دعوة مقابلة جديدة" aria-label="دعوة مقابلة جديدة" style="display:none"><i data-tw-icon="add"></i></button>
 
-<nav class="bnav">
-  <a class="bnav-item" href="/home">
-    <i data-tw-icon="home" data-tw-size="2xl"></i>
-    الرئيسية
-  </a>
-  <a class="bnav-item active" href="/appointments">
-    <i data-tw-icon="calendar" data-tw-size="2xl"></i>
-    مواعيد
-  </a>
-  <a class="bnav-item" href="/messages">
-    <i data-tw-icon="messages" data-tw-size="2xl"></i>
-    رسائل
-  </a>
-  <a class="bnav-item" href="/notifications">
-    <i data-tw-icon="notifications" data-tw-size="2xl"></i>
-    إشعارات
-  </a>
-</nav>
+<!-- Unified bottom nav (HNAV-06) — "مواعيد" is current by path -->
+<nav data-tw-bottom-nav></nav>
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
@@ -161,7 +133,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   const fabNew = document.getElementById('fabNew');
 
   twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
-  document.getElementById('hdrBack').href = twHomeHref();
 
   if (IS_CO) { fabNew.style.display = 'flex'; }
 

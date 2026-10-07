@@ -3,6 +3,7 @@
 <head>
 <!--tw:shell-head-->
 <title>غرفة الموعد — تواصلنا</title>
+<link rel="stylesheet" href="/static/app-header.css">
 <meta name="tw-page" content="auth">
 <style>
 /* Appointment room — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
@@ -14,15 +15,11 @@
 }
 body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;
   display:flex;flex-direction:column}
-/* Header */
-.hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.97);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--ap-border);padding:var(--space-6) var(--space-8);display:flex;align-items:center;gap:var(--space-5)}
-.hdr-back{width:34px;height:34px;border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:var(--color-surface-card);display:flex;align-items:center;justify-content:center;
-  color:var(--ap-text-sub);text-decoration:none;flex-shrink:0}
-.hdr-info{flex:1;min-width:0}
-.hdr-title{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text)}
-.hdr-sub{font-size:var(--size-font-xs);color:var(--ap-text-sub)}
+/* Header = unified app header with back (app-header.css · HEADER-NAV.md). Room title row below it: */
+.room-head{border-bottom:1px solid var(--ap-border);padding:var(--space-6) var(--space-8);display:flex;align-items:center;gap:var(--space-5)}
+.room-head-info{flex:1;min-width:0}
+.room-head-title{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text)}
+.room-head-sub{font-size:var(--size-font-xs);color:var(--ap-text-sub)}
 .badge{display:inline-flex;align-items:center;padding:var(--space-1) var(--space-5);border-radius:var(--radius-3xl);
   font-size:11px;font-weight:700}
 .badge-pending{background:rgba(245,158,11,.12);color:var(--ap-warn)}
@@ -150,11 +147,12 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 </head>
 <body>
 
-<div class="hdr">
-  <a class="hdr-back" href="/appointments" aria-label="رجوع للمواعيد"><i data-tw-icon="back" data-tw-size="lg"></i></a>
-  <div class="hdr-info">
-    <div class="hdr-title" id="hdrTitle">غرفة الموعد</div>
-    <div class="hdr-sub" id="hdrSub"></div>
+<!-- Unified app header with back; fallback = /appointments when there is no in-site history (HNAV-03) -->
+<header data-tw-header data-back="/appointments"></header>
+<div class="room-head">
+  <div class="room-head-info">
+    <div class="room-head-title" id="hdrTitle">غرفة الموعد</div>
+    <div class="room-head-sub" id="hdrSub"></div>
   </div>
   <span id="hdrBadge" class="badge"></span>
 </div>
