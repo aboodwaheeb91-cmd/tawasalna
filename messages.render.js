@@ -54,31 +54,6 @@ function formatConvTime(iso) {
   catch (e) { return ''; }
 }
 
-// ── Online row (presence) ───────────────────────────────────────────────
-// No client-accessible "who is online" signal exists anywhere in the
-// backend today (see ARCHITECTURE.md). This renders a structurally-ready
-// row — real avatar/name/type-badge — if presence data is ever supplied;
-// otherwise it leaves the honest empty state already in the markup.
-function renderOnlineRow(users) {
-  var wrap = document.getElementById('onlineRowItems');
-  if (!wrap) return;
-  if (!users || !users.length) {
-    wrap.innerHTML = '<div class="online-empty">لا يوجد متصلون حالياً</div>';
-    return;
-  }
-  wrap.innerHTML = users.map(function(u) {
-    var type = u.user_type || 'emp';
-    var shortName = String(u.full_name || '').trim().split(' ')[0] || 'مستخدم';
-    return '<div class="online-item" data-uid="' + u.id + '">'
-      + '<div class="online-ava-wrap"><div class="online-ava ' + typeInfo(type).cls + '">'
-      + avatarHtml(u.full_name, u.avatar_url) + '</div>'
-      + '<span class="online-dot"></span>'
-      + typeBadgeHtml(type, 'online-type-badge') + '</div>'
-      + '<span class="online-name">' + esc(shortName) + '</span>'
-      + '</div>';
-  }).join('');
-}
-
 // ── Conversation list filter/search (client-side, DOM-only) ──────────────
 var _convFilterMode  = 'all';
 var _convSearchTerm  = '';
@@ -412,7 +387,6 @@ function doSendMessage() {
   autoResize(input);
   // Keep keyboard open on mobile: restore focus before the browser has a chance to close it
   requestAnimationFrame(function() { input.focus({ preventScroll: true }); });
-  var _twT0 = performance.now();
 
   var pid = 'pm' + Date.now();
   var msgs = document.getElementById('messages');
@@ -433,21 +407,6 @@ function doSendMessage() {
       var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
       var realId = msg.id;
-      var _srv = data && data._timing;
-      twDebugLog('HTTP send', {
-        net_ms:   (performance.now() - _twT0).toFixed(0),
-        id:       realId || '?',
-        drv:      _srv ? (_srv.driver || '?') : '?',
-        srv_ms:   _srv ? _srv.total_ms       : '?',
-        db_ms:    _srv ? _srv.db_ms          : '?',
-        conn_ms:  _srv ? _srv.conn_ms        : '?',
-        sync_ms:  _srv ? _srv.sync_set_ms    : '?',
-        ins_exec: _srv ? _srv.insert_exec_ms : '?',
-        ins_ms:   _srv ? _srv.insert_ms      : '?',
-        upd_ms:   _srv ? _srv.update_ms      : '?',
-        cnt_ms:   _srv ? _srv.count_ms       : '?',
-        ws_ms:    _srv ? _srv.ws_ms          : '?'
-      });
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
       }

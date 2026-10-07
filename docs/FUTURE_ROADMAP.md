@@ -62,7 +62,7 @@
 - [ ] **P1** — DS-IMAGE Phase C (F38 · `docs/design-system/IMAGE-SYSTEM.md` IMG-13): بالترتيب **messages ← company ← profile**، وبعدها **home** (job-detail ✅ Phase C). كل صفحة: `twAvatarHtml` / `twAvatarEl` + شيل الـ escaping المحلي (IMG-12) + توحيد الأحجام (38/42 → 40 · 44 → 48 · 84–94 → الأقرب — مرئي) + screenshots. موافقة صريحة لكل صفحة.
   - غلاف الموظف 4:1 ثابت (العرض + `profile-v2.cover.js` cropper) — بدل الديناميكي W×240 (IMG-10).
   - لوغو الشركة مربع بزوايا (العرض + `openLogoCrop` preview مربع) — IMG-03.
-- [ ] **P2** — حذف `[data-ah-av]` الميت من `static/app-header.js` (ما في عنصر بيستعمله).
+- [x] **P2** — حذف `[data-ah-av]` الميت من `static/app-header.js` — انحذف الملف كله (PR 3.9).
   - **أول PR:** زر الرجوع بـ `profile-showcase.html:46` (`#scPreviewBackBtn` — سهم يدوي) → `twIcon('back')` + باقي أيقونات `profile-showcase.html` نفسها.
   - تحويل `data-lucide` + SVG inline + emoji الواجهة بكل صفحة؛ أزرار الرجوع بشكل chevron (`messages.html`) → `prev`، والأسهم النصية (`←` / `‹`) → `back` / `next`.
   - دمج `_lucideIcon()` المكرّرة (`static/home/home.cards.js`) — تختفي لصالح `twIconEl`.

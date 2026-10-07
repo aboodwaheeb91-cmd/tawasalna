@@ -7,7 +7,7 @@
 2. admin-view.html: clean <!DOCTYPE html> (standards mode), no redirect to the
    deleted admin.html.
 3. No page loads a script from an external domain / CDN (unpkg, jsdelivr, cdnjs…).
-4. app-header.js: avatar via twSafeImageUrl, account link via twAccountHref,
+4. static/app-header.js removed (PR 3.9) — header = twMountAppChrome only,
    no legacy page routes.
 5. read_html: a missing page file → HTTP 404 (not 200 with an error body).
 
@@ -70,15 +70,10 @@ class TestPageShellSecurity(unittest.TestCase):
         for name in ("index.html", "profile-showcase.html"):
             self.assertIn('src="/static/vendor/lucide/lucide.min.js"', _read(ROOT / name), name)
 
-    def test_app_header_safe_avatar_and_account_href(self):
-        src = _read(ROOT / "static" / "app-header.js")
-        self.assertIn("twSafeImageUrl(user.avatar_url)", src)
-        self.assertIn("twAccountHref(user)", src)
-        self.assertNotRegex(src, r"img\.src\s*=\s*user\.avatar_url")
-        for legacy in ("'/profile'", "'/company-profile'", "'/edu-profile'"):
-            self.assertNotIn(legacy, src)
-        # no local copies of the shared helpers
-        self.assertNotRegex(src, r"function\s+(twSafeImageUrl|twAccountHref)\b")
+    def test_old_app_header_js_removed(self):
+        # PR 3.9: the pre-DS-HNAV header helper was loaded by no page — the header is
+        # drawn only by twMountAppChrome (tw_shared.js).
+        self.assertFalse((ROOT / "static" / "app-header.js").exists())
 
     def test_read_html_missing_file_is_404(self):
         src = _read(ROOT / "server.py")

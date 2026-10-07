@@ -504,7 +504,6 @@ check("I04 — all pages with .sc-menu-dropdown load auth-sync.js (auto-detected
 print("\nM — Repository-wide runtime-code guards")
 
 index_auth = read("index.auth.js")
-app_header = read("static/app-header.js")
 
 def _code_lines(src):
     """Strip pure comment lines (lines whose first non-space chars are //)."""
@@ -514,7 +513,6 @@ def _code_lines(src):
     )
 
 _index_auth_code = _code_lines(index_auth)
-_app_header_code = _code_lines(app_header)
 
 # M01: index.auth.js must not scan localStorage with startsWith('tw_') in actual code
 # (comments that warn against this pattern are allowed)
@@ -522,25 +520,13 @@ check("M01 — index.auth.js has no startsWith('tw_') in code (not comments)",
       "startsWith('tw_')" not in _index_auth_code
       and 'startsWith("tw_")' not in _index_auth_code)
 
-# M02: app-header.js must not scan localStorage with startsWith('tw_') in actual code
-check("M02 — app-header.js has no startsWith('tw_') in code (not comments)",
-      "startsWith('tw_')" not in _app_header_code
-      and 'startsWith("tw_")' not in _app_header_code)
+# M02: static/app-header.js (pre-DS-HNAV header helper, loaded by no page) deleted in PR 3.9
+check("M02 — static/app-header.js removed (header = twMountAppChrome only)",
+      not os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "app-header.js")))
 
 # M03: company.main.js no dangling window.toggleMenu export (uses main read in F section)
 check("M03 — company.main.js no dangling window.toggleMenu export",
       "window.toggleMenu = toggleMenu" not in main)
-
-# M04: app-header.js fail-closed removes session keys before redirect
-check("M04 — app-header.js fail-closed removes tw_jwt before redirect",
-      "removeItem('tw_jwt')" in app_header or 'removeItem("tw_jwt")' in app_header)
-
-# M04b: redirect is ordered AFTER the key removals
-_ah_fallback   = app_header.split("Last-resort fallback")[1] if "Last-resort fallback" in app_header else app_header
-_ah_remove_idx  = _ah_fallback.find("removeItem('tw_jwt')")
-_ah_redirect_idx = _ah_fallback.find("location.replace('/login')")
-check("M04b — app-header.js redirect follows key removal (code order)",
-      _ah_remove_idx != -1 and _ah_redirect_idx != -1 and _ah_remove_idx < _ah_redirect_idx)
 
 # M05: loadGlobalBadges writes to data-ah-notif-badge in the notif UPDATE path
 # (B34 checks presence in the body; M05 checks it's specifically in the write path after fetch)
@@ -555,7 +541,6 @@ check("M05 — loadGlobalBadges writes data-ah-notif-badge in notif update path 
 # M06: No setInterval badge/unread polling in any root or key shared JS files
 _badge_poll_files = [
     "tw_shared.js", "index.auth.js", "index.ui.js",
-    "static/app-header.js",
 ]
 _setinterval_badge_violators = []
 for _bpf in _badge_poll_files:

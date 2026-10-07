@@ -19,10 +19,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-10`.
    - Register item (إنشاء حساب) → href: `/login#register` (opens registration form directly)
    - These MUST be different. Do NOT change Register's href back to `/login`.
 
-5. **`static/app-header.js` is layout-only (VM-10 compliant):**
-   - Only allowed to: set avatar initials/image, wire `[data-ah-logout]` buttons to `window.twLogout()`.
-   - Forbidden: `setInterval`, polling, session resolution, `Object.keys(localStorage)`, `startsWith('tw_')`, `_pollUnreadBadge`, parallel WS.
-   - Badge counts handled by `loadGlobalBadges()` + Badge WS IIFE in `tw_shared.js`.
+5. **No header helper outside `tw_shared.js`:** the old `static/app-header.js` (`initAppHeader` — called by no page, no `[data-ah-av]` / `[data-ah-logout]` element left) was deleted in PR 3.9. The header is drawn only by `twMountAppChrome` (DS-HNAV); badge counts by `loadGlobalBadges()` + Badge WS IIFE in `tw_shared.js`.
 
 6. **Badge WebSocket lifecycle (permanent — origin/main version is canonical):**
    - Variables: `_gen`, `_activeUid`, `_activeSocket`, `_reconnectTimer`, `_retries`, `_sessionReinitTimer`
@@ -50,7 +47,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-10`.
 ❌ Object.keys(localStorage).filter(k => k.startsWith('tw_')) anywhere
 ❌ setInterval for badge polling in any page or module (use loadGlobalBadges + Badge WS)
 ❌ Parallel Badge WS outside tw_shared.js IIFE
-❌ app-header.js calling _pollUnreadBadge or setInterval
+❌ Re-adding a page-level header script (e.g. `static/app-header.js`) next to `twMountAppChrome`
 ❌ _generation/_activeUserId in Badge WS (canonical names are _gen/_activeUid)
 ❌ viewer_type or isOwner used in _twApplyDeclarativeVisibility (that's VM-01)
 ❌ data-tw-session treated as a security boundary (it is visual-only)

@@ -313,7 +313,9 @@ if follower_id != followed_id:
 
 > يُشعر المستخدم عند موافقة الأدمن أو رفض طلب التوثيق.
 
-**Hook location:** في `server.py` داخل `PUT /admin/verify/{req_id}` — بعد UPDATE verify_requests.
+> ⚠️ **PR 3.9:** انحذف نظام طلب التوثيق القديم (`PUT /admin/verify/{req_id}` + `verify_requests`) ومعه هالـ hook. التوثيق صار KYC بس، و KYC approve / reject حالياً **ما بيبعت إشعار** — بند مفتوح بتقرير PR 3.9. الكود تحت تاريخي.
+
+**Hook location (تاريخي):** كان في `server.py` داخل `PUT /admin/verify/{req_id}` — بعد UPDATE verify_requests.
 
 ```python
 create_notification(
@@ -366,7 +368,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 **Endpoint جديد:** `GET /notifications/{user_id}/unread-count` — يعيد `{ok: true, data: {count: N}}`
 
-**Frontend:** `static/app-header.js` يستدعي `_pollUnreadBadge()` ويحدّث badge عنصر في `.sc-header`.
+**Frontend (اليوم):** `loadGlobalBadges()` + Badge WS بـ `tw_shared.js` (VM-10) — `static/app-header.js` انحذف (PR 3.9).
 
 **القواعد:**
 - لا polling بدون JWT

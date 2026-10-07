@@ -51,7 +51,6 @@ tawasalna/
 | POST | `/experience/{user_id}` | Add work experience |
 | POST | `/education/{user_id}` | Add education entry |
 | POST | `/course/{user_id}` | Add completed course |
-| POST | `/verify-request` | Submit credential verification request |
 
 ### Jobs
 | Method | Path | Description |
@@ -101,11 +100,11 @@ var jwt = localStorage.getItem('tw_jwt');   // snapshot has no jwt field — nev
 2. Server hashes password, generates `tw_id`, inserts into `users` + creates empty `profiles` row
 3. Returns user object — client stores in localStorage
 
-### 2. Credential Verification Flow
-1. Employee submits `POST /verify-request` with document URL
-2. Admin reviews at `/tw-ctrl-{ADMIN_URL_TOKEN}`
-3. Admin calls `PUT /admin/verify/{req_id}` with `{ status: "approved" | "rejected" }`
-4. Approved credentials show a verified badge on the employee's public profile
+### 2. Credential Verification Flow (KYC only — the old `/verify-request` system was deleted in PR 3.9)
+1. User runs the KYC steps: `POST /kyc/start` → email / phone OTP (`/kyc/email/*`, `/kyc/phone/*`) → `POST /kyc/docs` (ID + selfie)
+2. Admin reviews in the KYC tab at `/tw-ctrl-{ADMIN_URL_TOKEN}` (`GET /admin/kyc` · `GET /admin/kyc/{submission_id}/docs`)
+3. Admin calls `PUT /admin/kyc/{user_id}/approve` or `/reject`
+4. Approved → `profiles.is_verified` → verified badge on the public profile
 
 ---
 

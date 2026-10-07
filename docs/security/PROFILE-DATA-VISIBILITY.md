@@ -42,13 +42,13 @@ Returned by `GET /profile/{user_id}/full` when caller owns the profile.
 Allowlist: `_PUBLIC_PROFILE_FIELDS ∪ _OWNER_EXTRA_FIELDS` in `auth.py`.
 
 Includes all Tier 1 fields plus:  
-`email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`, `verify_request`
+`email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`
 
 **Also includes derived:**  
 `age` — same calendar-accurate derivation as Tier 1; present alongside `dob` for UI convenience.
 
 > `avail` and `skills` are already in Tier 1. Do not list them again here as if they were owner-only.  
-> `verify_request` contains the user's most-recent credential verification request.
+> `verify_request` was removed in PR 3.9 (old verification system deleted — verification is KYC only, Tier 3).
 
 ### Tier 3 — KYC Owner (JWT required, `token.user_id == uid`)
 Returned by `GET /kyc/status/{user_id}` when caller owns the KYC record.

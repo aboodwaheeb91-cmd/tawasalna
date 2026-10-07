@@ -692,8 +692,7 @@ window.companyState = {
   stats: {          // محسوب من DB — لا hardcoded
     jobs_count: 0,
     followers_count: 0,
-    rating_avg: null,
-    verified_count: 0
+    rating_avg: null
   },
   permissions: {    // من API response فقط
     is_owner: false,
@@ -822,7 +821,7 @@ Phase 1.5 — Modularization (مكتمل — PR #224 + PR #361):
 
 Phase 2 — Schema + Real Data (مكتمل):
   ✅ company_profiles table migration
-  ✅ Real data: jobs_count, verified_count من DB
+  ✅ Real data: jobs_count من DB (`verified_count` انحذف PR 3.9 — كان بيقرأ `verify_requests`)
   ✅ Skeleton loader (co-loading CSS state + .tw-skeleton animation)
   ✅ إخفاء hardcoded sections (renderAll() يولد كل المحتوى من companyState)
 
@@ -4784,22 +4783,7 @@ CREATE TABLE kyc_submissions (
 )
 ```
 
-**`verify_requests`** — توثيق بيانات فردية (خبرة/شهادة/دورة):
-
-```sql
-CREATE TABLE verify_requests (
-    id           SERIAL PRIMARY KEY,
-    user_id      INTEGER NOT NULL REFERENCES users(id),
-    item_type    TEXT,       -- 'exp'|'edu'|'course'
-    item_id      INTEGER,    -- id الخبرة/التعليم/الدورة
-    item_title   TEXT,
-    item_company TEXT,
-    document_url TEXT,
-    notes        TEXT,
-    status       TEXT DEFAULT 'pending',  -- 'pending'|'verified'|'rejected'
-    created_at   TIMESTAMP DEFAULT NOW()
-)
-```
+**`verify_requests`** — نظام التوثيق الفردي القديم **انحذف بـ PR 3.9** (`POST /verify-request` · `GET /admin/verify-requests` · `PUT /admin/verify/{req_id}` · تبويب «توثيق» بالأدمن · حقل `verify_request` للمالك · `stats.verified_count`). التوثيق = KYC بس. الجدول ما عاد ينعمل ولا ينقرأ؛ `DROP TABLE verify_requests` بانتظار قرار زعتر.
 
 ### KYC Workflow (7 Steps)
 
@@ -4824,13 +4808,10 @@ CREATE TABLE verify_requests (
 | POST | `/kyc/phone/send` | JWT | يُرسل OTP للهاتف |
 | POST | `/kyc/phone/verify` | JWT | يتحقق من الـ OTP |
 | POST | `/kyc/docs` | JWT | رفع صور الهوية |
-| POST | `/verify-request` | JWT | طلب توثيق بيانة فردية |
 | GET | `/admin/kyc` | Admin | قائمة كل الطلبات — allowlist صريح (`auth._ADMIN_KYC_LIST_COLUMNS`): `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at` — ممنوع `email_code` / `phone_code` / `id_front_url` / `selfie_url` / `ks.*` (PR-7c) |
 | GET | `/admin/kyc/{submission_id}/docs` | Admin | روابط مؤقتة (signed URL، 300s) للهوية والسيلفي — PR-7c → Image Upload Security Contract |
 | PUT | `/admin/kyc/{user_id}/approve` | Admin | موافقة + تفعيل الشارة |
 | PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب |
-| GET | `/admin/verify-requests` | Admin | طلبات التوثيق الفردية |
-| PUT | `/admin/verify/{req_id}` | Admin | تحديث حالة الطلب الفردي |
 
 ### Rules
 
@@ -4925,7 +4906,7 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 **The rule (F5 / F29):** any signed-in account (`emp` / `co` / `edu`) can follow any other account, never itself. Guest → 401 → the page sends them to `twLoginHref(current page)`. One table (`profile_follows`), one action (`_follow_set()` in `server.py` → `follow_profile` / `unfollow_profile` in `auth.py`), one counter source (`profile_follows` — company page `get_company_extras`, profile `/profile/{id}` + `/metrics`, follow state, lists all count the same rows).
 
 - `company_follows` is **legacy**: `_migrate_company_follows_to_profile_follows()` (startup, optional) copies its rows into `profile_follows` with `ON CONFLICT DO NOTHING` (self rows skipped) and logs `legacy_rows / moved / already_present_or_self`. Nothing reads or writes it after that; it is dropped in **PR 3.9**.
-- `/company/follow/{id}` (POST/DELETE) and `GET /company/{id}/followers` are **temporary aliases** (old cached pages) that call the same functions — delete in PR 3.9.
+- The `/company/follow/{id}` (POST/DELETE) and `GET /company/{id}/followers` aliases were **deleted in PR 3.9** — `/profile/{id}/follow` + `/profile/{id}/followers` only.
 - Follow notification: one hook in `follow_profile` (`follow_agg:user:{followed_id}`) for every account type — the old `follow_agg:company:` key is no longer created.
 - `/mention/search`: both directions of `profile_follows` for every account type.
 
@@ -5182,7 +5163,7 @@ Company followers are `profile_follows` rows with `followed_id = company id` (§
 |--------|------|------|-------------|
 | GET | `/profile/{company_id}/followers?limit=20&offset=0&type=all` | None (public, optional JWT) | قائمة متابعي الشركة (نفس endpoint البروفايل) |
 
-- `GET /company/{company_id}/followers` = temporary alias of the same function (delete in PR 3.9)
+- (the `GET /company/{company_id}/followers` alias was deleted in PR 3.9)
 - `company_id` accepts numeric id or `tw_id`
 - `type` values: `all` \| `emp` \| `co` \| `edu` — invalid value → HTTP 400
 - `limit` capped at 50; `offset` min 0
@@ -6310,9 +6291,8 @@ def check_admin(request, perm=None) -> dict:
 
 | القسم | ID | الوظيفة |
 |-------|----|---------|
-| إحصائيات | — | عدد المستخدمين، الشركات، الوظائف، التوثيق |
+| إحصائيات | — | عدد المستخدمين، الشركات، الوظائف، KYC معلّق |
 | إدارة المستخدمين | `#tab-users` | بحث، تغيير النوع، حذف، إرسال رسالة |
-| طلبات التوثيق | `#tab-verify` | verify_requests المعلّقة |
 | الوظائف | `#tab-jobs` | قائمة الوظائف، حذف |
 | البلاغات | `#tab-reports` | content reports مع status badges |
 | KYC | `#tab-kyc` | مراجعة kyc_submissions |
@@ -6351,8 +6331,6 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | DELETE | `/admin/education/{edu_id}` | `admin_delete_edu` | Delete education entry |
 | DELETE | `/admin/course/{course_id}` | `admin_delete_course` | Delete course entry |
 | POST | `/admin/message` | `admin_send_message` | Send message to user |
-| GET | `/admin/verify-requests` | `admin_verify_requests` | List verification requests |
-| PUT | `/admin/verify/{req_id}` | `admin_update_verify` | Approve / reject verification |
 | GET | `/admin/kyc` | `admin_get_kyc` | List KYC submissions — allowlist `auth._ADMIN_KYC_LIST_COLUMNS` only; never OTP codes / `id_front_url` / `selfie_url` (PR-7c) |
 | GET | `/admin/kyc/{submission_id}/docs` | `admin_kyc_docs` | Short-lived Supabase signed URLs for the submission's ID + selfie (PR-7c); `Cache-Control: no-store` |
 | POST | `/admin/maintenance/migrate-data-images?dry_run=1` | `admin_migrate_data_images` | Move legacy `data:` images to Storage (PR-7c); `dry_run=1` default = count only |
@@ -6438,7 +6416,7 @@ All API data rendered inside `admin.html` and `admin-view.html` template literal
 
 **URL/image src validation — `twSafeImageUrl(url)` in `tw_shared.js` (PR-7b, the only check):** returns `url` only for `https://` (case-insensitive) or a `/`-relative path — not `//evil.com` and not `/\evil.com` (browsers read both as protocol-relative); otherwise `''` (javascript: · data: · vbscript: · http: · blob: · leading whitespace). `twCssUrl(url)` = `twSafeImageUrl` + `url("…")` with CSS-string escaping (`\` `"` newline → hex escape) — the only way to build a `background-image`. HTML string → `twEscAttr(twSafeImageUrl(url))`; DOM → `img.src = twSafeImageUrl(url)` (no HTML escaping on a DOM property).
 Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages are converted; no new copies.
-**fix/page-shell-security:** `static/app-header.js` avatar `img.src = twSafeImageUrl(user.avatar_url)` + link `twAccountHref(user)` (legacy `/profile` · `/company-profile` · `/edu-profile` removed). Both helpers are read at call time from `tw_shared.js`; a page without it (job-detail — no `[data-ah-av]` there) fails closed: initials + `/login`. `admin-view.html` no longer hard-codes the admin slug or redirects to the deleted `admin.html` (message + `history.back()`).
+**fix/page-shell-security (historical — `static/app-header.js` deleted in PR 3.9, header = `twMountAppChrome`):** `static/app-header.js` avatar `img.src = twSafeImageUrl(user.avatar_url)` + link `twAccountHref(user)` (legacy `/profile` · `/company-profile` · `/edu-profile` removed). Both helpers are read at call time from `tw_shared.js`; a page without it (job-detail — no `[data-ah-av]` there) fails closed: initials + `/login`. `admin-view.html` no longer hard-codes the admin slug or redirects to the deleted `admin.html` (message + `history.back()`).
 **PR-7b fixes (`profile-v2`):** `.sc-avatar` (`img.src = esc(url)` → `twSafeImageUrl`) · followers modal `.sc-fl-avatar` + `/u/{tw_id}` href (`esc()` did not escape `"` → `twEscAttr`) · employee cover render + post-upload update (`'url(' + esc(url) + ')'` → `twCssUrl`).
 **External links — `twSafeLinkUrl(url)` in `tw_shared.js` (PR 1.1, rule 4b):** user-entered link in `href` only when `http://` / `https://` + host char, no whitespace / control char, ≤ 2048; else `''` → shown as plain text (no `<a>`). Consumers: `profile-v2.links.js` (`.sc-link-url`) · `profile-v2.courses.js` (`.sc-cert-link`) · `edu-profile.html` (`#aboutWeb` / `#aWeb`) · `static/home/home.cards.js` (news `source_url`) · `appointment-room.html` (`online_url`). Save forms (links / courses / edu edit) check with the same helper. **Server twin `_validate_external_url(url, field, label, required=False)` (`server.py`)**: strip → same rule → 422 via `ExternalUrlError` handler: `{ok:false, error, errors:[{field, code:"invalid_url", message}], detail:{status:"error", message, field}}`; empty optional → `None` (clears). Endpoints: `POST /links/{uid}` (`url`, required) · `POST /course/{uid}` · `PUT /course/{id}` (`certificate_url`) · `PUT /profile/{uid}` (`website`) · `POST/PUT /admin/news` (`source_url`). `online_url` keeps its stricter `https://`-only check in `auth.py` (appointments). Stored rows are not migrated — render-time check covers old data.
 **Known debt:** 7 local escaping functions on image paths — `messages.state.js → esc` · (`profile-v2.utils.js → esc` is now an alias of `twEscHtml`, PR 1.1) · `company.main.js → _esc` ×3 · `company.jobs.js → _esc` · `company.render.js → _esc` + `_escapeHtml`; removed with DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-12).
@@ -6669,7 +6647,7 @@ CSS vars مشتركة (من `app-header.css`):
 .sc-header .sc-logo { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
 ```
 
-- `static/app-header.js` — يبقى للاستخدام المستقبلي (لا يُستخدم في Home V2 أو Profile V2 حالياً)
+- `static/app-header.js` — انحذف بـ PR 3.9 (ما كانت أي صفحة تستدعي `initAppHeader`)
 - Profile V2 logout يديره `initGlobalHeaderMenu()` من `tw_shared.js`
 - Home V2 logout = قائمة الهيدر الموحّد (`twLogout` عبر `_TW_HEADER_MENU_POLICY` — PR 3.2)
 
@@ -7530,7 +7508,10 @@ files.
 | "Online now" row | Did not exist | New `#onlineRow` / `#onlineRowItems` block between the toolbar and the conversation list, with a `renderOnlineRow(users)` helper in `messages.render.js` |
 | Active conversation card | `border-right:3px solid var(--ac)` (hard edge) | `box-shadow:inset 0 0 0 1px rgba(0,200,150,.32)` — a soft full-perimeter cyan ring instead of a hard right-side bar |
 
-#### "المتصلون الآن" (online row) — explicitly NOT populated with real data
+#### "المتصلون الآن" (online row) — ❌ DELETED in PR 3.9 (Zaatar decision)
+
+> **PR 3.9:** `#onlineRow` markup, `renderOnlineRow()` and the `.online-*` CSS were deleted — the row never had a data source. The text below is historical. Do not re-add a presence row without a real backend presence signal.
+
 
 Same constraint as the chat-header status field (§62): **no client-accessible
 presence/"who is online" signal exists anywhere in the backend.**
@@ -10113,7 +10094,7 @@ Country data belongs in the DB on the entity/user record. Reasons: country can c
 | `J` | Job posting | وظيفة | `jobs.public_id` | `/j/{public_id}` |
 | `P` | Post | منشور | `company_posts.public_id` | `/post/{public_id}` |
 | `A` | Application | طلب تقديم | `job_applications.public_id` | internal only |
-| `V` | Verification | طلب توثيق | `verify_requests.public_id` | internal only |
+| ~~`V`~~ | ~~Verification~~ | ~~طلب توثيق~~ | ~~`verify_requests.public_id`~~ — system deleted PR 3.9 (KYC only) | — |
 | `D` | Course | دورة تدريبية | `courses.public_id` | `/course/{public_id}` |
 | `E` | Enrollment | تسجيل طالب | `enrollments.public_id` | internal only |
 | `L` | Lesson | درس | `lessons.public_id` | internal only |
@@ -10180,7 +10161,7 @@ PR #277  /u Smart Router                ← current PR (only this)
 PR +1    jobs.public_id (J)             ← /j/{public_id}, backfill, keep /job-detail?id=
 PR +2    company_posts.public_id (P)    ← /post/{public_id}
 PR +3    job_applications.public_id (A) ← internal; notifications; no public route
-PR +4    verify_requests.public_id (V)  ← internal; admin; no public route
+PR +4    (dropped — verify_requests system deleted in PR 3.9)
 PR +5    courses public_id (D/E/L/Q/S)  ← after course platform is designed
 ```
 
@@ -12692,7 +12673,7 @@ Every FK to `users(id)` is `ON DELETE CASCADE` or `SET NULL` except `profession_
 
 | Effect of `DELETE FROM users` | Tables |
 |------------------------------|--------|
-| CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · verify_requests · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
+| CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · verify_requests (legacy, DROP pending — PR 3.9) · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
 | CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_follows · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) · reports (reported) |
 | SET NULL — history kept | notifications.actor_id · reports.reporter_id · company_post_views.viewer_user_id · company_saved_candidates.saved_by · appointments.representative_user_id · appointment_events.actor_id · jobs.archived_by · job_pipeline_entries created_by / stage_updated_by / archived_by · pipeline_stage_events.changed_by · pipeline_notes.created_by · candidate_bank_notes.created_by · news_posts.created_by |
 
@@ -12717,7 +12698,7 @@ Test: `python -m pytest test_account_security.py -q`.
 | `jobs` | company_id FK → users, title, description, location, job_type (default `'full_time'`), salary_min/max, currency, experience_years, skills[], status (default `'active'`), views, created_at, expires_at (+ later migrations: `profession_id`, archive fields — see Taxonomy / §66b) |
 | `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
 | `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code (hash), email_code_target/_expires_at/_attempts, email_verified, phone, phone_code (hash), phone_code_target/_expires_at/_attempts, created_at (§52 → KYC OTP Security) |
-| `verify_requests` | user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status (default `'pending'`), created_at |
+| `verify_requests` | **legacy — no code reads/creates it since PR 3.9; `DROP` pending Zaatar.** user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status, created_at |
 
 ---
 

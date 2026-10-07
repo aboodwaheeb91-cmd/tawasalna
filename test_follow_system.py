@@ -9,7 +9,8 @@ test_follow_system.py — PR 3.5 Follow System (one table: profile_follows) — 
        and every counter (company page · followers list · follow state) says the same.
     3. No self-follow (400) · guest rejected (401) · unknown account (404).
     4. A company / edu account can follow too (one rule for every type).
-    5. The /company/follow alias writes the same table (and nothing writes company_follows).
+    5. The old /company/follow + /company/{id}/followers aliases are gone (PR 3.9) and
+       nothing writes company_follows.
 
 Run: python -m pytest test_follow_system.py -q
 """
@@ -112,9 +113,8 @@ def test_no_self_follow_guest_rejected_unknown_404(db):
     with auth.db_conn() as conn:
         co, emp = _user(conn, "co"), _user(conn)
     assert client.post(f"/profile/{emp}/follow", headers=_h(emp)).status_code == 400
-    assert client.post(f"/company/follow/{co}", headers=_h(co, "co")).status_code == 400
+    assert client.post(f"/profile/{co}/follow", headers=_h(co, "co")).status_code == 400
     assert client.post(f"/profile/{co}/follow").status_code == 401
-    assert client.post(f"/company/follow/{co}").status_code == 401
     assert client.post("/profile/999999999/follow", headers=_h(emp)).status_code == 404
     with auth.db_conn() as conn:
         assert _pf(conn, emp, emp) == 0 and _pf(conn, co, co) == 0
@@ -124,21 +124,21 @@ def test_every_account_type_can_follow(db):
     with auth.db_conn() as conn:
         co, edu, emp = _user(conn, "co"), _user(conn, "edu"), _user(conn)
     assert client.post(f"/profile/{emp}/follow", headers=_h(co, "co")).status_code == 200
-    assert client.post(f"/company/follow/{co}", headers=_h(edu, "edu")).status_code == 200
+    assert client.post(f"/profile/{co}/follow", headers=_h(edu, "edu")).status_code == 200
     with auth.db_conn() as conn:
         assert _pf(conn, co, emp) == 1 and _pf(conn, edu, co) == 1
 
 
-def test_company_alias_writes_the_one_table(db):
+def test_company_aliases_removed_nothing_writes_legacy_table(db):
+    """PR 3.9 — /company/follow/{id} + /company/{id}/followers deleted; /profile/{id}/* only."""
     with auth.db_conn() as conn:
         co, emp = _user(conn, "co"), _user(conn)
         legacy_before = conn.run("SELECT COUNT(*) FROM company_follows")[0][0]
-    r = client.post(f"/company/follow/{co}", headers=_h(emp))
-    assert r.status_code == 200 and r.json()["following"] is True and r.json()["followers_count"] == 1
+    assert client.post(f"/company/follow/{co}", headers=_h(emp)).status_code in (404, 405)
+    assert client.delete(f"/company/follow/{co}", headers=_h(emp)).status_code in (404, 405)
+    assert client.get(f"/company/{co}/followers").status_code in (404, 405)
+    r = client.post(f"/profile/{co}/follow", headers=_h(emp))
+    assert r.status_code == 200 and r.json()["is_following"] is True
     with auth.db_conn() as conn:
         assert _pf(conn, emp, co) == 1
         assert conn.run("SELECT COUNT(*) FROM company_follows")[0][0] == legacy_before
-    assert client.get(f"/company/{co}/followers").json()["counts"]["all"] == 1
-    assert client.delete(f"/company/follow/{co}", headers=_h(emp)).json()["following"] is False
-    with auth.db_conn() as conn:
-        assert _pf(conn, emp, co) == 0

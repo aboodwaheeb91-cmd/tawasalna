@@ -193,13 +193,6 @@
   // ── Inline field-error helpers ──
   var _CONTENT_MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
 
-  function _showFieldErr(inputEl, errId, msg){
-    var div = document.getElementById(errId);
-    if(inputEl) inputEl.classList.add('ep-input-err');
-    if(div){ div.textContent = msg || _CONTENT_MSG; div.classList.add('show'); }
-    if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
-  }
-
   function _clearFieldErr(inputEl, errId){
     var div = document.getElementById(errId);
     if(inputEl) inputEl.classList.remove('ep-input-err');

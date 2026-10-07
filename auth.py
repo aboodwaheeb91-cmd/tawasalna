@@ -763,28 +763,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        conn.run("""
-            CREATE TABLE IF NOT EXISTS verify_requests (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                item_type TEXT,
-                item_id INTEGER,
-                item_title TEXT,
-                item_company TEXT,
-                document_url TEXT, notes TEXT,
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        # Migration: add new columns if not exist
-        for col in [
-            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_type TEXT",
-            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_id INTEGER",
-            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_title TEXT",
-            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_company TEXT",
-        ]:
-            try: conn.run(col)
-            except: pass
         print("✅ Database ready.")
     finally:
         
@@ -1266,15 +1244,8 @@ def get_full_profile(user_id: int) -> Optional[dict]:
             except Exception: pass
         profile['profession'] = profession
 
-        rows = conn.run(
-            "SELECT id, status, created_at FROM verify_requests "
-            "WHERE user_id = :uid ORDER BY id DESC LIMIT 1", uid=user_id
-        )
-        cols = [c["name"] for c in conn.columns]
-        verify_req = _serialize(_row_to_dict(cols, rows[0])) if rows else None
-
         extras = _get_extras(conn, user_id)
-        result = {**user, **profile, **extras, "verify_request": verify_req}
+        result = {**user, **profile, **extras}
         _cache_set('profile:'+str(user_id), result)
         return result
     finally:
@@ -1299,7 +1270,7 @@ _PUBLIC_PROFILE_FIELDS = frozenset({
 
 _OWNER_EXTRA_FIELDS = frozenset({
     "email", "phone", "dob", "country_code", "created_at", "updated_at",
-    "verify_request", "skills",
+    "skills",
 })
 
 _KYC_OWNER_FIELDS = frozenset({
@@ -1694,22 +1665,6 @@ def update_course(course_id: int, user_id: int, data: dict):
         release_conn(conn)
 
 
-# ══ طلبات التحقق ══
-def create_verify_request(user_id: int, data: dict) -> dict:
-    conn = get_conn()
-    try:
-        rows = conn.run(
-            "INSERT INTO verify_requests (user_id, document_url, notes, status) "
-            "VALUES (:uid, :doc_url, :notes, 'pending') "
-            "RETURNING id, user_id, document_url, notes, status, created_at",
-            uid=user_id, doc_url=data.get("document_url"), notes=data.get("notes")
-        )
-        cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
-    finally:
-        release_conn(conn)
-
-
 def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
     """يرجع الـ id الرقمي من الـ tw_id."""
     conn = get_conn()
@@ -1740,12 +1695,6 @@ def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
     """يجيب الملف الشخصي العام بالـ tw_id."""
     uid = get_user_id_by_tw_id(tw_id)
     return get_public_profile(uid) if uid else None
-
-
-def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
-    uid = get_user_id_by_tw_id(tw_id)
-    if not uid: return None
-    return get_full_profile(uid)
 
 
 # ══ الوظائف ══
@@ -4028,7 +3977,8 @@ def ensure_company_tables():
             )
         """)
         # ── company_follows — LEGACY (PR 3.5): nobody reads/writes it; rows moved to
-        #    profile_follows by _migrate_company_follows_to_profile_follows(). Dropped in PR 3.9. ──
+        #    profile_follows by _migrate_company_follows_to_profile_follows(). DROP waits on a
+        #    production check (PR 3.9 report) — kept until Zaatar decides. ──
         conn.run("""
             CREATE TABLE IF NOT EXISTS company_follows (
                 id          SERIAL PRIMARY KEY,
@@ -4879,7 +4829,7 @@ def delete_company_post_comment(comment_id: int, user_id: int) -> bool:
 # ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
 # profile_follows is the ONLY follow table: any signed-in account follows any other
 # account (emp / co / edu), never itself. company_follows is legacy — read only by
-# _migrate_company_follows_to_profile_follows() until it is dropped in PR 3.9.
+# _migrate_company_follows_to_profile_follows() until the DROP is approved (PR 3.9 report).
 
 def follow_profile(follower_id: int, followed_id: int) -> int:
     """Follow a profile (idempotent). Returns new followers_count."""
@@ -4998,7 +4948,7 @@ def get_follow_state(user_id: int, viewer_id=None) -> dict:
 def _migrate_company_follows_to_profile_follows() -> int:
     """PR 3.5 — copy every company_follows row into profile_follows (the one follow table).
     Idempotent: ON CONFLICT DO NOTHING; self rows skipped (no_self_follow CHECK).
-    company_follows itself is left in place (dropped in PR 3.9). Returns rows moved."""
+    company_follows itself is left in place (DROP pending — PR 3.9 report). Returns rows moved."""
     with db_conn() as conn:
         present = conn.run("SELECT to_regclass('public.company_follows') IS NOT NULL")
         if not present or not present[0][0]:

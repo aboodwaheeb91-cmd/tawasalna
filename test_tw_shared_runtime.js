@@ -594,10 +594,9 @@ function check(name, condition, detail) {
   }
 
   // ────────────────────────────────────────────────────────────────
-  console.log('\n18 — File content guards: allowlist, no startsWith (T10–T13)');
+  console.log('\n18 — File content guards: allowlist, no startsWith (T10–T11b)');
   {
     var indexAuthCode = fs.readFileSync('./index.auth.js', 'utf8');
-    var appHeaderCode = fs.readFileSync('./static/app-header.js', 'utf8');
 
     // Strip pure comment lines (those whose first non-space chars are //)
     // so that warning comments like "never startsWith('tw_')" don't false-positive
@@ -607,7 +606,6 @@ function check(name, condition, detail) {
       }).join('\n');
     }
     var indexAuthCodeOnly = codeOnly(indexAuthCode);
-    var appHeaderCodeOnly = codeOnly(appHeaderCode);
 
     // T10: index.auth.js removes ONLY tw_jwt + tw_user (no startsWith scan in code)
     check('T10 — index.auth.js clears only tw_jwt + tw_user (no startsWith scan)',
@@ -620,21 +618,9 @@ function check(name, condition, detail) {
     check('T11a — index.auth.js: no startsWith(tw_) in code',
       indexAuthCodeOnly.indexOf("startsWith('tw_')") === -1 &&
       indexAuthCodeOnly.indexOf('startsWith("tw_")') === -1);
-    check('T11b — app-header.js: no startsWith(tw_) in code',
-      appHeaderCodeOnly.indexOf("startsWith('tw_')") === -1 &&
-      appHeaderCodeOnly.indexOf('startsWith("tw_")') === -1);
-
-    // T12: app-header.js fail-closed removes both session keys
-    check('T12 — app-header.js fail-closed removes tw_jwt',
-      appHeaderCode.indexOf("removeItem('tw_jwt')") !== -1 ||
-      appHeaderCode.indexOf('removeItem("tw_jwt")') !== -1);
-
-    // T13: redirect in app-header fallback comes AFTER key removal (order in source)
-    var ahFallback = appHeaderCode.split('Last-resort fallback')[1] || '';
-    var ahRemoveIdx   = ahFallback.indexOf("removeItem('tw_jwt')");
-    var ahRedirectIdx = ahFallback.indexOf("location.replace('/login')");
-    check('T13 — app-header.js fallback redirects after key removal',
-      ahRemoveIdx !== -1 && ahRedirectIdx !== -1 && ahRemoveIdx < ahRedirectIdx);
+    // T11b–T13: static/app-header.js removed in PR 3.9 (pre-DS-HNAV, loaded by no page)
+    check('T11b — static/app-header.js removed (header = twMountAppChrome only)',
+      !fs.existsSync('./static/app-header.js'));
   }
 
   // ────────────────────────────────────────────────────────────────
