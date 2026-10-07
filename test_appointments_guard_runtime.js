@@ -178,10 +178,14 @@ const sharedRoot = new Set([...read('tw_shared.css').matchAll(/^\s*(--[a-z0-9-]+
   check(tag + ' C2 no shell-owned tags by hand (charset / viewport / fonts / tw_shared / auth-sync)',
     !/charset=|name="viewport"|fonts\.g|(?:src|href)="[^"]*(?:tw_shared|auth-sync)|apple-mobile|theme-color|rel="manifest"/.test(raw));
   check(tag + ' C3 <meta name="tw-page" content="auth">', raw.split('<meta name="tw-page" content="auth">').length === 2);
-  check(tag + ' C4 exactly one twRequireAuth() call, before any api()/fetch',
-    code.split('twRequireAuth(').length === 2 && code.indexOf('twRequireAuth(') < code.indexOf('fetch('));
+  // API Client Rule (PR 3A): a page moved to twApi has no direct fetch; the rest still use getAuthHeaders
+  const usesTwApi = /\btwApi\(/.test(code);
+  const firstCall = usesTwApi ? code.indexOf('twApi(') : code.indexOf('fetch(');
+  check(tag + ' C4 exactly one twRequireAuth() call, before any twApi()/fetch',
+    code.split('twRequireAuth(').length === 2 && code.indexOf('twRequireAuth(') < firstCall);
   check(tag + ' C5 no direct tw_user / tw_jwt / localStorage / Bearer', !/localStorage|tw_jwt|tw_user|Bearer/.test(raw));
-  check(tag + ' C6 fetch headers via getAuthHeaders', /headers: getAuthHeaders\(true\)/.test(code));
+  check(tag + (usesTwApi ? ' C6 API via twApi, no direct fetch' : ' C6 fetch headers via getAuthHeaders'),
+    usesTwApi ? !/\bfetch\(/.test(code) : /headers: getAuthHeaders\(true\)/.test(code));
   check(tag + ' C7 no alert() / prompt()', !/\balert\(|\bprompt\(/.test(code));
   check(tag + ' C8 no inline <svg> / emoji', !/<svg|[\u{1F300}-\u{1FAFF}☀-➿]/u.test(raw));
   check(tag + ' C9 tw-icons.js via {{v:tw-icons.js}} after the shell scripts',

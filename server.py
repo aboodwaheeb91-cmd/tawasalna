@@ -433,6 +433,29 @@ def _http_error_content(detail) -> dict:
         return {"error": msg if isinstance(msg, str) and msg else "حدث خطأ", "detail": detail}
     return {"error": str(detail)}
 
+# ── API Contract (PR 3A — SYSTEMS_INDEX §45b · ARCHITECTURE §API Contract) ──
+# The official response shape for NEW endpoints and for endpoints migrated with their page:
+#   success → {"ok": true, "data": ...}          (api_ok)
+#   error   → {"ok": false, "error": {"code", "message", "field"?}}   (api_error)
+# Existing endpoints keep their current shape until they are migrated (F14) — twApi reads both.
+# Unexpected exceptions still go through _server_error (never str(e) in `message`).
+from fastapi.encoders import jsonable_encoder
+
+def api_ok(data=None, status: int = 200, **extra):
+    """Success body. extra = list meta only (total / page …), next to data."""
+    body = {"ok": True, "data": data}
+    body.update(extra)
+    if status == 200:
+        return body
+    return JSONResponse(status_code=status, content=jsonable_encoder(body))
+
+def api_error(status: int, code: str, message: str, field: str = None) -> JSONResponse:
+    """Error body — message is an Arabic text written in code; field only for a field error."""
+    err = {"code": code, "message": message}
+    if field:
+        err["field"] = field
+    return JSONResponse(status_code=status, content={"ok": False, "error": err})
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc):
     return JSONResponse(status_code=exc.status_code, content=_http_error_content(exc.detail))

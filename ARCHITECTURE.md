@@ -12744,3 +12744,37 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 - **Room messages:** `GET /api/appointments/{id}/messages` returns the **newest** `limit` (default 50, max 100) oldest → newest; `?before_id=<id>` returns the page before that message (room page: «عرض الرسائل الأقدم» button when a page is full). Before PR 2B: `ORDER BY created_at ASC LIMIT 50` — messages after the 50th never appeared.
 - UI (`appointment-room.html`): «إنهاء المقابلة» for `confirmed` | `missed`; «إغلاق الغرفة» for `completed` | `cancelled` | `missed` | `expired`.
 - Test: `python -m pytest test_pr2b_flow_fixes.py -q` (DB parts need `TW_TEST_DB_URL`).
+
+---
+
+## §74 — API Contract + API Client `twApi` (PR 3A)
+
+> Rule: `CLAUDE.md → API Client Rule` · SYSTEMS_INDEX §45a / §45b · F15.
+
+### Official response shape (new + migrated endpoints)
+
+| | Body | Helper (`server.py`) |
+|---|------|---------------------|
+| Success | `{"ok": true, "data": <any>}` (+ list meta `total` / `page`) | `api_ok(data=None, status=200, **extra)` — 200 → plain dict; other status → `JSONResponse` (`jsonable_encoder`) |
+| Error | `{"ok": false, "error": {"code": str, "message": str, "field"?: str}}` + correct HTTP status | `api_error(status, code, message, field=None)` → `JSONResponse` |
+
+- `message` = Arabic text written in code. Unexpected exceptions still use `_server_error` (§54d) — never `str(e)`.
+- **Existing endpoints keep their current shape** (F14). Each one moves to `api_ok` / `api_error` in phase 4 together with the page that calls it (page on `twApi` first, then the endpoint).
+
+### `twApi(path, opts)` — `tw_shared.js`
+
+- `opts`: `method` · `body` (object/array → JSON + `Content-Type`; string / FormData / Blob as is) · `headers` · `auth` (default `true` → `getAuthHeaders`) · `timeout` (default `TW_API_TIMEOUT_MS` = 20 s, `AbortController`) · `signal`.
+- Result (always, never rejects): `{ok, status, data, error, raw}`.
+  - `ok` — HTTP 2xx and body not `ok:false` / `success:false`.
+  - `data` — `body.data` when present, else the whole body (legacy: bare list, `status:"success"`, `"pong"` …).
+  - `error` — `null` | `normalizeErrorResponse(body)` → `{fieldErrors[], generalError}`; non-JSON body (HTML 502) → generic message.
+  - `status` — HTTP status; `0` = no response: `generalError.code` `network` / `timeout` / `aborted` (Arabic messages).
+  - `raw` — parsed body (extra fields).
+- 401 on a request that carried the current user's JWT → `TwAuthSync.invalidateSession('api_401')` once; the page guard (`twRequireAuth`) redirects to `/login?next=`. A 401 for an older JWT (another login happened meanwhile) or an `auth:false` request never invalidates.
+- `twApiMessage(res, fallback)` — first field error → general error (not `unknown`) → fallback.
+- `normalizeErrorResponse` additions (no change for shapes it already read): `error:{code, message, field}` → `fieldErrors`; legacy `{ok:false, code, message}` → `generalError`.
+
+### Adoption
+
+- Reference page: `appointments.html` (list + create). Remaining direct `fetch(` per file: `node test_tw_api_runtime.js` section F (report only).
+- Test: `node test_tw_api_runtime.js`.
