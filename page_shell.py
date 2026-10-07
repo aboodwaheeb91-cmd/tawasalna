@@ -36,6 +36,7 @@ SHELL_ASSETS = {
 # those come from the partials). Add an entry here before using a new placeholder.
 PAGE_ASSETS = {
     "tw-icons.js": os.path.join("static", "shared", "tw-icons.js"),
+    "tw-overlay.js": os.path.join("static", "shared", "tw-overlay.js"),
 }
 
 _PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")

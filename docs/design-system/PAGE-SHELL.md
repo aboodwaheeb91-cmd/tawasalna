@@ -59,7 +59,7 @@
 - صفحة فيها markers → لازم نسخة وحدة (app أو admin)، وكل marker مرة وحدة، والـ head قبل الـ scripts. غير هيك → `ValueError` (F9 — صفحة نص محوّلة = bug، مش صفحة).
 - الحقن **نص ثابت فقط** (partials + hashes) — ما في أي بيانات مستخدم ولا request (§54).
 - `{{v:<asset>}}` بالـ partial: أسماء `SHELL_ASSETS` فقط؛ placeholder مش معروف → خطأ عند بدء السيرفر.
-- `{{v:<asset>}}` **جوّا الصفحة** (صفحة فيها markers فقط): أسماء `PAGE_ASSETS` فقط — allowlist ثابتة بـ `page_shell.py` (حالياً `tw-icons.js`). `apply_shell` بيبدّلها بنص الصفحة قبل ما يحط الـ partials. اسم مش بالـ allowlist (ولا اسم من `SHELL_ASSETS`) أو `{{v:` بصفحة بدون markers → `ValueError` (نفس قاعدة الـ partials). أصل جديد → سطر بـ `PAGE_ASSETS` أولاً.
+- `{{v:<asset>}}` **جوّا الصفحة** (صفحة فيها markers فقط): أسماء `PAGE_ASSETS` فقط — allowlist ثابتة بـ `page_shell.py` (حالياً `tw-icons.js` · `tw-overlay.js` — DS-OVL OVL-39). `apply_shell` بيبدّلها بنص الصفحة قبل ما يحط الـ partials. اسم مش بالـ allowlist (ولا اسم من `SHELL_ASSETS`) أو `{{v:` بصفحة بدون markers → `ValueError` (نفس قاعدة الـ partials). أصل جديد → سطر بـ `PAGE_ASSETS` أولاً.
 
 ---
 

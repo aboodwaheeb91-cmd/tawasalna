@@ -204,8 +204,9 @@ const sharedRoot = new Set([...read('tw_shared.css').matchAll(/^\s*(--[a-z0-9-]+
 });
 {
   const room = read('appointment-room.html');
-  check('room C14 confirm() kept as-is (3 — no shared confirmation system yet, F30)',
-    (room.match(/\bconfirm\(/g) || []).length === 3);
+  check('room C14 no native confirm() — 3 × twConfirm (DS-OVL), close room = danger',
+    !/(^|[^\w.])confirm\(/.test(room) && (room.match(/\btwConfirm\(/g) || []).length === 3
+    && /twConfirm\(\{\s*title: 'إغلاق الغرفة نهائياً'[\s\S]*?danger: true/.test(room));
   check('room C15 participant avatar uses the room photo fields',
     /avatar_url: appt\.applicant_avatar/.test(room) && /avatar_url: appt\.company_avatar/.test(room));
   check('room C16 no WebSocket of its own (badge WS in tw_shared.js is the only socket)', !/WebSocket/.test(room));

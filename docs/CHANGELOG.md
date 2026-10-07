@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3B — DS-OVL Runtime V1: `twConfirm` / `twAlert` / `twModal` (بند 3.3) — 2026-10-07
+
+- `static/shared/tw-overlay.js` (جديد — OVERLAY-SYSTEM.md OVL-39 · `docs/rules/ds-overlay.md`): `twConfirm` → `Promise<boolean>` · `twAlert` → `Promise` · `twModal` → `{close, setBusy, el}`. role=dialog + aria-modal + aria-labelledby · Escape (إلا وقت busy) · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock بالعدّ · backdrop بيسكّر غير الخطرة بس · danger → زر خطر + focus أول على «إلغاء». ألوان/أحجام/أيقونات من DS-COLOR / DS-SIZE / DS-ICON.
+- `page_shell.py`: `PAGE_ASSETS` += `tw-overlay.js`. `appointment-room.html`: 3 × `confirm()` → `twConfirm` (إغلاق الغرفة نهائياً = `danger:true`).
+- قاعدة: ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس من هلق. `test_ds_overlay_runtime.js` (جديد — فيه تقرير عدّ للباقي، مش فشل). `test_appointments_guard_runtime.js` C14 اتحدّث (كان بيتأكد إن الـ 3 confirm باقيين).
+
 ## PR 3A — نظام طلبات API موحّد (twApi + عقد API) — 2026-10-07
 
 - `tw_shared.js`: **`twApi(path, opts)`** + `twApiMessage()` (جديد — SYSTEMS_INDEX §45a): هيدرات المصادقة، JSON، مهلة 20 ث، نتيجة `{ok, status, data, error, raw}` دايماً، 401 → `invalidateSession('api_401')` مرة وحدة، النت / المهلة → `ok:false` برسالة عربية. `normalizeErrorResponse`: + `error:{field}` → `fieldErrors` و `{ok:false, code, message}` القديم.
