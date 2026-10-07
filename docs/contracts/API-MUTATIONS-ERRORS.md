@@ -226,6 +226,8 @@ CLEARABLE = {'bio', 'city', 'country', 'website'}
 
 الـ response يجب أن يكفي لتحديث الـ UI **بدون Refetch إضافي** — راجع DS-FRM FRM-17.
 
+> **PR 3A — العقد الرسمي للـ endpoints الجديدة / المحوّلة:** `{"ok": true, "data": ...}` عبر `api_ok()` و `{"ok": false, "error": {"code", "message", "field"?}}` عبر `api_error()` (`server.py` — SYSTEMS_INDEX §45b · ARCHITECTURE §74). الواجهة بتقرا الرد عبر `twApi()` (§45a) اللي بتفهم الشكل القديم `"status": "ok"` كمان.
+
 ### HTTP Status
 
 | الحالة | الـ Status |

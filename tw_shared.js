@@ -93,6 +93,7 @@ function initScrollProg() {
 //     3. body.detail → legacy FastAPI backward compat (only when both official shapes absent)
 //        — object with field/code → fieldErrors; object with message only → generalError (PR 1.6)
 //     3b. body.error as a string (global handler shape) → generalError (PR 1.6)
+//     3c. body.message (+ body.code) legacy shape → generalError; body.error{field} → fieldErrors (PR 3A)
 //     4. Unknown/null body → generalError.message = 'حدث خطأ، حاول مجدداً' (F9 — no silent failure)
 //   Consumers: profile-v2.edit.js save handler → _routeFieldError() per fieldError
 //   DO NOT call fetch('/profile') directly — use tw_shared.js exports only
@@ -114,7 +115,9 @@ function normalizeErrorResponse(body) {
   }
   // Official general shape: body.error{} — only when no field errors (separate shapes per API-MUT)
   if (!fieldErrors.length && !generalError && body.error && typeof body.error === 'object' && body.error.code) {
-    generalError = { code: body.error.code, message: body.error.message || '' };
+    // API Contract (PR 3A): {ok:false, error:{code, message, field?}} — with field → fieldErrors
+    if (body.error.field) fieldErrors.push({ field: body.error.field, code: body.error.code, message: body.error.message || '' });
+    else generalError = { code: body.error.code, message: body.error.message || '' };
   }
   // Legacy FastAPI detail (backward compat — only when official shapes absent)
   if (!fieldErrors.length && !generalError) {
@@ -134,6 +137,10 @@ function normalizeErrorResponse(body) {
   if (!fieldErrors.length && !generalError && typeof body.error === 'string' && body.error) {
     generalError = { code: '', message: body.error };
   }
+  // Legacy {ok:false, code, message} (API-MUT-11 {message} shape — e.g. 409 pipeline errors)
+  if (!fieldErrors.length && !generalError && typeof body.message === 'string' && body.message) {
+    generalError = { code: typeof body.code === 'string' ? body.code : '', message: body.message };
+  }
   // Unknown shape fallback: caller always has something to display
   if (!fieldErrors.length && !generalError) {
     generalError = { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' };
@@ -141,6 +148,103 @@ function normalizeErrorResponse(body) {
   return { fieldErrors: fieldErrors, generalError: generalError };
 }
 window.normalizeErrorResponse = normalizeErrorResponse;
+
+// ══ API Client — twApi (PR 3A · SYSTEMS_INDEX §45a · CLAUDE.md → API Client Rule) ══
+// The ONE way a page calls the site API:  twApi(path, opts) → Promise<{ok, status, data, error, raw}>
+//   opts: method ('GET') · body (object/array → JSON; string / FormData / Blob sent as is)
+//         headers (merged last) · auth (default true → getAuthHeaders) · timeout (ms) · signal
+//   ok     true only for HTTP 2xx and a body without ok:false / success:false
+//   data   body.data when the body has it (API Contract {ok, data}), else the whole body (legacy shapes)
+//   error  null on success, else normalizeErrorResponse(...) → {fieldErrors[], generalError}
+//   raw    the parsed body as sent (extra fields: total / page / count …)
+//   status HTTP status · 0 = no response (network / timeout / aborted)
+// Never rejects: network failure / timeout → ok:false + Arabic generalError (code network / timeout).
+// 401 on a request that carried the current user's JWT → TwAuthSync.invalidateSession('api_401')
+// once (the JWT is cleared, so parallel 401s don't repeat it); twRequireAuth finishes the redirect.
+var TW_API_TIMEOUT_MS = 20000;
+var _twApi401Jwt = '';
+
+function _twApiFail(status, code, message, raw) {
+  return { ok: false, status: status, data: null, raw: raw === undefined ? null : raw,
+           error: { fieldErrors: [], generalError: { code: code, message: message } } };
+}
+
+function _twApiJwt() {
+  try { return localStorage.getItem('tw_jwt') || ''; } catch (e) { return ''; }
+}
+
+function twApi(path, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    var useAuth = opts.auth !== false;
+    var sentJwt = useAuth ? _twApiJwt() : '';
+    var headers = useAuth ? getAuthHeaders(false) : {};
+    var body = opts.body;
+    if (body !== undefined && body !== null && typeof body === 'object'
+        && !(typeof FormData !== 'undefined' && body instanceof FormData)
+        && !(typeof Blob !== 'undefined' && body instanceof Blob)
+        && !(typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams)) {
+      try { body = JSON.stringify(body); }
+      catch (e) { resolve(_twApiFail(0, 'client', 'حدث خطأ، حاول مجدداً')); return; }
+      headers['Content-Type'] = 'application/json';
+    } else if (typeof body === 'string') {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (opts.headers) for (var k in opts.headers) headers[k] = opts.headers[k];
+
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timedOut = false;
+    var ms = opts.timeout > 0 ? opts.timeout : TW_API_TIMEOUT_MS;
+    var timer = ctrl ? setTimeout(function () { timedOut = true; ctrl.abort(); }, ms) : null;
+    if (ctrl && opts.signal) {
+      if (opts.signal.aborted) ctrl.abort();
+      else opts.signal.addEventListener('abort', function () { ctrl.abort(); });
+    }
+
+    var init = { method: (opts.method || 'GET').toUpperCase(), headers: headers };
+    if (body !== undefined && body !== null) init.body = body;
+    if (ctrl) init.signal = ctrl.signal;
+
+    fetch(path, init).then(function (r) {
+      return r.text().then(function (txt) {
+        clearTimeout(timer);
+        var parsed = null;
+        if (txt) { try { parsed = JSON.parse(txt); } catch (e) { parsed = null; } }
+        if (r.status === 401 && sentJwt && sentJwt !== _twApi401Jwt && _twApiJwt() === sentJwt
+            && window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
+          _twApi401Jwt = sentJwt;
+          try { TwAuthSync.invalidateSession('api_401'); } catch (e) { console.warn('[twApi] invalidateSession failed:', e); }
+        }
+        var isObj = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+        var ok = r.ok && !(isObj && (parsed.ok === false || parsed.success === false));
+        if (ok) {
+          resolve({ ok: true, status: r.status, raw: parsed,
+                    data: (isObj && Object.prototype.hasOwnProperty.call(parsed, 'data')) ? parsed.data : parsed,
+                    error: null });
+        } else {
+          resolve({ ok: false, status: r.status, data: null, raw: parsed,
+                    error: normalizeErrorResponse(isObj ? parsed : null) });
+        }
+      });
+    }).catch(function () {
+      clearTimeout(timer);
+      if (timedOut) resolve(_twApiFail(0, 'timeout', 'انتهت مهلة الاتصال بالخادم، حاول مرة أخرى'));
+      else if (opts.signal && opts.signal.aborted) resolve(_twApiFail(0, 'aborted', 'تم إلغاء الطلب'));
+      else resolve(_twApiFail(0, 'network', 'تعذّر الاتصال بالخادم، تحقق من اتصالك بالإنترنت وحاول مرة أخرى'));
+    });
+  });
+}
+window.twApi = twApi;
+
+// twApiMessage(res, fallback) → the text to show for a failed twApi result: first field
+// error, else the general error (not the generic 'unknown' one), else fallback.
+function twApiMessage(res, fallback) {
+  var err = res && res.error;
+  if (err && err.fieldErrors && err.fieldErrors.length && err.fieldErrors[0].message) return err.fieldErrors[0].message;
+  var g = err && err.generalError;
+  return (g && g.code !== 'unknown' && g.message) || fallback || 'حدث خطأ، حاول مجدداً';
+}
+window.twApiMessage = twApiMessage;
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e){

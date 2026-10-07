@@ -896,6 +896,22 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 45a. API Client — `twApi` (PR 3A)
+**Purpose:** طريقة وحدة لأي صفحة تنادي API الموقع — هيدرات المصادقة، JSON، مهلة، شكل نتيجة واحد، 401، وانقطاع النت — بدل `fetch` مكتوب بكل صفحة.
+**Source of Truth:** `tw_shared.js` → `twApi(path, opts)` + `twApiMessage(res, fallback)`.
+**Details:** `opts`: `method` (GET) · `body` (object/array → `JSON.stringify` + `Content-Type: application/json`؛ string / FormData / Blob بيروح متل ما هو) · `headers` (بتندمج آخر شي) · `auth` (افتراضي `true` → `getAuthHeaders`؛ `false` → بدون هيدر) · `timeout` (افتراضي `TW_API_TIMEOUT_MS` = 20000 ms، `AbortController`) · `signal`. النتيجة دايماً `{ok, status, data, error, raw}`: `ok` = HTTP 2xx وما في `ok:false` / `success:false` بالـ body · `data` = `body.data` إذا موجود (العقد §45b)، غير هيك الـ body كامل (الأشكال القديمة: قائمة مباشرة، `status:success`، `"pong"` …) · `error` = `null` أو `normalizeErrorResponse(body)` (API-MUT-11) · `raw` = الـ body (للحقول الإضافية `total` / `page` / `count`) · `status` = 0 لما ما في رد. **ما بترمي أبداً:** انقطاع النت → `generalError.code = 'network'`، المهلة → `'timeout'`، إلغاء من `opts.signal` → `'aborted'` (رسائل عربية). **401** على طلب حامل JWT المستخدم الحالي → `TwAuthSync.invalidateSession('api_401')` مرة وحدة (الـ JWT بينمسح، فالـ 401 المتوازية ما بتكرّر؛ 401 لـ JWT قديم بعد دخول جديد ما بيلغي الجلسة الجديدة)؛ `twRequireAuth` بيكمّل التحويل لـ `/login?next=`. `twApiMessage` = أول `fieldErrors[].message` ← `generalError.message` (مش `unknown`) ← `fallback`. `normalizeErrorResponse` صار يفهم كمان `{ok:false, error:{code, message, field}}` (field → `fieldErrors`) و `{ok:false, code, message}` القديم — بدون تغيير لأي شكل كان مفهوم قبل.
+**Consumers:** `appointments.html` (المرجع — PR 3A). الباقي بالمرحلة 4 صفحة صفحة.
+**Rule:** `CLAUDE.md → API Client Rule` — أي صفحة بتنلمس من هلق بتستعمل `twApi`، ممنوع `fetch` مباشر لـ API الموقع.
+**Do not recreate:** ❌ `api()` / `apiFetch()` محلية بصفحة · ❌ `fetch('/...')` مباشر بصفحة اتحوّلت · ❌ قراءة `r.status === 401` يدوياً · ❌ parser أخطاء تاني. Test: `node test_tw_api_runtime.js` (القسم F = تقرير عدد الـ `fetch(` المباشر لكل ملف — تقرير بس، ما بيفشل).
+
+### 45b. API Contract — `{ok, data}` / `{ok:false, error}` (PR 3A)
+**Purpose:** شكل رد رسمي واحد للـ endpoints الجديدة والمحوّلة — للويب وتطبيق الموبايل لاحقاً (F1 / F8 / F15).
+**Source of Truth:** `server.py` → `api_ok(data=None, status=200, **extra)` · `api_error(status, code, message, field=None)`.
+**Details:** نجاح: `{"ok": true, "data": ...}` (+ `total` / `page` للقوائم عبر `extra`) · خطأ: `{"ok": false, "error": {"code", "message", "field"?}}` مع HTTP status صحيح؛ `message` نص عربي مكتوب بالكود؛ `field` بس لخطأ حقل. الأخطاء غير المتوقعة لسا عبر `_server_error` (§54d). **الـ endpoints الموجودة ما بيتغيّر شكلها** (F14) — بتتحوّل endpoint endpoint بالمرحلة 4 مع صفحتها، و `twApi` بيقرا الشكلين. ARCHITECTURE.md §74.
+**Do not recreate:** ❌ شكل نجاح جديد غير `{ok:true, data}` لـ endpoint جديد · ❌ `{"error": "string"}` لـ endpoint جديد · ❌ تغيير شكل endpoint موجود بدون تحويل صفحته بنفس الـ PR · ❌ helper تاني لبناء الرد.
+
+---
+
 ### 46. Select & Searchable Picker System V1 [DS-SEL]
 
 **Purpose:** الـ contract المعماري الرسمي لعناصر الاختيار من القوائم في منصة تواصلنا — القوائم المنسدلة البسيطة (single)، القوابلة للبحث (searchable)، ومتعددة الاختيار (multi). يُعرِّف الأوضاع الثلاثة، المحاور الستة للحالة، Hydration Contract (بدون setTimeout)، Race Safety (per-instance generation counter)، Dependent Selects (كـ capability لا mode)، Arabic Normalization، Portal Contract، ARIA، وتوثيق الـ Runtime الحالي والأنظمة القديمة.
@@ -1167,4 +1183,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 2B · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3A · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
