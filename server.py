@@ -1498,6 +1498,38 @@ class LangInput(BaseModel):
     language: str
     level: Optional[str] = None
 
+# §54 rule 4b — the ONLY server check for a user-entered external link (twin of
+# twSafeLinkUrl in tw_shared.js): http:// or https:// + host char, no whitespace /
+# control char, ≤ 2048 (value stripped first). Empty → None (optional) or 422 (required).
+_EXTERNAL_URL_RE = re.compile(r'^https?://[^/\\]', re.IGNORECASE)
+_EXTERNAL_URL_BAD_CHARS_RE = re.compile(r'[\x00-\x20\x7f-\x9f\u2028\u2029]')
+
+class ExternalUrlError(Exception):
+    def __init__(self, field: str, message: str):
+        self.field, self.message = field, message
+
+@app.exception_handler(ExternalUrlError)
+async def external_url_error_handler(request, exc):
+    # Field-specific 422 — same shape as PUT /profile field errors (errors[] + detail.message)
+    return JSONResponse(status_code=422, content={
+        "ok": False, "error": exc.message,
+        "errors": [{"field": exc.field, "code": "invalid_url", "message": exc.message}],
+        "detail": {"status": "error", "message": exc.message, "field": exc.field},
+    })
+
+def _validate_external_url(url, field: str, label: str = "الرابط", required: bool = False):
+    if url is not None and not isinstance(url, str):
+        raise ExternalUrlError(field, f"{label} غير صالح")
+    value = (url or "").strip()
+    if not value:
+        if required:
+            raise ExternalUrlError(field, f"{label} مطلوب")
+        return None
+    if (len(value) > 2048 or _EXTERNAL_URL_BAD_CHARS_RE.search(value)
+            or not _EXTERNAL_URL_RE.match(value)):
+        raise ExternalUrlError(field, f"{label} غير صالح — يجب أن يبدأ بـ https:// أو http://")
+    return value
+
 class LinkInput(BaseModel):
     link_type: Optional[str] = None
     url: str
@@ -3677,6 +3709,8 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
     payload = data.dict(exclude_unset=True)
     user_type = token.get('user_type')
+    if "website" in payload:   # §54 rule 4b — empty / null = clear
+        payload["website"] = _validate_external_url(payload["website"], "website", "الموقع الإلكتروني")
     # PR-7a: image URLs must come from /upload/image for this user (company logo = avatar_url of a co)
     _img_kinds = {"avatar_url": "company-logo" if user_type == "co" else "employee-avatar",
                   "cover_url": "employee-cover"}
@@ -3796,6 +3830,7 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
         raise HTTPException(403, "Unauthorized")
     if not data.title.strip():
         raise HTTPException(400, detail="اسم الدورة مطلوب")
+    data.certificate_url = _validate_external_url(data.certificate_url, "certificate_url", "رابط الشهادة")
     try:
         return {"status": "success", "course": add_course(user_id, data.dict())}
     except ContentValidationError as e:
@@ -3914,6 +3949,7 @@ def delete_user_lang(lang_id: int, token=Depends(verify_token)):
 def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    data.url = _validate_external_url(data.url, "url", "الرابط", required=True)
     try:
         conn = get_conn()
         try:
@@ -5416,6 +5452,7 @@ def delete_education(edu_id: int, token=Depends(verify_token)):
 def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_token)):
     uid = token.get('user_id')
     if not uid: raise HTTPException(401, "Unauthorized")
+    data.certificate_url = _validate_external_url(data.certificate_url, "certificate_url", "رابط الشهادة")
     try:
         result = update_course(course_id, uid, data.dict())
         if not result:
@@ -5488,6 +5525,7 @@ def admin_list_news(request: Request):
 @app.post("/admin/news")
 def admin_create_news(data: NewsPostInput, request: Request):
     check_admin(request)
+    data.source_url = _validate_external_url(data.source_url, "source_url", "رابط المصدر")   # §54 rule 4b
     allowed_statuses = {"draft", "published", "archived"}
     status = data.status if data.status in allowed_statuses else "draft"
     conn = get_conn()
@@ -5509,6 +5547,7 @@ def admin_create_news(data: NewsPostInput, request: Request):
 @app.put("/admin/news/{news_id}")
 def admin_update_news(news_id: int, data: NewsPostInput, request: Request):
     check_admin(request)
+    data.source_url = _validate_external_url(data.source_url, "source_url", "رابط المصدر")   # §54 rule 4b
     allowed_statuses = {"draft", "published", "archived"}
     status = data.status if data.status in allowed_statuses else "draft"
     conn = get_conn()

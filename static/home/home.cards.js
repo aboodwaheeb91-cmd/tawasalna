@@ -149,10 +149,11 @@
         foot.appendChild(expandBtn);
       }
 
-      if (item.source_url && /^https?:\/\//i.test(item.source_url)) {
+      var _srcUrl = twSafeLinkUrl(item.source_url || '');   // §54 rule 4b
+      if (_srcUrl) {
         var srcLink = U.el('a', 'hw-nbtn src');
         srcLink.textContent = 'المصدر الرسمي';
-        srcLink.href        = item.source_url;
+        srcLink.href        = _srcUrl;
         srcLink.target      = '_blank';
         srcLink.rel         = 'noopener noreferrer';
         foot.appendChild(srcLink);

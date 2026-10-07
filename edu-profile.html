@@ -418,7 +418,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 </div>
 
-<script src="/tw_shared.js"></script>
+<script src="/tw_shared.js?v=safe-link-v1"></script>
 <script src="/static/shared/auth-sync.js"></script>
 <script>
 let _user=null, _isOwner=false, _following=false;
@@ -506,10 +506,13 @@ function updateDisplay(){
   document.getElementById('aboutEmail').textContent=_data.email||'—';
   document.getElementById('aEmail').textContent=_data.email||'—';
   if(_data.web){
-    document.getElementById('aboutWeb').href=_data.web;
-    document.getElementById('aboutWeb').textContent=_data.web;
-    document.getElementById('aWeb').href=_data.web;
-    document.getElementById('aWeb').textContent=_data.web;
+    // §54 rule 4b — only a safe http(s) URL becomes a link; otherwise plain text (no href)
+    var _webSafe=twSafeLinkUrl(_data.web);
+    ['aboutWeb','aWeb'].forEach(function(id){
+      var a=document.getElementById(id);
+      if(_webSafe){ a.href=_webSafe; a.target='_blank'; a.rel='noopener noreferrer'; } else a.removeAttribute('href');
+      a.textContent=_data.web;
+    });
   }
   // Update post names
   const pName=_data.name||'الجهة التعليمية';
@@ -551,11 +554,13 @@ function saveEdit(){
   var _snapNow = window.TwAuthSync ? TwAuthSync.getSessionSnapshot() : null;
   var _liveUserId = _snapNow && _snapNow.userId != null ? String(_snapNow.userId) : null;
   if (!_liveUserId) return;
+  var _webIn=(document.getElementById('e-web')?.value||'').trim();
+  if(_webIn && !twSafeLinkUrl(_webIn)){ showToast('الموقع الإلكتروني غير صالح — يجب أن يبدأ بـ https:// أو http://','error'); return; }   // §54 rule 4b
   _data.name=document.getElementById('e-name').value.trim()||_data.name;
   _data.desc=document.getElementById('e-desc').value.trim();
   _data.type=document.getElementById('e-type')?.value||_data.type;
   _data.loc=document.getElementById('e-loc')?.value||_data.loc;
-  _data.web=document.getElementById('e-web')?.value||_data.web;
+  _data.web=_webIn||_data.web;
   updateDisplay();
   document.getElementById('editOverlay').classList.remove('show');
   // Save to DB using live userId and fresh JWT.

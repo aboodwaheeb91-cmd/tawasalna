@@ -237,6 +237,17 @@ function twSafeImageUrl(url) {
 }
 window.twSafeImageUrl = twSafeImageUrl;
 
+// twSafeLinkUrl: the ONLY check for a user-entered external link shown in href (§54 rule 4b).
+// Accepts http:// or https:// followed by a host char; no whitespace / control char anywhere.
+// Anything else (javascript:, data:, vbscript:, //x, /path, leading space…) → '' →
+// the caller renders the URL as plain text (no <a>). Backend twin: _validate_external_url.
+function twSafeLinkUrl(url) {
+  if (typeof url !== 'string' || !url || url.length > 2048) return '';
+  if (/[\u0000-\u0020\u007f-\u009f\u2028\u2029]/.test(url)) return '';
+  return /^https?:\/\/[^\/\\]/i.test(url) ? url : '';
+}
+window.twSafeLinkUrl = twSafeLinkUrl;
+
 // twCssUrl: CSS url("…") for background-image — validated + CSS-string escaped.
 // Invalid URL → '' (caller keeps its default background).
 function twCssUrl(url) {

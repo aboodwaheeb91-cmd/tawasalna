@@ -7,7 +7,8 @@ window.hasEmoji = (function(){
   return function(str){ return str != null && _re.test(String(str)); };
 })();
 
-function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+// esc = alias of twEscHtml (tw_shared.js §54 — escapes & < > " '; safe in attributes). One implementation only.
+function esc(s){ return twEscHtml(s); }
 function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
 
 function formatCompactCount(value){

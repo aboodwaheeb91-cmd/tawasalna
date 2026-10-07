@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 1.1 — روابط خارجية آمنة (Stored XSS) — 2026-10-07
+
+- `tw_shared.js`: **`twSafeLinkUrl(url)`** (جديد — §54 rule 4b) — `http://` / `https://` + host بس؛ غير هيك `''` → الرابط بينعرض نص بدون `<a>`.
+- العرض: profile-v2 روابط البروفايل + رابط الشهادة · edu-profile الموقع · home مصدر الخبر · appointment-room رابط الاجتماع. الحفظ: links / الدورات / تعديل الجهة التعليمية بيفحص قبل الإرسال.
+- `server.py`: **`_validate_external_url`** + `ExternalUrlError` → 422 عربي على الحقل — `POST /links` · `POST/PUT /course` · `PUT /profile` (`website`) · `POST/PUT /admin/news` (`source_url`).
+- `profile-v2.utils.js`: `esc()` صارت alias لـ `twEscHtml` (بتهرّب `"` و `'`). `tw_shared.js?v=` على profile-showcase + edu-profile.
+- `test_ds_icon_registry.js`: ملفات `.py` مستثناة من فحص "only phase-C pages" (`page_shell.py`).
+
 ## Phase C / appointments + appointment-room — 2026-10-07 — ثالث تحويل + guard الصفحات المحمية (`twRequireAuth`)
 
 - `tw_shared.js`: **`twRequireAuth(opts)`** (جديد — SHELL-09 · Auth Gateway rule 14) — قرار من `TwAuthSync.getSessionSnapshot()` بس: guest / expired / stale / invalid / بدون TwAuthSync → `location.replace(twLoginHref(path + query))` · `opts.userTypes` ونوع غلط → `twAccountHref` · تسجيل واحد على `onSessionChange` (logout بتاب تاني / bfcache → نفس القرار · حساب تاني → `location.reload()`).

@@ -431,11 +431,14 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       const lbl2 = document.createElement('div');
       lbl2.className = 'url-lbl';
       safeText(lbl2, 'رابط الاجتماع');
-      const urlA = document.createElement('a');
+      const _onlineSafe = twSafeLinkUrl(appt.online_url);   // §54 rule 4b — unsafe → plain text
+      const urlA = document.createElement(_onlineSafe ? 'a' : 'span');
       urlA.className = 'url-link';
-      urlA.href = appt.online_url;
-      urlA.target = '_blank';
-      urlA.rel = 'noopener noreferrer';
+      if (_onlineSafe) {
+        urlA.href = _onlineSafe;
+        urlA.target = '_blank';
+        urlA.rel = 'noopener noreferrer';
+      }
       safeText(urlA, appt.online_url);
       info2.appendChild(lbl2);
       info2.appendChild(urlA);

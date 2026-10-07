@@ -6334,7 +6334,8 @@ All API data rendered inside `admin.html` and `admin-view.html` template literal
 Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages are converted; no new copies.
 **fix/page-shell-security:** `static/app-header.js` avatar `img.src = twSafeImageUrl(user.avatar_url)` + link `twAccountHref(user)` (legacy `/profile` · `/company-profile` · `/edu-profile` removed). Both helpers are read at call time from `tw_shared.js`; a page without it (job-detail — no `[data-ah-av]` there) fails closed: initials + `/login`. `admin-view.html` no longer hard-codes the admin slug or redirects to the deleted `admin.html` (message + `history.back()`).
 **PR-7b fixes (`profile-v2`):** `.sc-avatar` (`img.src = esc(url)` → `twSafeImageUrl`) · followers modal `.sc-fl-avatar` + `/u/{tw_id}` href (`esc()` did not escape `"` → `twEscAttr`) · employee cover render + post-upload update (`'url(' + esc(url) + ')'` → `twCssUrl`).
-**Known debt:** 8 local escaping functions on image paths — `messages.state.js → esc` · `profile-v2.utils.js → esc` · `company.main.js → _esc` ×3 · `company.jobs.js → _esc` · `company.render.js → _esc` + `_escapeHtml`; removed with DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-12).
+**External links — `twSafeLinkUrl(url)` in `tw_shared.js` (PR 1.1, rule 4b):** user-entered link in `href` only when `http://` / `https://` + host char, no whitespace / control char, ≤ 2048; else `''` → shown as plain text (no `<a>`). Consumers: `profile-v2.links.js` (`.sc-link-url`) · `profile-v2.courses.js` (`.sc-cert-link`) · `edu-profile.html` (`#aboutWeb` / `#aWeb`) · `static/home/home.cards.js` (news `source_url`) · `appointment-room.html` (`online_url`). Save forms (links / courses / edu edit) check with the same helper. **Server twin `_validate_external_url(url, field, label, required=False)` (`server.py`)**: strip → same rule → 422 via `ExternalUrlError` handler: `{ok:false, error, errors:[{field, code:"invalid_url", message}], detail:{status:"error", message, field}}`; empty optional → `None` (clears). Endpoints: `POST /links/{uid}` (`url`, required) · `POST /course/{uid}` · `PUT /course/{id}` (`certificate_url`) · `PUT /profile/{uid}` (`website`) · `POST/PUT /admin/news` (`source_url`). `online_url` keeps its stricter `https://`-only check in `auth.py` (appointments). Stored rows are not migrated — render-time check covers old data.
+**Known debt:** 7 local escaping functions on image paths — `messages.state.js → esc` · (`profile-v2.utils.js → esc` is now an alias of `twEscHtml`, PR 1.1) · `company.main.js → _esc` ×3 · `company.jobs.js → _esc` · `company.render.js → _esc` + `_escapeHtml`; removed with DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-12).
 
 - Inline `onclick` with non-numeric string interpolation replaced by `data-*` attribute + event delegation
 
@@ -6346,6 +6347,7 @@ Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages a
 ❌ ممنوع استخدام ${apiData} مباشرة داخل innerHTML — استخدم twEscHtml()
 ❌ ممنوع استخدام ${apiData} في attribute values بدون twEscAttr()
 ❌ ممنوع src="${url}" بدون /^(https?:\/\/|\/(?!\/))/.test(url) — يرفض // protocol-relative
+❌ ممنوع href من رابط أدخله المستخدم بدون twSafeLinkUrl() (التهريب وحده لا يمنع javascript:)
 ❌ ممنوع onclick="fn('${stringData}')" — استخدم data-* + event delegation
 ❌ GET /admin.html route — محذوف نهائياً
 ❌ ممنوع كتابة دالة escaping جديدة — twEscAttr هي التنفيذ الوحيد
