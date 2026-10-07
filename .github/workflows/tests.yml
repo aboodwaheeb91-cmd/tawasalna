@@ -1,0 +1,82 @@
+name: Tests
+
+# PR 6.4 — ONE test workflow: every PR to main + every push to main, no path filters.
+# Runs ./run_tests.sh (the same script used locally) — the lists of what runs and what is
+# EXCLUDED (live server / Playwright, with the reason) live in that script only.
+# Spec: docs/SYSTEMS_INDEX.md §54g · CLAUDE.md → Testing & CI.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: All tests (Python 3.11 + Node 20 + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Same credentials the integration tests already use (throwaway CI database)
+          POSTGRES_USER: tawasalna_test_user
+          POSTGRES_PASSWORD: test_pass_pr1
+          POSTGRES_DB: tawasalna_test_pipeline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tawasalna_test_user"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python (same as runtime.txt)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      # auth.get_conn always connects with SSL (like Supabase) — enable ssl on the
+      # service container with a throwaway self-signed certificate.
+      - name: Enable SSL on PostgreSQL
+        env:
+          PGPASSWORD: test_pass_pr1
+        run: |
+          CID="${{ job.services.postgres.id }}"
+          openssl req -new -x509 -days 1 -nodes -subj "/CN=localhost" \
+            -keyout /tmp/pg.key -out /tmp/pg.crt 2>/dev/null
+          docker cp /tmp/pg.crt "$CID":/var/lib/postgresql/server.crt
+          docker cp /tmp/pg.key "$CID":/var/lib/postgresql/server.key
+          docker exec -u root "$CID" sh -c \
+            'chown postgres:postgres /var/lib/postgresql/server.* && chmod 600 /var/lib/postgresql/server.key'
+          psql -h 127.0.0.1 -U tawasalna_test_user -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET ssl_cert_file = '/var/lib/postgresql/server.crt'" \
+            -c "ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key'" \
+            -c "ALTER SYSTEM SET ssl = on" \
+            -c "SELECT pg_reload_conf()"
+          sleep 1
+          test "$(psql -h 127.0.0.1 -U tawasalna_test_user -d postgres -tAc 'SHOW ssl')" = on
+
+      - name: Run all tests
+        run: ./run_tests.sh

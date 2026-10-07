@@ -36,6 +36,10 @@ from auth import (
     get_conn, release_conn,
     _migrate_pipeline_schema_v1,
     _migrate_partial_unique_application_id,
+    _migrate_notifications_schema_v2,
+    _migrate_notifications_schema_v2_1,
+    _migrate_pr5_pipeline_linking,
+    _migrate_applicants_candidates_split,
     _pipeline_upsert_entry,
     _pipeline_update_stage,
     pipeline_backfill_dry_run,
@@ -153,6 +157,13 @@ def _setup():
     finally:
         release_conn(conn)
     _migrate_pipeline_schema_v1()
+    # Later migrations the pipeline code now depends on (same order as
+    # server._startup_migrations): notifications v2 (type/aggregation columns) and
+    # PR-6 applicants/candidates split (promoted_at). PREREQ_SQL predates them.
+    _migrate_notifications_schema_v2()
+    _migrate_notifications_schema_v2_1()
+    _migrate_pr5_pipeline_linking()
+    _migrate_applicants_candidates_split()
 
 
 def _user(conn, user_type="emp"):

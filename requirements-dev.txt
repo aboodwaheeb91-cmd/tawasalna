@@ -1,0 +1,3 @@
+# Test-only dependencies (PR 6.4) — installed by CI (.github/workflows/tests.yml) and
+# locally before ./run_tests.sh. Production deps stay in requirements.txt.
+pytest==9.1.1

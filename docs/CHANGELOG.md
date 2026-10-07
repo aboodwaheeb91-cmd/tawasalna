@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 6.4 — CI شامل: `tests.yml` + `run_tests.sh` + `runtime.txt` — 2026-10-07
+
+- `.github/workflows/tests.yml` (جديد): كل PR لـ main + كل push لـ main، بدون فلترة مسارات — Python 3.11 + Node 20 + `postgres:16` (SSL) → `./run_tests.sh`. انحذفوا `vm01-bfcache.yml` · `vm10-session-visibility.yml` · `ws-security.yml` (مغطّاين كاملين: نفس الاختبارات + `node --check` لكل JS). `scheduler-cron.yml` باقي (مش اختبار).
+- `run_tests.sh` (جديد — SYSTEMS_INDEX §54g): القائمة الوحيدة (pytest / script / DB / Node / EXCLUDED بسبب) + حارس لأي ملف اختبار مش بقائمة + DB جديدة لكل اختبار DB. `requirements-dev.txt` (pytest) · `runtime.txt` = `python-3.11`.
+- اختبارات قديمة اتحدّثت (الكود صح): `test_post_comments.py` (ما كان عنده exit code — 35 فحص قديم مخفي: سجل migrations PR 2B، `twRequireAuth` PR 1.2، `twApi` PR 3A، بدون `alert` PR 3B، `_server_error` PR 1.6، حذف الحساب بكلمة سر، بلاغ بدون إشعار PR 1.5) · `test_security_admin_jwt.py` + `test_pipeline_backfill_http.py` (admin JWT PR 1.5، migrate-index PR6) · `test_talent_bank_quota.py` (first/last name، rate limiter، schema) · `test_job_archive_integration.py` + `test_pipeline_backfill_integration.py` (schema الإنتاج) · `test_ds_icon_registry.js` (`tw-overlay.js` مش صفحة) · `test_ds_image_runtime.js` + `docs/rules/ds-image.md` (`edu-profile.html` — PR 1.7).
+- `test_company_save.py` → `/u/{COMPANY_TW_ID}` + مستثنى (سيرفر حي + Playwright)؛ نسخة ثابتة جديدة `test_company_save_static.py` بالـ CI.
+- `ARCHITECTURE_FOUNDATION.md` F15: مثال الفشل = `{"ok": false, "error": {"code", "message", "field"?}}` (عقد #572). `CLAUDE.md`: قسم **Testing & CI** + قاعدة توفير الرصيد ثابتة.
+
 ## PR 3B — DS-OVL Runtime V1: `twConfirm` / `twAlert` / `twModal` (بند 3.3) — 2026-10-07
 
 - `static/shared/tw-overlay.js` (جديد — OVERLAY-SYSTEM.md OVL-39 · `docs/rules/ds-overlay.md`): `twConfirm` → `Promise<boolean>` · `twAlert` → `Promise` · `twModal` → `{close, setBusy, el}`. role=dialog + aria-modal + aria-labelledby · Escape (إلا وقت busy) · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock بالعدّ · backdrop بيسكّر غير الخطرة بس · danger → زر خطر + focus أول على «إلغاء». ألوان/أحجام/أيقونات من DS-COLOR / DS-SIZE / DS-ICON.
