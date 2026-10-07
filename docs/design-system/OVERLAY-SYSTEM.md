@@ -2,11 +2,11 @@
 
 > **الـ contract المعماري الرسمي للـ Overlays في منصة تواصلنا**
 >
-> V1 — توثيق فقط · لا يمس أي Runtime code.
+> V1 Contract (OVL-00 → OVL-38) + **Runtime V1 Foundation (OVL-39)**.
 > المرجع الرسمي للـ AI sessions والمطورين عند كل مهمة تخص الـ Overlays والـ Modals والـ Drawers والـ Sheets.
 >
-> **الـ Runtime الحالي:** غير مُنفَّذ بعد — هذا Contract مرجعي.
-> اقرأ OVL-36 (Runtime Direction) لمعرفة الاتجاه المخطط له.
+> **الـ Runtime الحالي (PR 3B):** `static/shared/tw-overlay.js` — `twConfirm` / `twAlert` / `twModal` (center · blocking). اقرأ **OVL-39** قبل أي نافذة أو تأكيد جديد. المرجع: `appointment-room.html`.
+> القوانين المختصرة: `docs/rules/ds-overlay.md`.
 
 ---
 
@@ -53,6 +53,7 @@
 | OVL-36 | Runtime Direction (Non-binding) |
 | OVL-37 | خارج النطاق — V1 |
 | OVL-38 | Pre-DS-OVL Implementation Inventory |
+| OVL-39 | Runtime V1 Foundation — `tw-overlay.js` (twConfirm / twAlert / twModal) |
 
 ---
 
@@ -76,7 +77,8 @@
 | Legacy overlay موجود يحتاج مراجعة | OVL-29 |
 | Forbidden patterns / ما لا يُفعل | OVL-34 |
 | من يملك ماذا؟ | OVL-30 |
-| الحالة الراهنة للـ Runtime | OVL-36 |
+| الحالة الراهنة للـ Runtime | OVL-36 → **OVL-39** |
+| تأكيد / تنبيه / نافذة بسيطة بصفحة (بدل alert / confirm / prompt) | **OVL-39** |
 
 **إذا المهمة تخص:**
 - Tooltip, Popover, Floating label → **STOP** — ليست DS-OVL → راجع OVL-37
@@ -1451,3 +1453,70 @@ Architecture Contract (هذا الملف) يصف capabilities/ownership/behavior
 - **close guard:** `_inFlight` flag + `++_editSession` يمنعان الإغلاق أثناء الحفظ (local implementation)
 - **guarded justification:** الإغلاق محمي — backdrop click لا يُغلق أثناء SUBMITTING (`_inFlight`); X + cancel يُعطَّلان (`disabled`+`aria-disabled`) أثناء SUBMITTING. **ملاحظة:** لا يوجد unsaved-change confirmation في V1 — أساس `_snapshot/_isDirty` موجود للاستخدام المستقبلي؛ close guard للـ dirty state ينتظر DS-OVL Runtime migration
 - **Migration Target:** عند تطبيق DS-OVL Runtime — يُرحَّل `#epOverlay` إلى `TwOverlay` API بنفس orthogonal attributes
+
+---
+
+## OVL-39 — Runtime V1 Foundation — `tw-overlay.js`
+
+> **أُضيف في PR 3B (بند 3.3) — 2026-10-07.** أول Runtime لـ DS-OVL. ملف واحد: `static/shared/tw-overlay.js` (CSS محقون بـ `<style id="tw-ovl-style">` — متل `tw-icons.js`). المرجع: `appointment-room.html`.
+
+### الـ API
+
+| الدالة | الإرجاع | الاستعمال |
+|-------|---------|----------|
+| `twConfirm({title, message, confirmText, cancelText, danger})` | `Promise<boolean>` — `true` بس بزر التأكيد | بدل `confirm()` |
+| `twAlert({title, message, okText})` | `Promise<void>` | بدل `alert()` لرسالة لازم تنقرا (رسالة نجاح/خطأ عادية → `showToast` — DS-FEEDBACK) |
+| `twModal({title, content: Element, actions, dismissible, onClose})` | `{close(reason), setBusy(bool), el}` | نافذة بمحتوى (form صغير، اختيار…) — بدل `prompt()` والمودالات اليدوية |
+
+`actions`: `[{text, variant: 'primary'|'danger'|'secondary', onClick(ctl)}]`. بدون `onClick` = زر إغلاق (`cancel`). `onClick` بيرجّع Promise → النافذة **busy** (الأزرار `disabled` + `aria-busy`، Escape والخلفية ما بيسكّروا) لحتى تخلص؛ نتيجة `false` أو rejection → بتضل مفتوحة؛ غير هيك بتسكّر (`action`). النصوص الافتراضية: «تأكيد» / «إلغاء» / «حسناً» / «تنبيه».
+
+### التصنيف (OVL-02)
+
+| الدالة | Modality | Presentation | Semantics | Close Policy |
+|-------|----------|-------------|-----------|-------------|
+| `twConfirm` | blocking | center | confirmation | `dismissible` · `danger:true` → `guarded` (الخلفية ما بتسكّر؛ Escape = إلغاء) |
+| `twAlert` | blocking | center | standard | dismissible |
+| `twModal` | blocking | center | standard | dismissible (افتراضي) · `dismissible:false` → بدون X ولا خلفية |
+
+### السلوك المُنفَّذ
+
+- **ARIA (OVL-26):** `role="dialog"` + `aria-modal="true"` + `aria-labelledby` → `<h2>` العنوان + `aria-describedby` → الرسالة. `alertdialog` مش مستعمل (OVL-27). `dir="rtl"`.
+- **Escape (OVL-11):** بيسكّر الطبقة العليا بس (`escape`) — ما بيشتغل وقت busy. listener واحد على `document` (capture) للنظام كلّه.
+- **Backdrop (OVL-20):** بيسكّر الطبقات `dismissible` بس — **`danger:true` ما بتتسكّر بالخلفية أبداً**.
+- **Initial focus (OVL-17 / OVL-27):** `danger` → «إلغاء» · تأكيد عادي → زر التأكيد · `twAlert` → «حسناً» · `twModal` → العنوان (`surface-heading`، `tabindex=-1`).
+- **Focus trap:** Tab / Shift-Tab بيلفّوا جوّا الطبقة العليا؛ أي focus بيطلع برّا بيرجع جوّا (`focusin`).
+- **Focus restore:** العنصر اللي كان عليه الـ focus وقت الفتح (إذا لسّا بالـ DOM وقابل) → الطبقة اللي تحت → `<main>` / `<h1>` (مش `document.body`).
+- **Background isolation (OVL-18):** كل أولاد `<body>` التانيين بياخدوا `inert` طول ما في طبقة — وبيضل طول الـ closing (160ms). طبقة تحت طبقة → التحتانية `inert`.
+- **Scroll lock (OVL-19):** على `<html>` (`overflow:hidden` + `padding-right` = عرض الـ scrollbar على `body`)؛ بينفك بس لما آخر طبقة تسكّر.
+- **Lifecycle (OVL-07):** `opening → open → closing → closed`؛ الإغلاق بـ timeout ثابت (ما في اعتماد على `animationend`). `prefers-reduced-motion` → بدون حركة.
+- **Tokens:** ألوان DS-COLOR فقط (`--color-surface-card-solid` · `--color-border-*` · `--color-text-*` · `--color-brand-primary` · `--color-status-danger` / `-info` · الخلفية = `--color-surface-page` بشفافية .8) · أحجام DS-SIZE فقط (`--space-*` · `--radius-*` · `--size-font-*` · `--size-control-*`) · أيقونات DS-ICON (`alert` للخطر · `info` للتنبيه · `close` لزر X) عبر `twIconEl` إذا `tw-icons.js` محمّل (بدونه: بدون أيقونة، و X = نص).
+- **الحجم (OVL-25):** preset `compact` بس بـ V1 = `max-width: 420px` (ما في token عرض بـ DS-SIZE — الرقم الوحيد بالملف) + `max-height: 100dvh − هوامش` وscroll داخلي للمحتوى الطويل؛ الأزرار فوق `safe-area-inset-bottom`.
+- **z-index:** 9000 — placeholder للـ band (OVL-14) لحين Global Layer Tokens: تحت dropdown الـ `tw-select` (9500) وتحت الـ toast (9999).
+
+### التحميل (DS-SHELL)
+
+أصل صفحة — **مش بالـ shell**: `PAGE_ASSETS` بـ `page_shell.py` + بالصفحة بعد `<!--tw:shell-scripts-->` (وبعد `tw-icons.js` إذا موجود):
+```html
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+```
+
+### مش بـ V1 Foundation (مؤجل — Contract باقي)
+
+Presentation `side` / `bottom` / `fullscreen` · Responsive presets (OVL-22) · DS-NAV back registration (OVL-16) · DS-SEL Layer Context (OVL-15) · Close Guard عام (OVL-12) · Identity / duplicate (OVL-10) · `alertdialog`. ترحيل `scConfirm` (OVL-29 أولوية 1) والمودالات اليدوية = PRs لاحقة، صفحة صفحة.
+
+### قيد الانتقال (OVL-29)
+
+لا تفتح `twConfirm` / `twModal` فوق مودال يدوي مفتوح (مثلاً `#reasonModal` بـ appointment-room) ولا العكس.
+
+### الممنوعات
+
+```
+❌ alert() / confirm() / prompt() بأي صفحة بتنلمس من هلق (التقرير: node test_ds_overlay_runtime.js → REPORT)
+❌ مودال / تأكيد جديد مكتوب يدوي بصفحة — twModal / twConfirm
+❌ Escape / focus trap / scroll lock محلي لنافذة جديدة
+❌ tw-overlay.js بالـ Page Shell (أصل صفحة عبر PAGE_ASSETS)
+❌ لون hex / rgba أو حجم px جديد جوّا tw-overlay.js — tokens بس (غير عرض الـ compact)
+❌ نسخة تانية من twConfirm بصفحة
+```
+
+Test: `node test_ds_overlay_runtime.js`.

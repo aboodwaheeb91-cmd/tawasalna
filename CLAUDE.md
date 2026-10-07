@@ -319,6 +319,7 @@ These rules are permanent and apply to all future AI sessions.
 ❌ A formatter function repeated across two modules
 ❌ Hardcoded data (company types, sizes, year ranges) outside tw-options-data.js
 ❌ A temporary/quick fix when a shared architectural solution exists
+❌ alert() / confirm() / prompt() or a hand-written modal in any page touched from now on — DS-OVL `static/shared/tw-overlay.js` (twAlert / twConfirm / twModal · docs/rules/ds-overlay.md)
 ```
 
 ### The Golden Rule
@@ -455,6 +456,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Size System V1 (DS-SIZE) Rules | `docs/rules/ds-size.md` |
 | Icon System V1 (DS-ICON) Rules | `docs/rules/ds-icon.md` |
 | Image Display System V1 (DS-IMAGE) Rules — أفاتار / لوغو / رابط صورة | `docs/rules/ds-image.md` |
+| Overlay System (DS-OVL) Runtime V1 — `twConfirm` / `twAlert` / `twModal` · ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس | `docs/rules/ds-overlay.md` |
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |

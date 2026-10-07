@@ -11,6 +11,12 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3B — DS-OVL Runtime V1: `twConfirm` / `twAlert` / `twModal` (بند 3.3) — 2026-10-07
+
+- `static/shared/tw-overlay.js` (جديد — OVERLAY-SYSTEM.md OVL-39 · `docs/rules/ds-overlay.md`): `twConfirm` → `Promise<boolean>` · `twAlert` → `Promise` · `twModal` → `{close, setBusy, el}`. role=dialog + aria-modal + aria-labelledby · Escape (إلا وقت busy) · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock بالعدّ · backdrop بيسكّر غير الخطرة بس · danger → زر خطر + focus أول على «إلغاء». ألوان/أحجام/أيقونات من DS-COLOR / DS-SIZE / DS-ICON.
+- `page_shell.py`: `PAGE_ASSETS` += `tw-overlay.js`. `appointment-room.html`: 3 × `confirm()` → `twConfirm` (إغلاق الغرفة نهائياً = `danger:true`).
+- قاعدة: ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس من هلق. `test_ds_overlay_runtime.js` (جديد — فيه تقرير عدّ للباقي، مش فشل). `test_appointments_guard_runtime.js` C14 اتحدّث (كان بيتأكد إن الـ 3 confirm باقيين).
+
 ## PR 2B — منطق المواعيد + مراحل التوظيف + migrations + تعديل الأدمن + بوابة المرحلة 2 — 2026-10-07
 
 - Migrations (SYSTEMS_INDEX §54f · CLAUDE.md → Startup Migration Policy): `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح — كان دايماً بيفشل بصمت) → `_migrate_user_unique_indexes()`: حذف المكرر (بيضل الأقدم) + `CREATE UNIQUE INDEX IF NOT EXISTS` على `user_skills/user_langs/user_links`. `on_startup` → سجل `_startup_migrations()` (حرجة / اختيارية) + `/health.migrations`. `init_db` صارت حرجة (كانت بتبلع خطأها). `_migrate_job_lifecycle`: انشال `except: pass`.
