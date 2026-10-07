@@ -10,6 +10,7 @@ import base64, os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 os.environ.setdefault("JWT_SECRET", "test-secret-pr7c-" + "x" * 32)
 os.environ.setdefault("ADMIN_TOKEN", "a" * 40)
+os.environ.setdefault("ADMIN_JWT_SECRET", "test-admin-jwt-pr7c-" + "s" * 32)
 
 import httpx
 import pytest
@@ -18,7 +19,9 @@ from fastapi.testclient import TestClient
 import server
 
 client = TestClient(server.app)
-ADMIN = {"X-Admin-Token": os.environ["ADMIN_TOKEN"]}
+if not server._admin_jwt_secret_ok():   # server imported earlier by another test file
+    server.ADMIN_JWT_SECRET = os.environ["ADMIN_JWT_SECRET"]
+ADMIN = {"X-Admin-Token": server._admin_jwt_issue()}   # PR 1.5: admin session JWT, not the raw ADMIN_TOKEN
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 DATA_PNG = "data:image/png;base64," + base64.b64encode(PNG).decode()
 DATA_SVG = "data:image/svg+xml;base64," + base64.b64encode(b"<svg/>").decode()
@@ -57,8 +60,9 @@ def _kyc_row(monkeypatch, row):
 
 def test_docs_requires_admin(monkeypatch):
     _kyc_row(monkeypatch, {"user_id": 5, "id_front_url": None, "selfie_url": None})
-    assert client.get("/admin/kyc/1/docs").status_code == 403
-    assert client.get("/admin/kyc/1/docs", headers={"X-Admin-Token": "b" * 40}).status_code == 403
+    assert client.get("/admin/kyc/1/docs").status_code == 401
+    assert client.get("/admin/kyc/1/docs", headers={"X-Admin-Token": "b" * 40}).status_code == 401
+    assert client.get("/admin/kyc/1/docs", headers={"X-Admin-Token": "a" * 40}).status_code == 401
 
 
 def test_docs_signed_for_own_paths_only_no_store_no_log(monkeypatch, capsys):
@@ -143,7 +147,7 @@ def _mig(monkeypatch, db, dry):
 
 
 def test_migrate_requires_admin():
-    assert client.post("/admin/maintenance/migrate-data-images").status_code == 403
+    assert client.post("/admin/maintenance/migrate-data-images").status_code == 401
 
 
 def test_dry_run_default_writes_nothing(monkeypatch):

@@ -41,6 +41,10 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 
 ### Admin Authentication
 - All secrets are environment variables — no hardcoded values in source
-- `ADMIN_TOKEN` (Railway Variable): random 32+ byte hex used as both login password and API header value
-- All admin API endpoints require the header: `X-Admin-Token: <ADMIN_TOKEN>`
+- `ADMIN_TOKEN` (Railway Variable): random 32+ byte hex — the admin **login password only** (PR 1.5)
+- `ADMIN_JWT_SECRET` (Railway Variable): random 32+ byte hex, different from `JWT_SECRET` and `ADMIN_TOKEN` — signs admin session JWTs. Missing → admin login + admin endpoints return 503 (never falls back to `JWT_SECRET`)
+- `POST /tw-ctrl-login` returns an admin JWT (`role=admin`, `sub=owner`, `perms=["*"]`, 1h) — never the raw `ADMIN_TOKEN`
+- All admin API endpoints require the header: `X-Admin-Token: <admin JWT>`; `check_admin` accepts ONLY that JWT (raw `ADMIN_TOKEN` / user JWT / expired → 401)
+- Admin pages hold the token only via `static/shared/admin-session.js` (`TwAdminSession`); 401/403 or expiry → login screen with a clear message
 - Admin panel URL: `/tw-ctrl-{ADMIN_URL_TOKEN}` — ADMIN_URL_TOKEN is an environment variable
+- Spec: `ARCHITECTURE.md §57 → Token Authentication` · SYSTEMS_INDEX §25

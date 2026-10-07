@@ -327,13 +327,15 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/admin-session.js"></script>
 <script>
 'use strict';
 
 // ── State ──
 const _urlParams = new URLSearchParams(window.location.search);
 const _userId = _urlParams.get('id');
-const _adminToken = sessionStorage.getItem('tw_adm_token') || '';
+// Admin session = short-lived admin JWT held by TwAdminSession (static/shared/admin-session.js).
+const _adminToken = TwAdminSession.hasLiveToken() ? TwAdminSession.getToken() : '';
 let _profile = null;
 
 // The admin panel URL is a secret slug served only by the server — never hard-code it here.
@@ -347,13 +349,15 @@ function _adminStop(msg){
 const _adminBlocked = !_adminToken || !_userId;
 
 // ── Admin headers ──
-function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
+function adminHeaders(){ return TwAdminSession.headers(); }
+// Session over (401/403 or the 1h exp) → stop with a clear message; the admin re-logs in from the panel tab.
+TwAdminSession.onExpired(function(msg){ _adminStop(msg + ' ارجع للوحة الإدارة.'); });
 
 // ── Load Profile ──
 async function loadProfile(){
   try{
-    const r = await fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
-    if(r.status===403){ _adminStop('انتهت جلسة الإدارة — افتح لوحة الإدارة وسجّل الدخول من جديد.'); return; }
+    const r = await TwAdminSession.fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
+    if(r.status===401||r.status===403) return;   // TwAdminSession.onExpired already showed the message
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
     _profile = data.profile || data;
@@ -362,7 +366,7 @@ async function loadProfile(){
     // Try to get server error message
     let errMsg = e.message;
     try {
-      const errR = await fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
+      const errR = await TwAdminSession.fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
       const errData = await errR.json();
       errMsg = errData.detail || errData.error || e.message;
     } catch(e2) {}
@@ -519,7 +523,7 @@ async function saveType(){
   const newType = document.getElementById('typeSelector').value;
   if(newType === _profile?.user_type){ toast('النوع لم يتغير'); return; }
   try{
-    const r = await fetch('/admin/user/'+_userId+'/type', {
+    const r = await TwAdminSession.fetch('/admin/user/'+_userId+'/type', {
       method:'PUT', headers: adminHeaders(),
       body: JSON.stringify({user_type: newType})
     });
@@ -536,7 +540,7 @@ initScrollProg();
 async function toggleVerify(){
   const newStatus = !_profile?.is_verified;
   try{
-    const r = await fetch('/admin/user/'+_userId+'/verify', {
+    const r = await TwAdminSession.fetch('/admin/user/'+_userId+'/verify', {
       method:'PUT', headers: adminHeaders(),
       body: JSON.stringify({is_verified: newStatus})
     });
@@ -567,7 +571,7 @@ async function saveResetPassword(){
   const pw = document.getElementById('m-pw')?.value;
   if(!pw||pw.length<6){ toast('كلمة المرور يجب 6 أحرف على الأقل','e'); return; }
   try{
-    const r = await fetch('/admin/user/'+_userId+'/password', {
+    const r = await TwAdminSession.fetch('/admin/user/'+_userId+'/password', {
       method:'PUT', headers: adminHeaders(),
       body: JSON.stringify({password: pw})
     });
@@ -606,7 +610,7 @@ async function sendMsg(){
   const sub = document.getElementById('m-sub')?.value;
   if(!msg){ toast('أدخل الرسالة','e'); return; }
   try{
-    const r = await fetch('/admin/message', {
+    const r = await TwAdminSession.fetch('/admin/message', {
       method:'POST', headers: adminHeaders(),
       body: JSON.stringify({user_id: parseInt(_userId), subject: sub, message: msg})
     });
@@ -631,7 +635,7 @@ function confirmDelete(){
 
 async function deleteUser(){
   try{
-    const r = await fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
+    const r = await TwAdminSession.fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     toast('تم حذف الحساب ✓');
     setTimeout(goBack, 1500);
@@ -644,7 +648,7 @@ async function deleteUser(){
 async function deleteExp(id){
   if(!confirm('حذف هذه الخبرة؟')) return;
   try{
-    await fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
+    await TwAdminSession.fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
 initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
@@ -653,7 +657,7 @@ initScrollProg(); toast('تم الحذف ✓');
 async function deleteEdu(id){
   if(!confirm('حذف هذه الشهادة؟')) return;
   try{
-    await fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
+    await TwAdminSession.fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
 initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
@@ -662,7 +666,7 @@ initScrollProg(); toast('تم الحذف ✓');
 async function deleteCourse(id){
   if(!confirm('حذف هذه الدورة؟')) return;
   try{
-    await fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
+    await TwAdminSession.fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
 initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
@@ -775,7 +779,7 @@ function showQuickActions(){
 async function adminVerifyUser(){
   if(!_userId||!confirm('توثيق هذا الحساب؟')) return;
   try{
-    const r=await fetch('/admin/user/'+_userId+'/verify',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({verified:true})});
+    const r=await TwAdminSession.fetch('/admin/user/'+_userId+'/verify',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({verified:true})});
     if(!r.ok) throw new Error();
     showToast('تم توثيق الحساب ✅');
     loadProfile();
@@ -786,7 +790,7 @@ async function adminSendMsg(){
   var msg=prompt('نص الرسالة:','');
   if(!msg||!_userId) return;
   try{
-    const r=await fetch('/admin/message',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(_userId),subject:'رسالة من الأدمن',message:msg})});
+    const r=await TwAdminSession.fetch('/admin/message',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(_userId),subject:'رسالة من الأدمن',message:msg})});
     if(!r.ok) throw new Error();
     showToast('تم إرسال الرسالة ✅');
   }catch(e){showToast('خطأ في الإرسال','error');}
@@ -797,7 +801,7 @@ async function adminResetPass(){
   if(!newPass||newPass.length<6){showToast('كلمة مرور قصيرة','error');return;}
   if(!_userId) return;
   try{
-    const r=await fetch('/admin/user/'+_userId+'/password',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
+    const r=await TwAdminSession.fetch('/admin/user/'+_userId+'/password',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
     if(!r.ok) throw new Error();
     showToast('تم تغيير كلمة المرور ✅');
   }catch(e){showToast('خطأ','error');}
@@ -806,7 +810,7 @@ async function adminResetPass(){
 async function adminDeleteUser(){
   if(!_userId||!confirm('حذف هذا المستخدم نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!')) return;
   try{
-    const r=await fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
+    const r=await TwAdminSession.fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
     if(!r.ok) throw new Error();
     showToast('تم حذف المستخدم');
     setTimeout(goBack,1500);

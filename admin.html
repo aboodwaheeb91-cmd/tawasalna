@@ -131,6 +131,7 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <div class="lf"><label>كلمة المرور</label><input id="admin-pass" type="password" placeholder="••••••••"></div>
     <button class="login-btn" onclick="adminLogin()">دخول</button>
     <div class="login-err" id="login-err">كلمة المرور غلط</div>
+    <div class="login-err" id="login-expired"></div>
   </div>
 </div>
 
@@ -323,11 +324,12 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/admin-session.js"></script>
 <script>
 'use strict';
 
 // ── State ──
-let _adminToken = '';
+// Admin session = short-lived admin JWT, held only by TwAdminSession (static/shared/admin-session.js).
 let _allUsers=[], _allVerify=[], _allJobs=[], _allKYC=[], _msgUserId=null;
 const PAG_SIZE = 20;
 let _usersPage=1, _jobsPage=1;
@@ -346,23 +348,34 @@ async function adminLogin(){
     });
     const data = await r.json();
     if(r.ok && data.token){
-      _adminToken = data.token;
-      sessionStorage.setItem('tw_adm_token', _adminToken);
+      TwAdminSession.setToken(data.token);
+      document.getElementById('login-expired').style.display='none';
+      document.getElementById('admin-pass').value='';
       showMain();
     } else { showLoginErr(); }
   } catch(e){ showLoginErr(); }
   btn.textContent = 'دخول'; btn.disabled = false;
 }
 
-function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
+function adminHeaders(){ return TwAdminSession.headers(); }
 function showLoginErr(){ const e=document.getElementById('login-err'); e.style.display='block'; setTimeout(()=>e.style.display='none',3000); }
-function adminLogout(){ sessionStorage.removeItem('tw_adm_token'); location.reload(); }
+function adminLogout(){ TwAdminSession.clear(); location.reload(); }
 
+// Session over (401/403 from any admin call, or the 1h exp reached) → back to the login screen with a clear message.
+function showAdminLogin(msg){
+  document.getElementById('mainWrap').style.display='none';
+  document.getElementById('loginWrap').style.display='';
+  const e=document.getElementById('login-expired');
+  if(msg){ e.textContent=msg; e.style.display='block'; }
+}
+TwAdminSession.onExpired(showAdminLogin);
+
+let _clockTimer=null;
 function showMain(){
   document.getElementById('loginWrap').style.display='none';
   document.getElementById('mainWrap').style.display='flex';
   loadAll();
-  setInterval(()=>{document.getElementById('navTime').textContent=new Date().toLocaleTimeString('ar');},1000);
+  if(!_clockTimer) _clockTimer=setInterval(()=>{document.getElementById('navTime').textContent=new Date().toLocaleTimeString('ar');},1000);
 }
 
 // ── Logo ──
@@ -381,7 +394,7 @@ async function uploadLogo(btn){
   if(!_logob64){showToast('اختر صورة أولاً','error');return;}
   setBtnLoad(btn,true);
   try{
-    const r=await fetch('/admin/logo',{method:'POST',
+    const r=await TwAdminSession.fetch('/admin/logo',{method:'POST',
       headers:{...adminHeaders()},
       body:JSON.stringify({filename:'logo_wide',data_url:_logob64})
     });
@@ -438,7 +451,7 @@ async function loadAll(){
 function loadAdminStats(){
   Promise.all([
     fetch('/jobs').then(r=>r.ok?r.json():{jobs:[]}).catch(()=>({jobs:[]})),
-    fetch('/admin/kyc',{headers:adminHeaders()}).then(r=>r.ok?r.json():{submissions:[]}).catch(()=>({submissions:[]}))
+    TwAdminSession.fetch('/admin/kyc',{headers:adminHeaders()}).then(r=>r.ok?r.json():{submissions:[]}).catch(()=>({submissions:[]}))
   ]).then(([jobsData,kycData])=>{
     _allJobs=jobsData.jobs||[];
     _allKYC=kycData.submissions||[];
@@ -451,7 +464,7 @@ function loadAdminStats(){
 
 // ── Users ──
 async function loadUsers(){
-  const r=await fetch('/auth/users',{headers:adminHeaders()});
+  const r=await TwAdminSession.fetch('/auth/users',{headers:adminHeaders()});
   if(r.status===403){showSessionExpired();return;}
   if(!r.ok) throw new Error('HTTP '+r.status);
   const data=await r.json();
@@ -505,7 +518,7 @@ function openUserDetail(id){ window.location.href='admin-view.html?id='+id; }
 
 // ── Verify Requests ──
 async function loadVerify(){
-  const r=await fetch('/admin/verify-requests',{headers:adminHeaders()});
+  const r=await TwAdminSession.fetch('/admin/verify-requests',{headers:adminHeaders()});
   if(!r.ok) throw new Error('HTTP '+r.status);
   const data=await r.json();
   _allVerify=data.requests||[];
@@ -547,7 +560,7 @@ function renderVerify(list){
 // ── Jobs ──
 async function loadJobs(){
   try{
-    const r=await fetch('/admin/jobs',{headers:adminHeaders()});
+    const r=await TwAdminSession.fetch('/admin/jobs',{headers:adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
     _allJobs=data.jobs||[];
@@ -575,7 +588,7 @@ function renderJobs(list){
 // ── KYC ──
 async function loadKYC(){
   try{
-    const r=await fetch('/admin/kyc',{headers:adminHeaders()});
+    const r=await TwAdminSession.fetch('/admin/kyc',{headers:adminHeaders()});
     if(!r.ok) throw new Error();
     const data=await r.json();
     _allKYC=data.submissions||[];
@@ -602,7 +615,7 @@ function renderKYC(list){
 // ── Reports ──
 async function loadReports(){
   try{
-    const r=await fetch('/admin/reports',{headers:adminHeaders()});
+    const r=await TwAdminSession.fetch('/admin/reports',{headers:adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
     const tb=document.getElementById('reportsTable');
@@ -643,7 +656,7 @@ async function loadReports(){
 
 async function resolveReport(id){
   try{
-    await fetch('/admin/reports/'+id+'/resolve',{method:'PUT',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/reports/'+id+'/resolve',{method:'PUT',headers:adminHeaders()});
     showToast('تم حل البلاغ ✅');
     loadReports();
   }catch(e){showToast('خطأ','error');}
@@ -652,7 +665,7 @@ async function resolveReport(id){
 async function deleteReportedUser(userId){
   if(!confirm('حذف هذا المستخدم نهائياً؟')) return;
   try{
-    await fetch('/admin/user/'+userId,{method:'DELETE',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/user/'+userId,{method:'DELETE',headers:adminHeaders()});
     showToast('تم حذف المستخدم');
     loadReports();
   }catch(e){showToast('خطأ','error');}
@@ -661,7 +674,7 @@ async function deleteReportedUser(userId){
 // ── Errors ──
 async function loadErrors(){
   try{
-    const r=await fetch('/admin/errors',{headers:adminHeaders()});
+    const r=await TwAdminSession.fetch('/admin/errors',{headers:adminHeaders()});
     const data=await r.json();
     const tb=document.getElementById('errorsTable');
     if(!data.errors||!data.errors.length){
@@ -682,7 +695,7 @@ async function loadErrors(){
 async function verifyUser(id){
   if(!confirm('توثيق هذا الحساب؟')) return;
   try{
-    await fetch('/admin/user/'+id+'/verify',{method:'PUT',headers:adminHeaders(),body:JSON.stringify({verified:true})});
+    await TwAdminSession.fetch('/admin/user/'+id+'/verify',{method:'PUT',headers:adminHeaders(),body:JSON.stringify({verified:true})});
     showToast('تم التوثيق ✅');
     loadUsers();
   }catch(e){showToast('خطأ','error');}
@@ -691,7 +704,7 @@ async function verifyUser(id){
 async function deleteUser(id){
   if(!confirm('حذف هذا المستخدم نهائياً؟')) return;
   try{
-    await fetch('/admin/user/'+id,{method:'DELETE',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/user/'+id,{method:'DELETE',headers:adminHeaders()});
     showToast('تم الحذف');
     loadUsers();
   }catch(e){showToast('خطأ','error');}
@@ -700,7 +713,7 @@ async function deleteUser(id){
 async function deleteJob(id){
   if(!confirm('حذف هذه الوظيفة؟')) return;
   try{
-    await fetch('/admin/jobs/'+id,{method:'DELETE',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/jobs/'+id,{method:'DELETE',headers:adminHeaders()});
     showToast('تم الحذف');
     loadJobs();
   }catch(e){showToast('خطأ','error');}
@@ -708,7 +721,7 @@ async function deleteJob(id){
 
 async function approveVerify(id){
   try{
-    await fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'approved'})});
+    await TwAdminSession.fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'approved'})});
     showToast('تمت الموافقة ✅');
     loadVerify();
   }catch(e){showToast('خطأ','error');}
@@ -716,7 +729,7 @@ async function approveVerify(id){
 
 async function rejectVerify(id){
   try{
-    await fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'rejected'})});
+    await TwAdminSession.fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'rejected'})});
     showToast('تم الرفض');
     loadVerify();
   }catch(e){showToast('خطأ','error');}
@@ -724,7 +737,7 @@ async function rejectVerify(id){
 
 async function approveKYC(userId){
   try{
-    await fetch('/admin/kyc/'+userId+'/approve',{method:'PUT',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/kyc/'+userId+'/approve',{method:'PUT',headers:adminHeaders()});
     showToast('تمت الموافقة على KYC ✅');
     loadKYC();
   }catch(e){showToast('خطأ','error');}
@@ -732,7 +745,7 @@ async function approveKYC(userId){
 
 async function rejectKYC(userId){
   try{
-    await fetch('/admin/kyc/'+userId+'/reject',{method:'PUT',headers:adminHeaders()});
+    await TwAdminSession.fetch('/admin/kyc/'+userId+'/reject',{method:'PUT',headers:adminHeaders()});
     showToast('تم رفض KYC');
     loadKYC();
   }catch(e){showToast('خطأ','error');}
@@ -756,7 +769,7 @@ async function openKYCDocs(subId,userId){
   document.getElementById('kycDocsReject').onclick=function(){closeKYCDocs();rejectKYC(userId);};
   document.getElementById('kycDocsModal').style.display='flex';
   try{
-    var r=await fetch('/admin/kyc/'+Number(subId)+'/docs',{headers:adminHeaders(),cache:'no-store'});
+    var r=await TwAdminSession.fetch('/admin/kyc/'+Number(subId)+'/docs',{headers:adminHeaders(),cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     var d=await r.json();
     var prefix=(d.storage_base||'')+'/storage/v1/object/sign/kyc-docs/';
@@ -789,7 +802,7 @@ function _renderMigReport(d){
 async function _callMigrate(dry,btn){
   if(btn) btn.disabled=true;
   try{
-    var r=await fetch('/admin/maintenance/migrate-data-images?dry_run='+(dry?1:0),{method:'POST',headers:adminHeaders()});
+    var r=await TwAdminSession.fetch('/admin/maintenance/migrate-data-images?dry_run='+(dry?1:0),{method:'POST',headers:adminHeaders()});
     var d=await r.json().catch(function(){return {};});
     if(!r.ok) throw new Error((typeof d.error==='string'&&d.error)||'HTTP '+r.status);
     _renderMigReport(d);
@@ -808,7 +821,7 @@ async function sendMsg(){
   var body=document.getElementById('msgBody').value.trim();
   if(!body||!_msgUserId){showToast('اكتب رسالة أولاً','error');return;}
   try{
-    await fetch('/admin/message',{method:'POST',headers:adminHeaders(),body:JSON.stringify({user_id:_msgUserId,subject:'رسالة من الإدارة',message:body})});
+    await TwAdminSession.fetch('/admin/message',{method:'POST',headers:adminHeaders(),body:JSON.stringify({user_id:_msgUserId,subject:'رسالة من الإدارة',message:body})});
     showToast('تم الإرسال ✅');
     closeMsgModal();
   }catch(e){showToast('خطأ','error');}
@@ -843,10 +856,7 @@ function adminToast(msg,type){
   t._t=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-function showSessionExpired(){
-  showToast('انتهت الجلسة - يرجى تسجيل الدخول مجدداً','error');
-  setTimeout(()=>adminLogout(),2000);
-}
+function showSessionExpired(){ showAdminLogin(TwAdminSession.EXPIRED_MSG); }
 
 // ── Pagination ──
 function paginate(list,page){ return list.slice((page-1)*PAG_SIZE, page*PAG_SIZE); }
@@ -865,16 +875,13 @@ function goUsersPage(p){_usersPage=p;filterUsers();}
 
 // ── Init ──
 (async function(){
-  const saved=sessionStorage.getItem('tw_adm_token');
-  if(saved){
-    _adminToken=saved;
+  if(TwAdminSession.hasLiveToken()){
     try{
-      const r=await fetch('/auth/users',{headers:adminHeaders()});
+      const r=await TwAdminSession.fetch('/auth/users');
       if(r.ok){showMain();return;}
     }catch(e){}
-    _adminToken='';
-    sessionStorage.removeItem('tw_adm_token');
   }
+  TwAdminSession.clear();
 })();
 
 document.getElementById('admin-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('admin-pass').focus();});

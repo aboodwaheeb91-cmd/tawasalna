@@ -929,12 +929,43 @@ def check_user_password(user_id: int, password: str) -> Optional[bool]:
         release_conn(conn)
 
 
-def set_user_password(user_id: int, new_password: str) -> None:
-    """Store a new bcrypt hash — caller has already verified the current password."""
+def set_user_password(user_id: int, new_password: str) -> int:
+    """Store a new bcrypt hash + stamp users.password_changed_at (Session Invalidation —
+    PR 1.8). Caller has already verified the current password (or is the admin).
+    Returns the stamp as epoch seconds — taken from the app clock, the same clock that
+    sets JWT iat, so a token issued right after is never older than the stamp."""
+    import time
+    changed = int(time.time())
     conn = get_conn()
     try:
-        conn.run("UPDATE users SET password_hash = :pw WHERE id = :uid",
-                 pw=hash_password(new_password), uid=user_id)
+        conn.run("UPDATE users SET password_hash = :pw, password_changed_at = to_timestamp(:ts) "
+                 "WHERE id = :uid",
+                 pw=hash_password(new_password), ts=changed, uid=user_id)
+    finally:
+        release_conn(conn)
+    return changed
+
+
+def get_password_changed_epoch(user_id: int) -> Optional[int]:
+    """users.password_changed_at as epoch seconds; None = never changed / no such user.
+    Read only through server._password_changed_epoch (cached) — never per request."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at) FROM users WHERE id = :uid",
+                        uid=user_id)
+        if not rows or rows[0][0] is None:
+            return None
+        return int(rows[0][0])
+    finally:
+        release_conn(conn)
+
+
+def _migrate_password_changed_at():
+    """PR 1.8 — idempotent: nullable column, no backfill (NULL = no change since the
+    feature shipped → existing sessions stay valid)."""
+    conn = get_conn()
+    try:
+        conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ")
     finally:
         release_conn(conn)
 

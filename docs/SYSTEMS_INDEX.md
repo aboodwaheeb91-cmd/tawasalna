@@ -32,7 +32,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 1a. Account Security Operations — Password Change / Account Delete (PR 1.2)
 **Purpose:** Signed-in account operations from `/settings` that must really happen before the UI says «تم».
 **Source of Truth:** `PUT /auth/password` + `DELETE /auth/user/{id}/delete` in `server.py` · password rule `_password_policy_error()` (`server.py` — the ONE rule, shared with `POST /auth/register`) · DB helpers `check_user_password()` / `set_user_password()` (`auth.py`, bcrypt) · field errors `AccountFieldError` → 422 `{ok:false, error, errors:[{field, code, message}], detail:{status, message, field}}`
-**Contract:** `PUT /auth/password` — JWT required (401) · body `{current_password, new_password}` · current checked with bcrypt → `current_password/wrong_password` · new through `_password_policy_error` → `new_password/weak_password` · new == current → `new_password/same_password` · success `{ok:true}` · in `rate_limit_middleware`. `DELETE /auth/user/{id}/delete` — JWT owner (403 otherwise) + body `{password}` (bcrypt) → `password/wrong_password`; DB error → fixed Arabic message (never `str(e)`); rate limited. Hard delete — FK audit: `ARCHITECTURE.md → Account Security Operations`. **UI hidden («حذف الحساب — قريباً») until soft delete (F27) — decision 2026-10-07.**
+**Contract:** `PUT /auth/password` — JWT required (401) · body `{current_password, new_password}` · current checked with bcrypt → `current_password/wrong_password` · new through `_password_policy_error` → `new_password/weak_password` · new == current → `new_password/same_password` · success `{ok:true, token}` (fresh JWT — older sessions are invalidated, §2a) · in `rate_limit_middleware`. `DELETE /auth/user/{id}/delete` — JWT owner (403 otherwise) + body `{password}` (bcrypt) → `password/wrong_password`; DB error → fixed Arabic message (never `str(e)`); rate limited. Hard delete — FK audit: `ARCHITECTURE.md → Account Security Operations`. **UI hidden («حذف الحساب — قريباً») until soft delete (F27) — decision 2026-10-07.**
 **Frontend:** `settings.html` — `twRequireAuth()` + `auth-sync.js`; name / email / phone / type / tw_id from `GET /profile/{uid}/full` (never `tw_user` / `tw_profile_data`); every save via `getAuthHeaders(true)`; success toast only on `r.ok`; network error → error. Email change hidden («تغيير البريد الإلكتروني — قريباً») until FUTURE_ROADMAP 5.1.
 **Details:** `ARCHITECTURE.md → Account Security Operations (PR 1.2)` · test `test_account_security.py`
 **Do not recreate:** ❌ a second password-length rule (register and change share `_password_policy_error`) · ❌ checking a password by calling `/auth/login` from the client · ❌ success toast in `.finally()` / `.catch()` · ❌ clearing `localStorage` by hand after a server operation — `TwAuthSync.invalidateSession` / `twLogout` · ❌ `str(e)` in an account-operation error response.
@@ -43,7 +43,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Issue and validate signed JWT tokens for all API calls; payload carries `user_id`, `user_type`, `country_code`.
 **Source of Truth:** JWT generation in `server.py` (`_jwt_encode`/`_jwt_decode`); algorithm HS256; secret from `JWT_SECRET` env var (independent of `ADMIN_TOKEN`); token stored in `localStorage.tw_jwt`
 **Details:** `ARCHITECTURE.md §46` · `ARCHITECTURE.md §57`
-**Do not recreate:** Do not pass `user_id` in request body — always extract from `token.get("user_id")` server-side. Do not use `X-User-Id` header — Bearer token only. Do not use `ADMIN_TOKEN` as `JWT_SECRET`. Do not hardcode `JWT_SECRET`.
+**Do not recreate:** Do not pass `user_id` in request body — always extract from `token.get("user_id")` server-side. Do not use `X-User-Id` header — Bearer token only. Do not use `ADMIN_TOKEN` as `JWT_SECRET`. Do not hardcode `JWT_SECRET`. One HS256 implementation: `_jwt_sign` / `_jwt_verify` (shared with admin JWTs, different secret) — no second JWT encoder.
+
+---
+
+### 2a. Session Invalidation after Password Change (PR 1.8)
+**Purpose:** A password change ends every other session at once — a stolen JWT stops working the moment the owner changes the password.
+**Source of Truth:** `users.password_changed_at` (TIMESTAMPTZ NULL · `auth._migrate_password_changed_at()`) · written only by `auth.set_user_password()` (self change `PUT /auth/password` + admin reset `PUT /admin/user/{id}/password`; stamp = app-clock epoch seconds) · checked in `server._jwt_decode` → `_jwt_revoked_by_password_change()`: JWT `iat` < stamp → `{}` (→ `verify_token` 401 and every optional-auth reader) · read through `_password_changed_epoch()` — in-memory cache `_pwd_changed_cache`, TTL 60s (`_PWD_CHANGED_TTL`), refreshed for the user by `_password_changed_cache_set()` right after the write. `PUT /auth/password` returns a fresh `token` for the current device. Frontend: `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) — the only way a page replaces `tw_jwt` after login (same user_id + user_type + future exp).
+**Details:** `ARCHITECTURE.md → Account Security Operations → Session invalidation after password change` · test `python -m pytest test_admin_session_security.py -q`
+**Do not recreate:** ❌ a DB query per request for the stamp (use the cache) · ❌ a second revocation check outside `_jwt_decode` · ❌ writing `password_hash` without `set_user_password` (would skip the stamp) · ❌ `localStorage.setItem('tw_jwt', …)` in a page — `TwAuthSync.renewToken`. Known: other worker processes see the change within ≤ 60s; DB error on lookup → logged + allowed (not cached); same-second token (iat == stamp) stays valid.
 
 ---
 
@@ -404,18 +412,19 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 24. Reports System
-**Purpose:** Users report inappropriate jobs, profiles, or content. Admin reviews.
+**Purpose:** Users report inappropriate jobs, profiles, or content. Admin reviews in the admin panel → البلاغات tab (`GET /admin/reports`, pending badge). No user notification on submit (PR 1.5 — user id 1 is not an admin; never notify a user id as "the admin").
 **Source of Truth:** `reports` table (reported_id, reported_type, reason, status)
 **Details:** `ARCHITECTURE.md §58`
 **Do not recreate:** `POST /reports/submit` is the single submission endpoint. Do not create per-entity report endpoints.
 
 ---
 
-### 25. Admin Panel
-**Purpose:** Manage all users, approve verifications, analytics, send messages. Protected by environment-variable token.
-**Source of Truth:** `X-Admin-Token` header (= `ADMIN_TOKEN` env var) · `hmac.compare_digest` in `check_admin()` · admin routes in `server.py` · `admin.html` at `/tw-ctrl-{ADMIN_URL_TOKEN}`
-**Details:** `ARCHITECTURE.md §57` · `docs/rules/auth-identity.md → Admin Authentication`
-**Do not recreate:** Do not hardcode secrets. Do not add admin features accessible without `check_admin`. Do not derive `ADMIN_TOKEN` from a password. Do not use `ADMIN_TOKEN` as `JWT_SECRET`.
+### 25. Admin Panel + Admin Auth (PR 1.5)
+**Purpose:** Manage all users, approve verifications, analytics, send messages. Protected by a short-lived signed admin session.
+**Source of Truth:** `POST /tw-ctrl-login` checks `{password}` against `ADMIN_TOKEN` (`hmac.compare_digest`, rate limited) and returns an **admin JWT** from `_admin_jwt_issue()` — signed with `ADMIN_JWT_SECRET` (≥ 32, ≠ `JWT_SECRET` / `ADMIN_TOKEN`; missing → 503, never a fallback), claims `iss=tawasalna · aud=tw-admin · sub=owner · role=admin · perms=["*"] · iat · exp=iat+3600 · jti`. `check_admin(request, perm=None)` accepts ONLY that JWT in `X-Admin-Token` (`_admin_jwt_claims`): 503 no secret · 401 missing / invalid / expired / raw `ADMIN_TOKEN` / user JWT · 403 role ∉ `_ADMIN_ROLES` or perm missing. Frontend: `static/shared/admin-session.js` (`TwAdminSession` — `sessionStorage.tw_adm_token`, `headers()`, `fetch()`, `onExpired()`; 401/403 or exp → login screen with a clear message) in `admin.html` + `admin-view.html`. `ADMIN_URL_TOKEN` slug unchanged.
+**Plan 5.3 (staff accounts):** same claims shape — `sub="staff:<id>"`, new `role` added to `_ADMIN_ROLES`, `perms` list checked via `check_admin(request, perm=…)`. No new fields.
+**Details:** `ARCHITECTURE.md §57 → Token Authentication` · `docs/rules/auth-identity.md → Admin Authentication` · test `python -m pytest test_admin_session_security.py -q`
+**Do not recreate:** Do not hardcode secrets. Do not add admin features accessible without `check_admin`. Do not derive `ADMIN_TOKEN` from a password. Do not use `ADMIN_TOKEN` as `JWT_SECRET`. ❌ accepting the raw `ADMIN_TOKEN` as a session · ❌ returning `ADMIN_TOKEN` to the browser · ❌ signing admin JWTs with `JWT_SECRET` · ❌ admin token lifetime > 1h · ❌ reading `tw_adm_token` directly in an admin page (use `TwAdminSession`).
 **Safe Rendering (PR security/admin-safe-rendering):** All API data in `admin.html` and `admin-view.html` is escaped via `twEscHtml()` / `twEscAttr()`. `GET /admin.html` public route is removed — panel is served only via `/tw-ctrl-{ADMIN_URL_TOKEN}`. See §54 (Safe Rendering).
 
 ---
@@ -1102,6 +1111,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** One answer to "what is the client's IP" for rate limiting, registration country, and logs — without trusting a client-forged `X-Forwarded-For`.
 **Source of Truth:** `get_client_ip(request)` in `server.py` — the ONLY reader of `X-Forwarded-For` / `X-Real-IP`. `CLIENT_IP_SOURCE` = `xff_left` (default, pre-PR behaviour) · `xff_right` (+ `TRUSTED_PROXY_HOPS`, default 1) · `x_real_ip` · `peer`. Invalid source / hops / IP → `request.client.host` + one `[client-ip]` warning per kind. `LOG_CLIENT_IP=1` → one measurement line on `/auth/login` (XFF, X-Real-IP, peer, chosen — never email / password / body).
 **Details:** `ARCHITECTURE.md §52 → Client IP Resolution + Auth Rate Limiter` (measurement steps + "if you see X → set Y" table)
+**Measured on Railway (2026-10-07):** Railway strips the client's XFF, sends `REAL, <internal hop that changes per request>`; `X-Real-IP` = client → **`CLIENT_IP_SOURCE=x_real_ip`** on Railway. `xff_right` is wrong there (the changing internal hop).
 **Do not recreate:** No second XFF parser anywhere. Do not switch `CLIENT_IP_SOURCE` without the measurement. Do not leave `LOG_CLIENT_IP` on permanently.
 
 ---
@@ -1132,4 +1142,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 1.3 + 1.4 OTP / client IP / rate limit · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 1.5 + 1.8 admin JWT / session invalidation · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

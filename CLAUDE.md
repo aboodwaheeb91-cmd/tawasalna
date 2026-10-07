@@ -58,7 +58,8 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 |----------|----------|---------|
 | `SUPABASE_DB_URL` | **Yes** | PostgreSQL connection string (`server.py` + `auth.py`) |
 | `JWT_SECRET` | **Yes** | HS256 signing secret for user JWTs — independent of `ADMIN_TOKEN` |
-| `ADMIN_TOKEN` | **Yes** (admin) | Admin login password + `X-Admin-Token` header value |
+| `ADMIN_TOKEN` | **Yes** (admin) | Admin login password only (PR 1.5 — never a session token) |
+| `ADMIN_JWT_SECRET` | **Yes** (admin) | HS256 secret for admin session JWTs (≥ 32, ≠ `JWT_SECRET` / `ADMIN_TOKEN`); missing → admin login + endpoints 503 |
 | `ADMIN_URL_TOKEN` | **Yes** (admin) | Slug for the admin panel path `/tw-ctrl-{ADMIN_URL_TOKEN}` |
 | `SCHEDULER_SECRET` | Yes (scheduler) | `X-Scheduler-Secret` value for internal scheduler endpoints (503 when unset) |
 | `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage — must be `https://<project>.supabase.co` (cleaned of spaces / hidden chars / quotes; anything else = not configured) |
@@ -371,6 +372,8 @@ These rules are permanent and apply to all future AI sessions.
 6. **`GET /admin.html` route is permanently deleted.** The admin panel is served only via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
 
 7. **`/tw-ctrl-login` is in the rate_limit_middleware list.** Do not remove it.
+
+7b. **`check_admin` accepts ONLY the admin JWT (PR 1.5).** `/tw-ctrl-login` returns a 1h admin JWT signed with `ADMIN_JWT_SECRET` (`_admin_jwt_issue`); the raw `ADMIN_TOKEN` is the login password only — never returned, never accepted as `X-Admin-Token`. Admin pages use `TwAdminSession` (`static/shared/admin-session.js`). Spec: SYSTEMS_INDEX §25 · test `python -m pytest test_admin_session_security.py -q`.
 
 8. **`get_client_ip(request)` in `server.py` is the ONLY source of the client IP (PR 1.4).** Rate limiter, registration country, logs — all call it. Never read `X-Forwarded-For` / `X-Real-IP` anywhere else. Source chosen by `CLIENT_IP_SOURCE` (measured, not guessed — `ARCHITECTURE.md §52 → Client IP Resolution`). KYC OTP logic lives only in `auth._otp_issue` / `auth._otp_verify` (SYSTEMS_INDEX §54c).
 

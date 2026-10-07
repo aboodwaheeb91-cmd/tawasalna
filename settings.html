@@ -393,7 +393,15 @@ function savePassword() {
     body: JSON.stringify({ current_password: oldP, new_password: newP })
   }).then(res => {
     setBtnLoad(btn, false);
-    if (res.ok) { closeModal(); showToast('تم تغيير كلمة المرور ✓'); return; }
+    if (res.ok) {
+      // Server invalidated every older session (PR 1.8) and sent a fresh JWT for this device.
+      if (!res.body.token || !window.TwAuthSync || !TwAuthSync.renewToken(res.body.token)) {
+        closeModal(); showToast('تم تغيير كلمة المرور ✓ — سجّل الدخول من جديد');
+        setTimeout(() => window.TwAuthSync && TwAuthSync.invalidateSession('password_changed'), 1500);
+        return;
+      }
+      closeModal(); showToast('تم تغيير كلمة المرور ✓ — تم تسجيل الخروج من باقي الأجهزة'); return;
+    }
     const f = normalizeErrorResponse(res.body).fieldErrors[0];
     if (f && _PW_FIELD_ERR[f.field]) { setErr(_PW_FIELD_ERR[f.field], f.message); return; }
     showToast(apiErr(res.body, 'تعذّر تغيير كلمة المرور'), 'error');

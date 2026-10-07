@@ -210,5 +210,23 @@
         window.location.href = opts.redirect;
       }
     },
+
+    // Same-account token renewal (PR 1.8 — PUT /auth/password returns a fresh JWT
+    // because every older JWT of the user is now rejected by the server).
+    // The ONLY way a page replaces tw_jwt after login. Accepts a JWT for the CURRENT
+    // authenticated user only (same user_id + user_type, future exp); anything else →
+    // false and nothing is written. Fires handlers with reason 'token_renewed'
+    // (same userId → page guards stay put); other tabs pick it up via 'storage'.
+    renewToken: function (jwt) {
+      var cur = _resolveSession();
+      if (!cur.isAuthenticated) return false;
+      var c = _parseJwtPayload(jwt);
+      if (!c || String(c.user_id) !== String(cur.userId) || c.user_type !== cur.userType) return false;
+      if (typeof c.exp !== 'number' || !isFinite(c.exp) || c.exp <= Math.floor(Date.now() / 1000)) return false;
+      try { localStorage.setItem('tw_jwt', jwt); }
+      catch (e) { console.warn('[TwAuthSync] renewToken write failed:', e); return false; }
+      _check('token_renewed');
+      return true;
+    },
   };
 }());

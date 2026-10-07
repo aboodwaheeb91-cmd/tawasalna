@@ -110,7 +110,7 @@ from auth import (
     list_appointments, get_appointment_room,
     get_appointment_events, get_appointment_messages,
     create_appointment_message,
-    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password,
+    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
@@ -181,49 +181,118 @@ from auth import ContentValidationError, validate_professional_text, JobArchived
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
-#   ADMIN_TOKEN     — random 32+ byte hex (e.g. openssl rand -hex 32)
-#   JWT_SECRET      — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
-#   ADMIN_URL_TOKEN — random slug for admin panel URL path
+#   ADMIN_TOKEN      — random 32+ byte hex (e.g. openssl rand -hex 32) — admin LOGIN password only
+#   ADMIN_JWT_SECRET — random 32+ byte hex, signs admin session JWTs; INDEPENDENT of JWT_SECRET / ADMIN_TOKEN
+#   JWT_SECRET       — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
+#   ADMIN_URL_TOKEN  — random slug for admin panel URL path
 # Rotating JWT_SECRET invalidates all active sessions (users must re-login). This is expected.
-ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "").strip()
-JWT_SECRET      = os.environ.get("JWT_SECRET", "").strip()
-ADMIN_URL_TOKEN = os.environ.get("ADMIN_URL_TOKEN", "").strip()
+# Rotating ADMIN_JWT_SECRET signs every admin out (sessions last ≤ 1h anyway).
+ADMIN_TOKEN      = os.environ.get("ADMIN_TOKEN", "").strip()
+ADMIN_JWT_SECRET = os.environ.get("ADMIN_JWT_SECRET", "").strip()
+JWT_SECRET       = os.environ.get("JWT_SECRET", "").strip()
+ADMIN_URL_TOKEN  = os.environ.get("ADMIN_URL_TOKEN", "").strip()
 # Scheduler S3: internal cron secret — set in Railway Variables, never in source.
 SCHEDULER_SECRET = os.environ.get("SCHEDULER_SECRET", "")
 
 
 # ── JWT (stdlib only - no extra deps) ──
+# One HS256 implementation (_jwt_sign / _jwt_verify) for two independent secrets:
+#   user sessions  → JWT_SECRET       (_jwt_encode / _jwt_decode)
+#   admin sessions → ADMIN_JWT_SECRET (_admin_jwt_issue / _admin_jwt_claims)
+# A token signed with one secret never verifies with the other.
 import hmac, base64 as _b64
 
-def _jwt_encode(payload: dict) -> str:
-    import json, time
-    if not JWT_SECRET or len(JWT_SECRET) < 32:
-        raise RuntimeError("JWT_SECRET is not configured or too short")
-    payload['iat'] = int(time.time())
-    payload['exp'] = int(time.time()) + 86400 * 7  # 7 days
+def _jwt_sign(payload: dict, secret: str) -> str:
+    import json
     header = _b64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
     body = _b64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
     sig = _b64.urlsafe_b64encode(
-        hmac.new(JWT_SECRET.encode(), f"{header}.{body}".encode(), 'sha256').digest()
+        hmac.new(secret.encode(), f"{header}.{body}".encode(), 'sha256').digest()
     ).rstrip(b'=').decode()
     return f"{header}.{body}.{sig}"
 
-def _jwt_decode(token: str) -> dict:
+def _jwt_verify(token: str, secret: str) -> dict:
+    """Signature + exp check. {} on anything invalid (never raises)."""
     import json, time
-    if not JWT_SECRET or len(JWT_SECRET) < 32:
+    if not secret or len(secret) < 32 or not token:
         return {}
     try:
         parts = token.split('.')
         if len(parts) != 3: return {}
         expected_sig = _b64.urlsafe_b64encode(
-            hmac.new(JWT_SECRET.encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
+            hmac.new(secret.encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
         ).rstrip(b'=').decode()
         if not hmac.compare_digest(parts[2], expected_sig): return {}
         body = parts[1] + '=='
         payload = json.loads(_b64.urlsafe_b64decode(body.encode()))
+        if not isinstance(payload, dict): return {}
         if payload.get('exp', 0) < time.time(): return {}
         return payload
-    except: return {}
+    except Exception:
+        return {}
+
+def _jwt_encode(payload: dict) -> str:
+    import time
+    if not JWT_SECRET or len(JWT_SECRET) < 32:
+        raise RuntimeError("JWT_SECRET is not configured or too short")
+    payload['iat'] = int(time.time())
+    payload['exp'] = int(time.time()) + 86400 * 7  # 7 days
+    return _jwt_sign(payload, JWT_SECRET)
+
+def _jwt_decode(token: str) -> dict:
+    """User JWT → claims, or {} when invalid / expired / issued before the user's
+    last password change (Session Invalidation — PR 1.8). Every user-JWT reader goes
+    through here, so verify_token and the optional-auth endpoints share the check."""
+    payload = _jwt_verify(token, JWT_SECRET)
+    if payload and _jwt_revoked_by_password_change(payload):
+        return {}
+    return payload
+
+
+# ── Session invalidation after password change (PR 1.8) ──
+# users.password_changed_at (NULL = never changed). A user JWT whose iat is earlier
+# than that second is rejected. Read through a short in-memory cache (no DB query per
+# request); PUT /auth/password + admin password reset refresh the entry immediately.
+# Other worker processes (if any) pick the change up within _PWD_CHANGED_TTL.
+_PWD_CHANGED_TTL = 60.0  # seconds
+_pwd_changed_cache: dict = {}   # user_id → (changed_at epoch seconds | None, cached_at monotonic)
+
+def _password_changed_epoch(user_id: int):
+    import time
+    hit = _pwd_changed_cache.get(user_id)
+    now = time.monotonic()
+    if hit is not None and now - hit[1] < _PWD_CHANGED_TTL:
+        return hit[0]
+    from auth import get_password_changed_epoch
+    value = get_password_changed_epoch(user_id)   # raises on DB error — not cached
+    _pwd_changed_cache[user_id] = (value, now)
+    return value
+
+def _password_changed_cache_set(user_id: int, epoch) -> None:
+    """Called by the password-change paths — the new value is effective at once in this process."""
+    import time
+    _pwd_changed_cache[int(user_id)] = (epoch, time.monotonic())
+
+def _jwt_revoked_by_password_change(payload: dict) -> bool:
+    uid = payload.get("user_id")
+    try:
+        uid = int(uid)
+    except (TypeError, ValueError):
+        return False
+    try:
+        changed = _password_changed_epoch(uid)
+    except Exception as e:
+        # DB unreachable: the request fails at its own DB call anyway; rejecting here
+        # would log every user out on a DB blip. Logged, not cached (F9).
+        print(f"[session-invalidation] password_changed_at lookup failed user={uid}: {e}")
+        return False
+    if changed is None:
+        return False
+    try:
+        iat = int(payload.get("iat"))
+    except (TypeError, ValueError):
+        return True   # no iat → cannot prove it is newer than the change
+    return iat < int(changed)
 
 
 def verify_token(request: Request):
@@ -232,6 +301,51 @@ def verify_token(request: Request):
     payload = _jwt_decode(token) if token else {}
     if not payload: raise HTTPException(401, "Token invalid or expired")
     return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+
+
+# ── Admin session JWT (PR 1.5) ──
+# /tw-ctrl-login checks the ADMIN_TOKEN password and returns THIS token — the raw
+# ADMIN_TOKEN never reaches the browser and is never accepted as a session.
+# Claims shape is fixed so plan 5.3 (staff accounts) adds values, not fields:
+#   iss "tawasalna" · aud "tw-admin" · sub "owner" (later "staff:<id>")
+#   role "admin" (later e.g. "moderator") · perms ["*"] (later e.g. ["reports.read"])
+#   iat · exp (iat + _ADMIN_JWT_TTL, ≤ 1h) · jti (random, for a future denylist)
+_ADMIN_JWT_TTL = 3600
+_ADMIN_JWT_ISS = "tawasalna"
+_ADMIN_JWT_AUD = "tw-admin"
+_ADMIN_ROLES = {"admin"}   # roles accepted by check_admin; plan 5.3 adds staff roles here
+
+def _admin_jwt_secret_ok() -> bool:
+    return (len(ADMIN_JWT_SECRET) >= 32
+            and not hmac.compare_digest(ADMIN_JWT_SECRET.encode(), JWT_SECRET.encode())
+            and not hmac.compare_digest(ADMIN_JWT_SECRET.encode(), ADMIN_TOKEN.encode()))
+
+def _admin_jwt_issue(sub: str = "owner", role: str = "admin", perms=None) -> str:
+    import time, secrets
+    if not _admin_jwt_secret_ok():
+        raise RuntimeError("ADMIN_JWT_SECRET is not configured")
+    now = int(time.time())
+    return _jwt_sign({
+        "iss": _ADMIN_JWT_ISS, "aud": _ADMIN_JWT_AUD,
+        "sub": sub, "role": role, "perms": list(perms) if perms is not None else ["*"],
+        "iat": now, "exp": now + _ADMIN_JWT_TTL, "jti": secrets.token_hex(12),
+    }, ADMIN_JWT_SECRET)
+
+def _admin_jwt_claims(token: str) -> dict:
+    """Admin JWT → claims, or {} (bad signature / expired / wrong iss·aud / no role / lifetime > TTL)."""
+    if not _admin_jwt_secret_ok():
+        return {}
+    c = _jwt_verify(token, ADMIN_JWT_SECRET)
+    if not c or c.get("iss") != _ADMIN_JWT_ISS or c.get("aud") != _ADMIN_JWT_AUD:
+        return {}
+    if not isinstance(c.get("sub"), str) or not c.get("sub") or not isinstance(c.get("perms"), list):
+        return {}
+    try:
+        if int(c["exp"]) - int(c["iat"]) > _ADMIN_JWT_TTL:
+            return {}
+    except (KeyError, TypeError, ValueError):
+        return {}
+    return c
 
 
 def _dev_otp_log(label: str, uid: int) -> None:
@@ -574,7 +688,10 @@ async def on_startup():
             "Generate with: openssl rand -hex 32"
         )
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
-        print("⚠️  ADMIN_TOKEN not configured — admin endpoints will return 503 for all requests")
+        print("⚠️  ADMIN_TOKEN not configured — admin login will return 503")
+    if not _admin_jwt_secret_ok():
+        print("⚠️  ADMIN_JWT_SECRET not configured (min 32 chars, must differ from JWT_SECRET / ADMIN_TOKEN) "
+              "— admin login + admin endpoints will return 503")
     if not ADMIN_URL_TOKEN:
         print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
     for _line in _supabase_storage_status_lines():
@@ -614,6 +731,9 @@ async def on_startup():
     # Let the exception propagate — FastAPI will refuse to start in a broken schema state.
     _migrate_candidate_status_per_job()
     print("✅ company_candidate_job_refs.candidate_status column ready")
+    # Startup-critical: _jwt_decode reads users.password_changed_at (cached).
+    _migrate_password_changed_at()
+    print("✅ users.password_changed_at column ready")
     try:
         _migrate_kyc_otp_security()
         print("✅ KYC OTP security ready (hashed codes, target/expiry/attempts, legacy codes wiped)")
@@ -718,12 +838,21 @@ def read_html(name: str) -> str:
         print(f"[read_html] page file missing: {name}")
         raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
 
-def check_admin(request: Request):
-    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
+def check_admin(request: Request, perm: str = None) -> dict:
+    """Admin gate — accepts ONLY a valid admin JWT (from /tw-ctrl-login) in X-Admin-Token.
+    The raw ADMIN_TOKEN is the login password, never a session token.
+    503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
+    (admin pages send the admin back to the login screen) · 403 = valid token without
+    the role / permission. `perm` is for plan 5.3 staff roles; "*" grants everything."""
+    if not _admin_jwt_secret_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    token = request.headers.get("X-Admin-Token", "")
-    if not hmac.compare_digest(token.encode(), ADMIN_TOKEN.encode()):
+    claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
+    if not claims:
+        raise HTTPException(status_code=401, detail="انتهت جلسة الإدارة، سجّل الدخول من جديد")
+    perms = claims.get("perms") or []
+    if claims.get("role") not in _ADMIN_ROLES or (perm and "*" not in perms and perm not in perms):
         raise HTTPException(status_code=403, detail="Forbidden")
+    return claims
 
 
 def _migrate_feed_indexes():
@@ -3018,12 +3147,9 @@ async def submit_report(data: ReportInput, request: Request, token=Depends(verif
             rpt=data.report_type, reason=data.reason, url=data.target_url)
         release_conn(conn)
         
-        # Create notification for admin (user_id=1 is placeholder — replace with real admin lookup when admin table exists)
-        try:
-            create_notification(1, "report", "بلاغ جديد", f"نوع البلاغ: {data.report_type}")
-        except Exception as _ne:
-            print(f"[TW-WARN] create_notification (report flow) failed: {_ne}")
-        
+        # No user notification: admins are not user accounts. The report stays in
+        # `reports` (status 'pending') and appears in the admin panel → البلاغات tab
+        # (GET /admin/reports + pending badge).
         return {"status": "success", "message": "تم إرسال البلاغ"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -3368,14 +3494,19 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
         if not ok:
             raise AccountFieldError("current_password", "wrong_password",
                                     "كلمة المرور الحالية غير صحيحة")
-        set_user_password(uid, data.new_password)
+        changed_epoch = set_user_password(uid, data.new_password)
+        _password_changed_cache_set(uid, changed_epoch)
+        # Fresh token for THIS device — its iat is ≥ password_changed_at, so it survives
+        # the invalidation; every older JWT of this user is rejected from now on.
+        new_token = _jwt_encode({"user_id": uid, "user_type": token.get("user_type"),
+                                 "tw_id": token.get("tw_id") or ""})
     except (HTTPException, AccountFieldError):
         raise
     except Exception as e:
         print(f"[PUT /auth/password] ERROR user={uid}: {e}")
         raise HTTPException(500, detail="تعذّر تغيير كلمة المرور، حاول لاحقاً")
-    print(f"[PUT /auth/password] changed user={uid}")
-    return {"ok": True, "status": "success"}
+    print(f"[PUT /auth/password] changed user={uid} — older sessions invalidated")
+    return {"ok": True, "status": "success", "token": new_token}
 
 @app.put("/auth/user/{user_id}/name")
 async def update_user_name(user_id: int, request: Request, token=Depends(verify_token)):
@@ -5342,9 +5473,12 @@ def stats():
 def admin_login(data: AdminLoginInput):
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not _admin_jwt_secret_ok():
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     if not hmac.compare_digest(data.password.encode(), ADMIN_TOKEN.encode()):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return {"success": True, "token": ADMIN_TOKEN}
+    print("[admin-auth] admin session issued sub=owner")
+    return {"success": True, "token": _admin_jwt_issue(), "expires_in": _ADMIN_JWT_TTL}
 
 # ══════════════════════════════════════════
 # Admin API - all require X-Admin-Token header
@@ -5534,16 +5668,12 @@ async def admin_reset_password(user_id: int, request: Request):
     pw = data.get("password","").strip()
     if not pw or len(pw) < 6:
         raise HTTPException(400, "كلمة المرور قصيرة جداً")
-    from auth import hash_password
-    conn = get_conn()
     try:
-        conn.run("UPDATE users SET password_hash = :pw WHERE id = :uid",
-                 pw=hash_password(pw), uid=user_id)
+        # Same helper as PUT /auth/password → bumps password_changed_at (user's sessions end).
+        _password_changed_cache_set(user_id, set_user_password(user_id, pw))
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-    finally:
-        release_conn(conn)
 
 @app.delete("/admin/experience/{exp_id}")
 def admin_delete_exp(exp_id: int, request: Request):
