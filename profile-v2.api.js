@@ -101,18 +101,14 @@ window.updateProfile  = updateProfile;
 window.uploadAvatar   = uploadAvatar;
 window.uploadCover    = uploadCover;
 
+// Follow System (SYSTEMS_INDEX §20 · PR 3.5) — one endpoint for every account type, via twApi.
+// Result: {ok, status, data:{is_following, followers_count}, error}.
 function followProfile(userId){
-  return fetch('/profile/' + userId + '/follow', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/profile/' + encodeURIComponent(userId) + '/follow', { method: 'POST' });
 }
 
 function unfollowProfile(userId){
-  return fetch('/profile/' + userId + '/follow', {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/profile/' + encodeURIComponent(userId) + '/follow', { method: 'DELETE' });
 }
 
 window.followProfile   = followProfile;
@@ -152,18 +148,16 @@ function removeCandidateFromCompany(profileId){
 window.saveCandidateToCompany   = saveCandidateToCompany;
 window.removeCandidateFromCompany = removeCandidateFromCompany;
 
+function _followListQs(limit, offset, type){
+  return '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + encodeURIComponent(type || 'all');
+}
+
 function getFollowersList(profileId, limit, offset, type){
-  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
-  return fetch('/profile/' + profileId + '/followers' + qs, {
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
+  return twApi('/profile/' + encodeURIComponent(profileId) + '/followers' + _followListQs(limit, offset, type));
 }
 
 function getFollowingList(profileId, limit, offset, type){
-  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
-  return fetch('/profile/' + profileId + '/following' + qs, {
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
+  return twApi('/profile/' + encodeURIComponent(profileId) + '/following' + _followListQs(limit, offset, type));
 }
 
 window.getFollowersList = getFollowersList;

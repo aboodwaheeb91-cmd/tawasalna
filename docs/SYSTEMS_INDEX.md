@@ -217,27 +217,28 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 20. Profile Follows
-**Purpose:** Follow/unfollow other user profiles; follower/following counts displayed.
-**Source of Truth:** `profile_follows` table (user_id, follows_user_id)
-**Details:** `ARCHITECTURE.md §53`
-**Do not recreate:** Do not create a separate "connections" or "friends" table for the same purpose.
+### 20. Follow System (one table — PR 3.5)
+**Purpose:** Follow / unfollow any account (emp · co · edu), follow state, counters, followers / following lists. **Rule:** any signed-in account follows any other account, never itself; guest → 401 → `twLoginHref`.
+**Source of Truth:** `profile_follows` (follower_id, followed_id — UNIQUE + no-self CHECK) · `server.py → _follow_set()` (the only follow action) + `_resolve_account_id()` · `auth.py → follow_profile / unfollow_profile / get_follow_state / get_profile_followers_list / get_profile_following_list` · endpoints `POST|DELETE|GET /profile/{id}/follow` · `GET /profile/{id}/followers` · `GET /profile/{id}/following` · frontend via `twApi` only: `profile-v2.api.js` (`followProfile` / `unfollowProfile` / `getFollowersList` / `getFollowingList`) · `static/company/company.api.js` (`followAccount` / `getCompanyFollowersList`).
+**Details:** `ARCHITECTURE.md §53` · test `python -m pytest test_follow_system.py -q` (needs `TW_TEST_DB_URL`).
+**Legacy (PR 3.9 removes):** `company_follows` table — rows copied by `_migrate_company_follows_to_profile_follows()` (startup, optional, `ON CONFLICT DO NOTHING`, count logged), then read/written by nobody · `/company/follow/{id}` + `GET /company/{id}/followers` = aliases calling the same functions.
+**Do not recreate:** ❌ a second follow table ("connections" / "friends" / per-type) · ❌ reading or writing `company_follows` · ❌ a per-account-type follow endpoint or permission (e.g. "emp only") · ❌ direct `fetch` for follow — `twApi` · ❌ counting followers from anything but `profile_follows`.
 
 ---
 
 ### 20a. Company Followers Modal
 **Purpose:** Display paginated list of users who follow a company, filterable by user type (emp/co/edu). Accessible by clicking the "المتابعون" tile on the company stats bar.
-**Source of Truth:** `company_follows` DB table · `auth.py → get_company_followers_list()` · `server.py → GET /company/{id}/followers`
+**Source of Truth:** Follow System §20 — `profile_follows` · `GET /profile/{id}/followers` (PR 3.5)
 **Responsible files:**
-- `auth.py` — `get_company_followers_list(company_id, viewer_id, limit, offset, user_type)`
-- `server.py` — `GET /company/{company_id}/followers?limit=&offset=&type=`
+- `auth.py` — `get_profile_followers_list(...)` (shared with the employee profile)
+- `server.py` — `GET /profile/{company_id}/followers?limit=&offset=&type=` (`/company/{id}/followers` = alias until PR 3.9)
 - `company-profile.html` — `#coStatFollowersTile` (clickable tile) + `#coFollowListModal` (modal HTML)
 - `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
 - `static/company/company.main.js` — Company Followers Modal IIFE + Soft Refresh IIFE
 - `static/company/company.css` — `.co-fl-*` modal styles + `.co-stat-clickable`
 **Details:** `ARCHITECTURE.md §53a`
-**Architecture note:** Uses `company_follows` (separate from `profile_follows`). The two tables are NOT unified — unification is deferred to a future PR with a full migration plan. Companies do not follow others, so there is no "يتابع" tab.
-**Do not recreate:** Do not add a "يتابع" tab to the company followers modal. Do not use `profile_follows` for company follow data. Do not create a new follow table — extend `company_follows`.
+**Architecture note:** Unified in PR 3.5 — company followers are `profile_follows` rows. Companies can follow accounts now, but the modal shows followers only ("يتابع" tab = separate UI decision).
+**Do not recreate:** Do not read/write `company_follows`. Do not create a new follow table or a company-only follow endpoint.
 
 ---
 

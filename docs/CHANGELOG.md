@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.5 — نظام متابعة واحد (Follow System — جدول واحد) — 2026-10-07
+
+- Backend: `profile_follows` هو المصدر الوحيد. `_follow_set()` = عملية المتابعة الوحيدة (أي حساب مسجّل يتابع أي حساب، إلا نفسه؛ ضيف 401؛ حساب مش موجود 404). جديد: `GET /profile/{id}/follow` (الحالة + العدّادات) · `get_follow_state()`. migration `company_follows_to_profile_follows` (اختيارية، `ON CONFLICT DO NOTHING`، العدد بالـ log). `/company/follow/{id}` + `GET /company/{id}/followers` = aliases لنفس الدوال (بينحذفوا بـ 3.9). انحذف `follow_company` / `unfollow_company` / `get_company_followers_list`. `get_company_extras` + `/mention/search` صاروا يقروا `profile_follows`. تغيير سلوك: الشركة والجهة التعليمية بيقدروا يتابعوا (كان موظف بس على صفحة الشركة)؛ إشعار متابعة الشركة صار بمفتاح `follow_agg:user:`.
+- Frontend: صفحة الشركة (الزر + قائمة المتابعين) وبروفايل الموظف (الزر + القوائم) عبر `twApi` على `/profile/{id}/follow*`؛ الضيف → `twLoginHref(الصفحة)`.
+- Docs: SYSTEMS_INDEX §20 / §20a · ARCHITECTURE §53 / §53a. Tests: `test_follow_system.py` (جديد) · `test_post_comments.py` (فحوص `follow_company` المحذوفة صارت تفحص المسار الواحد).
+- تصحيح CI: `test_post_comments.py` §124 / §125 / §146 — كانت تفحص فرع `/mention/search` الخاص بالشركة (`company_follows` · `:vid_c`) و«hookين» للمتابعة؛ صارت تفحص الاستعلام الواحد على `profile_follows` (بدون ILIKE لما `q` فاضي، params فريدة لكل فرع، ما في `company_follows`) والـ hook الواحد.
+
 ## PR 3.10 — نظام تحديد موعد موحّد (Schedule Interview System) — 2026-10-07
 
 - Backend: `POST /api/appointments` Path B — الشخص مش مرشح على الوظيفة → بينضاف بنفس الـ transaction عبر `_shortlist_candidate_in_tx` (القلب المشترك مع `promote_application_to_shortlist`)؛ ربط جديد بيحتاج وظيفة فعّالة؛ مرفوض / منسحب → 409 (`AppointmentRuleError`). الـ endpoint صار `{ok, data}` / `{ok:false, error}`. جديد: `GET /api/schedule/jobs` · `/api/schedule/open` · `/api/schedule/people`. تغيير سلوك: الترقية بتنقل الطلب لـ `accepted` من `pending` / `viewed` بس.
