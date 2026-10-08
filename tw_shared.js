@@ -494,6 +494,17 @@ function twNotifBadgeLabel(count) {
 }
 window.twNotifBadgeLabel = twNotifBadgeLabel;
 
+// twSetNotifBadge(count): the ONLY writer of the header notifications badge (loadGlobalBadges +
+// optimistic updates, e.g. notifications.html «mark all read» → 0, rolled back on failure).
+function twSetNotifBadge(count) {
+  var n = Number(count) || 0;
+  document.querySelectorAll('[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
+    el.textContent = twNotifBadgeLabel(n);
+    el.style.display = n > 0 ? 'inline-block' : 'none';
+  });
+}
+window.twSetNotifBadge = twSetNotifBadge;
+
 function loadGlobalBadges() {
   // TwAuthSync is mandatory — never fall back to raw localStorage
   if (!window.TwAuthSync) return;
@@ -541,12 +552,7 @@ function loadGlobalBadges() {
     })
     .then(function(d) {
       if (!d || !_guardOk()) return;
-      var count = d.unread || 0;
-      // Write to both selectors (data-badge="notif" and legacy data-ah-notif-badge)
-      document.querySelectorAll('[data-badge="notif"],[data-ah-notif-badge]').forEach(function(el) {
-        el.textContent = twNotifBadgeLabel(count);
-        el.style.display = count > 0 ? 'inline-block' : 'none';
-      });
+      twSetNotifBadge(d.unread || 0);
     }).catch(function() {});
 
   fetch('/messages/unread/' + userId, { headers: { 'Authorization': 'Bearer ' + jwt } })
