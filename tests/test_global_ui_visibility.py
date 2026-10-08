@@ -225,7 +225,7 @@ check("C08 — nav icons start hidden (hidden attribute)",
 # ═══════════════════════════════════════════════════════
 print("\nD — notifications.html")
 
-notif = read("notifications.html")
+notif = read_page("notifications.html")   # Page Shell page (PR 4.5) — read_html output
 
 check("D01 — unified app header placeholder (HEADER-NAV.md)",
       '<header data-tw-header></header>' in notif)
@@ -535,8 +535,11 @@ if "function loadGlobalBadges" in shared:
     _lgb_full = shared.split("function loadGlobalBadges")[1].split("\n\nfunction ")[0]
     # The write path is after the first fetch call
     _lgb_after_notif_fetch = _lgb_full.split(".then(function(d)")[1] if ".then(function(d)" in _lgb_full else ""
+# PR 4.5: the notif write goes through twSetNotifBadge (the one writer) — it must be called in the
+# update path and must write data-ah-notif-badge (behaviour: tests/test_notifications_page_runtime.js F).
+_set_notif = shared.split("function twSetNotifBadge")[1].split("\n}\n")[0] if "function twSetNotifBadge" in shared else ""
 check("M05 — loadGlobalBadges writes data-ah-notif-badge in notif update path (not just clear)",
-      'data-ah-notif-badge' in _lgb_after_notif_fetch)
+      'twSetNotifBadge(' in _lgb_after_notif_fetch and 'data-ah-notif-badge' in _set_notif)
 
 # M06: No setInterval badge/unread polling in any root or key shared JS files
 _badge_poll_files = [

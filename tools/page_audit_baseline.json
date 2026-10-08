@@ -110,14 +110,14 @@
     "no_shell": 1
   },
   "notifications.html": {
-    "colors": 55,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 4,
+    "fetch": 0,
     "forsa": 0,
-    "helpers": 1,
-    "ls_session": 2,
+    "helpers": 0,
+    "ls_session": 0,
     "no_header": 0,
-    "no_shell": 1
+    "no_shell": 0
   },
   "profile-showcase.html": {
     "colors": 585,

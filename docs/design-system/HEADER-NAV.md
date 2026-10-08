@@ -79,6 +79,7 @@
 ## HNAV-05 — الشارات (جرس + رسائل)
 
 - `<span class="tw-hdr-badge" data-badge="notif">` و `data-badge="msgs"` — بيعبّوهم `loadGlobalBadges()` (مرة عند الرسم) + Badge WS (`tw_shared.js`) + `applyMsgBadge` (`messages.ws.js`).
+- **كاتب واحد لشارة الإشعارات (PR 4.5):** `twSetNotifBadge(count)` — `loadGlobalBadges` + أي تحديث متفائل من صفحة (مثال: «تمييز الكل كمقروء» → `0`، رجوع للرقم القديم عند الفشل). ❌ صفحة بتكتب على `[data-badge="notif"]` مباشرة.
 - **حد واحد للاثنين:** `twNotifBadgeLabel(count)` → `1..99` / `99+` (كان الرسائل `9+`).
 - نفس الشكل للاثنين (`.tw-hdr-badge` — `--color-status-danger`).
 

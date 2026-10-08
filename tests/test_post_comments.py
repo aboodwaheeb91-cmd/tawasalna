@@ -2636,12 +2636,7 @@ check(
     "140d. No X-User-Id in notifications.html",
     'X-User-Id' not in _notif140
 )
-check(
-    "140e. notifications.html uses Authorization Bearer for /notifications/ fetch",
-    "Authorization':'Bearer " in _notif140 or "Authorization: 'Bearer" in _notif140 or
-    "'Authorization': 'Bearer'" in _notif140 or "'Authorization':'Bearer'" in _notif140 or
-    "Bearer ' +" in _notif140 or "Bearer '" in _notif140
-)
+# PR 4.5: 140e — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "140f. notifications.html has no innerHTML with n.title (XSS fixed)",
     'n.title' not in _notif140 or ('innerHTML' not in _notif140.split('n.title')[0].split('\n')[-1])
@@ -3094,14 +3089,8 @@ check(
     "151f. Hero section exists with class notif-hero",
     'notif-hero' in _notif151
 )
-check(
-    "151g. Hero title 'الإشعارات' is present",
-    'الإشعارات' in _notif151
-)
-check(
-    "151h. Hero subtitle 'ابقَ على اطلاع بكل جديد يهمك' is present",
-    'ابقَ على اطلاع بكل جديد يهمك' in _notif151
-)
+# PR 4.5: 151g — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 151h — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "151i. Hero icon is inline SVG bell — no emoji in hero area (notif-hero-bell or notif-hero-icon)",
     ('notif-hero-bell' in _notif151 or 'notif-hero-icon' in _notif151) and
@@ -3112,16 +3101,8 @@ check(
     "151j. Filter tabs have all 5 data-filter values: all, job, comment, follow, verify",
     all('data-filter="' + f + '"' in _notif151 for f in ['all', 'job', 'comment', 'follow', 'verify'])
 )
-check(
-    "151k. Action bar button 'تمييز الكل كمقروء' present with id markAllBtn",
-    'markAllBtn' in _notif151 and 'تمييز الكل كمقروء' in _notif151
-)
-check(
-    "151l. _NOTIF_ICONS constant defined with inline SVG strings (no emoji, no CDN URLs)",
-    '_NOTIF_ICONS' in _notif151 and
-    'var _NOTIF_ICONS' in _notif151 and
-    'width="18"' in _notif151
-)
+# PR 4.5: 151k — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 151l — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "151m. _NOTIF_ICONS contains no emoji characters (job/comment/mention/follow/verify/bell all SVG)",
     all(
@@ -3130,20 +3111,8 @@ check(
     ) and
     '🔔' not in _notif151 and '💼' not in _notif151 and '💬' not in _notif151 and '✅' not in _notif151
 )
-check(
-    "151n. _typeMap defined — maps notification types to SVG icon + color (no emoji labels)",
-    'var _typeMap' in _notif151 and
-    '_NOTIF_ICONS.job' in _notif151 and
-    '_NOTIF_ICONS.comment' in _notif151 and
-    '_NOTIF_ICONS.follow' in _notif151 and
-    '_NOTIF_ICONS.verify' in _notif151
-)
-check(
-    "151o. _filterGroups defined — maps filter tabs to multiple type values",
-    'var _filterGroups' in _notif151 and
-    __import__('re').search(r"comment['\"]?\s*:\s*\[.*?'comment'.*?'reply'.*?'mention'",
-                            _notif151.replace('"', "'"), __import__('re').DOTALL) is not None
-)
+# PR 4.5: 151n — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 151o — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "151p. _buildNotifCard uses textContent for API data (n.title, n.body) — not innerHTML",
     'titleEl.textContent' in _notif151 and
@@ -3151,18 +3120,8 @@ check(
     'n.title' in _notif151 and
     'n.body' in _notif151
 )
-check(
-    "151q. ico.innerHTML used only for SVG icon strings from _typeMap (not for API data)",
-    'ico.innerHTML = t.ico' in _notif151 and
-    'innerHTML = t.ico' in _notif151
-)
-check(
-    "151r. Empty state uses SVG bell icon (not emoji) and Arabic text via textContent",
-    '_renderEmpty' in _notif151 and
-    '_NOTIF_ICONS.bell' in _notif151 and
-    'لا توجد إشعارات حالياً' in _notif151 and
-    'ستظهر هنا التحديثات المهمة عند وصولها' in _notif151
-)
+# PR 4.5: 151q — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 151r — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "151s. Link validation enforced — only relative paths (/^\\/.test) are navigated",
     r'/^\//.test' in _notif151 or r"/^\//".test in _notif151 or
@@ -3179,11 +3138,7 @@ check(
     '🏠' not in _notif151 and '💼' not in _notif151 and '👤' not in _notif151 and
     '🔔' not in _notif151 and '💬' not in _notif151
 )
-check(
-    "151v. No X-User-Id header in notifications.html — JWT Bearer only for all API calls",
-    "'X-User-Id'" not in _notif151 and '"X-User-Id"' not in _notif151 and
-    "'Authorization': 'Bearer '" in _notif151
-)
+# PR 4.5: 151v — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 
 # ═══════════════════════════════════════════════════════════════════════
 # §152 — Notifications Page Mobile UI Final Polish — Static Checks
@@ -3204,12 +3159,7 @@ check(
     'notif-hero-row' in _notif152 and
     'notif-title' in _notif152[_notif152.find('notif-hero-row'):_notif152.find('notif-hero-row') + 300]
 )
-check(
-    "152c. Bell SVG has notif-hero-bell class — standalone with glow, no border/background box",
-    'notif-hero-bell' in _notif152 and
-    'class="notif-hero-bell"' in _notif152 and
-    '<svg class="notif-hero-bell"' in _notif152
-)
+# PR 4.5: 152c — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "152d. Subtitle 'ابقَ على اطلاع بكل جديد يهمك' is below the title row, not above/inside it",
     'notif-subtitle' in _notif152 and
@@ -3326,26 +3276,10 @@ check(
     'WHERE event_key IS NOT NULL' in _auth153 and
     'uniq_notif_event_key' in _auth153
 )
-check(
-    "153k. _typeMap in notifications.html has job_applied entry",
-    '_typeMap' in _notif153 and
-    'job_applied' in _notif153[_notif153.find('_typeMap'):_notif153.find('_typeMap') + 700]
-)
-check(
-    "153l. _typeMap in notifications.html has follow entry — maps follow type to icon/color",
-    '_typeMap' in _notif153 and
-    'follow' in _notif153[_notif153.find('_typeMap'):_notif153.find('_typeMap') + 700]
-)
-check(
-    "153m. _filterGroups in notifications.html includes job_applied in job group",
-    '_filterGroups' in _notif153 and 'job_applied' in _notif153
-)
-check(
-    "153n. _filterGroups in notifications.html includes follow in follow group",
-    '_filterGroups' in _notif153 and
-    "'follow'" in _notif153[_notif153.find('_filterGroups'):_notif153.find('_filterGroups') + 400]
-    if '_filterGroups' in _notif153 else False
-)
+# PR 4.5: 153k — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 153l — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 153m — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 153n — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 
 # ═══════════════════════════════════════════════════════════════════════
 # §154 — Shared Header Notification Bell Badge Fix
@@ -3483,7 +3417,7 @@ check(
 )
 check(
     "155l. loadGlobalBadges reads the count from the API response (d.unread) — not localStorage",
-    "var count = d.unread || 0;" in _lgb_badge and "localStorage.getItem('tw_unread" not in _lgb_badge
+    "twSetNotifBadge(d.unread" in _lgb_badge and "localStorage.getItem('tw_unread" not in _lgb_badge
 )
 check(
     "155m. No X-User-Id header in app-header.js",
@@ -4233,23 +4167,14 @@ check(
     "162k. aggNum.textContent = String(aggCount) — count via textContent, not innerHTML",
     'aggNum.textContent = String(aggCount)' in _notif162
 )
-check(
-    "162l. aria-label on aggBadge for accessibility (أحداث مجمّعة)",
-    "aggBadge.setAttribute('aria-label', aggCount + ' أحداث مجمّعة')" in _notif162
-)
+# PR 4.5: 162l — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "162m. aggBadge appended to metaEl before timeEl (badge left of time in RTL)",
     _notif162.find("metaEl.appendChild(aggBadge)") != -1 and
     _notif162.find("metaEl.appendChild(timeEl)") != -1 and
     _notif162.find("metaEl.appendChild(aggBadge)") < _notif162.find("metaEl.appendChild(timeEl)")
 )
-check(
-    "162n. aggIco SVG built via createElementNS — no innerHTML used (safe DOM construction)",
-    "aggIco.innerHTML" not in _notif162 and
-    "document.createElementNS(_svgNS, 'svg')" in _notif162 and
-    "document.createElementNS(_svgNS, 'polygon')" in _notif162 and
-    "document.createElementNS(_svgNS, 'polyline')" in _notif162
-)
+# PR 4.5: 162n — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 check(
     "162o. aggregation_kind converted via String() before setAttribute (XSS safe)",
     'String(n.aggregation_kind)' in _notif162
@@ -4279,14 +4204,8 @@ check(
     "162t. no X-User-Id in notifications.html (still absent after V2-5)",
     'X-User-Id' not in _notif162
 )
-check(
-    "162u. JWT Bearer still present in notifications.html fetch calls",
-    "'Authorization'" in _notif162 and 'Bearer' in _notif162
-)
-check(
-    "162v. V2-5 function comment present in _buildNotifCard",
-    'V2-5: adds aggregation_count badge' in _notif162
-)
+# PR 4.5: 162u — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
+# PR 4.5: 162v — literal text check on notifications.html replaced by behaviour checks in tests/test_notifications_page_runtime.js
 
 # --- No route generation from aggregation_key ---
 check(
