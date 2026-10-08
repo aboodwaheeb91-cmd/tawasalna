@@ -214,7 +214,14 @@ const sharedRoot = new Set([...read('tw_shared.css').matchAll(/^\s*(--[a-z0-9-]+
 {
   const htmls = fs.readdirSync('.').filter(f => f.endsWith('.html'));
   const guarded = htmls.filter(f => read(f).includes('<meta name="tw-page" content="auth">'));
-  const missing = guarded.filter(f => !read(f).includes('twRequireAuth('));
+  // the call may sit in a page-owned script file (messages.html → messages.state.js — PR 4.4)
+  const pageSrc = f => {
+    const own = (read(f).match(/<script src="\/[^"?]+\.js/g) || []).map(m => m.slice(14))
+      .map(u => fs.existsSync(u) ? u : u.replace(/^static\//, ''))
+      .filter(u => fs.existsSync(u) && !/^(tw_shared\.js|static\/(shared|vendor)\/)/.test(u));
+    return [read(f)].concat(own.map(read)).join('\n');
+  };
+  const missing = guarded.filter(f => !pageSrc(f).includes('twRequireAuth('));
   check('C17 every <meta tw-page=auth> page calls twRequireAuth', guarded.length >= 2 && !missing.length, missing);
 }
 
