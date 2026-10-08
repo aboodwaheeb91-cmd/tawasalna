@@ -198,6 +198,14 @@
     // Never throws; always returns a valid snapshot object.
     getSessionSnapshot: function () { return _resolveSession(); },
 
+    // The current JWT — only while the session is authenticated, else ''. The ONE way a
+    // page gets the raw token for a non-HTTP channel (WebSocket auth frame — messages.ws.js);
+    // HTTP calls use twApi. Never throws.
+    getToken: function () {
+      try { return _resolveSession().isAuthenticated ? (localStorage.getItem('tw_jwt') || '') : ''; }
+      catch (e) { return ''; }
+    },
+
     // Clears session keys (allowlist only), wipes Cache Storage (best-effort),
     // cancels expiry timer,
     // fires handlers with a guest snapshot, then optionally redirects.

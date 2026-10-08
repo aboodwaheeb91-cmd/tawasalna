@@ -1,72 +1,46 @@
 // messages.api.js — Messenger V1 API layer
-// Depends on: messages.state.js (_user, _jwt)
+// Depends on: tw_shared.js (twApi), messages.state.js (_user)
+// Every request goes through twApi (JWT header, timeout, 401 → TwAuthSync.invalidateSession).
 
-// Read JWT at call time — immune to stale in-memory state after session changes
-function getMessagesJwt() {
-  return (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
-}
-
-// Guard: block API calls when session is no longer valid.
-// Triple-layer: (1) in-memory _user.id; (2) localStorage JWT; (3) localStorage tw_user.id
-// matches _user.id; (4) optional snapshot isAuthenticated + userId match.
-// Closes the account-switch race window: Account A cannot send HTTP requests
-// using Account B's JWT while window.location.reload() is pending.
+// Guard: block API calls when the session is no longer the one this page was opened with.
+// Reads the TwAuthSync snapshot at call time (it cross-checks tw_jwt against tw_user), so
+// during an account switch Account A's in-memory _user cannot send a request with Account B's
+// session while the reload is pending.
 function _isMessagesAuthValid() {
   if (!_user || !_user.id) return false;
-  if (!getMessagesJwt()) return false;
-  // Read tw_user from localStorage at call time — immune to stale in-memory state
-  var currentStoredUser = null;
-  try {
-    currentStoredUser = JSON.parse(
-      (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'
-    );
-  } catch(e) {}
-  if (!currentStoredUser || !currentStoredUser.id) return false;
-  if (Number(currentStoredUser.id) !== Number(_user.id)) return false;
-  if (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function') {
-    var snap = TwAuthSync.getSessionSnapshot();
-    if (snap) {
-      if (!snap.isAuthenticated) return false;
-      if (snap.userId && Number(snap.userId) !== Number(_user.id)) return false;
-    }
-  }
-  return true;
+  if (typeof TwAuthSync === 'undefined' || typeof TwAuthSync.getSessionSnapshot !== 'function') return false;
+  var snap = TwAuthSync.getSessionSnapshot();
+  return !!(snap && snap.isAuthenticated && Number(snap.userId) === Number(_user.id));
+}
+
+// twApi result → data on success; rejects with the HTTP status (0 = network / timeout).
+function _msgApi(path, opts) {
+  if (!_isMessagesAuthValid()) return Promise.reject('unauthenticated');
+  return twApi(path, opts).then(function(res) {
+    return res.ok ? (res.data || {}) : Promise.reject(res.status);
+  });
 }
 
 function apiGetConversations() {
-  if (!_isMessagesAuthValid()) return Promise.reject('unauthenticated');
-  return fetch('/messages/conversations/' + _user.id, {
-    headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
-  }).then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); });
+  return _msgApi('/messages/conversations/' + _user.id);
 }
 
 function apiGetMessages(otherId) {
-  if (!_isMessagesAuthValid()) return Promise.reject('unauthenticated');
-  return fetch('/messages/' + _user.id + '/' + otherId, {
-    headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
-  }).then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); });
+  return _msgApi('/messages/' + _user.id + '/' + otherId);
 }
 
 // No sender_id in body — extracted from JWT on server
 function apiSendMessage(receiverId, content) {
-  if (!_isMessagesAuthValid()) return Promise.reject('unauthenticated');
-  return fetch('/messages/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getMessagesJwt() },
-    body: JSON.stringify({ receiver_id: receiverId, content: content })
-  }).then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); });
+  return _msgApi('/messages/send', { method: 'POST', body: { receiver_id: receiverId, content: content } });
 }
 
 function apiGetUnreadCount() {
-  if (!_isMessagesAuthValid()) return Promise.reject('unauthenticated');
-  return fetch('/messages/unread/' + _user.id, {
-    headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
-  }).then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); });
+  return _msgApi('/messages/unread/' + _user.id);
 }
 
 function apiLookupByTwId(twId) {
   if (!_isMessagesAuthValid()) return Promise.resolve(null);
-  return fetch('/user/lookup/' + encodeURIComponent(twId), {
-    headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
-  }).then(function(r) { return r.ok ? r.json() : null; });
+  return twApi('/user/lookup/' + encodeURIComponent(twId)).then(function(res) {
+    return res.ok ? res.data : null;
+  });
 }

@@ -1,9 +1,11 @@
 // messages.state.js — Messenger V1 state globals
-var _user = null;
-try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-if (!_user || !_user.id) { window.location.href = '/'; }
+// Protected page guard (SHELL-09): twRequireAuth decides from the TwAuthSync snapshot only —
+// guest / expired / stale → /login?next=/messages; logout or account switch in another tab →
+// the same guard redirects / reloads. Nothing below runs a request while _user is null.
+var _session = twRequireAuth();
+var _user = _session ? { id: Number(_session.userId), user_type: _session.userType } : null;
+var _jwt  = _session ? TwAuthSync.getToken() : '';   // WS auth frame only — HTTP goes through twApi
 
-var _jwt = localStorage.getItem('tw_jwt') || '';
 var _currentConvId  = null; // numeric user id of open conversation partner
 var _activeConvMeta = null; // {id, name, typeIco} — survives conv-list refresh
 var _pendingStatus  = {};   // {msg_id → 'delivered'|'read'} for WS events arriving before HTTP ack
@@ -11,12 +13,3 @@ var _pendingStatus  = {};   // {msg_id → 'delivered'|'read'} for WS events arr
 var _typingTimer     = null;  // debounce: send typing_stop after idle
 var _typingThrottle  = null;  // throttle: limit typing events to ≤1 per 1500ms
 var _typingHideTimer = null;  // auto-hide typing indicator after 3s
-
-function esc(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&#39;');
-}

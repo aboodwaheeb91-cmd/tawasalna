@@ -1,8 +1,13 @@
 /* ── WebSocket Real-time ─────────────────────────────────────────────────── */
+// ONE socket per tab: messages.html declares <meta name="tw-ws" content="page"> so the shared
+// badge socket (tw_shared.js) stands down, and connectWS() closes any socket / pending reconnect
+// of its own before opening a new one. Reconnect = capped exponential backoff (WS_MAX_RETRIES);
+// when the cap is hit the page shows a clear notice with a manual retry (msgOnLiveLost).
 
 var _ws             = null;    // current active socket reference
 var _wsGen          = 0;       // increments on each connectWS() call — stale closures self-cancel
 var _wsRetries      = 0;
+var WS_MAX_RETRIES  = 5;       // reconnect attempts after a drop — then stop + notice
 var _wsReady        = false;   // true only after server sends auth_ok
 var _wsReconnectTimer      = null;  // active reconnect timer handle
 var _wsSessionSwitchTimer  = null;  // account-switch reconnect timer (cancellable)
@@ -101,10 +106,36 @@ function applyMsgBadge(count) {
 
 // ── WebSocket connection ──────────────────────────────────────────────────
 
+// The JWT for the auth frame: a staged session-switch token first, else the current one
+// (TwAuthSync.getToken — '' when the session is not authenticated).
+function _wsToken() {
+  if (_wsPendingJwt) return _wsPendingJwt;
+  return (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getToken === 'function')
+    ? TwAuthSync.getToken() : '';
+}
+
+// Close the current socket + cancel its timers. The caller bumps _wsGen so the closed
+// socket's onclose is ignored (no reconnect from a socket we closed on purpose).
+function _wsTeardown() {
+  if (_wsReconnectTimer)   { clearTimeout(_wsReconnectTimer);   _wsReconnectTimer = null; }
+  if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
+  _wsReady = false;
+  var old = _ws;
+  _ws = null;
+  if (old) { try { old.close(); } catch(e) {} }
+}
+
+function _wsNotify(fnName) {
+  if (typeof window !== 'undefined' && typeof window[fnName] === 'function') {
+    try { window[fnName](); } catch(e) { console.warn('[messages] ' + fnName + ' failed:', e); }
+  }
+}
+
 function connectWS() {
   if (!_user || !_user.id) return;
 
-  _wsGen++;
+  _wsGen++;                // stale closures of the previous socket self-cancel
+  _wsTeardown();           // never two sockets: close the old one + any pending reconnect
   var capturedGen = _wsGen;
   var capturedUid = Number(_user.id);
 
@@ -119,8 +150,8 @@ function connectWS() {
     if (capturedGen !== _wsGen || ws !== _ws) { ws.close(); return; }
     _wsReady = false;
     // First message must be auth — no operational events until auth_ok received
-    var jwt = _wsPendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
-    _wsPendingJwt = '';  // consume the pending JWT; fall back to localStorage on reconnects
+    var jwt = _wsToken();
+    _wsPendingJwt = '';  // consume the pending JWT; reconnects use the current session token
     ws.send(JSON.stringify({type: 'auth', token: jwt}));
     // Client-side auth timeout: store handle so onclose and auth_ok can cancel it
     _wsAuthTimeoutTimer = setTimeout(function() {
@@ -150,6 +181,7 @@ function connectWS() {
         if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
         _wsRetries = 0;
         _wsReady = true;
+        _wsNotify('msgOnLiveBack');
         // Signal active conversation now that the connection is authenticated
         // Hidden tab stays inactive — the server would mark incoming messages read (PR 2C)
         if (_currentConvId && !document.hidden) sendActiveConversation(_currentConvId);
@@ -166,8 +198,8 @@ function connectWS() {
         var msgs = document.getElementById('messages');
         var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
         var innerHtml = '<div class="msg in">'
-          + '<div class="msg-text">' + esc(data.content) + '</div>'
-          + '<div class="msg-time">' + esc(t) + '</div>'
+          + '<div class="msg-text">' + twEscHtml(data.content) + '</div>'
+          + '<div class="msg-time">' + twEscHtml(t) + '</div>'
           + '</div>';
         // Cancel any pending hide timer
         if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
@@ -176,11 +208,11 @@ function connectWS() {
           // Transform typing bubble in-place — no jump, no duplicate
           typingEl.removeAttribute('id');
           typingEl.classList.remove('typing-bubble');
-          typingEl.setAttribute('data-msg-id', data.id);
+          typingEl.setAttribute('data-msg-id', String(data.id));
           typingEl.innerHTML = innerHtml;
         } else {
           msgs.insertAdjacentHTML('beforeend',
-            '<div class="msg-wrap in" data-msg-id="' + data.id + '">' + innerHtml + '</div>'
+            '<div class="msg-wrap in" data-msg-id="' + twEscAttr(data.id) + '">' + innerHtml + '</div>'
           );
         }
         scrollDown();
@@ -218,27 +250,29 @@ function connectWS() {
     if (ws === _ws) _ws = null;
     // Auth/Policy close codes (4001-4007) — do not reconnect
     if (event.code >= 4001 && event.code <= 4007) return;
-    if (_wsRetries < 5) {
+    if (_wsRetries < WS_MAX_RETRIES) {
       _wsRetries++;
       // Exponential backoff with jitter: 2^n seconds ± 1s, capped at 30s
       var delay = Math.min(30000, Math.pow(2, _wsRetries) * 1000 + Math.floor(Math.random() * 1000));
-      _wsReconnectTimer = setTimeout(connectWS, delay);
+      _wsReconnectTimer = setTimeout(function() { _wsReconnectTimer = null; connectWS(); }, delay);
+    } else {
+      // Retry cap reached — stop here; the page tells the user and offers a manual retry
+      _wsNotify('msgOnLiveLost');
     }
   };
 
   ws.onerror = function() { ws.close(); };
 }
 
-// ── TwAuthSync lifecycle — handle logout and account-switch on messages page ──
-// TwAuthSync fires when tw_jwt / tw_user changes in any tab, on bfcache restore,
-// or on focus/visibility when the session state changed (PR 2C).
-// Behavior by case:
+// ── TwAuthSync lifecycle — conversation socket on session change ──
+// Navigation is NOT done here: twRequireAuth (messages.state.js) owns it — logout / expired /
+// invalid → /login?next=/messages, account switch → reload. This handler only makes sure the
+// socket never outlives the session it authenticated with.
 //   Same JWT + same user + socket open/connecting → no-op (PR 2C — keeps the
 //                                       conversation socket, typing and active conv)
-//   No JWT (logout/expired)           → clear state, redirect to /login
-//   JWT but isAuthenticated=false     → clear state, redirect to /login
-//   JWT, different userId             → window.location.reload() (clean re-init)
-//   JWT, same userId (token refresh)  → update _jwt, reconnect WS
+//   No JWT / not authenticated (logout) → close socket, clear state, no reconnect
+//   Different userId (account switch)   → close socket, clear state, no reconnect
+//   Same userId (token refresh)         → update _jwt, reconnect WS with the new token
 if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
   TwAuthSync.onSessionChange(function(info) {
     // Step 0: same session and the socket is still alive → keep everything as is
@@ -250,71 +284,32 @@ if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
     // Step 1: Capture current user before any state mutation
     var prevUserId = _user ? Number(_user.id) : null;
 
-    // Invalidate all active closures by advancing the generation counter
+    // Invalidate all active closures + close the socket and its timers
     _wsGen++;
     _wsRetries = 0;  // new session resets the retry counter
-    _wsReady = false;
-    if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
-    if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
     if (_wsSessionSwitchTimer) { clearTimeout(_wsSessionSwitchTimer); _wsSessionSwitchTimer = null; }
-    var sock = _ws;
-    _ws = null;
-    if (sock) { try { sock.close(); } catch(e) {} }
+    _wsTeardown();
 
-    // Step 2: Determine current JWT — info.jwt is synchronously captured before any delay
-    var capturedJwt = (info && info.jwt) ||
-        (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    // Step 2: Current JWT — info.jwt is captured synchronously before any delay
+    var capturedJwt = (info && info.jwt) || '';
+    var snapshot = (info && info.snapshot)
+        || (typeof TwAuthSync.getSessionSnapshot === 'function' ? TwAuthSync.getSessionSnapshot() : null);
+    var newUserId = snapshot && snapshot.isAuthenticated && snapshot.userId ? Number(snapshot.userId) : null;
 
-    // Step 3: No JWT → logout path: clear state, redirect to login
-    if (!capturedJwt) {
+    // Step 3: logout / invalid / account switch → clear state, never reconnect
+    if (!capturedJwt || !newUserId || (prevUserId && newUserId !== prevUserId)) {
       _jwt = '';
       _user = null;
       _currentConvId = null;
-      window.location.replace('/login');
       return;
     }
 
-    // Step 4: JWT present but snapshot says session is invalid (e.g. token revoked)
-    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
-        ? TwAuthSync.getSessionSnapshot() : null;
-    if (snapshot && !snapshot.isAuthenticated) {
-      _jwt = '';
-      _user = null;
-      _currentConvId = null;
-      window.location.replace('/login');
-      return;
-    }
-
-    // Step 5: Determine the incoming user ID
-    var newUserId = null;
-    if (snapshot) {
-      newUserId = snapshot.userId ? Number(snapshot.userId) : null;
-    } else {
-      try {
-        var freshUser = JSON.parse(
-            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
-        newUserId = freshUser ? Number(freshUser.id) : null;
-      } catch(e) {}
-    }
-
-    // Step 6: Account switch (different user) → full page reload for clean re-init
-    if (newUserId && prevUserId && newUserId !== prevUserId) {
-      window.location.reload();
-      return;
-    }
-
-    // Step 7: Same user (token refresh) → update JWT, stage for WS auth, reconnect
+    // Step 4: Same user (token refresh) → update JWT, stage for WS auth, reconnect
     _jwt = capturedJwt;
     _wsPendingJwt = capturedJwt;
     _wsSessionSwitchTimer = setTimeout(function() {
       _wsSessionSwitchTimer = null;
       if (!_user || !_user.id) return;
-      // Refresh _user from localStorage in case profile data changed
-      try {
-        var u = JSON.parse(
-            (typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null');
-        if (u && u.id) _user = u;
-      } catch(e) {}
       connectWS();
     }, 500);
   });

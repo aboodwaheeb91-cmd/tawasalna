@@ -339,7 +339,8 @@ function twT(key, vars) {
 }
 window.twT = twT;
 
-// Static HTML: <el data-tw-t="key"> → textContent · <el data-tw-t-label="key"> → aria-label + title.
+// Static HTML: <el data-tw-t="key"> → textContent · <el data-tw-t-label="key"> → aria-label + title
+// · <input data-tw-t-placeholder="key"> → placeholder.
 // Runs once on DOMContentLoaded for the document; call again for markup added later.
 function twTApply(root) {
   root = root || (typeof document !== 'undefined' ? document : null);
@@ -349,6 +350,9 @@ function twTApply(root) {
     var t = twT(el.getAttribute('data-tw-t-label'));
     el.setAttribute('aria-label', t);
     el.setAttribute('title', t);
+  });
+  root.querySelectorAll('[data-tw-t-placeholder]').forEach(function (el) {
+    el.setAttribute('placeholder', twT(el.getAttribute('data-tw-t-placeholder')));
   });
 }
 window.twTApply = twTApply;
@@ -1265,7 +1269,15 @@ if (typeof document !== 'undefined' && typeof document.querySelector === 'functi
   // pendingJwt: JWT captured synchronously from info.jwt before the async delay fires.
   // V2 contract: getSessionSnapshot() returns {state,isAuthenticated,userType,userId,reason}
   // — no jwt field. JWT always comes from pendingJwt or localStorage.
+  // A page that opens its own socket to /ws/{uid} declares <meta name="tw-ws" content="page">
+  // (messages.html — messages.ws.js also applies the msgs badge) → one socket per tab, never two.
+  function _pageOwnsSocket() {
+    return typeof document !== 'undefined' && typeof document.querySelector === 'function'
+      && !!document.querySelector('meta[name="tw-ws"][content="page"]');
+  }
+
   function _initBadgeWS(pendingJwt) {
+    if (_pageOwnsSocket()) return;
     var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
         ? TwAuthSync.getSessionSnapshot() : null;
     var uid, jwt;

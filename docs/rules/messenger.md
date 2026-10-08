@@ -8,40 +8,39 @@
 These rules are permanent and apply to all future AI sessions.
 Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecycle`.
 
-### TwAuthSync.onSessionChange handler (messages.ws.js) — permanent decision tree
+### Page guard + socket session handler (messages.state.js / messages.ws.js — PR 4.4)
 
-| Condition | Action |
+0. **`twRequireAuth()` في `messages.state.js` هو الحماية الوحيدة.** `_user = {id, user_type}` من الـ snapshot اللي بيرجّعه · `_jwt` من `TwAuthSync.getToken()` (لإطار auth بالـ WS بس). guest / expired / stale → `/login?next=/messages`؛ logout بتاب تاني → نفس التحويل؛ حساب تاني → reload — كله من twRequireAuth.
+
+| Condition | Action (`TwAuthSync.onSessionChange` في `messages.ws.js`) |
 |-----------|--------|
-| `capturedJwt` empty (logout / expired) | `_jwt = ''` + `_user = null` + `_currentConvId = null` + `window.location.replace('/login')` |
-| JWT present but `snapshot.isAuthenticated === false` | Same as above — redirect to `/login` |
-| JWT present, `newUserId !== prevUserId` (account switch) | `window.location.reload()` — clean re-init |
-| JWT present, same userId (token refresh) | Update `_jwt` + `_wsPendingJwt` + schedule 500ms WS reconnect |
+| نفس الـ JWT + نفس المستخدم + socket CONNECTING/OPEN | no-op (PR 2C) |
+| `info.jwt` فاضي، أو snapshot مش authenticated، أو `userId` مختلف | سكّر الـ socket والمؤقتات (`_wsGen++` + `_wsTeardown()`) + `_jwt = ''` + `_user = null` + `_currentConvId = null` — **بدون reconnect وبدون تنقّل** |
+| JWT موجود، نفس الـ userId (token refresh) | Update `_jwt` + `_wsPendingJwt` + schedule 500ms WS reconnect |
 
-1. **`capturedJwt` is always sourced synchronously:** `info.jwt` first, then `localStorage.getItem('tw_jwt')`. Never from `snapshot.jwt` (V2 snapshot has no jwt field).
+1. **`capturedJwt` = `info.jwt` بس** (متزامن قبل أي تأخير). إطار الـ auth بيقرأ `_wsPendingJwt` ثم `TwAuthSync.getToken()`. ❌ `snapshot.jwt`.
 
-2. **Account switch = full page reload.** Do NOT attempt partial state clearing (conv list, messages, `_user`, `_currentConvId`, etc.) — it is error-prone and incomplete. `window.location.reload()` is the only approved account-switch action.
+2. **التنقّل مش شغل الـ socket handler.** ❌ `location.replace` / `location.reload` بـ `messages.ws.js` — twRequireAuth بيعملها (تنقّلين متعارضين كانوا بيضيّعوا `?next=`).
 
-3. **Logout/invalid → redirect, not reconnect.** Empty JWT or `isAuthenticated=false` → `window.location.replace('/login')`. Never reconnect WS after logout.
+3. **Logout / invalid / حساب تاني → ما في reconnect أبداً.**
 
-4. **`_jwt = ''` must be assigned before redirect** in the logout/invalid path. This prevents in-flight callbacks from using the old JWT.
+4. **`_jwt = ''` و `_currentConvId = null`** بيتعيّنوا بنفس المسار — ما في callback معلّق بيستعمل الجلسة القديمة.
 
-5. **`_currentConvId = null` must be assigned before redirect** in the logout/invalid path. This prevents a stale conversation ID from appearing if navigation is delayed.
+5. **socket واحد بالتاب:** `messages.html` فيها `<meta name="tw-ws" content="page">` → الـ Badge WS المشترك (`tw_shared.js`) ما بيفتح؛ `connectWS()` بيعمل `_wsTeardown()` للقديم (socket + reconnect معلّق) قبل `new WebSocket`.
 
-### messages.api.js — permanent API session contract
+5b. **إعادة الاتصال بحد:** backoff أُسّي مع jitter (2^n ث، ≤ 30ث)، أقصى `WS_MAX_RETRIES` (5) — بعدها `msgOnLiveLost()` → إشعار `#msgConnBar` + «إعادة المحاولة». الـ poll (10ث) بيوقف بعد `MSG_MAX_FAILS` (3) فشل متتالي → نفس الإشعار (`msg.offline`). `msgRetryConnection()` بيصفّر الحدّين.
 
-6. **`getMessagesJwt()` is the only approved JWT source** in `messages.api.js`. It reads `localStorage.getItem('tw_jwt')` at call time — never uses the stale in-memory `_jwt` variable.
+### messages.api.js — API session contract (PR 4.4)
 
-7. **`_isMessagesAuthValid()` must guard every API function** before making any `fetch()`. The guard is a four-layer check — all must pass:
-   - `_user` and `_user.id` are set in memory
-   - `getMessagesJwt()` returns a non-empty JWT from localStorage
-   - `localStorage.getItem('tw_user')` parses to a valid user whose `id` matches `_user.id` (cross-account race guard — see rule 10)
-   - When `TwAuthSync.getSessionSnapshot()` is available: `snapshot.isAuthenticated` must be `true` AND `snapshot.userId` (when present) must match `_user.id`
+6. **كل طلب عبر `twApi`** من خلال `_msgApi(path, opts)` → بيرجّع `res.data` أو بيرفض بالـ HTTP status. ❌ `fetch` · ❌ `localStorage` · ❌ `Authorization` يدوي.
 
-8. **`'Bearer ' + _jwt` is permanently forbidden** in `messages.api.js`. All Authorization headers must use `'Bearer ' + getMessagesJwt()`.
+7. **`_isMessagesAuthValid()` قبل كل طلب:** `_user.id` موجود + `TwAuthSync.getSessionSnapshot()` authenticated + `snapshot.userId === _user.id` — بيتقرأ وقت الطلب (الـ snapshot نفسه بيطابق `tw_jwt` مع `tw_user`) → حاجز الـ account-switch race.
 
-9. **`_isMessagesAuthValid()` return values are final:** functions returning null-on-not-found (`apiLookupByTwId`, `apiGetUser`) resolve with `null`; functions rejecting on error reject with `'unauthenticated'`.
+8. **ترتيب الردود:** `loadConversations()` بـ `_convSeq` — أحدث رد بس بيرسم. تحميل المحادثة مربوط بـ id المحادثة + `_threadSeq` — رد لمحادثة تانية أو أقدم من آخر فتح بيتجاهل (حتى `reloadMessagesQuiet()`).
 
-10. **HTTP messaging API calls require the current localStorage `tw_user.id` to match the in-memory Messenger `_user.id`; mismatch blocks the request before fetch.** This closes the account-switch race window: during the brief period between `TwAuthSync.onSessionChange` firing and `window.location.reload()` completing, Account A's stale in-memory `_user` cannot send HTTP requests using Account B's JWT or `tw_user` data.
+9. **`_isMessagesAuthValid()` return values are final:** `apiLookupByTwId` بيرجّع `null`؛ الباقي بيرفض بـ `'unauthenticated'`.
+
+10. **زر «تحديد موعد»** بهيدر المحادثة = `twScheduleButton({candidateId, candidateName, candidateType})` بكل `openConversation()` (`docs/rules/schedule-interview.md`) — بينمسح عند الإغلاق.
 
 ### messages.render.js — Typing Throttle Contract (permanent)
 
@@ -65,16 +64,18 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 ### Forbidden (permanent)
 
 ```
-❌ Using _jwt directly in Authorization headers in messages.api.js
-❌ Adding a new fetch() in messages.api.js without an _isMessagesAuthValid() guard
-❌ Partial account-switch handling in messages page — only window.location.reload()
-❌ Reconnecting WS after logout (empty JWT or isAuthenticated=false)
+❌ fetch() أو localStorage بأي ملف messages.*.js — twApi + TwAuthSync (PR 4.4)
+❌ طلب من messages.api.js بدون _isMessagesAuthValid()
+❌ location.replace / location.reload من handler الـ socket — twRequireAuth بس
+❌ Reconnecting WS after logout / invalid session / account switch
+❌ socket ثاني بنفس التاب (connectWS بدون _wsTeardown · إزالة <meta name="tw-ws" content="page">)
+❌ إعادة محاولة بلا حد (socket أو poll) أو بدون إشعار واضح بعد الحد
+❌ رد طلب قديم بيكتب فوق محادثة / قائمة أحدث (لازم فحص id + seq)
 ❌ Reading snapshot.jwt — V2 TwAuthSync snapshot has no jwt field
-❌ Clearing conversation state manually on account switch (reload handles it)
-❌ Redirecting to any URL other than '/login' on logout/invalid session
-❌ Skipping the localStorage tw_user.id comparison in _isMessagesAuthValid() — it is the cross-account race guard
 ❌ Sending typing events without throttle (no _typingThrottle guard in the input handler)
 ❌ Closing the WS (code 4005) when _ws_typing_rate_ok() returns False — use continue instead
 ❌ Reversing the rate-limit-before-DB ordering for typing events
 ❌ Clearing _typingThrottle on conversation switch without also clearing _typingTimer
 ```
+
+Tests: `node tests/test_messages_page_runtime.js` · `node tests/test_ws_client.mjs` · `node tests/test_ws_api.mjs`.

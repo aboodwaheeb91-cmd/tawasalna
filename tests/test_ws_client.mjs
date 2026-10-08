@@ -19,18 +19,18 @@
  *  T11  _wsReady reset to false on close
  *  T12  _wsGen increments on each connectWS call
  *  T13  Client-side auth timeout scheduled in onopen
- *  T15  Logout (empty jwt) → location.replace('/login'), no reconnect timer
- *  T16  Account switch (different userId) → window.location.reload() called
- *  T17  Account switch → no new WebSocket (page reload handles re-init)
- *  T18  isAuthenticated=false → location.replace('/login') called
+ *  T15  Logout (empty jwt) → socket closed, no navigation here (twRequireAuth), no reconnect timer
+ *  T16  Account switch (different userId) → socket closed + state cleared
+ *  T17  Account switch → no new WebSocket (twRequireAuth reloads the page)
+ *  T18  isAuthenticated=false → state cleared, no new WebSocket
  *  T19  Logout after switch → switch timer cancelled
  *  T31  5-cycle retry lifecycle → _wsRetries not reset in onopen, stops at 5
  *  T32  Auth timeout timer cleared on auth_ok
  *  T33  Auth timeout timer cleared on onclose
  *  T34  Badge WS V2 snapshot (no jwt) + localStorage JWT → socket created
- *  T35  Logout → _user/_currentConvId cleared, replace('/login') called
+ *  T35  Logout → _user/_currentConvId cleared, no navigation from the socket handler
  *  T36  Same user + authenticated → no reload/replace, reconnect timer scheduled
- *  T37  Account switch → location.reload() called, no new WS
+ *  T37  Account switch → no new WS, state cleared
  *  T38  Typing throttle: 30 rapid keystrokes → exactly 1 typing event sent
  *  T39  Typing debounce: 1800ms idle → typing_stop sent, throttle cleared
  *  T40  closeConversationUI clears both _typingTimer and _typingThrottle
@@ -129,7 +129,8 @@ function makeFreshContext() {
     twDebugLog: () => {},
     scrollDown:  () => {},
     loadConversations: () => {},
-    esc: (s) => s,
+    twEscHtml: (s) => s,
+    twEscAttr: (s) => s,
     // TwAuthSync not present → should not throw
     TwAuthSync: undefined,
     // JSON (needed inside vm context)
@@ -161,7 +162,7 @@ console.log('\n── Client lifecycle tests (messages.ws.js) ──────
 (function test_T02() {
   const ctx = makeFreshContext();
   ctx._user = { id: 42 };
-  ctx.localStorage._data.tw_jwt = 'my.test.jwt';
+  ctx.TwAuthSync = { getToken: () => 'my.test.jwt' };   // token source = TwAuthSync.getToken (PR 4.4)
   ctx.connectWS();
   const ws = MockWebSocket.last();
   ws.onopen && ws.onopen();
@@ -379,10 +380,15 @@ function makeFreshContextWithAuth(snapshot = null) {
     twDebugLog: () => {},
     scrollDown: () => {},
     loadConversations: () => {},
-    esc: (s) => s,
+    twEscHtml: (s) => s,
+    twEscAttr: (s) => s,
+    // Mirrors auth-sync.js: snapshot from storage unless a test pins one; getToken only when authenticated
     TwAuthSync: {
       onSessionChange(cb) { sessionChangeCb = cb; },
-      getSessionSnapshot: snapshot !== null ? () => snapshot : undefined,
+      getSessionSnapshot: () => snapshot !== null ? snapshot
+        : (ctx.localStorage._data.tw_jwt ? { state: 'authenticated', isAuthenticated: true, userId: 42 }
+                                         : { state: 'guest', isAuthenticated: false, userId: null }),
+      getToken: () => ctx.TwAuthSync.getSessionSnapshot().isAuthenticated ? ctx.localStorage._data.tw_jwt : '',
     },
     JSON,
     Math,
@@ -428,8 +434,9 @@ function firePendingTimer() {
   ctx.localStorage._data.tw_jwt = '';
   ctx._fireSessionChange({ jwt: '' });
 
-  check('T15  Logout (empty jwt) → location.replace(\'/login\') called, no reconnect timer',
-        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login') &&
+  // PR 4.4: navigation belongs to twRequireAuth — this handler only closes the socket
+  check('T15  Logout (empty jwt) → socket closed, no navigation here, no reconnect timer',
+        ws.readyState === MockWebSocket.CLOSED && ctx._locationCalls.length === 0 &&
         scheduledTimers.filter(t => !t.cancelled).length === 0);
 })();
 
@@ -442,11 +449,11 @@ function firePendingTimer() {
   const ws1 = MockWebSocket.last();
   ws1.onopen && ws1.onopen();
 
-  MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'user.b.jwt' });
 
-  check('T16  Account switch (different userId) → window.location.reload() called',
-        ctx._locationCalls.some(c => c.action === 'reload'));
+  check('T16  Account switch (different userId) → socket closed + state cleared, no navigation here',
+        ws1.readyState === MockWebSocket.CLOSED && ctx._user === null && ctx._jwt === '' &&
+        ctx._locationCalls.length === 0);
 })();
 
 // T17: Account switch → no new WebSocket (page reload handles re-init)
@@ -459,9 +466,9 @@ function firePendingTimer() {
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'fresh.b.jwt' });
 
-  check('T17  Account switch → no new WebSocket created (page reload handles re-init)',
-        MockWebSocket._instances.length === 0 &&
-        ctx._locationCalls.some(c => c.action === 'reload'));
+  scheduledTimers.forEach(t => { if (!t.cancelled) { t.cancelled = true; t.fn(); } });
+  check('T17  Account switch → no new WebSocket created (twRequireAuth reloads the page)',
+        MockWebSocket._instances.length === 0);
 })();
 
 // T18: getSessionSnapshot returns isAuthenticated=false → location.replace('/login'), no new socket
@@ -474,9 +481,9 @@ function firePendingTimer() {
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'some.jwt' });
 
-  check('T18  V2 snapshot isAuthenticated=false → location.replace(\'/login\'), no new WS',
-        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login') &&
-        MockWebSocket._instances.length === 0);
+  scheduledTimers.forEach(t => { if (!t.cancelled) { t.cancelled = true; t.fn(); } });
+  check('T18  V2 snapshot isAuthenticated=false → state cleared, no new WS, no navigation here',
+        ctx._user === null && MockWebSocket._instances.length === 0 && ctx._locationCalls.length === 0);
 })();
 
 // T19: Session switch then real logout → switch timer cancelled
@@ -863,7 +870,7 @@ console.log('\n── Retry lifecycle and auth-timer contract tests (T31–T34) 
 
 console.log('\n── Session switch / logout navigation tests (T35–T37) ──────────────────');
 
-// T35: Logout → _user/_currentConvId cleared, location.replace('/login') called
+// T35: Logout → _user/_currentConvId cleared (navigation = twRequireAuth, PR 4.4)
 (function test_T35() {
   const ctx = makeFreshContextWithAuth();
   ctx._currentConvId = 123;
@@ -872,10 +879,10 @@ console.log('\n── Session switch / logout navigation tests (T35–T37) ─�
   ctx.localStorage._data.tw_jwt = '';
   ctx._fireSessionChange({ jwt: '' });
 
-  check('T35  Logout → _user cleared, _currentConvId cleared, replace(\'/login\') called',
+  check('T35  Logout → _user cleared, _currentConvId cleared, no navigation from the socket handler',
         ctx._user === null &&
         ctx._currentConvId === null &&
-        ctx._locationCalls.some(c => c.action === 'replace' && c.url === '/login'));
+        ctx._locationCalls.length === 0);
 })();
 
 // T36: Same user + still authenticated → no reload/replace, reconnect timer scheduled
@@ -902,9 +909,9 @@ console.log('\n── Session switch / logout navigation tests (T35–T37) ─�
   MockWebSocket.reset();
   ctx._fireSessionChange({ jwt: 'user.c.jwt' });
 
-  check('T37  Account switch (userId 77 ≠ 42) → location.reload() called, no new WS',
-        ctx._locationCalls.some(c => c.action === 'reload') &&
-        MockWebSocket._instances.length === 0);
+  scheduledTimers.forEach(t => { if (!t.cancelled) { t.cancelled = true; t.fn(); } });
+  check('T37  Account switch (userId 77 ≠ 42) → no new WS, state cleared',
+        ctx._user === null && MockWebSocket._instances.length === 0);
 })();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -983,11 +990,18 @@ function makeRenderThrottleContext() {
     requestAnimationFrame: fn => { fn && fn(); return 0; },
     performance: { now: () => Date.now() },
     Promise,
-    esc(s) {
+    twEscHtml(s) {
       return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     },
+    twEscAttr(s) { return ctx.twEscHtml(s); },
+    twT: (k) => k,
+    twIcon: Object.assign(() => '<svg></svg>', { hydrate: () => 0 }),
+    twAvatarHtml: () => '<span class="tw-ava"></span>',
+    twNotifBadgeLabel: (n) => String(n),
+    applyMsgBadge: () => {},
+    showToast: () => {},
     twDebugLog: () => {},
     scrollDown:  () => {},
     JSON, Math,

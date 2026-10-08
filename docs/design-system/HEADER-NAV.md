@@ -80,6 +80,7 @@
 
 - `<span class="tw-hdr-badge" data-badge="notif">` و `data-badge="msgs"` — بيعبّوهم `loadGlobalBadges()` (مرة عند الرسم) + Badge WS (`tw_shared.js`) + `applyMsgBadge` (`messages.ws.js`).
 - **كاتب واحد لشارة الإشعارات (PR 4.5):** `twSetNotifBadge(count)` — `loadGlobalBadges` + أي تحديث متفائل من صفحة (مثال: «تمييز الكل كمقروء» → `0`، رجوع للرقم القديم عند الفشل). ❌ صفحة بتكتب على `[data-badge="notif"]` مباشرة.
+- **socket واحد بالتاب (PR 4.4):** صفحة بتفتح socket لحالها على `/ws/{uid}` بتعلن `<meta name="tw-ws" content="page">` → الـ Badge WS المشترك ما بيفتح (`_initBadgeWS` بيرجع) والصفحة بتحدّث شارة الرسائل بنفسها. المستهلك الوحيد: `messages.html` (`messages.ws.js` → `applyMsgBadge`).
 - **حد واحد للاثنين:** `twNotifBadgeLabel(count)` → `1..99` / `99+` (كان الرسائل `9+`).
 - نفس الشكل للاثنين (`.tw-hdr-badge` — `--color-status-danger`).
 

@@ -272,7 +272,7 @@ check("E06 — eye preview static section preserved",
 # ═══════════════════════════════════════════════════════
 print("\nJ — messages.html")
 
-msg = read("messages.html")
+msg = read_page("messages.html")   # Page Shell page (PR 4.4) — read_html output
 msg_render = read("messages.render.js")
 
 check("J01 — auth-sync.js loaded in messages.html",
