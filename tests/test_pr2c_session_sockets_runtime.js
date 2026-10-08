@@ -167,7 +167,8 @@ function loadMessagesWs(snap0) {
     WebSocket: mkWsClass(sockets), setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout,
     localStorage: mkStorage({ tw_jwt: jwtA }), JSON, Number, Math,
     document: { hidden: false, getElementById: () => null },
-    TwAuthSync: { onSessionChange: f => { cb = f; }, getSessionSnapshot: () => ctx.__snap },
+    TwAuthSync: { onSessionChange: f => { cb = f; }, getSessionSnapshot: () => ctx.__snap,
+                  getToken: () => (ctx.__snap && ctx.__snap.isAuthenticated ? jwtA : '') },
   });
   ctx.window = { location: loc }; ctx.location = loc;
   vm.runInContext('var _user = {id:42}; var _jwt = ' + JSON.stringify(jwtA) + '; var _currentConvId = 7; var _typingHideTimer = null;', ctx);
@@ -188,15 +189,18 @@ function loadMessagesWs(snap0) {
   const snapB = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 99 };
   t.ctx.__snap = snapB;
   t.cb({ jwt: jwtFor(99, 'emp', NOW + 3600), reason: 'storage', snapshot: snapB });
-  assert('user change → socket closed + page reload', t.sockets[0].closed && t.loc.reloaded === 1);
+  t.timers.runAll();
+  // PR 4.4: the reload itself is twRequireAuth's (messages.state.js) — the socket handler closes + stays closed
+  assert('user change → socket closed, no new socket', t.sockets[0].closed && t.sockets.length === 1);
 }
 {
   const snap = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 42 };
   const t = loadMessagesWs(snap);
   t.ctx.__snap = { state: 'guest', isAuthenticated: false, userId: null };
   t.cb({ jwt: '', reason: 'storage', snapshot: t.ctx.__snap });
-  assert('logout in other tab → socket closed + redirect /login',
-    t.sockets[0].closed && t.loc.replaced === '/login');
+  t.timers.runAll();
+  assert('logout in other tab → socket closed, no reconnect (redirect = twRequireAuth)',
+    t.sockets[0].closed && t.sockets.length === 1);
 }
 
 // ════════════════════════════════════════════════════════════════════════

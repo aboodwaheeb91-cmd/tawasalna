@@ -6,9 +6,9 @@ establishing live WebSocket connections (which would require a running DB).
 
 Coverage:
   A — Backend (server.py): 29 checks (A01-A29)
-  B — Messages client (messages.ws.js): 17 checks (B01-B17)
+  B — Messages client (messages.ws.js): 18 checks (B01-B18)
   C — Badge WS client (tw_shared.js): 12 checks (C01-C12)
-  D — Messages API client (messages.api.js): 8 checks (D01-D08)
+  D — Messages API client (messages.api.js): 5 checks (D01-D05)
 
 Run:  python tests/test_ws_security.py
 """
@@ -255,17 +255,21 @@ else:
 check("B14  _wsRetries NOT reset inside onopen (only on auth_ok / session change)",
       "_wsRetries = 0" not in onopen_body_b14)
 
-# B15: location.replace('/login') in TwAuthSync session handler (logout / invalid session path)
-check("B15  location.replace('/login') present in TwAuthSync session handler",
-      "location.replace('/login')" in ws)
-
-# B16: location.reload() in TwAuthSync session handler (account-switch path)
-check("B16  location.reload() present in TwAuthSync session handler",
-      "location.reload()" in ws)
+# B15/B16 (PR 4.4): navigation on logout / account switch belongs to twRequireAuth
+# (messages.state.js) — the socket handler only closes the socket and clears state.
+check("B15  messages.ws.js does not navigate (no location.replace / reload — twRequireAuth owns it)",
+      "location.replace(" not in ws and "location.reload(" not in ws)
+check("B16  messages.state.js guards the page with twRequireAuth() (no localStorage session read)",
+      "twRequireAuth()" in _read("messages.state.js") and "localStorage" not in _read("messages.state.js"))
 
 # B17: _jwt = '' assigned in logout path of TwAuthSync session handler
 check("B17  _jwt = '' assigned in logout/invalid path of TwAuthSync handler",
       re.search(r"_jwt\s*=\s*''|_jwt\s*=\s*\"\"", ws) is not None)
+
+# B18 (PR 4.4): one socket — connectWS closes the previous socket before opening a new one
+_cw = ws[ws.find("function connectWS()"):ws.find("ws.onopen")]
+check("B18  connectWS() tears down the previous socket before new WebSocket(...)",
+      "_wsTeardown()" in _cw and _cw.find("_wsTeardown()") < _cw.find("new WebSocket"))
 
 print("\n── C  Badge WS client (tw_shared.js) ──────────────────────────────────")
 
@@ -331,41 +335,23 @@ check("C12  _sessionReinitTimer declared at IIFE level in Badge WS",
 
 print("\n── D  Messages API client (messages.api.js) ───────────────────────────")
 
-# D01: getMessagesJwt() defined — reads JWT at call time (not from stale in-memory _jwt)
-check("D01  getMessagesJwt() function defined in messages.api.js",
-      "function getMessagesJwt()" in api)
+# PR 4.4: every request goes through twApi; the session guard reads the TwAuthSync snapshot.
+# Behaviour (blocked / allowed requests per session state): tests/test_ws_api.mjs.
+check("D01  messages.api.js never reads localStorage (session = TwAuthSync snapshot)",
+      "localStorage" not in api)
 
-# D02: _isMessagesAuthValid() defined — guards all API calls
 check("D02  _isMessagesAuthValid() function defined in messages.api.js",
       "function _isMessagesAuthValid()" in api)
 
-# D03: No hardcoded 'Bearer ' + _jwt pattern — all headers use getMessagesJwt()
 check("D03  No hardcoded 'Bearer ' + _jwt pattern in messages.api.js",
       "'Bearer ' + _jwt" not in api and '"Bearer " + _jwt' not in api)
 
-# D04: getMessagesJwt() used inside Authorization header value
-check("D04  getMessagesJwt() called inside Authorization header in messages.api.js",
-      "'Authorization': 'Bearer ' + getMessagesJwt()" in api or
-      '"Authorization": "Bearer " + getMessagesJwt()' in api)
+check("D04  no direct fetch( in messages.api.js — twApi only",
+      re.search(r"(?<![\w$.])fetch\s*\(", api) is None and "twApi(" in api)
 
-# D05: _isMessagesAuthValid() guard present in apiSendMessage
-check("D05  _isMessagesAuthValid() guard present in apiSendMessage",
-      re.search(r"function\s+apiSendMessage.*?_isMessagesAuthValid", api, re.DOTALL) is not None)
-
-# D06: tw_user read from localStorage inside _isMessagesAuthValid
-check("D06  localStorage.getItem('tw_user') called inside _isMessagesAuthValid",
-      re.search(r"function\s+_isMessagesAuthValid.*?getItem\s*\(\s*['\"]tw_user['\"]",
-                api, re.DOTALL) is not None)
-
-# D07: currentStoredUser.id compared against _user.id (account-switch race guard)
-check("D07  currentStoredUser.id compared against _user.id in _isMessagesAuthValid",
-      re.search(r"Number\s*\(\s*currentStoredUser\.id\s*\)\s*!==\s*Number\s*\(\s*_user\.id\s*\)",
-                api) is not None)
-
-# D08: snapshot.userId compared against _user.id when snapshot is available
-check("D08  snapshot.userId compared against _user.id in _isMessagesAuthValid",
-      re.search(r"Number\s*\(\s*snap\.userId\s*\)\s*!==\s*Number\s*\(\s*_user\.id\s*\)",
-                api) is not None)
+check("D05  _isMessagesAuthValid() guard present in apiSendMessage path",
+      re.search(r"function\s+_msgApi.*?_isMessagesAuthValid", api, re.DOTALL) is not None
+      and re.search(r"function\s+apiSendMessage.*?_msgApi\(", api, re.DOTALL) is not None)
 
 # ── Summary ───────────────────────────────────────────────────────────────
 

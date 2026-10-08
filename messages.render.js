@@ -2,23 +2,20 @@
 // Depends on: messages.state.js, messages.api.js, messages.ws.js
 
 // ── Account-type presentation (avatar/badge only — no new data, no new logic) ──
-// Maps the user_type already returned by the API to a label/icon/color class.
+// Maps the user_type already returned by the API to a label key (GLOSSARY) + color class.
 var _TYPE_INFO = {
-  co:  { label: 'شركة',       icon: '🏢', cls: 't-co'  },
-  edu: { label: 'جهة تعليمية', icon: '🎓', cls: 't-edu' },
-  emp: { label: 'موظف',       icon: '👤', cls: 't-emp' }
+  co:  { key: 'account.type.co',  cls: 't-co'  },
+  edu: { key: 'account.type.edu', cls: 't-edu' },
+  emp: { key: 'account.type.emp', cls: 't-emp' }
 };
-function typeInfo(t) { return _TYPE_INFO[t] || _TYPE_INFO.emp; }
-
-function avatarHtml(name, avatarUrl) {
-  if (avatarUrl) return '<img src="' + esc(avatarUrl) + '" alt="" loading="lazy">';
-  var initial = String(name || '').trim().charAt(0) || '؟';
-  return '<span class="ava-initial">' + esc(initial) + '</span>';
+function typeInfo(t) {
+  var info = _TYPE_INFO[t] || _TYPE_INFO.emp;
+  return { label: twT(info.key), cls: info.cls };
 }
 
-function typeBadgeHtml(type, cls) {
-  var info = typeInfo(type);
-  return '<span class="' + cls + ' ' + info.cls + '" title="' + info.label + '">' + info.icon + '</span>';
+// DS-IMAGE: one avatar renderer (twAvatarHtml — URL checked by twSafeImageUrl, letter fallback)
+function avatarHtml(name, avatarUrl, type) {
+  return twAvatarHtml({ full_name: name || '', avatar_url: avatarUrl || '', user_type: type || 'emp' }, 'md');
 }
 
 // Text-only pill badge — same identity-display convention as the followers
@@ -26,7 +23,7 @@ function typeBadgeHtml(type, cls) {
 // background. Used for the chat header and conversation-list cards.
 function typeBadgePillHtml(type) {
   var info = typeInfo(type);
-  return '<span class="type-badge-pill ' + info.cls + '">' + info.label + '</span>';
+  return '<span class="type-badge-pill ' + info.cls + '">' + twEscHtml(info.label) + '</span>';
 }
 
 // Per-type card accent class — namespaced "acc-*" (not "t-*") so it never
@@ -45,10 +42,10 @@ function profession(c) {
 }
 function professionLineHtml(c) {
   var text = profession(c);
-  return text ? '<div class="ci-sub">' + esc(text) + '</div>' : '';
+  return text ? '<div class="ci-sub">' + twEscHtml(text) + '</div>' : '';
 }
 
-function formatConvTime(iso) {
+function convTimeLabel(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
   catch (e) { return ''; }
@@ -138,10 +135,8 @@ document.addEventListener('click', function(e) {
 function loadUnreadCount() {
   if (!_user || !_user.id) return;
   apiGetUnreadCount().then(function(data) {
-    var count = data.count || 0;
-    var msgBn = document.querySelector('.bn:last-child .bi');
-    if (msgBn && count > 0) msgBn.textContent = '💬';
-  }).catch(function() {});
+    applyMsgBadge(data.count || 0);   // header msgs badge (messages.ws.js — one cap rule)
+  }).catch(function(status) { console.warn('[messages] unread count failed, status:', status); });
 }
 
 // ── Conversation list ─────────────────────────────────────────────────────
@@ -152,7 +147,7 @@ function renderConvList(convs) {
 
   if (!convs.length) {
     if (!_currentConvId) {
-      items.innerHTML = '<div class="conv-empty">لا توجد محادثات بعد</div>';
+      items.innerHTML = '<div class="conv-empty">' + twEscHtml(twT('msg.empty_list')) + '</div>';
     }
     return;
   }
@@ -160,21 +155,21 @@ function renderConvList(convs) {
   var frag = '';
   convs.forEach(function(c) {
     var type    = c.user_type || 'emp';
-    var name    = esc(c.full_name || 'مستخدم');
-    var last    = esc((c.content || '').slice(0, 45));
-    var time    = esc(formatConvTime(c.created_at));
+    var name    = twEscHtml(c.full_name || twT('msg.user_fallback'));
+    var last    = twEscHtml((c.content || '').slice(0, 45));
+    var time    = twEscHtml(convTimeLabel(c.created_at));
     var unreadCount = c.unread_count || 0;
     var unreadCls   = unreadCount > 0 ? ' unread' : '';
     var unread  = unreadCount > 0
-                  ? '<span class="ci-badge">' + (unreadCount > 99 ? '99+' : unreadCount) + '</span>' : '';
+                  ? '<span class="ci-badge">' + twEscHtml(twNotifBadgeLabel(unreadCount)) + '</span>' : '';
     var isActive = (_currentConvId && c.other_id === _currentConvId) ? ' active' : '';
     var avatarUrl = c.avatar_url || '';
-    frag += '<div class="conv-item ' + accentClass(type) + isActive + unreadCls + '" data-uid="' + c.other_id
-          + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl)
-          + '" data-headline="' + esc(profession(c))
-          + '" data-twid="' + esc(c.tw_id || '') + '">'
-          + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
-          + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
+    frag += '<div class="conv-item ' + accentClass(type) + isActive + unreadCls + '" data-uid="' + twEscAttr(c.other_id)
+          + '" data-type="' + twEscAttr(type) + '" data-avatar="' + twEscAttr(avatarUrl)
+          + '" data-headline="' + twEscAttr(profession(c))
+          + '" data-twid="' + twEscAttr(c.tw_id || '') + '">'
+          + '<div class="ci-ava-wrap"><div class="ci-ava">'
+          + avatarHtml(c.full_name, avatarUrl, type) + '</div></div>'
           + '<div class="ci-body">'
           + '<div class="ci-name-row"><span class="ci-name">' + name + '</span>' + typeBadgePillHtml(type) + '</div>'
           + professionLineHtml(c)
@@ -197,11 +192,11 @@ function renderConvList(convs) {
     ph.setAttribute('data-avatar',   _activeConvMeta.avatarUrl || '');
     ph.setAttribute('data-headline', _activeConvMeta.headline  || '');
     ph.setAttribute('data-twid',     _activeConvMeta.twId      || '');
-    ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
-      + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
+    ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava">'
+      + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl, phType) + '</div></div>'
       + '<div class="ci-body">'
-      + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
-      + '<div class="ci-preview">محادثة جديدة</div></div>';
+      + '<div class="ci-name-row"><span class="ci-name">' + twEscHtml(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
+      + '<div class="ci-preview">' + twEscHtml(twT('msg.new_conv')) + '</div></div>';
     items.insertAdjacentElement('afterbegin', ph);
   }
 
@@ -218,20 +213,40 @@ function renderConvList(convs) {
   applyConvFilter(_convFilterMode);
 }
 
+// Request ordering: every list load gets a sequence number; only the newest response
+// may render, so a slow older response never overwrites a newer list.
+var _convSeq = 0;
+
+// Retry limit: the 10s poll stops after MSG_MAX_FAILS consecutive failures and the page
+// says so (connection notice + manual retry) instead of retrying forever.
+var MSG_MAX_FAILS = 3;
+var _convFails = 0;
+
 function loadConversations() {
-  if (!_user || !_user.id) return;
-  apiGetConversations().then(function(data) {
+  if (!_user || !_user.id) return Promise.resolve(false);
+  var seq = ++_convSeq;
+  return apiGetConversations().then(function(data) {
+    if (seq !== _convSeq) return true;           // superseded by a newer load
+    _convFails = 0;
+    msgHideConnBar('offline');
+    // the socket may still be given up — keep saying so once the bigger notice is gone
+    if (!_ws && _wsRetries >= WS_MAX_RETRIES) msgShowConnBar('live');
     renderConvList(data.conversations || []);
+    return true;
   }).catch(function(status) {
+    if (seq !== _convSeq) return false;
     console.error('[messages] loadConversations failed, status:', status);
+    _convFails++;
     var items = document.querySelector('.conv-items');
-    if (!items || _currentConvId) return;
-    if (status === 401 || status === 403) {
-      items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.7)">انتهت الجلسة — أعد تسجيل الدخول</div>';
-    } else if (!items.querySelector('.conv-item')) {
-      // Don't overwrite a valid list on a temporary poll failure
-      items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.5)">تعذر تحميل المحادثات</div>';
+    // Don't overwrite a valid list on a temporary poll failure
+    if (items && !_currentConvId && !items.querySelector('.conv-item')) {
+      items.innerHTML = '<div class="conv-empty conv-empty--error">' + twEscHtml(twT('msg.list_error')) + '</div>';
     }
+    if (_convFails >= MSG_MAX_FAILS) {
+      _stopMsgPoll();
+      msgShowConnBar('offline');
+    }
+    return false;
   });
 }
 
@@ -245,16 +260,44 @@ function renderMessageStatus(msg) {
 
 function renderBubble(isMe, content, time, statusHtml, msgId) {
   var dir    = isMe ? 'out' : 'in';
-  var idAttr = msgId ? ' data-msg-id="' + msgId + '"' : '';
+  var idAttr = msgId ? ' data-msg-id="' + twEscAttr(msgId) + '"' : '';
   return '<div class="msg-wrap ' + dir + '"' + idAttr + '><div class="msg ' + dir + '">'
-    + '<div class="msg-text">' + esc(content) + '</div>'
-    + '<div class="msg-time">' + esc(time)
+    + '<div class="msg-text">' + twEscHtml(content) + '</div>'
+    + '<div class="msg-time">' + twEscHtml(time)
     + (statusHtml ? ' ' + statusHtml : '')
     + '</div></div></div>';
 }
 
+// One thread renderer (open + quiet reload) — date dividers + bubbles.
+function renderThreadHtml(list) {
+  var lastDate = '';
+  var me = Number(_user && _user.id);
+  return list.map(function(msg) {
+    var isMe    = Number(msg.sender_id) === me;
+    var d       = new Date(msg.created_at);
+    var t       = d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+    var dateStr = d.toLocaleDateString('ar', { weekday: 'long', month: 'short', day: 'numeric' });
+    var dateDiv = '';
+    if (dateStr !== lastDate) {
+      lastDate = dateStr;
+      dateDiv = '<div class="date-divider">' + twEscHtml(dateStr) + '</div>';
+    }
+    var statusHtml = isMe ? renderMessageStatus(msg) : '';
+    return dateDiv + renderBubble(isMe, msg.content, t, statusHtml, msg.id);
+  }).join('');
+}
+
+function threadNoteHtml(key) {
+  return '<div class="msg-note">' + twEscHtml(twT(key)) + '</div>';
+}
+
+// Thread ordering: each load is tied to the conversation it was made for + a sequence
+// number. A response for another conversation, or older than the latest open, is dropped.
+var _threadSeq = 0;
+
 // ── Chat header schedule button (PR 3.10) ─────────────────────────────────
-// twScheduleButton decides visibility itself (company viewer + emp other side, not self).
+// twScheduleButton decides visibility itself (tw-schedule.js — company viewer + emp other side,
+// not self); a person who is not yet a candidate is shortlisted by the server on save (§75).
 function _renderChatSchedule(otherId, name, type) {
   var slot = document.getElementById('chatSchedSlot');
   if (!slot) return;
@@ -299,14 +342,13 @@ function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   var statusEl = document.getElementById('chatStatus');
   if (nameEl) nameEl.textContent = name;
   if (avaEl) {
-    avaEl.className = 'ch-ava ' + typeInfo(type).cls;
-    avaEl.innerHTML = avatarHtml(name, avatarUrl);
+    avaEl.innerHTML = avatarHtml(name, avatarUrl, type);
   }
   if (badgeEl) {
     var info = typeInfo(type);
     badgeEl.textContent = info.label;
     badgeEl.className   = 'type-badge-pill ' + info.cls;
-    badgeEl.style.display = '';
+    badgeEl.hidden = false;
   }
   // Profession/specialty caption — profiles.headline/title, passed in from
   // the card's data-headline attribute. The account type already shows as
@@ -318,51 +360,37 @@ function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   // No real presence/online signal is exposed by the backend to other users.
   // Kept ready (text set) but hidden via CSS (.ch-status{display:none}) so
   // the header never shows an invented/placeholder activity line.
-  if (statusEl) statusEl.textContent = 'آخر نشاط غير متاح';
+  if (statusEl) statusEl.textContent = twT('msg.last_seen_na');
 
   var menuBtn = document.getElementById('chMenuBtn');
-  if (menuBtn) menuBtn.style.display = '';
+  if (menuBtn) menuBtn.hidden = false;
   var backArrow = document.getElementById('chBackArrow');
-  if (backArrow) backArrow.style.display = '';
+  if (backArrow) backArrow.hidden = false;
 
   // Schedule Interview (PR 3.10 — shared tw-schedule.js): only for a company talking to an emp
   _renderChatSchedule(otherId, name, type);
 
   // Show composer — only visible when a conversation is active
   var chatInput = document.getElementById('chatInput');
-  if (chatInput) chatInput.style.display = '';
+  if (chatInput) chatInput.hidden = false;
 
   var convListEl = document.getElementById('convList');
   if (convListEl) convListEl.classList.remove('mobile-show');
 
   var msgArea = document.getElementById('messages');
-  msgArea.innerHTML = '<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
+  msgArea.innerHTML = threadNoteHtml('msg.loading');
 
+  var seq = ++_threadSeq;
   apiGetMessages(otherId).then(function(data) {
+    if (seq !== _threadSeq || _currentConvId !== otherId) return;   // stale response
     var list = data.messages || [];
-    if (!list.length) {
-      msgArea.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة ✉️</div>';
-      loadUnreadCount();
-      return;
-    }
-    var lastDate = '';
-    msgArea.innerHTML = list.map(function(msg) {
-      var isMe    = msg.sender_id === _user.id;
-      var d       = new Date(msg.created_at);
-      var t       = d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-      var dateStr = d.toLocaleDateString('ar', { weekday: 'long', month: 'short', day: 'numeric' });
-      var dateDiv = '';
-      if (dateStr !== lastDate) {
-        lastDate = dateStr;
-        dateDiv = '<div class="date-divider">' + esc(dateStr) + '</div>';
-      }
-      var statusHtml = isMe ? renderMessageStatus(msg) : '';
-      return dateDiv + renderBubble(isMe, msg.content, t, statusHtml, msg.id);
-    }).join('');
-    scrollDown();
+    msgArea.innerHTML = list.length ? renderThreadHtml(list) : threadNoteHtml('msg.thread_empty');
+    if (list.length) scrollDown();
     loadUnreadCount();
-  }).catch(function() {
-    msgArea.innerHTML = '<div style="text-align:center;color:var(--t3)">تعذر تحميل الرسائل</div>';
+  }).catch(function(status) {
+    if (seq !== _threadSeq || _currentConvId !== otherId) return;
+    console.error('[messages] load thread failed, status:', status);
+    msgArea.innerHTML = threadNoteHtml('msg.thread_error');
   });
 }
 
@@ -376,6 +404,7 @@ function doSendMessage() {
 
   var sendBtn = document.querySelector('.send-btn');
   if (sendBtn) sendBtn.disabled = true;
+  var sendConvId = _currentConvId;
 
   // Cancel debounce + throttle; notify receiver immediately so their 2.5s delayed hide starts now
   if (_typingTimer)    { clearTimeout(_typingTimer);    _typingTimer    = null; }
@@ -393,16 +422,16 @@ function doSendMessage() {
   var t    = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
 
   msgs.insertAdjacentHTML('beforeend',
-    '<div id="' + pid + '" class="msg-wrap out">'
+    '<div id="' + pid + '" class="msg-wrap out is-pending">'
     + '<div class="msg out">'
-    + '<div class="msg-text" style="opacity:.6">' + esc(savedText) + '</div>'
-    + '<div class="msg-time">' + esc(t)
+    + '<div class="msg-text">' + twEscHtml(savedText) + '</div>'
+    + '<div class="msg-time">' + twEscHtml(t)
     + ' <span class="msg-status pending" id="' + pid + 'st">•••</span></div>'
     + '</div></div>'
   );
   scrollDown();
 
-  apiSendMessage(_currentConvId, savedText)
+  apiSendMessage(sendConvId, savedText)
     .then(function(data) {
       var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
@@ -410,8 +439,7 @@ function doSendMessage() {
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
       }
-      var txt = el && el.querySelector('.msg-text');
-      if (txt) txt.style.opacity = '';
+      if (el) el.classList.remove('is-pending');
       // Apply any WS status_update that arrived before HTTP response
       if (realId && _pendingStatus[realId]) {
         _applyStatusToEl(el, _pendingStatus[realId]);
@@ -431,13 +459,16 @@ function doSendMessage() {
       }
       loadConversations();
     })
-    .catch(function() {
+    .catch(function(status) {
+      console.error('[messages] send failed, status:', status);
       var el = document.getElementById(pid);
-      if (el) el.classList.add('msg-failed');
+      if (el) { el.classList.remove('is-pending'); el.classList.add('msg-failed'); }
       var st = document.getElementById(pid + 'st');
-      if (st) { st.textContent = '✗'; st.style.color = '#ef4444'; }
+      if (st) { st.className = 'msg-status failed'; st.textContent = '✗'; }
+      showToast(twT('msg.send_failed'), 'error');
       var inp = document.getElementById('msgInput');
-      if (inp) {
+      // Give the text back only if the user is still in the same conversation
+      if (inp && _currentConvId === sendConvId) {
         inp.value = savedText;
         autoResize(inp);
         requestAnimationFrame(function() { inp.focus({ preventScroll: true }); });
@@ -470,30 +501,20 @@ function _stopMsgPoll() {
 function reloadMessagesQuiet() {
   // Hidden tab never fetches the open conversation — GET /messages marks it read (PR 2C)
   if (!_currentConvId || document.hidden) return;
-  apiGetMessages(_currentConvId).then(function(data) {
+  var convId = _currentConvId;
+  var seq = _threadSeq;   // a newer openConversation() bumps it → this response is dropped
+  apiGetMessages(convId).then(function(data) {
+    if (seq !== _threadSeq || _currentConvId !== convId) return;   // stale response
     var list = data.messages || [];
     var msgs = document.getElementById('messages');
     if (!msgs) return;
     var current = msgs.querySelectorAll('.msg-wrap').length;
     if (list.length <= current) return;
     var atBottom = (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) < 80;
-    var lastDate = '';
-    msgs.innerHTML = list.map(function(msg) {
-      var isMe    = msg.sender_id === _user.id;
-      var d       = new Date(msg.created_at);
-      var t       = d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-      var dateStr = d.toLocaleDateString('ar', { weekday: 'long', month: 'short', day: 'numeric' });
-      var dateDiv = '';
-      if (dateStr !== lastDate) {
-        lastDate = dateStr;
-        dateDiv = '<div class="date-divider">' + esc(dateStr) + '</div>';
-      }
-      var statusHtml = isMe ? renderMessageStatus(msg) : '';
-      return dateDiv + renderBubble(isMe, msg.content, t, statusHtml, msg.id);
-    }).join('');
+    msgs.innerHTML = renderThreadHtml(list);
     if (atBottom) scrollDown();
     loadUnreadCount();
-  }).catch(function() {});
+  }).catch(function(status) { console.warn('[messages] quiet reload failed, status:', status); });
 }
 
 // ── View conversation partner's profile ───────────────────────────────────
@@ -502,9 +523,9 @@ function viewConvProfile() {
   if (!_activeConvMeta || !_activeConvMeta.id) return;
   var tw = _activeConvMeta.twId;
   if (tw) {
-    window.location.href = '/u/' + tw;
+    window.location.href = '/u/' + encodeURIComponent(tw);
   } else {
-    showToast('تعذر فتح الملف الشخصي', 'error');
+    showToast(twT('msg.profile_failed'), 'error');
   }
 }
 
@@ -513,11 +534,11 @@ function copyConvProfileLink() {
   var dd = document.getElementById('chMenuDropdown');
   if (dd) dd.classList.remove('open');
   var tw = _activeConvMeta.twId;
-  if (!tw) { showToast('تعذر نسخ الرابط', 'error'); return; }
-  var url = window.location.origin + '/u/' + tw;
+  if (!tw) { showToast(twT('msg.copy_failed'), 'error'); return; }
+  var url = window.location.origin + '/u/' + encodeURIComponent(tw);
   navigator.clipboard.writeText(url)
-    .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
-    .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+    .then(function() { showToast(twT('msg.copied'), 'success'); })
+    .catch(function() { showToast(twT('msg.copy_failed'), 'error'); });
 }
 
 // ── Exit conversation back to the conversation list ───────────────────────
@@ -541,28 +562,33 @@ function closeConversationUI() {
   var dd = document.getElementById('chMenuDropdown');
   if (dd) dd.classList.remove('open');
   var menuBtn = document.getElementById('chMenuBtn');
-  if (menuBtn) menuBtn.style.display = 'none';
+  if (menuBtn) menuBtn.hidden = true;
   var backArrow = document.getElementById('chBackArrow');
-  if (backArrow) backArrow.style.display = 'none';
+  if (backArrow) backArrow.hidden = true;
   _renderChatSchedule(null);
   var nameEl   = document.getElementById('chatName');
-  if (nameEl) nameEl.textContent = 'اختر محادثة';
+  if (nameEl) nameEl.textContent = twT('msg.pick');
   var avaEl    = document.getElementById('chatAva');
-  if (avaEl) { avaEl.className = 'ch-ava'; avaEl.innerHTML = '💬'; }
+  if (avaEl) avaEl.innerHTML = twIcon('messages');
   var badgeEl  = document.getElementById('chatTypeBadge');
-  if (badgeEl) { badgeEl.style.display = 'none'; badgeEl.textContent = ''; badgeEl.className = 'type-badge-pill'; }
+  if (badgeEl) { badgeEl.hidden = true; badgeEl.textContent = ''; badgeEl.className = 'type-badge-pill'; }
   var roleEl   = document.getElementById('chatRole');
   if (roleEl) roleEl.textContent = '';
   var statusEl = document.getElementById('chatStatus');
   if (statusEl) statusEl.textContent = '';
 
   var chatInput = document.getElementById('chatInput');
-  if (chatInput) chatInput.style.display = 'none';
+  if (chatInput) chatInput.hidden = true;
   var msgArea = document.getElementById('messages');
-  if (msgArea) msgArea.innerHTML = '<div class="empty-chat"><span class="ei">💬</span><p>اختر محادثة للبدء</p></div>';
+  if (msgArea) msgArea.innerHTML = emptyChatHtml();
 
   var convListEl = document.getElementById('convList');
   if (convListEl) convListEl.classList.add('mobile-show');
+}
+
+function emptyChatHtml() {
+  return '<div class="empty-chat"><span class="ei">' + twIcon('messages') + '</span><p>'
+    + twEscHtml(twT('msg.pick_hint')) + '</p></div>';
 }
 
 // Explicit on-screen action (back-arrow beside the name, or the menu's
@@ -597,10 +623,10 @@ window.addEventListener('popstate', function(e) {
 function handleWithParam(twId) {
   apiLookupByTwId(twId).then(function(data) {
     if (!data || !data.id) {
-      document.getElementById('messages').innerHTML =
-        '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+      document.getElementById('messages').innerHTML = threadNoteHtml('msg.open_failed');
     } else {
       var type      = data.user_type || 'emp';
+      var name      = data.full_name || twT('msg.user_fallback');
       var convItems = document.querySelector('.conv-items');
       var ph = document.createElement('div');
       ph.className = 'conv-item ' + accentClass(type);
@@ -609,27 +635,83 @@ function handleWithParam(twId) {
       ph.setAttribute('data-avatar',   '');
       ph.setAttribute('data-headline', '');
       ph.setAttribute('data-twid',     data.tw_id || twId || '');
-      ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
-        + avatarHtml(data.full_name, '') + '</div></div>'
+      ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava">'
+        + avatarHtml(name, '', type) + '</div></div>'
         + '<div class="ci-body"><div class="ci-name-row"><span class="ci-name">'
-        + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div></div>';
+        + twEscHtml(name) + '</span>' + typeBadgePillHtml(type) + '</div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
-      openConversation(data.id, data.full_name || 'مستخدم', type, '', '', data.tw_id || twId);
+      openConversation(Number(data.id), name, type, '', '', data.tw_id || twId);
     }
     // loadConversations runs AFTER _currentConvId is set → active state preserved
     loadConversations();
-  }).catch(function() {
-    document.getElementById('messages').innerHTML =
-      '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+  }).catch(function(e) {
+    console.error('[messages] ?with= lookup failed:', e);
+    document.getElementById('messages').innerHTML = threadNoteHtml('msg.open_failed');
     loadConversations();
   });
 }
 
+// ── Connection notice (retry limit reached) ───────────────────────────────
+// 'offline' = the HTTP poll stopped after MSG_MAX_FAILS failures; 'live' = the socket gave up
+// after WS_MAX_RETRIES reconnects (messages still arrive by the 10s poll). One bar, one retry.
+var _connBarKind = '';
+function msgShowConnBar(kind) {
+  var bar = document.getElementById('msgConnBar');
+  var txt = document.getElementById('msgConnText');
+  if (!bar || !txt) return;
+  if (_connBarKind === 'offline' && kind === 'live') return;   // the bigger problem stays shown
+  _connBarKind = kind;
+  bar.setAttribute('data-kind', kind);
+  txt.textContent = twT(kind === 'offline' ? 'msg.offline' : 'msg.live_lost');
+  bar.hidden = false;
+}
+function msgHideConnBar(kind) {
+  if (kind && _connBarKind !== kind) return;
+  var bar = document.getElementById('msgConnBar');
+  if (bar) bar.hidden = true;
+  _connBarKind = '';
+}
+// messages.ws.js hooks (called through _wsNotify)
+window.msgOnLiveLost = function() { msgShowConnBar('live'); };
+window.msgOnLiveBack = function() { msgHideConnBar('live'); };
+
+// Manual retry: reset both limits, reload now, restart the poll and the socket if it is down.
+function msgRetryConnection() {
+  _convFails = 0;
+  _wsRetries = 0;
+  msgHideConnBar();
+  loadConversations().then(function(ok) { if (ok) _startMsgPoll(); });
+  reloadMessagesQuiet();
+  if (!_ws || _ws.readyState > 1) connectWS();
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 
+// One delegated click handler for the page's static buttons (no inline onclick)
+var _MSG_ACTIONS = {
+  menu:    function(e) { toggleChatMenu(e); },
+  profile: function() { viewConvProfile(); },
+  copy:    function() { copyConvProfileLink(); },
+  back:    function() { backToConvList(); },
+  send:    function() { doSendMessage(); },
+  retry:   function() { msgRetryConnection(); }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
+  if (!_user || !_user.id) return;   // twRequireAuth is already redirecting
+  document.title = twT('page.title', { page: twT('msg.title') });
+  twIcon.hydrate(document.body);     // static <i data-tw-icon> placeholders (DS-ICON)
+  var msgArea0 = document.getElementById('messages');
+  if (msgArea0 && !msgArea0.firstChild) msgArea0.innerHTML = emptyChatHtml();
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('[data-msg-act]');
+    if (!btn || btn.disabled) return;
+    var fn = _MSG_ACTIONS[btn.getAttribute('data-msg-act')];
+    if (fn) fn(e);
+  });
+
   var withParam = new URLSearchParams(location.search).get('with');
-  if (withParam && _user && _user.id) {
+  if (withParam) {
     handleWithParam(withParam);
   } else {
     // Mobile: .conv-list is display:none by default (CSS). Show it immediately
@@ -664,6 +746,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // rate limit (10/10s). Debounce sends typing_stop 1800ms after the last keystroke.
   var msgInput = document.getElementById('msgInput');
   if (msgInput) {
+    msgInput.addEventListener('keydown', handleKey);
     msgInput.addEventListener('input', function() {
       autoResize(this);
       if (!_currentConvId) return;

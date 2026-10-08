@@ -1,32 +1,28 @@
 /**
  * Messages API Runtime Tests
  * ===========================
- * Exercises messages.api.js with a mock fetch to verify the cross-account
- * session guard (_isMessagesAuthValid) blocks API calls during account-switch
- * races and in all invalid-session states.
+ * Exercises messages.api.js (real file in vm) with a mock twApi + TwAuthSync to verify
+ * the cross-account session guard (_isMessagesAuthValid) blocks API calls during
+ * account-switch races and in all invalid-session states (PR 4.4 — twApi only).
  *
- * 14 scenarios:
- *   API01  _user=A, tw_user=B in localStorage → apiSendMessage blocked (no fetch)
- *   API02  snapshot.userId=B, _user=A → blocked (no fetch)
- *   API03  Valid session (same user, valid JWT) → fetch called with current localStorage JWT
- *   API04  Empty JWT (tw_jwt='') → blocked (no fetch)
- *   API05  Missing tw_user in localStorage → blocked
- *   API06  snapshot.isAuthenticated=false → blocked
- *   API07  apiGetConversations blocked on user mismatch
- *   API08  apiGetMessages blocked on user mismatch
- *   API09  apiGetUnreadCount blocked on user mismatch
- *   API10  apiLookupByTwId blocked on user mismatch (resolves null)
- *   API11  apiGetUser removed (PR 3.9b)
- *   API12  apiSendMessage uses latest JWT from localStorage, not stale in-memory _jwt
- *   API13  Valid session with TwAuthSync snapshot present → fetch proceeds
- *   API14  No _user → blocked
+ * Scenarios:
+ *   API01  snapshot.userId=B, _user=A → apiSendMessage blocked (no request)
+ *   API02  snapshot.isAuthenticated=false → blocked
+ *   API03  Valid session → twApi called once with the right path / method / body
+ *   API04  No TwAuthSync → blocked (fail closed)
+ *   API05  apiGetConversations / apiGetMessages / apiGetUnreadCount blocked on user mismatch
+ *   API06  apiLookupByTwId blocked on user mismatch (resolves null, no request)
+ *   API07  apiGetUser removed (PR 3.9b)
+ *   API08  twApi ok:false → promise rejects with the HTTP status
+ *   API09  twApi ok → resolves with res.data
+ *   API10  No _user → blocked
+ *   API11  The snapshot is read at call time (switch after page load → blocked)
  *
  * Run:  node tests/test_ws_api.mjs
  */
 
 import vm from 'vm';
 import { readFileSync } from 'fs';
-import { strict as assert } from 'assert';
 
 let PASS = 0, FAIL = 0;
 function check(name, condition, detail = '') {
@@ -36,243 +32,91 @@ function check(name, condition, detail = '') {
 
 const src = readFileSync('messages.api.js', 'utf8');
 
-// ── Context builder ───────────────────────────────────────────────────────
-
-function makeCtx({ userId = 42, storedUserId = 42, jwt = 'valid.jwt.token',
-                   twAuthSync = undefined } = {}) {
-  let fetchCalled = false;
-  let fetchUrl = null;
-  let fetchOpts = null;
-
+function makeCtx({ userId = 42, snap = { isAuthenticated: true, userId: 42 }, withSync = true,
+                   result = { ok: true, status: 200, data: {} } } = {}) {
+  const calls = [];
   const ctx = {
-    // In-memory app state (set by page init)
-    _user: userId != null ? { id: userId, full_name: 'Test' } : null,
-    _jwt:  jwt,
-
-    // localStorage with configurable tw_jwt and tw_user
-    localStorage: {
-      _data: {
-        tw_jwt:  jwt,
-        tw_user: storedUserId != null ? JSON.stringify({ id: storedUserId, full_name: 'Stored' }) : null,
-      },
-      getItem(k)    { return this._data[k] != null ? this._data[k] : null; },
-      setItem(k, v) { this._data[k] = v; },
-      removeItem(k) { delete this._data[k]; },
-    },
-
-    // Mock fetch — records calls
-    fetch: function(url, opts) {
-      fetchCalled = true;
-      fetchUrl  = url;
-      fetchOpts = opts || {};
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-    },
-
-    // TwAuthSync (optional)
-    TwAuthSync: twAuthSync,
-
-    // Needed by the module
-    JSON,
-    Number,
-    Promise,
-    encodeURIComponent,
-
-    // Expose spy accessors
-    get _fetchCalled() { return fetchCalled; },
-    get _fetchUrl()    { return fetchUrl; },
-    get _fetchOpts()   { return fetchOpts; },
+    _user: userId != null ? { id: userId } : null,
+    TwAuthSync: withSync ? { getSessionSnapshot: () => ctx.__snap } : undefined,
+    twApi: (path, opts) => { calls.push({ path, opts: opts || {} }); return Promise.resolve(ctx.__result); },
+    JSON, Number, Promise, encodeURIComponent,
+    __snap: snap, __result: result, __calls: calls,
   };
-
   vm.createContext(ctx);
   vm.runInContext(src, ctx);
   return ctx;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────
+async function rejects(p) { try { await p; return false; } catch (e) { return true; } }
 
 console.log('\n── Messages API session guard tests (messages.api.js) ──────────────────');
 
-// API01: _user=A (id:42), tw_user=B (id:55) in localStorage → fetch blocked
-(async function API01() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 55, jwt: 'b.jwt.token' });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API01  _user=A, tw_user=B → apiSendMessage blocked (fetch not called)',
-        !ctx._fetchCalled,
-        `fetch was called with url=${ctx._fetchUrl}`);
-})().then(() => {
+{
+  const ctx = makeCtx({ snap: { isAuthenticated: true, userId: 55 } });
+  check('API01  snapshot.userId=B, _user=A → apiSendMessage blocked',
+        await rejects(ctx.apiSendMessage(99, 'hi')) && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx({ snap: { isAuthenticated: false, userId: null } });
+  check('API02  snapshot.isAuthenticated=false → blocked',
+        await rejects(ctx.apiSendMessage(99, 'hi')) && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx();
+  await ctx.apiSendMessage(99, 'hello');
+  const c = ctx.__calls[0] || { opts: {} };
+  check('API03  valid session → one twApi POST /messages/send with {receiver_id, content}',
+        ctx.__calls.length === 1 && c.path === '/messages/send' && c.opts.method === 'POST'
+        && c.opts.body && c.opts.body.receiver_id === 99 && c.opts.body.content === 'hello'
+        && !('sender_id' in c.opts.body));
+}
+{
+  const ctx = makeCtx({ withSync: false });
+  check('API04  no TwAuthSync → blocked (fail closed)',
+        await rejects(ctx.apiGetConversations()) && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx({ snap: { isAuthenticated: true, userId: 55 } });
+  const r = [await rejects(ctx.apiGetConversations()), await rejects(ctx.apiGetMessages(7)),
+             await rejects(ctx.apiGetUnreadCount())];
+  check('API05  conversations / messages / unread blocked on user mismatch',
+        r.every(Boolean) && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx({ snap: { isAuthenticated: true, userId: 55 } });
+  const v = await ctx.apiLookupByTwId('U123');
+  check('API06  apiLookupByTwId blocked on mismatch → null, no request', v === null && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx();
+  check('API07  apiGetUser removed (dead code — PR 3.9b)', typeof ctx.apiGetUser === 'undefined');
+}
+{
+  const ctx = makeCtx({ result: { ok: false, status: 503, data: null } });
+  let got = null;
+  try { await ctx.apiGetMessages(7); } catch (e) { got = e; }
+  check('API08  twApi ok:false → rejects with the HTTP status', got === 503);
+}
+{
+  const ctx = makeCtx({ result: { ok: true, status: 200, data: { conversations: [{ other_id: 3 }] } } });
+  const d = await ctx.apiGetConversations();
+  check('API09  twApi ok → resolves with res.data + path uses _user.id',
+        d.conversations.length === 1 && ctx.__calls[0].path === '/messages/conversations/42');
+}
+{
+  const ctx = makeCtx({ userId: null });
+  check('API10  _user=null → blocked', await rejects(ctx.apiSendMessage(99, 'x')) && ctx.__calls.length === 0);
+}
+{
+  const ctx = makeCtx();
+  await ctx.apiGetUnreadCount();
+  ctx.__snap = { isAuthenticated: true, userId: 77 };   // account switched in another tab
+  check('API11  snapshot read at call time — after a switch the next call is blocked',
+        await rejects(ctx.apiGetUnreadCount()) && ctx.__calls.length === 1);
+}
 
-// API02: snapshot.userId=B (55), _user=A (42) → fetch blocked
-(async function API02() {
-  const ctx = makeCtx({
-    userId: 42, storedUserId: 42, jwt: 'a.jwt.token',
-    twAuthSync: {
-      getSessionSnapshot: () => ({ isAuthenticated: true, userId: 55, state: 'authenticated' }),
-    },
-  });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API02  snapshot.userId=B, _user=A → apiSendMessage blocked',
-        !ctx._fetchCalled);
-}).call(null).then(() => {
-
-// API03: Same user (42/42), valid JWT, valid snapshot → fetch called using localStorage JWT
-(async function API03() {
-  const ctx = makeCtx({
-    userId: 42, storedUserId: 42, jwt: 'fresh.jwt.from.storage',
-    twAuthSync: {
-      getSessionSnapshot: () => ({ isAuthenticated: true, userId: 42, state: 'authenticated' }),
-    },
-  });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API03  Valid session → fetch called',
-        ctx._fetchCalled,
-        'fetch was not called');
-  check('API03b Valid session → fetch uses localStorage JWT',
-        ctx._fetchCalled && ctx._fetchOpts &&
-        ctx._fetchOpts.headers &&
-        ctx._fetchOpts.headers['Authorization'] === 'Bearer fresh.jwt.from.storage',
-        `Authorization header: ${ctx._fetchCalled ? JSON.stringify(ctx._fetchOpts.headers) : 'n/a'}`);
-}).call(null).then(() => {
-
-// API04: Empty JWT (tw_jwt='') → blocked
-(async function API04() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 42, jwt: '' });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API04  Empty JWT → apiSendMessage blocked',
-        !ctx._fetchCalled);
-}).call(null).then(() => {
-
-// API05: Missing tw_user in localStorage → blocked
-(async function API05() {
-  const ctx = makeCtx({ userId: 42, storedUserId: null, jwt: 'valid.jwt' });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API05  Missing tw_user in localStorage → apiSendMessage blocked',
-        !ctx._fetchCalled);
-}).call(null).then(() => {
-
-// API06: snapshot.isAuthenticated=false → blocked
-(async function API06() {
-  const ctx = makeCtx({
-    userId: 42, storedUserId: 42, jwt: 'valid.jwt',
-    twAuthSync: {
-      getSessionSnapshot: () => ({ isAuthenticated: false, userId: 42, state: 'logged_out' }),
-    },
-  });
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API06  snapshot.isAuthenticated=false → apiSendMessage blocked',
-        !ctx._fetchCalled);
-}).call(null).then(() => {
-
-// API07: apiGetConversations blocked on user mismatch
-(async function API07() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 55, jwt: 'b.jwt' });
-  let rejected = false;
-  try {
-    await ctx.apiGetConversations();
-  } catch(e) { rejected = true; }
-  check('API07  _user=A, tw_user=B → apiGetConversations blocked',
-        !ctx._fetchCalled && rejected);
-}).call(null).then(() => {
-
-// API08: apiGetMessages blocked on user mismatch
-(async function API08() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 55, jwt: 'b.jwt' });
-  let rejected = false;
-  try {
-    await ctx.apiGetMessages(99);
-  } catch(e) { rejected = true; }
-  check('API08  _user=A, tw_user=B → apiGetMessages blocked',
-        !ctx._fetchCalled && rejected);
-}).call(null).then(() => {
-
-// API09: apiGetUnreadCount blocked on user mismatch
-(async function API09() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 55, jwt: 'b.jwt' });
-  let rejected = false;
-  try {
-    await ctx.apiGetUnreadCount();
-  } catch(e) { rejected = true; }
-  check('API09  _user=A, tw_user=B → apiGetUnreadCount blocked',
-        !ctx._fetchCalled && rejected);
-}).call(null).then(() => {
-
-// API10: apiLookupByTwId blocked → resolves null (not rejected)
-(async function API10() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 55, jwt: 'b.jwt' });
-  let result = 'not-null';
-  try {
-    result = await ctx.apiLookupByTwId('U9620xxx');
-  } catch(e) {}
-  check('API10  _user=A, tw_user=B → apiLookupByTwId blocked (resolves null)',
-        !ctx._fetchCalled && result === null);
-}).call(null).then(() => {
-
-// API11: apiGetUser was deleted (PR 3.9b — no caller) → must not come back
-(function API11() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 42, jwt: 'b.jwt' });
-  check('API11  apiGetUser removed (dead code — PR 3.9b)', typeof ctx.apiGetUser === 'undefined');
-}).call(null);
-Promise.resolve().then(() => {
-
-// API12: fetch uses latest JWT from localStorage, not stale in-memory _jwt
-// Simulate: _jwt in memory is stale, localStorage has a newer token
-(async function API12() {
-  const ctx = makeCtx({ userId: 42, storedUserId: 42, jwt: 'fresh-localstorage-jwt' });
-  // Override in-memory _jwt to a stale value
-  ctx._jwt = 'stale-inmemory-jwt';
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) {}
-  check('API12  fetch uses latest JWT from localStorage (not stale _jwt)',
-        ctx._fetchCalled &&
-        ctx._fetchOpts.headers['Authorization'] === 'Bearer fresh-localstorage-jwt',
-        `Authorization: ${ctx._fetchCalled ? ctx._fetchOpts.headers['Authorization'] : 'no fetch'}`);
-}).call(null).then(() => {
-
-// API13: Valid session with TwAuthSync, matching snapshot → fetch proceeds
-(async function API13() {
-  const ctx = makeCtx({
-    userId: 42, storedUserId: 42, jwt: 'valid.jwt',
-    twAuthSync: {
-      getSessionSnapshot: () => ({ isAuthenticated: true, userId: 42, state: 'authenticated' }),
-    },
-  });
-  let result = null;
-  try {
-    result = await ctx.apiGetConversations();
-  } catch(e) {}
-  check('API13  Valid TwAuthSync snapshot + matching userId → fetch proceeds',
-        ctx._fetchCalled,
-        'fetch was not called');
-}).call(null).then(() => {
-
-// API14: No _user → blocked
-(async function API14() {
-  const ctx = makeCtx({ userId: null, storedUserId: 42, jwt: 'valid.jwt' });
-  let rejected = false;
-  try {
-    await ctx.apiSendMessage(99, 'hello');
-  } catch(e) { rejected = true; }
-  check('API14  _user=null → apiSendMessage blocked',
-        !ctx._fetchCalled && rejected);
-}).call(null).then(() => {
-
-// ── Summary ───────────────────────────────────────────────────────────────
 const total = PASS + FAIL;
 console.log(`\n${'─'.repeat(60)}`);
 console.log(`  ${PASS}/${total} passed  ${FAIL === 0 ? '✓  all green' : `✗  ${FAIL} FAILED`}`);
 console.log(`${'─'.repeat(60)}\n`);
 process.exit(FAIL === 0 ? 0 : 1);
-
-}); }); }); }); }); }); }); }); }); }); }); }); }); });

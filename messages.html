@@ -1,24 +1,15 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-<link rel="dns-prefetch" href="https://fonts.gstatic.com">
-<link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#00c896">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="تواصلنا">
-<link rel="apple-touch-icon" href="/icon-192.png">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - الرسائل</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/tw_shared.css">
+<!--tw:shell-head-->
+<!-- Unified app header (HEADER-NAV.md) -->
 <link rel="stylesheet" href="/static/app-header.css">
-<link rel="stylesheet" href="/static/shared/tw-select.css">
-<link rel="stylesheet" href="/static/messages.css?v=v25">
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
-<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<link rel="stylesheet" href="/static/messages.css?v=v26">
+<title></title>
+<meta name="tw-page" content="auth">
+<!-- This page owns the one WebSocket (messages.ws.js) — the shared badge socket stands down (HNAV-05) -->
+<meta name="tw-ws" content="page">
 </head>
 <body>
 
@@ -31,18 +22,18 @@
   <!-- ── Conversations List ── -->
   <div class="conv-list" id="convList">
     <div class="msg-page-head">
-      <h1 class="msg-page-title">الرسائل</h1>
-      <p class="msg-page-subtitle">تواصل احترافي يبني الفرص</p>
+      <h1 class="msg-page-title" data-tw-t="msg.title"></h1>
+      <p class="msg-page-subtitle" data-tw-t="msg.subtitle"></p>
     </div>
 
     <div class="conv-toolbar">
       <div class="conv-search">
-        <span class="cs-icon" aria-hidden="true">🔍</span>
-        <input class="cs-input" id="convSearch" placeholder="ابحث في الرسائل أو الأشخاص...">
+        <span class="cs-icon" aria-hidden="true"><i data-tw-icon="search" data-tw-size="sm"></i></span>
+        <input class="cs-input" id="convSearch" data-tw-t-placeholder="msg.search_placeholder">
       </div>
       <div class="conv-filters" id="convFilters">
-        <button class="cf-chip active" type="button" data-filter="all">الكل</button>
-        <button class="cf-chip" type="button" data-filter="unread">غير المقروءة</button>
+        <button class="cf-chip active" type="button" data-filter="all" data-tw-t="common.all"></button>
+        <button class="cf-chip" type="button" data-filter="unread" data-tw-t="msg.filter_unread"></button>
       </div>
     </div>
 
@@ -54,37 +45,34 @@
 
     <div class="chat-head" id="chatHead">
       <div class="ch-menu-wrap" id="chMenuWrap">
-        <button type="button" class="ch-btn ch-menu-btn" id="chMenuBtn" onclick="toggleChatMenu(event)" title="خيارات المحادثة" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        <button type="button" class="ch-btn ch-menu-btn" id="chMenuBtn" data-msg-act="menu" data-tw-t-label="msg.menu" hidden>
+          <i data-tw-icon="menu" data-tw-size="sm"></i>
         </button>
         <div class="ch-menu-dropdown" id="chMenuDropdown">
-          <button type="button" class="ch-menu-item" onclick="viewConvProfile()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-            عرض الملف الشخصي
+          <button type="button" class="ch-menu-item" data-msg-act="profile">
+            <i data-tw-icon="user" data-tw-size="sm"></i><span data-tw-t="msg.view_profile"></span>
           </button>
-          <button type="button" class="ch-menu-item" onclick="copyConvProfileLink()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><path d="M9 17H7a5 5 0 0 1 0-10h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-            نسخ رابط الملف
+          <button type="button" class="ch-menu-item" data-msg-act="copy">
+            <i data-tw-icon="link" data-tw-size="sm"></i><span data-tw-t="msg.copy_link"></span>
           </button>
-          <button type="button" class="ch-menu-item" onclick="backToConvList()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            الرجوع لقائمة الرسائل
+          <button type="button" class="ch-menu-item" data-msg-act="back">
+            <i data-tw-icon="back" data-tw-size="sm"></i><span data-tw-t="msg.back"></span>
           </button>
-          <button type="button" class="ch-menu-item ch-menu-item--disabled" disabled title="هذه الميزة قيد التطوير">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            إعدادات المحادثة <span class="ch-menu-soon">قريباً</span>
+          <button type="button" class="ch-menu-item ch-menu-item--disabled" disabled data-tw-t-label="msg.in_dev">
+            <i data-tw-icon="settings" data-tw-size="sm"></i><span data-tw-t="msg.settings"></span>
+            <span class="ch-menu-soon" data-tw-t="common.soon"></span>
           </button>
         </div>
       </div>
       <div class="ch-ava-wrap">
-        <div class="ch-ava" id="chatAva">💬</div>
+        <div class="ch-ava" id="chatAva"><i data-tw-icon="messages"></i></div>
       </div>
       <div class="ch-info">
         <div class="ch-name-row">
-          <span class="ch-name" id="chatName">اختر محادثة</span>
-          <span class="type-badge-pill" id="chatTypeBadge" style="display:none"></span>
-          <button type="button" class="ch-back-arrow" id="chBackArrow" onclick="backToConvList()" title="الرجوع لقائمة الرسائل" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          <span class="ch-name" id="chatName" data-tw-t="msg.pick"></span>
+          <span class="type-badge-pill" id="chatTypeBadge" hidden></span>
+          <button type="button" class="ch-back-arrow" id="chBackArrow" data-msg-act="back" data-tw-t-label="msg.back" hidden>
+            <i data-tw-icon="back" data-tw-size="sm"></i>
           </button>
         </div>
         <div class="ch-meta">
@@ -95,35 +83,33 @@
       <div class="ch-sched" id="chatSchedSlot"></div>
     </div>
 
-    <div class="messages" id="messages">
-      <div class="empty-chat">
-        <span class="ei">💬</span>
-        <p>اختر محادثة للبدء</p>
-      </div>
+    <!-- Connection notice: shown only after the retry limit is reached (msgShowConnBar) -->
+    <div class="msg-conn-bar" id="msgConnBar" role="status" hidden>
+      <span class="msg-conn-text" id="msgConnText"></span>
+      <button type="button" class="msg-conn-retry" data-msg-act="retry" data-tw-t="msg.retry"></button>
     </div>
 
-    <div class="chat-input" id="chatInput" style="display:none">
+    <div class="messages" id="messages"></div>
+
+    <div class="chat-input" id="chatInput" hidden>
       <div class="input-wrap">
-        <textarea class="msg-input" id="msgInput" placeholder="اكتب رسالتك..." rows="1"
-                  onkeydown="handleKey(event)"></textarea>
-        <span class="attach-btn" title="إرفاق ملف (قريباً)">📎</span>
+        <textarea class="msg-input" id="msgInput" data-tw-t-placeholder="msg.input_placeholder" rows="1"></textarea>
+        <span class="attach-btn" data-tw-t-label="msg.attach_soon"><i data-tw-icon="upload" data-tw-size="sm"></i></span>
       </div>
-      <button class="send-btn" type="button" onclick="doSendMessage()" title="إرسال">➤</button>
+      <button class="send-btn" type="button" data-msg-act="send" data-tw-t-label="msg.send"><i data-tw-icon="send"></i></button>
     </div>
 
   </div>
 </div>
 
-<!--tw:strings-->
-<script src="/tw_shared.js"></script>
-<script src="/static/shared/auth-sync.js"></script>
-<script src="/static/shared/tw-icons.js"></script>
-<script src="/static/shared/tw-select.js"></script>
-<script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
-<script src="/static/shared/tw-schedule.js?v=sched-v1"></script>
-<script src="/static/messages.state.js?v=v22"></script>
-<script src="/static/messages.api.js?v=v22"></script>
-<script src="/static/messages.ws.js?v=v25"></script>
-<script src="/static/messages.render.js?v=v25"></script>
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
+<script src="/static/messages.state.js?v=v23"></script>
+<script src="/static/messages.api.js?v=v23"></script>
+<script src="/static/messages.ws.js?v=v26"></script>
+<script src="/static/messages.render.js?v=v26"></script>
 </body>
 </html>
