@@ -993,13 +993,6 @@
     });
   }
 
-  function _onPromote(btn) {
-    var appId = parseInt(btn.getAttribute('data-app-id'), 10);
-    if (!appId || btn.disabled) return;
-    var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
-    _execPromote(appId, card, btn);
-  }
-
   function _execPromote(appId, card, promoteBtn) {
     if (promoteBtn) {
       promoteBtn.disabled    = true;
@@ -3585,11 +3578,6 @@
     var actions = body.querySelector('.co-csc-actions');
     if (actions) actions.insertAdjacentHTML('beforebegin', html);
     else body.insertAdjacentHTML('beforeend', html);
-  }
-
-  // Thin wrapper kept for any external callers — delegates to unified helper
-  function _updateChips(card, links) {
-    _renderCandidateJobLinksUI(card, links);
   }
 
   function _handleRemove(btn) {

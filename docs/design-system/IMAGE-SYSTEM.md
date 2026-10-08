@@ -5,7 +5,7 @@
 > **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F38.
 > **Runtime Source of Truth:** `tw_shared.js` (`twSafeImageUrl` · `twCssUrl` · `twAvatarHtml` · `twAvatarEl`) + `tw_shared.css` (قسم `16. DS-IMAGE` + `--size-avatar-*` بقسم `1b. DS-SIZE`) — Phase B ✅، بدون مستهلك.
 > **قوانين الـ AI:** `docs/rules/ds-image.md`.
-> **الاختبار:** `node test_ds_image_runtime.js`.
+> **الاختبار:** `node tests/test_ds_image_runtime.js`.
 > **المرجع:** تقرير فحص DS-IMAGE (المرحلة A) + القرارات المعتمدة من صاحب المشروع (1–5) — PR-7b.
 
 ---

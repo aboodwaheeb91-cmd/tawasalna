@@ -488,7 +488,7 @@ context.from يُقبَل فقط إذا تحقق كل ما يلي:
 **المستهلكين:** `job-detail` — تقديم / حفظ / إبلاغ للزائر → `twLoginHref(location.pathname + location.search)`.
 
 - ❌ بناء `'/login?next=' + …` يدوي بأي صفحة · ❌ نسخة ثانية من فحص الـ next · ❌ قراءة `?next=` برّا `index.auth.js`.
-- اختبار: `node test_auth_next_icon_hydrate_runtime.js` (A · B).
+- اختبار: `node tests/test_auth_next_icon_hydrate_runtime.js` (A · B).
 
 ---
 

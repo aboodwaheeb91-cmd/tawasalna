@@ -68,7 +68,7 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
 | `DEV_OTP_LOG` | Optional (dev) | Logs OTP events (never the code) |
-| `CLIENT_IP_SOURCE` | Optional | `xff_left` (default) / `xff_right` / `x_real_ip` / `peer` — how `get_client_ip()` reads the client IP (ARCHITECTURE §52 → Client IP Resolution) |
+| `CLIENT_IP_SOURCE` | Optional | `x_real_ip` (default — PR 3.9b; header missing → `request.client.host`) / `xff_left` / `xff_right` / `peer` — how `get_client_ip()` reads the client IP (ARCHITECTURE §52 → Client IP Resolution) |
 | `TRUSTED_PROXY_HOPS` | Optional | With `xff_right`: position from the right of `X-Forwarded-For` (default 1) |
 | `LOG_CLIENT_IP` | Optional (measure) | `1` → one `[client-ip]` line per `/auth/login` (headers + chosen IP, never credentials). Off by default |
 | `TW_DEV_UPLOAD` | Optional (dev) | `1` + missing Supabase keys → `/upload/image` returns the data URL (`dev_mode`). Never set in production (PR-7a) |
@@ -91,7 +91,7 @@ export APP_ENV=development
 uvicorn server:app --reload
 
 # 4. Run a focused test (one file — see docs/rules/project-reference.md → Testing)
-python -m pytest test_safe_link_url.py -q     # or: python test_post_comments.py / node test_x_runtime.js
+python -m pytest tests/test_safe_link_url.py -q     # or: python tests/test_post_comments.py / node tests/test_x_runtime.js
 
 # 5. Everything CI runs (needs PostgreSQL with ssl=on — see run_tests.sh header)
 ./run_tests.sh            # or ./run_tests.sh --no-db
@@ -107,6 +107,8 @@ Server starts at `http://localhost:8000`.
 2. **قاعدة توفير الرصيد (ثابتة بكل مهمة، حتى لو المسج ما ذكرها):** اختبار واحد مركّز للمهمة · ممنوع screenshots (إلا إذا طُلبت صراحةً) · ممنوع بحث بكل الريبو · ممنوع تشغيل كل الاختبارات بالجلسة · فشل نفس الاختبار مرتين → وقف وبلّغ (`docs/rules/ai-usage-budget.md`). بعد الـ push: تأكّد إن `Tests` نجح على الـ PR — هاد هو فحص "الكل".
 3. **`run_tests.sh` هو المصدر الوحيد لقائمة الاختبارات.** ملف `test_*` جديد لازم ينضاف لقائمة تشغيل، أو لـ `EXCLUDED` بسطر سبب (سيرفر حي :8000 / Playwright / حساب حقيقي) — ملف بدون قائمة = الـ CI بيفشل. اختبار script لازم يطلع بـ exit code ≠ 0 عند الفشل.
 4. ❌ workflow اختبار تاني أو بفلترة مسارات (`scheduler-cron.yml` مش اختبار) · ❌ استثناء بدون سبب · ❌ تعديل اختبار بس ليمرق (إذا الكود غلط → F30 وبلّغ).
+5. **كل الاختبارات بـ `tests/` (PR 3.9b).** بتشتغل من جذر الريبو (`PYTHONPATH` = الجذر، المسارات النسبية = ملفات الموقع): `python tests/test_x.py` · `node tests/test_x.js`. ❌ ملف `test_*` / `*.test.js` برّا `tests/` (الـ guard بيفشّل الـ run). `run_tests.sh` بيطبع بالآخر ملخص: كل ملف فاشل بسطر مع أول سطر خطأ.
+6. **الاختبارات الجديدة تفحص سلوك، مش نص حرفي (PR 3.9b).** ✅ endpoint بيرجّع شو (status / JSON) · دالة بتعمل شو (input → output / DB) · بنية (الدالة موجودة **ومستدعاة**، الصفحة بتحمّل السكربت). ❌ `"نص من الكود" in src` · ❌ اسم متغير / مسافات / تعليق / نص عربي حرفي / جملة من ملف توثيق. فحص بيحمي أمان أو صلاحيات لازم يكون سلوكي (طلب حقيقي بيرجع 401 / 403 / 422). فحص «الشي المحذوف ما رجع» مسموح (غياب ملف / route / دالة).
 - Spec: SYSTEMS_INDEX §54g · `runtime.txt` = `python-3.11` (نفس CI).
 
 ---
@@ -257,7 +259,7 @@ These rules are permanent and apply to all future AI sessions.
    - ❌ Re-creating a page file or a per-route redirect for any of these URLs.
    - ❌ Deciding the redirect from `tw_user` alone.
    - ❌ A second id → tw_id lookup for legacy routes.
-   - Test: `python test_legacy_routes_cleanup.py`.
+   - Test: `python tests/test_legacy_routes_cleanup.py`.
 
 ---
 
@@ -282,7 +284,7 @@ These rules are permanent and apply to all future AI sessions.
    - Both entry pages load `tw_shared.js` → `static/shared/auth-sync.js` before their entry check.
    - bfcache re-check in `index.auth.js` goes through `TwAuthSync.onSessionChange` (`reason === 'pageshow'`) — no direct `pageshow` listener.
    - ❌ Redirecting from an entry page because `tw_user` exists (this caused the expired-JWT login ↔ profile loop).
-   - Test: `node test_stale_session_entry_runtime.js` (vm, real code).
+   - Test: `node tests/test_stale_session_entry_runtime.js` (vm, real code).
 
 7. **Exactly one on-load redirect check — in `index.auth.js`.** One IIFE only. Do not re-add redirect checks in `index.ui.js` or inline in `index.html`.
 
@@ -298,14 +300,14 @@ These rules are permanent and apply to all future AI sessions.
 
 13. **Auth Return Destination — `?next=` (PR #558 · `docs/design-system/NAVIGATION.md` NAV-07).** A page that sends a guest to login uses **`twLoginHref(next)` in `tw_shared.js`** → `/login?next=<encoded>`. **`twSafeNext(next)`** is the only validator: internal path only — one leading `/` (not `//`, not `/\`), no backslash / whitespace / control char, ≤ 512 chars, not `/login` itself; anything else (`https://…`, `//host`, `javascript:` …) is ignored. In `index.auth.js` a safe `?next=` wins over `twAccountHref(u)` in `redirect(u)` and over `twEntryDestination()` in the on-load check (authenticated only — guests stay on the form).
    - ❌ Hand-built `'/login?next=' + …` · ❌ a second next validator · ❌ reading `?next=` outside `index.auth.js`.
-   - Test: `node test_auth_next_icon_hydrate_runtime.js`.
+   - Test: `node tests/test_auth_next_icon_hydrate_runtime.js`.
 
 14. **Protected Page Guard — `twRequireAuth(opts)` in `tw_shared.js` (`docs/design-system/PAGE-SHELL.md` SHELL-09).** The ONLY way a page that needs a session sends a visitor away. The page declares `<meta name="tw-page" content="auth">` and calls `twRequireAuth()` once, first thing in its script, before any `fetch` (`if (!snap) return;`).
    - Decides from `TwAuthSync.getSessionSnapshot()` only: guest / expired / stale / invalid / no TwAuthSync → `location.replace(twLoginHref(pathname + search))`; authenticated + `opts.userTypes` without this type → `location.replace(twAccountHref(u))` (not `/login`); authenticated → returns the snapshot.
    - Registers once on `TwAuthSync.onSessionChange` (VM-01 — no own `pageshow` / `storage` listener): logout / expiry in another tab → same redirect; a different account signed in → `location.reload()`.
    - Consumers: `appointments.html` · `appointment-room.html` · `settings.html` (PR 1.2). Entry pages (`/`, `/login`) never use it — they use `twEntryDestination()`.
    - ❌ Reading `tw_user` / `tw_jwt` directly to gate a page · ❌ hand-built `location.href = '/login'` · ❌ a second page-local guard.
-   - Test: `node test_appointments_guard_runtime.js`.
+   - Test: `node tests/test_appointments_guard_runtime.js`.
 
 ---
 
@@ -315,7 +317,7 @@ These rules are permanent and apply to all future AI sessions.
 2. **أي نص جديد بالواجهة لازم يكون مفتاح بـ `twT`، مش نص ثابت.** `twT(key, vars)` بـ `tw_shared.js` · المفاتيح بـ `tw_strings.json` · HTML ثابت عبر `data-tw-t` / `data-tw-t-label` · الصفحة لازم فيها `<!--tw:strings-->` قبل `tw_shared.js` (الـ shell فيه).
 3. **الكلمة نفسها من `docs/GLOSSARY.md`:** «وظائف» مش «فرص» · «حساب شخصي / حساب شركة / حساب جهة تعليمية» (الكود `emp` / `co` / `edu` ما بيتغيّر) · «المتقدمون» (قدّموا) ≠ «المرشحون» (مراحل التوظيف) ≠ «بنك المواهب» (المحفوظين).
 - ❌ dictionary أو دالة ترجمة تانية · ❌ HTML جوّا نص · ❌ قراءة `window.TW_STRINGS` مباشرة.
-- Spec: SYSTEMS_INDEX §59 · test `python test_strings_system.py`.
+- Spec: SYSTEMS_INDEX §59 · test `python tests/test_strings_system.py`.
 
 ---
 
@@ -389,7 +391,7 @@ These rules are permanent and apply to all future AI sessions.
 4b. **User-entered external links in `href` go through `twSafeLinkUrl(url)` in `tw_shared.js` (PR 1.1, the only check).** Accepts only `http://` / `https://` + a host char (not `https:///x`, not `https:\x`), no whitespace / control char anywhere, ≤ 2048; everything else (javascript:, data:, vbscript:, leading space, `//x`, `/path`, `www.x`) → `''` → the URL is rendered as **plain text, no `<a>` / no `href`**. Use `href="' + twEscAttr(safe) + '"` (HTML string) or `a.href = safe` (DOM), always with `rel="noopener noreferrer"`. Save forms check with the same helper before sending. Consumers: profile-v2 links (`sc-link-url`) + course certificate (`sc-cert-link`) · edu-profile website (`#aboutWeb` / `#aWeb`) · home news source (`hw-nbtn src`) · appointment-room `online_url`.
    - **Backend twin: `_validate_external_url(url, field, label, required=False)` in `server.py`** — same rule after `strip()`; empty → `None` (or 422 `"{label} مطلوب"` when required); bad → `ExternalUrlError` → 422 `{ok:false, error, errors:[{field, code:"invalid_url", message}], detail:{status, message, field}}` (Arabic message). Applied to `POST /links` (`url`, required) · `POST /course/{uid}` + `PUT /course/{id}` (`certificate_url`) · `PUT /profile/{uid}` (`website`) · `POST/PUT /admin/news` (`source_url`).
    - ❌ A new inline `/^https?:\/\//` check for a link · ❌ `href` from user data via `esc()` / `twEscAttr()` alone (escaping ≠ scheme check) · ❌ a second link validator in Python or JS.
-   - Test: `python -m pytest test_safe_link_url.py -q`.
+   - Test: `python -m pytest tests/test_safe_link_url.py -q`.
 
 5. **Inline `onclick` with string interpolation of non-numeric user data is permanently forbidden.** Use `data-*` attributes + event delegation instead.
 
@@ -397,11 +399,11 @@ These rules are permanent and apply to all future AI sessions.
 
 7. **`/tw-ctrl-login` is in the rate_limit_middleware list.** Do not remove it.
 
-7b. **`check_admin` accepts ONLY the admin JWT (PR 1.5).** `/tw-ctrl-login` returns a 1h admin JWT signed with `ADMIN_JWT_SECRET` (`_admin_jwt_issue`); the raw `ADMIN_TOKEN` is the login password only — never returned, never accepted as `X-Admin-Token`. Admin pages use `TwAdminSession` (`static/shared/admin-session.js`). Spec: SYSTEMS_INDEX §25 · test `python -m pytest test_admin_session_security.py -q`.
+7b. **`check_admin` accepts ONLY the admin JWT (PR 1.5).** `/tw-ctrl-login` returns a 1h admin JWT signed with `ADMIN_JWT_SECRET` (`_admin_jwt_issue`); the raw `ADMIN_TOKEN` is the login password only — never returned, never accepted as `X-Admin-Token`. Admin pages use `TwAdminSession` (`static/shared/admin-session.js`). Spec: SYSTEMS_INDEX §25 · test `python -m pytest tests/test_admin_session_security.py -q`.
 
 8. **`get_client_ip(request)` in `server.py` is the ONLY source of the client IP (PR 1.4).** Rate limiter, registration country, logs — all call it. Never read `X-Forwarded-For` / `X-Real-IP` anywhere else. Source chosen by `CLIENT_IP_SOURCE` (measured, not guessed — `ARCHITECTURE.md §52 → Client IP Resolution`). KYC OTP logic lives only in `auth._otp_issue` / `auth._otp_verify` (SYSTEMS_INDEX §54c).
 
-9. **ممنوع `str(e)` بأي رد للعميل (PR 1.6).** خطأ غير متوقع → `raise _server_error("endpoint_name", e)` في `server.py` (log كامل + 500 «خطأ في الخادم، حاول مرة أخرى»). ❌ `HTTPException(500, str(e))` · ❌ `detail=f"...{e}"` · ❌ `{"error": str(e)}` · ❌ `RuntimeError(f"...{e}")` بـ `auth.py` بيوصل لرد · ❌ `str(exc)` برد الـ validation (بيرجع `loc` + `type` بس). الأخطاء المقصودة (`ValueError` / `PermissionError` برسالة عربية مكتوبة بالكود) بتضل 4xx متل ما هي. `detail` من نوع dict بيرجع JSON حقيقي `{"error": message, "detail": {...}}`. Spec: SYSTEMS_INDEX §54d · test `python -m pytest test_server_error_leak.py -q`.
+9. **ممنوع `str(e)` بأي رد للعميل (PR 1.6).** خطأ غير متوقع → `raise _server_error("endpoint_name", e)` في `server.py` (log كامل + 500 «خطأ في الخادم، حاول مرة أخرى»). ❌ `HTTPException(500, str(e))` · ❌ `detail=f"...{e}"` · ❌ `{"error": str(e)}` · ❌ `RuntimeError(f"...{e}")` بـ `auth.py` بيوصل لرد · ❌ `str(exc)` برد الـ validation (بيرجع `loc` + `type` بس). الأخطاء المقصودة (`ValueError` / `PermissionError` برسالة عربية مكتوبة بالكود) بتضل 4xx متل ما هي. `detail` من نوع dict بيرجع JSON حقيقي `{"error": message, "detail": {...}}`. Spec: SYSTEMS_INDEX §54d · test `python -m pytest tests/test_server_error_leak.py -q`.
 
 ---
 
@@ -410,16 +412,16 @@ These rules are permanent and apply to all future AI sessions.
 1. **كل `get_conn()` لازم يقابله `release_conn(conn)` بـ `finally`** — أو `with db_conn() as conn:` من `auth.py` (المفضّل للكود الجديد). ❌ `release_conn` بمسار النجاح بس · ❌ `conn = get_conn()` بدون `try/finally`.
 2. **ممنوع `async def` لشغل sync** (DB · bcrypt · ملفات). endpoint ما فيه `await` حقيقي → `def` عادية (FastAPI بيشغّلها بـ threadpool). `await request.json()` مش سبب — استعمل `data: dict = Body(...)`. فيه `await` حقيقي (WS / storage) → الجزء الـ sync بـ `await asyncio.to_thread(fn, ...)`.
 3. ❌ `except:` عامة حول كود DB — `except Exception as e:` + log.
-- Spec: SYSTEMS_INDEX §54e · test `python -m pytest test_db_conn_async_safety.py -q`.
+- Spec: SYSTEMS_INDEX §54e · test `python -m pytest tests/test_db_conn_async_safety.py -q`.
 
 ---
 
 ## API Client Rule (mandatory for all AI sessions — PR 3A)
 
 1. **`twApi(path, opts)` في `tw_shared.js` هي الطريقة الوحيدة لأي صفحة تنادي API الموقع.** بتحط `getAuthHeaders` لحالها (إلا `auth:false`)، JSON body/parse، مهلة، وبترجّع دايماً `{ok, status, data, error, raw}` — `error` = `normalizeErrorResponse(...)`، ونص الخطأ عبر `twApiMessage(res, fallback)`. ما بترمي أبداً (نت / مهلة → `ok:false` برسالة عربية). 401 بجلسة المستخدم → `TwAuthSync.invalidateSession('api_401')` مرة وحدة، و `twRequireAuth` بيكمّل التحويل.
-2. **أي صفحة بتنلمس من هلق ولقدام بتتحوّل لـ `twApi`** — ❌ `fetch` مباشر لـ API الموقع · ❌ `api()` محلية · ❌ فحص `r.status === 401` يدوي. المرجع: `appointments.html`. الباقي بيتعدّ بـ `node test_tw_api_runtime.js` (القسم F — تقرير بس).
+2. **أي صفحة بتنلمس من هلق ولقدام بتتحوّل لـ `twApi`** — ❌ `fetch` مباشر لـ API الموقع · ❌ `api()` محلية · ❌ فحص `r.status === 401` يدوي. المرجع: `appointments.html`. الباقي بيتعدّ بـ `node tests/test_tw_api_runtime.js` (القسم F — تقرير بس).
 3. **العقد الرسمي للـ endpoints الجديدة / المحوّلة:** `api_ok(data)` → `{"ok": true, "data": ...}` · `api_error(status, code, message, field=None)` → `{"ok": false, "error": {"code", "message", "field"?}}` (`server.py`). ❌ تغيير شكل endpoint موجود إلا مع تحويل صفحته بنفس الـ PR (F14).
-- Spec: SYSTEMS_INDEX §45a (API Client) + §45b (API Contract) · ARCHITECTURE.md §74 · test `node test_tw_api_runtime.js`.
+- Spec: SYSTEMS_INDEX §45a (API Client) + §45b (API Contract) · ARCHITECTURE.md §74 · test `node tests/test_tw_api_runtime.js`.
 
 ---
 
@@ -429,7 +431,7 @@ These rules are permanent and apply to all future AI sessions.
 2. **حرجة (`True`)** = الكود بيقرأ هالـ schema بمسار أساسي (auth / profiles / jobs / applications / pipeline / appointments / notifications / scheduler) أو migration حرجة بعدها بتعتمد عليها → فشلها **بيوقف التشغيل**. **اختيارية (`False`)** = ميزة وحدة أو أداء بس → فشلها بيتسجّل وبيضل الموقع شغّال.
 3. **الحالة بـ `/health` → `migrations: {name: "ok" | "failed"}`** — بدون تفاصيل الخطأ (التفاصيل بالـ log بس). أي `failed` → `status: "degraded"`.
 4. **دالة الـ migration ما بتبلع خطأها** (`except: pass` ممنوع جوّاها) — بترفعه للـ runner. UNIQUE على بيانات قديمة: احذف المكرر (بيضل الأقدم) ثم `CREATE UNIQUE INDEX IF NOT EXISTS` بنفس الـ transaction (مثال: `_ensure_user_unique_index` بـ `auth.py`). ❌ `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح).
-- Spec: SYSTEMS_INDEX §54f · test `python -m pytest test_pr2b_flow_fixes.py -q`.
+- Spec: SYSTEMS_INDEX §54f · test `python -m pytest tests/test_pr2b_flow_fixes.py -q`.
 
 ---
 

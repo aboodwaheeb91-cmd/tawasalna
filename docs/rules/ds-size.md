@@ -41,4 +41,4 @@
 ❌ A parallel size system / second tokens file (e.g. tw-ui-tokens.css)
 ```
 
-Test: `python test_ds_size_tokens.py`.
+Test: `python tests/test_ds_size_tokens.py`.

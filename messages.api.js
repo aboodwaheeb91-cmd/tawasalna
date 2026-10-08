@@ -70,10 +70,3 @@ function apiLookupByTwId(twId) {
     headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
   }).then(function(r) { return r.ok ? r.json() : null; });
 }
-
-function apiGetUser(userId) {
-  if (!_isMessagesAuthValid()) return Promise.resolve(null);
-  return fetch('/auth/user/' + userId, {
-    headers: { 'Authorization': 'Bearer ' + getMessagesJwt() }
-  }).then(function(r) { return r.ok ? r.json() : null; });
-}

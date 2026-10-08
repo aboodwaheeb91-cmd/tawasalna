@@ -11,6 +11,14 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.9b — ترتيب الاختبارات + بقايا 3.9 + IP الافتراضي — 2026-10-08
+
+- **`tests/`:** 73 ملف اختبار انتقلوا لـ `tests/` بنفس الأسماء. `run_tests.sh` بيشغّلهم من جذر الريبو (`PYTHONPATH` = الجذر)، الـ guard بيرفض أي `test_*` / `*.test.js` برّا `tests/`، وبالآخر بيطبع ملخص: كل ملف فاشل بسطر مع أول سطر خطأ. المسارات جوّا الاختبارات (`__file__` / `__dirname`) + أوامر التشغيل بالتوثيق صارت `tests/…`.
+- **بقايا 3.9 (كود الموقع −146 / +59 مع `run_tests.sh`):** `_onPromote` · `_updateChips` · `_cmtFindMentionStart` · `apiGetUser` · `_save_accepted_professions` (نسخة مكررة — `add_job` / `update_job` بيحفظوا المهن) · `send_message` + `mark_message_read_immediate` (بدون مستدعي) · `_timing` من رد `POST /messages` (ضل بسطر الـ log) · قاعدة `canSchedule` الاحتياطية + زر `twScheduleButton` البديل (السجل `twActionState` / `twAction` بس) · `company_follows` (CREATE + فهارس + `_migrate_company_follows_to_profile_follows` + مدخلها بسجل الـ migrations) · أي ذكر لـ `verify_requests` بالكود. ما في `DROP` من الكود — زعتر بيحذف الجداول بإيده.
+- **`CLIENT_IP_SOURCE`:** الافتراضي صار `x_real_ip` (كان `xff_left`)؛ بدون الهيدر → `request.client.host`. `.env.example` (جديد — أسماء بس).
+- **قاعدة جديدة:** `CLAUDE.md → Testing & CI` 5 + 6 (كل الاختبارات بـ `tests/` · الاختبارات الجديدة تفحص سلوك مش نص حرفي) · SYSTEMS_INDEX §54g.
+- Docs: SYSTEMS_INDEX §20 · §23 · §34 · §52a · §54g · §60 · ARCHITECTURE (follow · messages · timing · job professions · client IP · schema) · ARCHITECTURE_FOUNDATION · FUTURE_ROADMAP. Tests: `test_follow_system.py` (DB جديدة بدون `company_follows`) · `test_schedule_interview_runtime.js` (بيحمّل Actions Registry من `tw_shared.js` + `TW_ACTIONS`، + A0 بدون سجل → ما في زر) · `test_ws_api.mjs` API11 · `test_otp_rate_limit_security.py` (الافتراضي + احترام المتغيّر) · `test_post_comments.py` (−3 فحوصات لدوال محذوفة).
+
 ## PR 3.7 — سجل إجراءات موحّد (Actions Registry) — 2026-10-07
 
 - `tw_actions.json` + `tw_actions.py` (جديد — SYSTEMS_INDEX §60 · BUTTONS.md BTN-19): لكل إجراء labelKey · أيقونة · نوع · visibleTo · targets · auth · enabledWhen · confirm. `twActionState` / `twAction` بـ `tw_shared.js` + `.tw-act-*` بـ `tw_shared.css`.

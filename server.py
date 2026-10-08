@@ -49,8 +49,9 @@ def get_country_from_ip(ip: str) -> str:
         return 'DEFAULT'
 
 # ── Client IP (PR 1.4) — the ONLY reader of X-Forwarded-For / X-Real-IP ──
-# CLIENT_IP_SOURCE: xff_left (default — pre-PR behaviour) · xff_right (+ TRUSTED_PROXY_HOPS,
-# default 1) · x_real_ip · peer. Unknown source or an invalid IP → request.client.host
+# CLIENT_IP_SOURCE: x_real_ip (default — PR 3.9b: Railway sets X-Real-IP to the real client and drops
+# the client's own X-Forwarded-For) · xff_left · xff_right (+ TRUSTED_PROXY_HOPS, default 1) · peer.
+# Missing header, unknown source or an invalid IP → request.client.host
 # (warning logged once per kind). Choosing the value: ARCHITECTURE.md → Client IP Resolution.
 _CLIENT_IP_SOURCES = ("xff_left", "xff_right", "x_real_ip", "peer")
 _client_ip_warned: set = set()
@@ -71,7 +72,7 @@ def _valid_ip(value) -> 'str | None':
 
 def get_client_ip(request) -> str:
     peer = request.client.host if request.client else '127.0.0.1'
-    source = (os.environ.get("CLIENT_IP_SOURCE") or "xff_left").strip().lower()
+    source = (os.environ.get("CLIENT_IP_SOURCE") or "x_real_ip").strip().lower()
     if source not in _CLIENT_IP_SOURCES:
         _client_ip_warn_once("source", f"CLIENT_IP_SOURCE={source!r} is invalid — using request.client.host")
         return peer
@@ -121,8 +122,7 @@ from auth import (
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
-    send_message, send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
-    mark_message_read_immediate,
+    send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, mark_notification_read,
     get_unread_notifications, _migrate_notifications_schema_v2,
     _migrate_notifications_schema_v2_1,
@@ -145,7 +145,6 @@ from auth import (
     get_company_post_comments, create_company_post_comment, update_company_post_comment, delete_company_post_comment,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list, get_follow_state,
-    _migrate_company_follows_to_profile_follows,
     record_profile_view, get_profile_views_count,
     save_profile_interest, remove_profile_interest,
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
@@ -760,7 +759,6 @@ def _startup_migrations():
         ("pipeline_schema_v1",                _migrate_pipeline_schema_v1,         True),
         ("pr5_pipeline_linking",              _migrate_pr5_pipeline_linking,       True),
         ("applicants_candidates_split",       _migrate_applicants_candidates_split, True),
-        ("company_follows_to_profile_follows", _migrate_company_follows_to_profile_follows, False),
     )
 
 
@@ -1004,27 +1002,6 @@ def _feed_user_context(conn, user_id, user_type):
         return profession_id, category_group, (legacy_skills | table_skills)
     except Exception:
         return None, None, set()
-
-
-def _save_accepted_professions(conn, job_id: int, profession_ids, primary_pid=None):
-    """Snapshot-replace accepted professions for a job.
-
-    Validates the full list BEFORE DELETE so a bad request never wipes existing data.
-    Raises ValueError (caught by endpoint → HTTP 422) on any rule violation.
-    Owner must be verified by the caller before invoking this function.
-    """
-    if profession_ids is None:
-        return
-    # Validate first — no mutation if validation fails
-    clean = _validate_accepted_profession_ids(conn, primary_pid, profession_ids)
-    # Safe to mutate: DELETE old entries, then INSERT validated list
-    conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
-    for i, pid in enumerate(clean):
-        conn.run(
-            "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
-            "VALUES (:jid, :pid, :ord)",
-            jid=job_id, pid=pid, ord=i
-        )
 
 
 def _taxonomy_score(job, user_pid, user_pgroup, user_skills, accepted_pids=None):
@@ -4456,7 +4433,7 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
         }
         print(f"[TW-TIMING] send_msg #{msg_id}: {_timing}")
 
-        return {"status": "success", "message": msg, "_timing": _timing}
+        return {"status": "success", "message": msg}
     except HTTPException:
         raise
     except Exception as e:

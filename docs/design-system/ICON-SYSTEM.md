@@ -5,7 +5,7 @@
 > **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F37.
 > **Runtime Source of Truth:** `static/shared/tw-icons.js` (registry — Phase B ✅ · Phase C: `job-detail.html` · `landing.html` · `appointments.html` · `appointment-room.html`).
 > **قوانين الـ AI:** `docs/rules/ds-icon.md`.
-> **الاختبار:** `node test_ds_icon_registry.js`.
+> **الاختبار:** `node tests/test_ds_icon_registry.js`.
 > **المرجع:** تقرير المرحلة A (PR-6 / المرحلة A — جرد الأيقونات) + القرارات المعتمدة من صاحب المشروع (1–7).
 
 ---
@@ -231,7 +231,7 @@ twIcon.hydrate(root);                           // <i data-tw-icon="x" data-tw-s
 2. اختار الاسم حسب ICON-04.1 (معنى للأفعال/التنقّل، اسم Lucide للأشياء، اسم الـ DB للكتالوج).
 3. انسخ عقد الأيقونة من **Lucide 0.460.0** (`lucide-static@0.460.0/icons/<name>.svg` أو `lucide.icons` بالـ bundle المحلي) — بدون تعديل.
 4. ضيفها لـ `ICONS` بـ `tw-icons.js` بالمجموعة الصح (`[1, …]` إذا اتجاهية).
-5. **بنفس الـ PR:** المستهلك الحقيقي (لا أيقونات بدون مستهلك) + `node test_ds_icon_registry.js` أخضر.
+5. **بنفس الـ PR:** المستهلك الحقيقي (لا أيقونات بدون مستهلك) + `node tests/test_ds_icon_registry.js` أخضر.
 6. اسم قديم لازم يضل شغّال → سطر بـ `ALIASES` بس.
 
 ---

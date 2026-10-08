@@ -77,7 +77,7 @@
 - [ ] **P1** — Unified Profile Media Sizing: توحيد قواعد عرض الصور في صفحات البروفايل (avatar دائري للموظف، rounded square logo للشركة والمؤسسة، نظام موحد للكفر). لا يعني تعديل upload/cropper الآن.
 - [ ] **P1** — First-time Profile Setup Wizard: flow إعداد أولي خطوة بخطوة لحسابات جديدة بدلاً من صفحة فارغة. يختلف حسب نوع الحساب. يفرّق بين Required وRecommended. يدعم حفظ جزئي. لا يعتمد على frontend فقط — يحتاج backend support.
 - [ ] **P1** — Unified section IDs: تعريف section IDs موحدة (`#posts`, `#jobs`, `#courses`, `#experience`, `#skills`, `#followers`) لدعم clickable stats وguided tour بشكل متسق وغير هش.
-- [ ] **P2** — Unify `profile_follows` و `company_follows` في جدول واحد مع `entity_type` (يحتاج migration plan)
+- [x] **P2** — Unify `profile_follows` و `company_follows` — تم: `profile_follows` بس (PR 3.5 + 3.9b)
 
 ---
 

@@ -3481,33 +3481,6 @@ def get_all_kyc_submissions() -> list:
 
 # ══ Messages System ══
 
-def mark_message_read_immediate(msg_id: int):
-    """Mark a message as read immediately when receiver has the conversation open."""
-    conn = get_conn()
-    try:
-        conn.run(
-            "UPDATE messages SET is_read=TRUE, read_at=NOW(), "
-            "delivered_at=COALESCE(delivered_at, NOW()) WHERE id=:id",
-            id=msg_id
-        )
-    finally:
-        release_conn(conn)
-
-def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
-    conn = get_conn()
-    try:
-        rows = conn.run(
-            "INSERT INTO messages (sender_id, receiver_id, content) "
-            "VALUES (:sid, :rid, :content) "
-            "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
-            sid=sender_id, rid=receiver_id, content=content
-        )
-        cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
-    finally:
-        release_conn(conn)
-
-
 def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_as_read: bool) -> tuple:
     """Single-connection send pipeline — two optimised paths:
 
@@ -3951,7 +3924,7 @@ def ensure_reports_table():
 # ══ Phase 2: Company Profile System Tables (Rule #18) ══
 def ensure_company_tables():
     """
-    Creates company_profiles, company_follows, company_ratings.
+    Creates company_profiles, company_ratings.
     Safe migration: CREATE TABLE IF NOT EXISTS only — no changes to
     existing tables (users/jobs/profiles untouched). Rule: backward compatible.
     company identity = users.id everywhere (consistent with jobs.company_id).
@@ -3976,20 +3949,6 @@ def ensure_company_tables():
                 updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        # ── company_follows — LEGACY (PR 3.5): nobody reads/writes it; rows moved to
-        #    profile_follows by _migrate_company_follows_to_profile_follows(). DROP waits on a
-        #    production check (PR 3.9 report) — kept until Zaatar decides. ──
-        conn.run("""
-            CREATE TABLE IF NOT EXISTS company_follows (
-                id          SERIAL PRIMARY KEY,
-                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                CONSTRAINT uq_follow UNIQUE (company_id, follower_id)
-            )
-        """)
-        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_company  ON company_follows(company_id)")
-        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_follower ON company_follows(follower_id)")
         # ── company_ratings — M:M, one rating per (company, rater), score 1-5 ──
         conn.run("""
             CREATE TABLE IF NOT EXISTS company_ratings (
@@ -4828,8 +4787,7 @@ def delete_company_post_comment(comment_id: int, user_id: int) -> bool:
 
 # ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
 # profile_follows is the ONLY follow table: any signed-in account follows any other
-# account (emp / co / edu), never itself. company_follows is legacy — read only by
-# _migrate_company_follows_to_profile_follows() until the DROP is approved (PR 3.9 report).
+# account (emp / co / edu), never itself.
 
 def follow_profile(follower_id: int, followed_id: int) -> int:
     """Follow a profile (idempotent). Returns new followers_count."""
@@ -4943,26 +4901,6 @@ def get_follow_state(user_id: int, viewer_id=None) -> dict:
     r = rows[0] if rows else (0, 0, False)
     return {"followers_count": int(r[0] or 0), "following_count": int(r[1] or 0),
             "is_following": bool(r[2])}
-
-
-def _migrate_company_follows_to_profile_follows() -> int:
-    """PR 3.5 — copy every company_follows row into profile_follows (the one follow table).
-    Idempotent: ON CONFLICT DO NOTHING; self rows skipped (no_self_follow CHECK).
-    company_follows itself is left in place (DROP pending — PR 3.9 report). Returns rows moved."""
-    with db_conn() as conn:
-        present = conn.run("SELECT to_regclass('public.company_follows') IS NOT NULL")
-        if not present or not present[0][0]:
-            print("[migration] company_follows → profile_follows: no legacy table, nothing to move")
-            return 0
-        total = conn.run("SELECT COUNT(*) FROM company_follows")[0][0]
-        moved = conn.run(
-            "INSERT INTO profile_follows (follower_id, followed_id, created_at) "
-            "SELECT follower_id, company_id, created_at FROM company_follows "
-            "WHERE follower_id <> company_id "
-            "ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id") or []
-    print(f"[migration] company_follows → profile_follows: legacy_rows={total} "
-          f"moved={len(moved)} already_present_or_self={total - len(moved)}")
-    return len(moved)
 
 
 def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:

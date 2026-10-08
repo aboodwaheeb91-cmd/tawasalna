@@ -36,4 +36,4 @@
 ❌ DS-IMAGE phase C on a page without explicit approval for that page
 ```
 
-Test: `node test_ds_image_runtime.js`.
+Test: `node tests/test_ds_image_runtime.js`.

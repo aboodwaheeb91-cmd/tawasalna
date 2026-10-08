@@ -1,7 +1,7 @@
 name: Tests
 
 # PR 6.4 — ONE test workflow: every PR to main + every push to main, no path filters.
-# Runs ./run_tests.sh (the same script used locally) — the lists of what runs and what is
+# Runs ./run_tests.sh (the same script used locally; every test lives in tests/ — PR 3.9b) — the lists of what runs and what is
 # EXCLUDED (live server / Playwright, with the reason) live in that script only.
 # Spec: docs/SYSTEMS_INDEX.md §54g · CLAUDE.md → Testing & CI.
 

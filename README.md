@@ -44,8 +44,8 @@ uvicorn server:app --reload     # http://localhost:8000
 اختبارات مركّزة في جذر الريبو (`test_*.py`, `test_*_runtime.js`) وفي `tests/`. شغّل الاختبار المرتبط بتعديلك فقط، مثلاً:
 
 ```bash
-python -m pytest test_post_comments.py -q
-node test_stale_session_entry_runtime.js
+python -m pytest tests/test_post_comments.py -q
+node tests/test_stale_session_entry_runtime.js
 ```
 
 ## التوثيق

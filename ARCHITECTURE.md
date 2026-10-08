@@ -672,7 +672,6 @@ verified_co       → توثيق الشركة كجهة
 
 **جداول مستقبلية (Phase 3+):**
 ```
-company_follows   → follower_id, company_id, created_at
 company_ratings   → rater_id, company_id, score, comment, created_at
 company_posts     → company_id, content, media_url, created_at
 ```
@@ -826,7 +825,7 @@ Phase 2 — Schema + Real Data (مكتمل):
   ✅ إخفاء hardcoded sections (renderAll() يولد كل المحتوى من companyState)
 
 Phase 3 — Social Features (مكتمل):
-  ✅ company_follows table + endpoints
+  ✅ follow endpoints (today: `profile_follows` — §53; the old `company_follows` table left the code in PR 3.9b)
   ✅ company_ratings table + endpoints
   ✅ follow/unfollow real
   ✅ rating display real
@@ -984,9 +983,6 @@ function saveEdit() {
 company_profiles: user_id PK+FK (1:1، لا id مستقل)
   → company_type, founded_year, company_size, industry,
     description, headquarters, contact_email, cover_url, verified_co
-
-company_follows: id PK، UNIQUE(company_id, follower_id)
-  → idx_follows_company, idx_follows_follower
 
 company_ratings: id PK، UNIQUE(company_id, rater_id), CHECK(score 1-5)
   → idx_ratings_company
@@ -3469,7 +3465,7 @@ window._scCheckProfessional(text)
 
 - كل أسماء الكتالوج المستعملة فعلاً (82 اسم إضافي + المشتركة مع أسماء الواجهة) **موجودة بـ registry** `static/shared/tw-icons.js` — الاسم المخزَّن بالـ DB هو المفتاح (ICON-04.3). الاسم `tool` (بـ `TW.SKILL_CATALOG`، غير موجود بـ Lucide 0.460) → alias لـ `wrench`.
 - المرحلة C: `_skillIconHtml` / `TW.getSkillIcon` consumers → `twIcon(name)`؛ بعد آخر صفحة تُزال مكتبة Lucide كاملة.
-- مهارة/مهنة جديدة بالـ seed → أيقونتها لازم تكون بالـ registry بنفس الـ PR (`node test_ds_icon_registry.js`).
+- مهارة/مهنة جديدة بالـ seed → أيقونتها لازم تكون بالـ registry بنفس الـ PR (`node tests/test_ds_icon_registry.js`).
 - **Font Awesome مرفوض** (Phase 2 القديمة أُلغيت — PR-6 / المرحلة B): مصدر الرسومات Lucide 0.460 فقط (F37). ما في `icon_provider` ولا `FA_BRAND_ALLOWLIST`.
 
 ### القواعد القانونية وحقوق الملكية الفكرية
@@ -4082,7 +4078,7 @@ if int(token.get("user_id") or 0) != user_id:
 - `get_conversations()` uses `DISTINCT ON (other_id)` wrapped in a subquery sorted `ORDER BY created_at DESC` — returns one row per partner, ordered by recency
 - `get_conversations()` returns `tw_id` of the other party alongside `other_id` (numeric)
 - `get_messages()` auto-marks `is_read=TRUE` for receiver's unread messages on read
-- `send_message()` looks up sender's `tw_id` and calls `create_notification()` with link `/messages?with={sender_tw_id}` so the notification deep-links to the correct conversation
+- `send_message_pipeline()` looks up sender's `tw_id` and calls `create_notification()` with link `/messages?with={sender_tw_id}` so the notification deep-links to the correct conversation
 - No message deletion endpoint in current version
 - Frontend (`messages.html`) polls via `setInterval` (client-driven frequency)
 - `messages.html` uses `tw_user` key in localStorage (legacy pattern — different from `tawasalna_user` used in profile)
@@ -4263,7 +4259,7 @@ setInterval(function() {
 
 ### Notification Deep-Link Contract
 
-When `send_message()` creates a notification for the receiver, the link MUST be:
+When `send_message_pipeline()` creates a notification for the receiver, the link MUST be:
 ```
 /messages?with={sender_tw_id}
 ```
@@ -4385,7 +4381,7 @@ Messenger messages and general platform notifications are **separate systems**:
 
 ### Backend Rules
 
-- `send_message()` saves to `messages` table only — **no `create_notification()` call**
+- `send_message_pipeline()` saves to `messages` table only — **no `create_notification()` call**
 - `get_notifications()` filters `WHERE type != 'message'` — legacy rows excluded at DB query level
 - `get_unread_notifications()` filters `WHERE type != 'message' AND is_read=FALSE` — notification badge count never includes messages
 
@@ -4403,7 +4399,7 @@ Any `notifications` rows with `type='message'` or `link LIKE '/messages%'` are *
 
 ### Forbidden
 
-- ممنوع: استدعاء `create_notification()` من `send_message()` أو أي دالة إرسال رسائل
+- ممنوع: استدعاء `create_notification()` من `send_message_pipeline()` أو أي دالة إرسال رسائل
 - ممنوع: عرض `type='message'` notifications في `/notifications`
 - ممنوع: إضافة tab "رسائل" في صفحة الإشعارات
 - ممنوع: احتساب رسائل الماسنجر ضمن عداد الإشعارات
@@ -4537,7 +4533,7 @@ CREATE TABLE notifications (
 ### Trigger Points
 
 `create_notification(user_id, type, title, body, link)` called from:
-- `send_message()` → type='message'
+- `send_message_pipeline()` → type='message'
 - `report_submit()` → type='report' (للمستخدم المبلَّغ عنه)
 - Admin KYC approval → manually
 
@@ -4700,7 +4696,7 @@ Retired page files (`profile.html`, `company.html`, `edu.html`, `home.html`, `jo
 - `?id=` lookup is type-agnostic (PR #544): `/company-profile?id=` of a non-company account now also 302s to that account's `/u/{tw_id}`; an unknown id no longer 302s to `/login` — it gets the redirect page.
 - ❌ A second id → tw_id lookup for legacy routes (`_get_co_tw_id` was merged into `_tw_id_for_user_id`).
 - ❌ Re-creating any deleted page file, or adding a per-route redirect/HTML for one of these URLs.
-- Test: `python test_legacy_routes_cleanup.py`.
+- Test: `python tests/test_legacy_routes_cleanup.py`.
 
 ### Profile Button Pattern
 
@@ -4783,7 +4779,7 @@ CREATE TABLE kyc_submissions (
 )
 ```
 
-**`verify_requests`** — نظام التوثيق الفردي القديم **انحذف بـ PR 3.9** (`POST /verify-request` · `GET /admin/verify-requests` · `PUT /admin/verify/{req_id}` · تبويب «توثيق» بالأدمن · حقل `verify_request` للمالك · `stats.verified_count`). التوثيق = KYC بس. الجدول ما عاد ينعمل ولا ينقرأ؛ `DROP TABLE verify_requests` بانتظار قرار زعتر.
+**`verify_requests`** — نظام التوثيق الفردي القديم **انحذف بـ PR 3.9** (`POST /verify-request` · `GET /admin/verify-requests` · `PUT /admin/verify/{req_id}` · تبويب «توثيق» بالأدمن · حقل `verify_request` للمالك · `stats.verified_count`). التوثيق = KYC بس. الجدول ما إله ذكر بالكود؛ زعتر بيحذفه بإيده.
 
 ### KYC Workflow (7 Steps)
 
@@ -4842,7 +4838,7 @@ CREATE TABLE kyc_submissions (
 | Migration | `_migrate_kyc_otp_security()` (idempotent): `ADD COLUMN IF NOT EXISTS` × 6 + مسح أي رمز مش بصيغة `v1$` (الرموز القديمة النصّية) |
 
 ❌ رمز نصّي بالـ DB · ❌ `==` / `!=` على الرمز · ❌ منطق OTP منفصل للإيميل والجوال · ❌ مزوّد إيميل/SMS قبل الخطة 5.1.
-Test: `python -m pytest test_otp_rate_limit_security.py -q`.
+Test: `python -m pytest tests/test_otp_rate_limit_security.py -q`.
 
 ### Client IP Resolution + Auth Rate Limiter (PR 1.4)
 
@@ -4850,9 +4846,9 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 
 | `CLIENT_IP_SOURCE` | القيمة المأخوذة |
 |---|---|
-| `xff_left` (الافتراضي — نفس السلوك قبل الـ PR) | أول قيمة بـ XFF، وإذا ما في XFF → `X-Real-IP`، وإلا `request.client.host` |
+| `xff_left` | أول قيمة بـ XFF، وإذا ما في XFF → `X-Real-IP`، وإلا `request.client.host` |
 | `xff_right` | القيمة رقم `TRUSTED_PROXY_HOPS` من اليمين (الافتراضي 1 = آخر قيمة)؛ قيم أقل من الـ hops → `request.client.host` |
-| `x_real_ip` | `X-Real-IP` |
+| `x_real_ip` (**الافتراضي من PR 3.9b**) | `X-Real-IP`؛ إذا الهيدر مش موجود → `request.client.host` |
 | `peer` | `request.client.host` (اتصال الـ TCP المباشر) |
 
 قيمة غلط لـ `CLIENT_IP_SOURCE` / `TRUSTED_PROXY_HOPS`، أو IP مش صالح (`ipaddress.ip_address`) → `request.client.host` + سطر تحذير `[client-ip]` **مرة وحدة** لكل نوع.
@@ -4875,12 +4871,12 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 
 | اللي شفته بالطلب التاني | `CLIENT_IP_SOURCE` |
 |---|---|
-| `xff='REAL'` أو `xff='REAL, <ip داخلي>'` (الـ `1.2.3.4` انمسح) | `xff_left` (الافتراضي — ما في تغيير) |
+| `xff='REAL'` أو `xff='REAL, <ip داخلي>'` (الـ `1.2.3.4` انمسح) | `xff_left` |
 | `xff='1.2.3.4, REAL'` | `xff_right` + `TRUSTED_PROXY_HOPS=1` |
 | `xff='1.2.3.4, REAL, <ip داخلي>'` | `xff_right` + `TRUSTED_PROXY_HOPS=2` |
 | XFF مش ثابت، بس `x_real_ip='REAL'` بالطلبين | `x_real_ip` |
 | `peer='REAL'` (ما في proxy بالنص) | `peer` |
-| ولا وحدة = REAL بثبات | خلّي `xff_left` واعتمد على حد الإيميل؛ بلّغ قبل أي تغيير |
+| ولا وحدة = REAL بثبات | بلّغ قبل أي تغيير واعتمد على حد الإيميل |
 
 6. كرّر بعد يوم-يومين (بلاغات عن تبدّل مسار Railway / Fastly)، ثبّت القيمة، ثم `LOG_CLIENT_IP` → احذفه. ✅ تأكيد: بعد التثبيت، الطلب التاني لازم يطبع `chosen='REAL'`.
 
@@ -4905,7 +4901,7 @@ Test: `python -m pytest test_otp_rate_limit_security.py -q`.
 
 **The rule (F5 / F29):** any signed-in account (`emp` / `co` / `edu`) can follow any other account, never itself. Guest → 401 → the page sends them to `twLoginHref(current page)`. One table (`profile_follows`), one action (`_follow_set()` in `server.py` → `follow_profile` / `unfollow_profile` in `auth.py`), one counter source (`profile_follows` — company page `get_company_extras`, profile `/profile/{id}` + `/metrics`, follow state, lists all count the same rows).
 
-- `company_follows` is **legacy**: `_migrate_company_follows_to_profile_follows()` (startup, optional) copies its rows into `profile_follows` with `ON CONFLICT DO NOTHING` (self rows skipped) and logs `legacy_rows / moved / already_present_or_self`. Nothing reads or writes it after that; it is dropped in **PR 3.9**.
+- `company_follows` + its copy migration were **removed from the code in PR 3.9b** (production check: 0 rows missing from `profile_follows`). The table itself is dropped by hand by Zaatar — never a `DROP` from code.
 - The `/company/follow/{id}` (POST/DELETE) and `GET /company/{id}/followers` aliases were **deleted in PR 3.9** — `/profile/{id}/follow` + `/profile/{id}/followers` only.
 - Follow notification: one hook in `follow_profile` (`follow_agg:user:{followed_id}`) for every account type — the old `follow_agg:company:` key is no longer created.
 - `/mention/search`: both directions of `profile_follows` for every account type.
@@ -5155,7 +5151,7 @@ invalid type → HTTP 400
 
 ### Architecture Note — One Follow Table (PR 3.5)
 
-Company followers are `profile_follows` rows with `followed_id = company id` (§53). `company_follows` is legacy (migrated, read by nobody, dropped in PR 3.9).
+Company followers are `profile_follows` rows with `followed_id = company id` (§53). The old `company_follows` table left the code in PR 3.9b (rows were copied; dropped by hand).
 
 ### API Endpoint
 
@@ -5222,7 +5218,7 @@ Since PR 3.5 a company can follow accounts too (data is in `profile_follows`, re
 ### ممنوعات
 
 ```
-❌ قراءة أو كتابة company_follows (legacy — بينحذف بـ PR 3.9)
+❌ إرجاع جدول company_follows أو أي قراءة / كتابة عليه (انحذف من الكود — PR 3.9b)
 ❌ جدول متابعة تاني أو endpoint متابعة خاص بنوع حساب
 ❌ fetch مباشر للمتابعة — twApi على /profile/{id}/follow* بس
 ❌ لا تعرض followers_count من localStorage — استخدم companyState.stats.followers_count فقط
@@ -6403,7 +6399,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 ❌ signed URL بالـ log أو بـ GET /admin/kyc · رابط KYC عام
 ❌ UPDATE ترحيل بدون شرط القيمة القديمة
 ```
-Test: `python -m pytest test_upload_security.py -q` · `node test_upload_client_runtime.js` · `python -m pytest test_kyc_docs_migration.py -q` (PR-7c) · `python -m pytest test_supabase_settings.py -q`.
+Test: `python -m pytest tests/test_upload_security.py -q` · `node tests/test_upload_client_runtime.js` · `python -m pytest tests/test_kyc_docs_migration.py -q` (PR-7c) · `python -m pytest tests/test_supabase_settings.py -q`.
 
 ### Safe Rendering (PR security/admin-safe-rendering — §54)
 
@@ -6541,7 +6537,7 @@ setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 - **Shell (F39):** `<!--tw:shell-head-->` / `<!--tw:shell-scripts-->` — `tw_shared.css` قبل `<style>` الصفحة · `/static/tw_shared.js` ← `auth-sync.js` ← `static/shared/tw-icons.js` ← السكربت الـ inline. الـ SEO (title · description · OG · twitter · robots · canonical) بالصفحة نفسها، مرة وحدة.
 - **الأيقونات (F37):** `<i data-tw-icon="name" data-tw-size="…">` + `twIcon.hydrate(document.body)` مرة وحدة بعد فحص التحويل. ما في Lucide بالصفحة.
 - **الألوان / الأحجام (F35 / F36):** tokens الـ DS-COLOR / DS-SIZE (المطابق وتحت البكسل). محلي موثّق: `--lp-text` (.87) · `--lp-text-2` (.5 ≠ `--t2` .7) · `--lp-text-3` (.28 ≠ `--t3` .4) · ألوان فئات المميزات (`#f59e0b` · `#ec4899` · `#eab308`) · عناوين `clamp()` · مسافات الأقسام 48–100px · الـ mock (أفاتار 56 · QR) — تصميم تسويقي، مش DS-IMAGE.
-- **Offline (§32):** هي صفحة الـ offline fallback — ملفات الـ shell + `tw-icons.js` + اللوغو `/static/33333.svg` بالـ precache. أزرار التسجيل → `/login#register` / `#register-emp|co|edu` · صورة المشاركة `static/og-image.png` (§32). اختبار: `python test_landing_shell.py`.
+- **Offline (§32):** هي صفحة الـ offline fallback — ملفات الـ shell + `tw-icons.js` + اللوغو `/static/33333.svg` بالـ precache. أزرار التسجيل → `/login#register` / `#register-emp|co|edu` · صورة المشاركة `static/og-image.png` (§32). اختبار: `python tests/test_landing_shell.py`.
 - **الكاش:** `/` = `max-age=300` · `/static/*` = `max-age=86400`. الـ `?v=` (hash المحتوى عند بدء السيرفر) بيتغيّر مع كل deploy بيغيّر ملف مشترك → أقصى تأخير 5 دقايق (عمر الـ HTML)، والكاش اليومي لـ `/static/` ما بيعلّق نسخة قديمة.
 
 ### Animations
@@ -7025,7 +7021,7 @@ Existing `is_read BOOLEAN` kept for backwards-compat (unread badge queries use i
 
 **`auth.py`**
 
-- `send_message(sender_id, receiver_id, content) → dict` — RETURNING now includes `delivered_at`, `read_at`
+- `send_message_pipeline(sender_id, receiver_id, content, mark_as_read) → (msg, unread, timing)` — RETURNING includes `delivered_at`, `read_at` (the old `send_message()` + `mark_message_read_immediate()` were removed in PR 3.9b — no caller)
 - `mark_message_delivered(msg_id)` — sets `delivered_at=NOW()` if NULL
 - `get_messages(user_id, other_id) → (list, list)` — returns `(messages, newly_read_ids)`; marks `delivered_at` and `read_at` on open
 
@@ -7104,7 +7100,7 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 - Client signals when it opens a conversation: WS `{type: "active_conversation", other_id: X}`
 - Client signals when it leaves: WS `{type: "inactive_conversation"}` (sent in `openConversation` switch, `goHome()`, and `beforeunload`)
 - On every message save (HTTP `/messages/send` or WS legacy path): server checks `active_conversations[receiver] == sender`
-  - If yes → `mark_message_read_immediate(msg_id)` → DB: `is_read=TRUE, read_at=NOW()` → WS `status_update {status: "read"}` to sender
+  - If yes → `send_message_pipeline(..., mark_as_read=True)` (or the asyncpg twin) inserts the message already read (`is_read=TRUE, read_at=NOW()`) → WS `status_update {status: "read"}` to sender
   - If no + receiver online → WS `status_update {status: "delivered"}` to sender
 - `active_conversations` is cleared on WS disconnect (when user's last WS for that user_id drops)
 
@@ -7365,14 +7361,14 @@ Implementation:
 - `asyncpg.create_pool()` initializes at startup with `statement_cache_size=0` (safe with Supabase PgBouncer/Transaction Pooler)
 - `_pipeline_asyncpg()` in `server.py` uses `conn.fetchrow()` for INSERT
 - `/messages/send` uses asyncpg pool if available; falls back to pg8000 `send_message_pipeline` if asyncpg pool fails to init
-- `_timing.driver` field indicates which driver was used (`asyncpg` or `pg8000`)
+- The driver used (`asyncpg` or `pg8000`) is in the server log line `[TW-TIMING]` — the response no longer carries `_timing` (PR 3.9b)
 
 Expected results:
 ```
 drv:asyncpg  conn_ms:0  ins_exec:~173ms  ins_ms:~173ms  db_ms:~180ms  srv_ms:~200ms
 ```
 
-### Timing Fields Returned in `_timing`
+### Timing Fields in the `[TW-TIMING]` server log (not in the response since PR 3.9b)
 
 | Field | Meaning |
 |-------|---------|
@@ -9841,9 +9837,8 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAUL
 | `auth.py` → `get_jobs()` | Attaches `accepted_professions` to every job in result list (no N+1) |
 | `auth.py` → `get_job()` | Attaches `accepted_professions` to single job dict |
 | `auth.py` → `_validate_accepted_profession_ids(conn, primary_pid, accepted_ids)` | Server-side validation helper — raises `ValueError` on any rule violation |
-| `server.py` → `_save_accepted_professions(conn, job_id, profession_ids, primary_pid=None)` | Calls validator first (no DELETE if validation fails), then snapshot-replace: DELETE + INSERT |
 | `server.py` → `JobInput.accepted_profession_ids` | `Optional[List[int]] = None` |
-| `server.py` → `PUT /company/jobs/{job_id}` | Pops field before SQL UPDATE; fetches current `profession_id` from DB when not in payload; calls `_save_accepted_professions`; catches `ValueError` → HTTP 422 |
+| `server.py` → `PUT /company/jobs/{job_id}` | Pops field before SQL UPDATE; fetches current `profession_id` from DB when not in payload; validates with `_validate_accepted_profession_ids` before any write, then snapshot-replace (DELETE + INSERT) inline; catches `ValueError` → HTTP 422 (the duplicate `_save_accepted_professions` helper was removed in PR 3.9b) |
 | `server.py` → `POST /company/jobs` | `add_job()` raises `ValueError` on validation failure; endpoint catches → HTTP 422 |
 
 ### Scoring Update (`_taxonomy_score`)
@@ -12623,7 +12618,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 **Forbidden:** ❌ blocklist (`NO_CACHE`) style caching · ❌ caching any API/JSON or `Authorization` request · ❌ caching HTML navigations · ❌ a second cache-wipe helper · ❌ awaiting cache clear before redirect · ❌ a second service worker file.
 
-**Test:** `node test_sw_cache_allowlist_runtime.js` (vm, real code — 23 checks).
+**Test:** `node tests/test_sw_cache_allowlist_runtime.js` (vm, real code — 23 checks).
 
 ---
 
@@ -12673,11 +12668,11 @@ Every FK to `users(id)` is `ON DELETE CASCADE` or `SET NULL` except `profession_
 
 | Effect of `DELETE FROM users` | Tables |
 |------------------------------|--------|
-| CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · verify_requests (legacy, DROP pending — PR 3.9) · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
-| CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_follows · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) · reports (reported) |
+| CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
+| CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) · reports (reported) |
 | SET NULL — history kept | notifications.actor_id · reports.reporter_id · company_post_views.viewer_user_id · company_saved_candidates.saved_by · appointments.representative_user_id · appointment_events.actor_id · jobs.archived_by · job_pipeline_entries created_by / stage_updated_by / archived_by · pipeline_stage_events.changed_by · pipeline_notes.created_by · candidate_bank_notes.created_by · news_posts.created_by |
 
-Test: `python -m pytest test_account_security.py -q`.
+Test: `python -m pytest tests/test_account_security.py -q`.
 
 ---
 
@@ -12698,7 +12693,6 @@ Test: `python -m pytest test_account_security.py -q`.
 | `jobs` | company_id FK → users, title, description, location, job_type (default `'full_time'`), salary_min/max, currency, experience_years, skills[], status (default `'active'`), views, created_at, expires_at (+ later migrations: `profession_id`, archive fields — see Taxonomy / §66b) |
 | `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
 | `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code (hash), email_code_target/_expires_at/_attempts, email_verified, phone, phone_code (hash), phone_code_target/_expires_at/_attempts, created_at (§52 → KYC OTP Security) |
-| `verify_requests` | **legacy — no code reads/creates it since PR 3.9; `DROP` pending Zaatar.** user_id FK, item_type, item_id, item_title, item_company, document_url, notes, status, created_at |
 
 ---
 
@@ -12726,7 +12720,7 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 - **Writes are conditional:** complete / close use `UPDATE … WHERE id AND status = <read status> RETURNING id` — a concurrent change → 400 «تغيّرت حالة الموعد».
 - **Room messages:** `GET /api/appointments/{id}/messages` returns the **newest** `limit` (default 50, max 100) oldest → newest; `?before_id=<id>` returns the page before that message (room page: «عرض الرسائل الأقدم» button when a page is full). Before PR 2B: `ORDER BY created_at ASC LIMIT 50` — messages after the 50th never appeared.
 - UI (`appointment-room.html`): «إنهاء المقابلة» for `confirmed` | `missed`; «إغلاق الغرفة» for `completed` | `cancelled` | `missed` | `expired`.
-- Test: `python -m pytest test_pr2b_flow_fixes.py -q` (DB parts need `TW_TEST_DB_URL`).
+- Test: `python -m pytest tests/test_pr2b_flow_fixes.py -q` (DB parts need `TW_TEST_DB_URL`).
 
 ---
 
@@ -12759,8 +12753,8 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 
 ### Adoption
 
-- Reference page: `appointments.html` (list + create). Remaining direct `fetch(` per file: `node test_tw_api_runtime.js` section F (report only).
-- Test: `node test_tw_api_runtime.js`.
+- Reference page: `appointments.html` (list + create). Remaining direct `fetch(` per file: `node tests/test_tw_api_runtime.js` section F (report only).
+- Test: `node tests/test_tw_api_runtime.js`.
 
 ---
 
@@ -12806,4 +12800,4 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 
 Removed: `#coApptModal` + `_openApptModal` / `_submitApptForm` / `_execSendStep` / appointment index (`company.main.js`, `.co-appt-*` CSS) · `TwCompanyPage.openApptModal` · `#newApptModal` + «رقم طلب التوظيف (application_id)» field (`appointments.html`).
 
-Tests: `python -m pytest test_schedule_interview.py -q` (needs `TW_TEST_DB_URL`) · `node test_schedule_interview_runtime.js`.
+Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB_URL`) · `node tests/test_schedule_interview_runtime.js`.
