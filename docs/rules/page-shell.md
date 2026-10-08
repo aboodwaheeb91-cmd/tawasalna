@@ -23,6 +23,6 @@
 
 9. **اختبار قديم بيقرأ صفحة محوّلة كملف خام** → حدّثه ليقرأ `apply_shell(...)` (ناتج `read_html`).
 
-10. **صفحة محمية (SHELL-09):** `<meta name="tw-page" content="auth">` + نداء **واحد** لـ `twRequireAuth(opts)` (`tw_shared.js`) بأول سكربت الصفحة قبل أي `fetch` — بيقرأ `TwAuthSync.getSessionSnapshot()` بس؛ guest / expired / stale / invalid → `location.replace(twLoginHref(path + query))`؛ `opts.userTypes` ونوع غلط → `twAccountHref`؛ logout بتاب تاني / bfcache → نفس القرار عبر `TwAuthSync.onSessionChange` (تسجيل واحد)؛ حساب تاني → reload. ❌ قراءة `tw_user` / `tw_jwt` مباشرة لقرار الدخول · ❌ guard محلي ثاني. Test: `node test_appointments_guard_runtime.js`.
+10. **صفحة محمية (SHELL-09):** `<meta name="tw-page" content="auth">` + نداء **واحد** لـ `twRequireAuth(opts)` (`tw_shared.js`) بأول سكربت الصفحة قبل أي `fetch` — بيقرأ `TwAuthSync.getSessionSnapshot()` بس؛ guest / expired / stale / invalid → `location.replace(twLoginHref(path + query))`؛ `opts.userTypes` ونوع غلط → `twAccountHref`؛ logout بتاب تاني / bfcache → نفس القرار عبر `TwAuthSync.onSessionChange` (تسجيل واحد)؛ حساب تاني → reload. ❌ قراءة `tw_user` / `tw_jwt` مباشرة لقرار الدخول · ❌ guard محلي ثاني. Test: `node tests/test_appointments_guard_runtime.js`.
 
-Test: `python test_page_shell.py`.
+Test: `python tests/test_page_shell.py`.

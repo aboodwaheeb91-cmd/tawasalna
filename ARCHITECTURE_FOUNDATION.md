@@ -184,7 +184,7 @@ Response 4xx/5xx:
 | القوائم المنسدلة | `scSelectInit()` في `tw-select.js` |
 | الأعلام | `TW.countryFlagEl()` + `flags/*.svg` |
 | المهارات | `TW.searchSkills()` في `tw-skills.js` |
-| نظام المتابعة | `profile_follows` + `company_follows` tables |
+| نظام المتابعة | `profile_follows` table (جدول واحد — PR 3.5 / 3.9b) |
 | المصادقة / JWT | `verify_token` في `server.py` |
 
 ### القاعدة الذهبية
@@ -201,7 +201,7 @@ Response 4xx/5xx:
 | البيانات | المصدر الصحيح |
 |----------|--------------|
 | بيانات البروفايل | Database → API → `window._scProfile` |
-| العلاقات (متابعة) | `profile_follows` / `company_follows` tables |
+| العلاقات (متابعة) | `profile_follows` table |
 | الصور والوسائط | Storage bucket → API URL |
 | الصلاحيات | Backend (server.py) → API response |
 | المسارات العامة | `/u/{tw_id}` (Smart Router) |

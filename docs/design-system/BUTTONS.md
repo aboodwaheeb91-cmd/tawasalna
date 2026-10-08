@@ -816,7 +816,7 @@ Before → Click → Loading → Result → Back → Refresh
 ❌ اعتبار إخفاء الزر حماية
 ```
 
-Test: `node test_actions_registry_runtime.js`.
+Test: `node tests/test_actions_registry_runtime.js`.
 
 ---
 

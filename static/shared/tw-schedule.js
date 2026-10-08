@@ -99,17 +99,13 @@
     return { type: s.userType, id: parseInt(s.userId, 10) || 0 };
   }
 
-  // Who sees «تحديد موعد» = the Actions Registry entry `schedule` (tw_actions.json — BUTTONS.md
-  // BTN-19): company viewer · emp target · not the viewer itself (owner). The inline rule below
-  // runs only when tw_shared.js is not loaded (isolated load) — it mirrors the registry entry.
+  // Who sees «تحديد موعد» = the Actions Registry entry `schedule` only (tw_actions.json —
+  // BUTTONS.md BTN-19): company viewer · emp target · not the viewer itself (owner).
+  // No inline copy of the rule (PR 3.9b): without tw_shared.js → no button (fail-closed).
   function canSchedule(candidateId, candidateType) {
     var cid = parseInt(candidateId, 10) || 0;
-    if (cid <= 0) return false;
-    if (typeof window.twActionState === 'function') {
-      return twActionState('schedule', { ownerId: cid, targetType: candidateType || 'emp' }) === 'enabled';
-    }
-    var v = viewer();
-    return !!(v && v.type === 'co' && cid !== v.id && (candidateType || 'emp') === 'emp');
+    if (cid <= 0 || typeof window.twActionState !== 'function') return false;
+    return twActionState('schedule', { ownerId: cid, targetType: candidateType || 'emp' }) === 'enabled';
   }
 
   function roomHref(id) { return '/appointment-room?id=' + encodeURIComponent(id); }
@@ -154,9 +150,7 @@
     if (!canSchedule(opts.candidateId, opts.candidateType)) return null;
     injectStyle();
     var cid = parseInt(opts.candidateId, 10);
-    var btn = typeof window.twAction === 'function'
-      ? twAction('schedule', { ownerId: cid, targetType: opts.candidateType || 'emp', className: opts.className })
-      : el('button', opts.className || 'tw-sch-btn', 'تحديد موعد');
+    var btn = twAction('schedule', { ownerId: cid, targetType: opts.candidateType || 'emp', className: opts.className });
     if (!btn) return null;
     btn.type = 'button';
     btn.setAttribute('data-tw-schedule', 'new');

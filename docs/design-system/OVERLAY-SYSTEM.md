@@ -1511,7 +1511,7 @@ Presentation `side` / `bottom` / `fullscreen` · Responsive presets (OVL-22) · 
 ### الممنوعات
 
 ```
-❌ alert() / confirm() / prompt() بأي صفحة بتنلمس من هلق (التقرير: node test_ds_overlay_runtime.js → REPORT)
+❌ alert() / confirm() / prompt() بأي صفحة بتنلمس من هلق (التقرير: node tests/test_ds_overlay_runtime.js → REPORT)
 ❌ مودال / تأكيد جديد مكتوب يدوي بصفحة — twModal / twConfirm
 ❌ Escape / focus trap / scroll lock محلي لنافذة جديدة
 ❌ tw-overlay.js بالـ Page Shell (أصل صفحة عبر PAGE_ASSETS)
@@ -1519,4 +1519,4 @@ Presentation `side` / `bottom` / `fullscreen` · Responsive presets (OVL-22) · 
 ❌ نسخة تانية من twConfirm بصفحة
 ```
 
-Test: `node test_ds_overlay_runtime.js`.
+Test: `node tests/test_ds_overlay_runtime.js`.

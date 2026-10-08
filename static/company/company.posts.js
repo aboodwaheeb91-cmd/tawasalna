@@ -915,17 +915,6 @@
     return result;
   }
 
-  // Walk backwards from cursor; return index of @ if found with no space in between, else -1.
-  function _cmtFindMentionStart(ta) {
-    var val    = ta.value;
-    var cursor = ta.selectionStart;
-    for (var i = cursor - 1; i >= 0; i--) {
-      if (val[i] === '@') return i;
-      if (val[i] === ' ' || val[i] === '\n') return -1;
-    }
-    return -1;
-  }
-
   function _cmtSetMentionActive(idx) {
     var menu  = _cmtGetMentionMenu();
     var items = menu.querySelectorAll('.pc-cmt-mention-item');

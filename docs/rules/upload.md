@@ -52,4 +52,4 @@ These rules are permanent and apply to all future AI sessions.
 
 10. **Legacy `data:` migration (PR-7c).** `POST /admin/maintenance/migrate-data-images?dry_run=1` (`check_admin`, dry run by default) — every `data:` value in `profiles.avatar_url` (`co` → `company-logo`, else `employee-avatar`) · `profiles.cover_url` (`employee-cover`) · `company_profiles.cover_url` (`company-cover`) · `kyc_submissions.id_front_url` / `selfie_url` · `site_settings` `logo_wide` / `logo_tall` goes through `_validate_image_data_url` → `_store_image` → `UPDATE … WHERE col = <old value> RETURNING 1` (never overwrite a newer value). Invalid values are left and reported, never deleted. Idempotent. Response = counts + reasons only.
 
-Test: `python -m pytest test_upload_security.py -q` · `node test_upload_client_runtime.js` · `python -m pytest test_kyc_docs_migration.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.
+Test: `python -m pytest tests/test_upload_security.py -q` · `node tests/test_upload_client_runtime.js` · `python -m pytest tests/test_kyc_docs_migration.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.

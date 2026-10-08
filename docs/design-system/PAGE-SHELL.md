@@ -5,7 +5,7 @@
 > **القاعدة العليا:** `ARCHITECTURE_FOUNDATION.md` → F39.
 > **Runtime Source of Truth:** `page_shell.py` (`apply_shell` · `build_shell` · `asset_hash`) + `partials/shell-*.html` · مستدعى من `read_html()` بـ `server.py`.
 > **قوانين الـ AI:** `docs/rules/page-shell.md`.
-> **الاختبار:** `python test_page_shell.py`.
+> **الاختبار:** `python tests/test_page_shell.py`.
 > **المرجع:** تقرير فحص Page Shell (المرحلة A) + القرارات المعتمدة (1–6) — PR-8 / المرحلة B.
 
 ---
@@ -117,7 +117,7 @@
 
 ## SHELL-09 — Guard الصفحات المحمية (`twRequireAuth`)
 
-> **المصدر الوحيد:** `twRequireAuth(opts)` بـ `tw_shared.js` (Auth Gateway rule 14 · CLAUDE.md). أول مستهلك: `appointments.html` + `appointment-room.html` (المرحلة C). اختبار: `node test_appointments_guard_runtime.js`.
+> **المصدر الوحيد:** `twRequireAuth(opts)` بـ `tw_shared.js` (Auth Gateway rule 14 · CLAUDE.md). أول مستهلك: `appointments.html` + `appointment-room.html` (المرحلة C). اختبار: `node tests/test_appointments_guard_runtime.js`.
 
 **الصفحة:** `<meta name="tw-page" content="auth">` بالـ `<head>` (بعد الـ shell marker) + **نداء واحد** بأول سكربت الصفحة:
 
@@ -168,5 +168,5 @@ if (!snap) return;                       // الصفحة عم تتحوّل — �
 ## SHELL-08 — المرحلة C (التحويل)
 
 - **B ✅ (PR-8):** `page_shell.py` + partials + `read_html` + الصفحة التجريبية `home-v2.html` (screenshots قبل/بعد مطابقة بالبكسل بالـ sandbox).
-- **C 🔜 (جاري):** PR لكل صفحة مع فحص بصري، بالترتيب: `job-detail` ✅ (أول صفحة — shell + `/static/tw_shared.js` + DS-ICON / DS-IMAGE / DS-SIZE / DS-FEEDBACK + session من `TwAuthSync.getSessionSnapshot()`؛ اختبار `python test_job_detail_shell.py`) ← `landing` ✅ (entry — بدون guard؛ التحويل عبر `twEntryDestination()` بس · صفحة الـ offline fallback: ملفات الـ shell + `tw-icons.js` بالـ precache بدون `?v=` و `ignoreSearch` offline — §32 · `apple-mobile-web-app-*` و `/icon-192.png` اليدوي انشالوا · SEO بالصفحة؛ اختبار `python test_landing_shell.py`) ← `appointments` ✅ + `appointment-room` ✅ (PR واحد — أول مستهلك لـ `twRequireAuth` SHELL-09 · `fetch` عبر `getAuthHeaders` · `alert()` → `showToast` · emoji / SVG → `twIcon` · أفاتار الطرف التاني `twAvatarEl` lg · `:root` المحلي → `--color-*` أو `--ap-*` بدون shadowing · `confirm()` ×3 بالغرفة باقية لحد نظام تأكيد DS-OVL؛ اختبار `node test_appointments_guard_runtime.js`) ← الباقي. التفاصيل + البنود المرافقة: `docs/FUTURE_ROADMAP.md` → Platform / Architecture.
+- **C 🔜 (جاري):** PR لكل صفحة مع فحص بصري، بالترتيب: `job-detail` ✅ (أول صفحة — shell + `/static/tw_shared.js` + DS-ICON / DS-IMAGE / DS-SIZE / DS-FEEDBACK + session من `TwAuthSync.getSessionSnapshot()`؛ اختبار `python tests/test_job_detail_shell.py`) ← `landing` ✅ (entry — بدون guard؛ التحويل عبر `twEntryDestination()` بس · صفحة الـ offline fallback: ملفات الـ shell + `tw-icons.js` بالـ precache بدون `?v=` و `ignoreSearch` offline — §32 · `apple-mobile-web-app-*` و `/icon-192.png` اليدوي انشالوا · SEO بالصفحة؛ اختبار `python tests/test_landing_shell.py`) ← `appointments` ✅ + `appointment-room` ✅ (PR واحد — أول مستهلك لـ `twRequireAuth` SHELL-09 · `fetch` عبر `getAuthHeaders` · `alert()` → `showToast` · emoji / SVG → `twIcon` · أفاتار الطرف التاني `twAvatarEl` lg · `:root` المحلي → `--color-*` أو `--ap-*` بدون shadowing · `confirm()` ×3 بالغرفة باقية لحد نظام تأكيد DS-OVL؛ اختبار `node tests/test_appointments_guard_runtime.js`) ← الباقي. التفاصيل + البنود المرافقة: `docs/FUTURE_ROADMAP.md` → Platform / Architecture.
 - كل تحويل: شيل الـ tags المكرّرة + markers + تحديث أي اختبار بيقرأ الملف الخام ليقرأ ناتج `apply_shell` (مثال: `read_page()` بـ `test_global_ui_visibility.py`).

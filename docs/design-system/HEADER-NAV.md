@@ -4,7 +4,7 @@
 >
 > **Runtime Source of Truth:** `tw_shared.js` → `twMountAppChrome()` · `_twHeaderHtml()` · `_TW_BOTTOM_NAV` / `twBottomNavItems()` · `twNavBack()` · `TW_LOGO_SRC` — والستايل بـ `static/app-header.css` (قسم «Unified App Header + Bottom Nav»).
 > **أنظمة مرتبطة:** VM-10 (`initGlobalHeaderMenu` · `data-tw-session` — `docs/rules/vm10-header.md`) · DS-NAV NAV-05 / NAV-06 (الرجوع) · DS-ICON (`twIcon`) · DS-SIZE / DS-COLOR (tokens) · DS-SHELL (`PAGE-SHELL.md`).
-> **الاختبار:** `python test_header_nav.py`.
+> **الاختبار:** `python tests/test_header_nav.py`.
 > **PR:** 3.2 (2026-10-07).
 
 ---

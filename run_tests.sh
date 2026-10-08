@@ -6,7 +6,9 @@
 #   ./run_tests.sh --no-db    skip the DB tests (they are listed, never silently ignored)
 #
 # Rules:
-#   - Every test_*.py / test_*.js / test_*.mjs (root + tests/) is in EXACTLY ONE list below.
+#   - Every tests/test_*.py / test_*.js / test_*.mjs is in EXACTLY ONE list below (names are
+#     relative to tests/ — PR 3.9b moved every test there). Tests run from the repo root
+#     (relative paths = repo files) with PYTHONPATH=repo root (import server / auth).
 #     A new test file that is in no list fails the run (no silent ignore).
 #   - EXCLUDED = needs a live server (:8000) / Playwright / a real account — one line each
 #     with the reason. Everything else runs on every PR.
@@ -27,6 +29,8 @@ NO_DB=0
 export APP_ENV="${APP_ENV:-development}"
 export JWT_SECRET="${JWT_SECRET:-ci-test-jwt-secret-0123456789abcdef0123456789abcdef}"
 export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+T=tests
 DB_URL="${TW_TEST_DB_URL:-postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline}"
 
 # ── Python — run with pytest (test functions / TestCase, no own __main__) ───
@@ -72,7 +76,7 @@ PY_SCRIPT=(
   test_talent_bank_v3.py
   test_ws_behavioral.py
   test_ws_security.py
-  tests/test_modal_a11y.py
+  test_modal_a11y.py
 )
 
 # ── Python — need a real PostgreSQL ("pytest:" prefix = run with pytest) ────
@@ -126,7 +130,11 @@ EXCLUDED=(
 # ── Guard: every test file is in exactly one list ──────────────────────────
 listed=$(printf '%s\n' "${PY_PYTEST[@]}" "${PY_SCRIPT[@]}" "${PY_DB[@]#pytest:}" \
                        "${NODE_TESTS[@]}" "${EXCLUDED[@]%%|*}" | sort)
-actual=$(ls test_*.py test_*.js test_*.mjs tests/test_*.py 2>/dev/null | sort)
+actual=$(cd "$T" && ls test_*.py test_*.js test_*.mjs 2>/dev/null | sort)
+root_left=$(ls test_*.py test_*.js test_*.mjs *.test.js 2>/dev/null)
+if [ -n "$root_left" ]; then
+  echo "✗ test file(s) outside tests/ — move them to tests/:"; echo "$root_left"; exit 1
+fi
 dupes=$(printf '%s\n' "$listed" | uniq -d)
 missing=$(comm -13 <(printf '%s\n' "$listed" | sort -u) <(printf '%s\n' "$actual"))
 stale=$(comm -23 <(printf '%s\n' "$listed" | sort -u) <(printf '%s\n' "$actual"))
@@ -138,6 +146,7 @@ if [ -n "$dupes$missing$stale" ]; then
 fi
 
 FAILED=()
+FAILED_MSG=()
 run() {  # run <label> <cmd...>
   local label="$1"; shift
   local log; log=$(mktemp)
@@ -146,6 +155,10 @@ run() {  # run <label> <cmd...>
   else
     echo "  ✗ $label"; echo "──── output: $label ────"; tail -n 60 "$log"; echo "────"
     FAILED+=("$label")
+    # first error line of this file → the summary at the end
+    local first
+    first=$(grep -m1 -E '❌|✗|^[[:space:]]*FAIL|FAILED|^E[[:space:]]|^[A-Za-z]*Error:|^>[[:space:]]|not ok' "$log" || tail -n 1 "$log")
+    FAILED_MSG+=("$(printf '%s' "$first" | tr -d '\r' | cut -c1-200)")
   fi
   rm -f "$log"
 }
@@ -158,10 +171,10 @@ run "python syntax (*.py)" \
   bash -c 'for f in $(git ls-files "*.py"); do '"$PY"' -c "import ast,sys; ast.parse(open(sys.argv[1],encoding=\"utf-8\").read(), sys.argv[1])" "$f" || exit 1; done'
 
 echo "== Python (pytest) =="
-for t in "${PY_PYTEST[@]}"; do run "$t" "$PY" -m pytest -q -p no:cacheprovider "$t"; done
+for t in "${PY_PYTEST[@]}"; do run "$t" "$PY" -m pytest -q -p no:cacheprovider "$T/$t"; done
 
 echo "== Python (script) =="
-for t in "${PY_SCRIPT[@]}"; do run "$t" "$PY" "$t"; done
+for t in "${PY_SCRIPT[@]}"; do run "$t" "$PY" "$T/$t"; done
 
 echo "== Python (PostgreSQL) =="
 reset_db() {  # drop + re-create the test database (fresh schema per test file)
@@ -182,26 +195,29 @@ elif ! reset_db >/dev/null 2>&1; then
   echo "  ✗ PostgreSQL not reachable at $DB_URL"
   echo "    start one (ssl=on, see header) or run ./run_tests.sh --no-db"
   FAILED+=("PostgreSQL unavailable")
+  FAILED_MSG+=("not reachable at $DB_URL")
 else
   export TW_TEST_DB_URL="$DB_URL" OTP_TEST_DB_URL="$DB_URL"
   for t in "${PY_DB[@]}"; do
-    reset_db || { FAILED+=("reset_db before $t"); continue; }
+    reset_db || { FAILED+=("reset_db before $t"); FAILED_MSG+=("could not reset the test database"); continue; }
     case "$t" in
-      pytest:*) run "${t#pytest:}" "$PY" -m pytest -q -p no:cacheprovider -rs "${t#pytest:}" ;;
-      *)        run "$t" "$PY" "$t" ;;
+      pytest:*) run "${t#pytest:}" "$PY" -m pytest -q -p no:cacheprovider -rs "$T/${t#pytest:}" ;;
+      *)        run "$t" "$PY" "$T/$t" ;;
     esac
   done
 fi
 
 echo "== Node =="
-for t in "${NODE_TESTS[@]}"; do run "$t" node "$t"; done
+for t in "${NODE_TESTS[@]}"; do run "$t" node "$T/$t"; done
 
 echo "== Excluded (not run here — reason) =="
 for e in "${EXCLUDED[@]}"; do echo "  - ${e%%|*} — ${e#*|}"; done
 
 echo
 if [ ${#FAILED[@]} -gt 0 ]; then
-  echo "✗ ${#FAILED[@]} failed: ${FAILED[*]}"; exit 1
+  echo "══ Summary: ${#FAILED[@]} failed ══"
+  for i in "${!FAILED[@]}"; do echo "  ✗ ${FAILED[$i]} — ${FAILED_MSG[$i]}"; done
+  exit 1
 fi
 [ "$NO_DB" = 1 ] && echo "⚠ DB tests skipped (--no-db) — CI runs them."
 echo "✓ all tests passed"
