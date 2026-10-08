@@ -40,6 +40,8 @@ PY_PYTEST=(
   test_db_conn_async_safety.py
   test_kyc_docs_migration.py
   test_no_dummy_content.py
+  test_page_audit.py
+  test_changelog_collect.py
   test_safe_link_url.py
   test_server_error_leak.py
   test_supabase_settings.py
@@ -206,6 +208,10 @@ else
     esac
   done
 fi
+
+echo "== Page audit (tools/page_audit.py — every number only goes down) =="
+run "page_audit.py vs tools/page_audit_baseline.json" "$PY" tools/page_audit.py
+run "changelog.d fragments (tools/changelog_collect.py --check)" "$PY" tools/changelog_collect.py --check
 
 echo "== Node =="
 for t in "${NODE_TESTS[@]}"; do run "$t" node "$T/$t"; done

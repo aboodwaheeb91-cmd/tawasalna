@@ -1,0 +1,142 @@
+{
+  "admin-view.html": {
+    "colors": 145,
+    "dialogs": 7,
+    "fetch": 0,
+    "forsa": 0,
+    "helpers": 2,
+    "ls_session": 0,
+    "no_header": 1,
+    "no_shell": 1
+  },
+  "admin.html": {
+    "colors": 110,
+    "dialogs": 4,
+    "fetch": 3,
+    "forsa": 0,
+    "helpers": 0,
+    "ls_session": 0,
+    "no_header": 1,
+    "no_shell": 1
+  },
+  "appointment-room.html": {
+    "colors": 28,
+    "dialogs": 0,
+    "fetch": 1,
+    "forsa": 0,
+    "helpers": 2,
+    "ls_session": 0,
+    "no_header": 0,
+    "no_shell": 0
+  },
+  "appointments.html": {
+    "colors": 16,
+    "dialogs": 0,
+    "fetch": 0,
+    "forsa": 0,
+    "helpers": 1,
+    "ls_session": 0,
+    "no_header": 0,
+    "no_shell": 0
+  },
+  "company-profile.html": {
+    "colors": 898,
+    "dialogs": 4,
+    "fetch": 52,
+    "forsa": 0,
+    "helpers": 0,
+    "ls_session": 3,
+    "no_header": 1,
+    "no_shell": 1
+  },
+  "edu-profile.html": {
+    "colors": 89,
+    "dialogs": 0,
+    "fetch": 3,
+    "forsa": 0,
+    "helpers": 1,
+    "ls_session": 1,
+    "no_header": 0,
+    "no_shell": 1
+  },
+  "home-v2.html": {
+    "colors": 0,
+    "dialogs": 0,
+    "fetch": 1,
+    "forsa": 9,
+    "helpers": 0,
+    "ls_session": 1,
+    "no_header": 0,
+    "no_shell": 0
+  },
+  "index.html": {
+    "colors": 42,
+    "dialogs": 0,
+    "fetch": 3,
+    "forsa": 0,
+    "helpers": 1,
+    "ls_session": 8,
+    "no_header": 1,
+    "no_shell": 1
+  },
+  "job-detail.html": {
+    "colors": 91,
+    "dialogs": 0,
+    "fetch": 6,
+    "forsa": 0,
+    "helpers": 0,
+    "ls_session": 0,
+    "no_header": 0,
+    "no_shell": 0
+  },
+  "landing.html": {
+    "colors": 35,
+    "dialogs": 0,
+    "fetch": 0,
+    "forsa": 3,
+    "helpers": 0,
+    "ls_session": 0,
+    "no_header": 1,
+    "no_shell": 0
+  },
+  "messages.html": {
+    "colors": 82,
+    "dialogs": 0,
+    "fetch": 5,
+    "forsa": 1,
+    "helpers": 1,
+    "ls_session": 8,
+    "no_header": 0,
+    "no_shell": 1
+  },
+  "notifications.html": {
+    "colors": 55,
+    "dialogs": 0,
+    "fetch": 4,
+    "forsa": 0,
+    "helpers": 1,
+    "ls_session": 2,
+    "no_header": 0,
+    "no_shell": 1
+  },
+  "profile-showcase.html": {
+    "colors": 585,
+    "dialogs": 0,
+    "fetch": 17,
+    "forsa": 7,
+    "helpers": 3,
+    "ls_session": 4,
+    "no_header": 1,
+    "no_shell": 1
+  },
+  "settings.html": {
+    "colors": 128,
+    "dialogs": 0,
+    "fetch": 9,
+    "forsa": 0,
+    "helpers": 3,
+    "ls_session": 1,
+    "no_header": 0,
+    "no_shell": 1
+  }
+}
