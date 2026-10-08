@@ -1231,6 +1231,18 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** every test lives in `tests/` (PR 3.9b; list names are relative to it) and runs from the repo root with `PYTHONPATH` = root. Guard — a `tests/test_*.py/js/mjs` in no list, in two lists, a listed file that does not exist, or any `test_*` / `*.test.js` left outside `tests/` → run fails. End of run: a summary, one line per failed file with its first error line. New tests check behaviour, not literal source text (`CLAUDE.md → Testing & CI` rule 6). DB tests: fresh database per file (`DROP … WITH (FORCE)` + `CREATE`), URL `postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline` (`TW_TEST_DB_URL` overrides); `auth.get_conn` is SSL-only, so the server needs `ssl=on`. Local: `pip install -r requirements.txt -r requirements-dev.txt && ./run_tests.sh` (`--no-db` lists the DB tests as skipped). A script-mode test must exit non-zero on failure. `CLAUDE.md → Testing & CI` · `docs/rules/project-reference.md → Testing`.
 **Do not recreate:** ❌ a second test workflow or a path-filtered one (only `scheduler-cron.yml` lives beside it — not a test) · ❌ a test file outside the lists (silent ignore) · ❌ excluding a test without a reason line · ❌ a script test that prints failures but exits 0 · ❌ a new `"literal" in src` check (behaviour / structure only) · ❌ sessions running the full suite instead of their focused test.
 
+
+### 54h. Page Audit — `tools/page_audit.py` (PR 3.11)
+**Purpose:** Measure Phase-4 page debt per page and make sure it only goes down.
+**Source of Truth:** `tools/page_audit.py` (metrics: raw `fetch` · color literals via `scripts/ds_color_audit.count_literals` · `localStorage` `tw_user`/`tw_jwt` · `alert`/`confirm`/`prompt` · «فرص» · page-local helpers · no Shell marker · no `data-tw-header`) · `tools/page_audit_baseline.json` (current numbers).
+**Details:** counts the page + the page-specific scripts / stylesheets it loads (shared files excluded). A number above its baseline → fail (run_tests.sh); below → prints «حدّث الـ baseline» → `python tools/page_audit.py --update` in the same PR. A page missing from the baseline starts at 0. `CLAUDE.md → قواعد ثابتة لكل مهمة` 5. Test `tests/test_page_audit.py`.
+**Do not recreate:** ❌ raising a baseline number to make a PR pass · ❌ a second per-page audit script · ❌ a second color-literal regex (reuse `ds_color_audit`).
+
+### 54i. Changelog fragments — `changelog.d/` (PR 3.11)
+**Purpose:** Zero CHANGELOG merge conflicts between open PRs.
+**Source of Truth:** `changelog.d/<task>.md` (one per PR — `## PR <task> — <title> — YYYY-MM-DD` + `- ` bullets) · `tools/changelog_collect.py` (`--check` in run_tests.sh; without flags it moves the fragments into `docs/CHANGELOG.md`, newest first, and deletes them — run on main after merges).
+**Details:** `CLAUDE.md → بروتوكول المهام` 13 · `changelog.d/README.md` · test `tests/test_changelog_collect.py`.
+**Do not recreate:** ❌ a PR editing `docs/CHANGELOG.md` directly · ❌ a second collector.
 ---
 
 ## I — Systems Needing Documentation
@@ -1243,4 +1255,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-08 — PR 3.9b · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-08 — PR 3.11 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

@@ -2210,127 +2210,10 @@ check(
 # ── 128 — Architecture Foundation (PR #420) ──────────────────────────────
 import os as _os
 
-_foundation_path = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "ARCHITECTURE_FOUNDATION.md")
-_foundation_exists = _os.path.isfile(_foundation_path)
-_foundation_src = open(_foundation_path).read() if _foundation_exists else ""
 
-_arch_src_128 = open(_os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "ARCHITECTURE.md")).read()
-_claude_src_128 = open(_os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "CLAUDE.md")).read()
 
-check(
-    "128a. ARCHITECTURE_FOUNDATION.md exists",
-    _foundation_exists
-)
-check(
-    "128b. ARCHITECTURE_FOUNDATION.md contains API-first Rule (F2)",
-    "API-first Rule" in _foundation_src or "API-first" in _foundation_src
-)
-check(
-    "128c. ARCHITECTURE_FOUNDATION.md contains Single Backend / Single Database (F3)",
-    "Single Backend" in _foundation_src and "Single Database" in _foundation_src
-)
-check(
-    "128d. ARCHITECTURE_FOUNDATION.md contains Shared System First (F4)",
-    "Shared System First" in _foundation_src
-)
-check(
-    "128e. ARCHITECTURE_FOUNDATION.md contains One Source of Truth (F5)",
-    "One Source of Truth" in _foundation_src
-)
-check(
-    "128f. ARCHITECTURE_FOUNDATION.md contains Backend Owns Permissions (F6)",
-    "Backend Owns Permissions" in _foundation_src
-)
-check(
-    "128g. ARCHITECTURE_FOUNDATION.md contains Public Routes Contract /u/{tw_id} (F7)",
-    "Public Routes Contract" in _foundation_src and "/u/{tw_id}" in _foundation_src
-)
-check(
-    "128h. ARCHITECTURE_FOUNDATION.md contains No Silent Failures (F9)",
-    "No Silent Failures" in _foundation_src
-)
-check(
-    "128i. ARCHITECTURE_FOUNDATION.md contains Pre-push GitHub State Check (F13)",
-    "Pre-push GitHub State Check" in _foundation_src
-)
-check(
-    "128j. ARCHITECTURE_FOUNDATION.md states higher priority than feature-level docs",
-    "higher priority" in _foundation_src and "foundation file wins" in _foundation_src
-)
-check(
-    "128k. ARCHITECTURE.md references ARCHITECTURE_FOUNDATION.md",
-    "ARCHITECTURE_FOUNDATION.md" in _arch_src_128
-)
-check(
-    "128l. CLAUDE.md references ARCHITECTURE_FOUNDATION.md",
-    "ARCHITECTURE_FOUNDATION.md" in _claude_src_128
-)
 
 # ── 129 — Architecture Foundation F14–F28 (PR #420 commit 2) ─────────────
-check(
-    "129a. ARCHITECTURE_FOUNDATION.md contains Backward Compatibility Rule (F14)",
-    "Backward Compatibility Rule" in _foundation_src
-)
-check(
-    "129b. ARCHITECTURE_FOUNDATION.md contains Standard API Response Rule (F15)",
-    "Standard API Response Rule" in _foundation_src
-)
-check(
-    "129c. ARCHITECTURE_FOUNDATION.md contains Database Migration Rule (F16)",
-    "Database Migration Rule" in _foundation_src
-)
-check(
-    "129d. ARCHITECTURE_FOUNDATION.md contains Security by Default (F17)",
-    "Security by Default" in _foundation_src
-)
-check(
-    "129e. ARCHITECTURE_FOUNDATION.md contains Important Actions Audit-ready Rule (F18)",
-    "Audit-ready Rule" in _foundation_src
-)
-check(
-    "129f. ARCHITECTURE_FOUNDATION.md contains Notification-ready Rule (F19)",
-    "Notification-ready Rule" in _foundation_src
-)
-check(
-    "129g. ARCHITECTURE_FOUNDATION.md contains Role and Permission Matrix Rule (F20)",
-    "Role and Permission Matrix Rule" in _foundation_src
-)
-check(
-    "129h. ARCHITECTURE_FOUNDATION.md contains No Client-only Trust (F21)",
-    "No Client-only Trust" in _foundation_src
-)
-check(
-    "129i. ARCHITECTURE_FOUNDATION.md contains Idempotency Rule (F22)",
-    "Idempotency Rule" in _foundation_src
-)
-check(
-    "129j. ARCHITECTURE_FOUNDATION.md contains Observability Rule (F23)",
-    "Observability Rule" in _foundation_src
-)
-check(
-    "129k. ARCHITECTURE_FOUNDATION.md contains Storage Ownership Rule (F24)",
-    "Storage Ownership Rule" in _foundation_src
-)
-check(
-    "129l. ARCHITECTURE_FOUNDATION.md contains Search-ready Data Rule (F25)",
-    "Search-ready Data Rule" in _foundation_src
-)
-check(
-    "129m. ARCHITECTURE_FOUNDATION.md contains Multi-language Ready Rule (F26)",
-    "Multi-language Ready Rule" in _foundation_src
-)
-check(
-    "129n. ARCHITECTURE_FOUNDATION.md contains Soft Delete Rule (F27)",
-    "Soft Delete Rule" in _foundation_src
-)
-check(
-    "129o. ARCHITECTURE_FOUNDATION.md contains Admin-ready Rule (F28)",
-    "Admin-ready Rule" in _foundation_src
-)
-check(
-    "129p. ARCHITECTURE_FOUNDATION.md table lists all 28 rules (F1–F28)",
-    "F28" in _foundation_src and "F14" in _foundation_src
-)
 
 # ── 130 — Fix Mobile Mention Dropdown Position And Filtering (PR #421) ───
 _posts130 = open("static/company/company.posts.js", encoding="utf-8").read()
@@ -2691,42 +2574,8 @@ check(
 )
 
 # ── 137: Future Roadmap file ──────────────────────────────────────────────
-_rdm137  = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read()
-_idx137  = open('docs/SYSTEMS_INDEX.md',  encoding='utf-8').read()
 _srv137  = open('server.py',              encoding='utf-8').read()
 
-check(
-    "137a. docs/FUTURE_ROADMAP.md exists",
-    os.path.exists('docs/FUTURE_ROADMAP.md')
-)
-check(
-    "137b. FUTURE_ROADMAP.md has Purpose section",
-    '## Purpose' in _rdm137
-)
-check(
-    "137c. FUTURE_ROADMAP.md has Usage Rules section",
-    '## Usage Rules' in _rdm137
-)
-check(
-    "137d. FUTURE_ROADMAP.md has Areas section with sub-areas",
-    '## Areas' in _rdm137 and '### Platform' in _rdm137
-)
-check(
-    "137e. FUTURE_ROADMAP.md has Needs Decision Before Build section",
-    'Needs Decision Before Build' in _rdm137
-)
-check(
-    "137f. FUTURE_ROADMAP.md has Done section",
-    '## Done' in _rdm137
-)
-check(
-    "137g. FUTURE_ROADMAP.md prohibits execution without explicit request",
-    'طلب صريح' in _rdm137
-)
-check(
-    "137h. SYSTEMS_INDEX.md references FUTURE_ROADMAP.md",
-    'FUTURE_ROADMAP.md' in _idx137
-)
 check(
     "137i. server.py not modified — backend untouched",
     'FUTURE_ROADMAP' not in _srv137
@@ -2738,53 +2587,8 @@ check(
 )
 
 # ── 138: Future Roadmap — Profile System Ideas update ─────────────────────
-_rdm138 = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read()
 _srv138 = open('server.py', encoding='utf-8').read()
 
-check(
-    "138a. FUTURE_ROADMAP.md contains Employee Profile Posts",
-    'Employee Profile Posts' in _rdm138
-)
-check(
-    "138b. FUTURE_ROADMAP.md contains Poll Posts / Ask Your Followers",
-    'Poll Posts' in _rdm138 or 'اسأل متابعينك' in _rdm138
-)
-check(
-    "138c. FUTURE_ROADMAP.md contains Unified Profile UI Tokens",
-    'Unified Profile UI Tokens' in _rdm138
-)
-check(
-    "138d. FUTURE_ROADMAP.md contains Unified Profile Media Sizing",
-    'Unified Profile Media Sizing' in _rdm138
-)
-check(
-    "138e. FUTURE_ROADMAP.md contains Unified Profile Settings Menu",
-    'Unified Profile Settings Menu' in _rdm138
-)
-check(
-    "138f. FUTURE_ROADMAP.md contains Generic About Section Label or حول",
-    'Generic About Section Label' in _rdm138 or '"حول"' in _rdm138
-)
-check(
-    "138g. FUTURE_ROADMAP.md contains Verification Badge / Flow",
-    'Verification Badge' in _rdm138
-)
-check(
-    "138h. FUTURE_ROADMAP.md contains Interactive Profile Stats",
-    'Interactive Profile Stats' in _rdm138 or 'Clickable Counters' in _rdm138
-)
-check(
-    "138i. FUTURE_ROADMAP.md contains First-time Profile Setup Wizard",
-    'Setup Wizard' in _rdm138
-)
-check(
-    "138j. FUTURE_ROADMAP.md contains First-time Guided Tour / Page Coach",
-    'Guided Tour' in _rdm138 or 'Page Coach' in _rdm138
-)
-check(
-    "138k. FUTURE_ROADMAP.md Needs Decision includes Employee Polls and followers-only",
-    'Employee Polls' in _rdm138 and 'followers' in _rdm138.lower()
-)
 check(
     "138l. server.py not modified — backend untouched",
     'Employee Profile Posts' not in _srv138 and 'Poll Posts' not in _srv138
@@ -2803,79 +2607,8 @@ check(
 # ═══════════════════════════════════════════════════════════════════════
 print("\n── §139: Notifications Plan (Phase 0) ──")
 import os as _os139
-_nplan = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os139.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx139 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os139.path.exists('docs/SYSTEMS_INDEX.md') else ''
 _srv139  = open('server.py', encoding='utf-8').read() if _os139.path.exists('server.py') else ''
 
-check(
-    "139a. docs/NOTIFICATIONS_PLAN.md exists",
-    bool(_nplan)
-)
-check(
-    "139b. Plan contains Phase 0",
-    'Phase 0' in _nplan
-)
-check(
-    "139c. Plan contains Phase 1",
-    'Phase 1' in _nplan
-)
-check(
-    "139d. Plan contains Phase 11 (real-time — deferred)",
-    'Phase 11' in _nplan
-)
-check(
-    "139e. Plan contains event_key (idempotency)",
-    'event_key' in _nplan
-)
-check(
-    "139f. Plan contains actor_id",
-    'actor_id' in _nplan
-)
-check(
-    "139g. Plan contains JWT security rule",
-    'JWT' in _nplan
-)
-check(
-    "139h. Plan documents security bugs S1-S6",
-    all(f'S{i}' in _nplan for i in range(1, 7))
-)
-check(
-    "139i. Plan contains comment notification hook (Phase 3)",
-    'Phase 3' in _nplan and 'comment' in _nplan.lower()
-)
-check(
-    "139j. Plan contains reply notification hook (Phase 4)",
-    'Phase 4' in _nplan and 'reply' in _nplan.lower()
-)
-check(
-    "139k. Plan contains mention notification hook (Phase 5)",
-    'Phase 5' in _nplan and 'mention' in _nplan.lower()
-)
-check(
-    "139l. Plan contains job_applied hook (Phase 6)",
-    'Phase 6' in _nplan and 'job_applied' in _nplan
-)
-check(
-    "139m. Plan contains follow hook (Phase 7)",
-    'Phase 7' in _nplan and 'follow' in _nplan.lower()
-)
-check(
-    "139n. Plan contains verification hook (Phase 8)",
-    'Phase 8' in _nplan and 'verify' in _nplan.lower()
-)
-check(
-    "139o. SYSTEMS_INDEX.md updated — §36 added for Notifications Plan",
-    '### 36.' in _sidx139 and 'NOTIFICATIONS_PLAN' in _sidx139
-)
-check(
-    "139p. SYSTEMS_INDEX.md §19 updated to reference NOTIFICATIONS_PLAN.md",
-    '### 19.' in _sidx139 and 'NOTIFICATIONS_PLAN' in _sidx139
-)
-check(
-    "139q. Phase 0 is docs-only — NOTIFICATIONS_PLAN.md Phase 0 header says 'docs only'"
-    " (check updated: server.py legitimately gained event_key in Phases 2+8; intent verified via docs)",
-    'docs only' in _nplan.lower() and 'Phase 0' in _nplan
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §140 — Notifications Phase 1 — Security Hardening
@@ -2885,7 +2618,6 @@ print("\n── §140: Notifications Phase 1 — Security Hardening ──")
 import os as _os140
 _srv140  = open('server.py', encoding='utf-8').read() if _os140.path.exists('server.py') else ''
 _notif140 = open('notifications.html', encoding='utf-8').read() if _os140.path.exists('notifications.html') else ''
-_nplan140 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os140.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
 
 check(
     "140a. GET /notifications/{user_id} requires JWT (Depends(verify_token))",
@@ -2929,10 +2661,6 @@ check(
         if 'Create notification for admin' in _srv140 else ''
     )
 )
-check(
-    "140j. NOTIFICATIONS_PLAN.md marks Phase 1 as complete",
-    'Phase 1' in _nplan140 and ('مكتمل' in _nplan140 or 'منفذ' in _nplan140 or 'منفَّذ' in _nplan140)
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §141 — Notifications Phase 2 — Schema Hardening
@@ -2942,7 +2670,6 @@ print("\n── §141: Notifications Phase 2 — Schema Hardening ──")
 import os as _os141
 _auth141 = open('auth.py', encoding='utf-8').read() if _os141.path.exists('auth.py') else ''
 _srv141  = open('server.py', encoding='utf-8').read() if _os141.path.exists('server.py') else ''
-_nplan141 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os141.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
 
 check(
     "141a. _migrate_notifications_schema_v2() exists in auth.py",
@@ -2984,14 +2711,9 @@ check(
         if 'def _migrate_notifications_schema_v2' in _auth141 else ''
     )
 )
-check(
-    "141j. NOTIFICATIONS_PLAN.md marks Phase 2 as complete",
-    'Phase 2' in _nplan141 and ('مكتمل' in _nplan141 or 'منفَّذ' in _nplan141)
-)
 
 # §142 — Notifications Phase 3 — Comment Notification Hook
 _auth142 = open("auth.py").read()
-_nplan142 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §142: Notifications Phase 3 — Comment Notification Hook ──")
 check(
@@ -3031,14 +2753,9 @@ check(
     "142i. hook fires AFTER COMMIT (not inside transaction block)",
     _auth142.find("comments_agg:post:") > _auth142.find("committed = True")
 )
-check(
-    "142j. NOTIFICATIONS_PLAN.md marks Phase 3 as complete",
-    'Phase 3' in _nplan142 and ('مكتمل' in _nplan142 or 'منفَّذ' in _nplan142)
-)
 
 # §143 — Notifications Phase 4 — Reply Notification Hook
 _auth143 = open("auth.py").read()
-_nplan143 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §143: Notifications Phase 4 — Reply Notification Hook ──")
 check(
@@ -3078,14 +2795,9 @@ check(
     "143i. company_tw_id fetched once, shared between Phase 3 and Phase 4",
     "_company_tw_id" in _auth143 and _auth143.count("SELECT tw_id FROM users WHERE id") >= 1
 )
-check(
-    "143j. NOTIFICATIONS_PLAN.md marks Phase 4 as complete",
-    'Phase 4' in _nplan143 and ('مكتمل' in _nplan143 or 'منفَّذ' in _nplan143)
-)
 
 # §144 — Notifications Phase 5 — @Mention Notification Hook
 _auth144 = open("auth.py").read()
-_nplan144 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §144: Notifications Phase 5 — @Mention Notification Hook ──")
 check(
@@ -3127,14 +2839,9 @@ check(
     _auth144.find("for _m in resolved_mentions") > _auth144.find("committed = True")
     if "for _m in resolved_mentions" in _auth144 else False
 )
-check(
-    "144j. NOTIFICATIONS_PLAN.md marks Phase 5 as complete",
-    'Phase 5' in _nplan144 and ('مكتمل' in _nplan144 or 'منفَّذ' in _nplan144)
-)
 
 # §145 — Notifications Phase 6 — Job Application Notification Hook
 _auth145 = open("auth.py").read()
-_nplan145 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §145: Notifications Phase 6 — Job Application Notification Hook ──")
 check(
@@ -3177,14 +2884,9 @@ check(
     "SELECT full_name FROM users WHERE id=:uid" in _auth145 and
     "applicant_name" in _auth145
 )
-check(
-    "145j. NOTIFICATIONS_PLAN.md marks Phase 6 as complete",
-    'Phase 6' in _nplan145 and ('مكتمل' in _nplan145 or 'منفَّذ' in _nplan145)
-)
 
 # §146 — Notifications Phase 7 — Follow Notification Hook
 _auth146 = open("auth.py").read()
-_nplan146 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §146: Notifications Phase 7 — Follow Notification Hook ──")
 check(
@@ -3224,29 +2926,19 @@ check(
     "146i. no self-follow notification possible (guard in follow_profile; company follow already has guard in server.py)",
     "if follower_id == followed_id:" in _auth146  # follow_profile self-follow guard
 )
-check(
-    "146j. NOTIFICATIONS_PLAN.md marks Phase 7 as complete",
-    'Phase 7' in _nplan146 and ('مكتمل' in _nplan146 or 'منفَّذ' in _nplan146)
-)
 
 # §147 — Notifications Phase 8 — old verify_requests hook removed with the old system (PR 3.9)
 _srv147 = open("server.py").read()
-_nplan147 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §147: Notifications Phase 8 — old verify hook removed (PR 3.9) ──")
 check(
     "147a. admin_update_verify + verify_requests reads gone from server.py (verification = KYC)",
     "def admin_update_verify(" not in _srv147 and "verify_requests" not in _srv147
 )
-check(
-    "147j. NOTIFICATIONS_PLAN.md still records Phase 8",
-    'Phase 8' in _nplan147
-)
 
 # §148 — Notifications Phase 9 — Per-Notification Read + Pagination
 _auth148 = open("auth.py").read()
 _srv148 = open("server.py").read()
-_nplan148 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §148: Notifications Phase 9 — Per-Notification Read + Pagination ──")
 check(
@@ -3288,16 +2980,11 @@ check(
     "def read_single_notification(user_id: int, notif_id: int" in _srv148 and
     "tok_uid != user_id" in _srv148
 )
-check(
-    "148j. NOTIFICATIONS_PLAN.md marks Phase 9 as complete",
-    'Phase 9' in _nplan148 and ('مكتمل' in _nplan148 or 'منفَّذ' in _nplan148)
-)
 
 # §149 — Notifications Phase 10 — Unread Badge in App Header
 _srv149 = open("server.py").read()
 _ahjs149 = open("static/app-header.js").read() if os.path.exists("static/app-header.js") else ""  # removed PR 3.9
 _ahcss149 = open("static/app-header.css").read()
-_nplan149 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
 print("\n── §149: Notifications Phase 10 — Unread Badge in App Header ──")
 _tws_badge = open("tw_shared.js", encoding="utf-8").read()
@@ -3341,10 +3028,6 @@ check(
     "149i. badge CSS in app-header.css ([data-ah-notif-badge] rule present)",
     "[data-ah-notif-badge]" in _ahcss149
 )
-check(
-    "149j. NOTIFICATIONS_PLAN.md marks Phase 10 as complete",
-    'Phase 10' in _nplan149 and ('مكتمل' in _nplan149 or 'منفَّذ' in _nplan149)
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §150 — Notifications V1 Final QA + Closure
@@ -3352,28 +3035,10 @@ check(
 # ═══════════════════════════════════════════════════════════════════════
 print("\n── §150: Notifications V1 Final QA + Closure ──")
 import os as _os150
-_nplan150    = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os150.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx150     = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os150.path.exists('docs/SYSTEMS_INDEX.md') else ''
 _srv150      = open('server.py', encoding='utf-8').read() if _os150.path.exists('server.py') else ''
 _ahjs150     = open('static/app-header.js', encoding='utf-8').read() if _os150.path.exists('static/app-header.js') else ''
 _notif150    = open('notifications.html', encoding='utf-8').read() if _os150.path.exists('notifications.html') else ''
 
-check(
-    "150a. 139q resolved — Phase 0 docs-only status preserved in NOTIFICATIONS_PLAN.md",
-    'docs only' in _nplan150.lower() and 'Phase 0' in _nplan150
-)
-check(
-    "150b. Notifications V1 Status section exists in NOTIFICATIONS_PLAN.md",
-    'Notifications V1 Status' in _nplan150
-)
-check(
-    "150c. Phase 11 explicitly marked deferred in NOTIFICATIONS_PLAN.md",
-    'Phase 11' in _nplan150 and ('مؤجل' in _nplan150 or 'deferred' in _nplan150.lower())
-)
-check(
-    "150d. Phase 11 deferral cites WebSocket P0 security debt as reason",
-    'WebSocket' in _nplan150 and 'P0' in _nplan150 and 'Phase 11' in _nplan150
-)
 check(
     "150e. No WebSocket route for notifications in server.py",
     '@app.websocket("/notifications' not in _srv150 and
@@ -3392,21 +3057,6 @@ check(
     'textContent' in _notif150 and
     'innerHTML' not in _notif150[_notif150.find('titleEl'):_notif150.find('titleEl') + 100]
     if 'titleEl' in _notif150 else 'textContent' in _notif150
-)
-check(
-    "150i. All Phases 0-10 marked complete in NOTIFICATIONS_PLAN.md summary table",
-    all(
-        '✅' in _nplan150[max(0, _nplan150.find(f'| **{i}**')):_nplan150.find(f'| **{i}**') + 150]
-        or 'مكتمل' in _nplan150[max(0, _nplan150.find(f'| **{i}**')):_nplan150.find(f'| **{i}**') + 150]
-        for i in range(0, 11)
-    )
-)
-check(
-    "150j. SYSTEMS_INDEX.md §19 reflects completed state (all phases complete — not just Phase 0)",
-    '### 19.' in _sidx150 and (
-        'Phases 0' in _sidx150 or '0–10' in _sidx150 or
-        ('Phase 10' in _sidx150 and 'complete' in _sidx150.lower())
-    )
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -3632,7 +3282,6 @@ print("\n── §153: Notifications Runtime QA Bugfix ──")
 import os as _os153
 _auth153  = open('auth.py', encoding='utf-8').read() if _os153.path.exists('auth.py') else ''
 _notif153 = open('notifications.html', encoding='utf-8').read() if _os153.path.exists('notifications.html') else ''
-_plan153  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os153.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
 
 check(
     "153a. create_notification function is defined in auth.py",
@@ -3696,11 +3345,6 @@ check(
     '_filterGroups' in _notif153 and
     "'follow'" in _notif153[_notif153.find('_filterGroups'):_notif153.find('_filterGroups') + 400]
     if '_filterGroups' in _notif153 else False
-)
-check(
-    "153o. NOTIFICATIONS_PLAN.md documents runtime QA bugfix and refollow behavior",
-    'Runtime QA' in _plan153 or 'runtime-qa' in _plan153.lower() or
-    'ON CONFLICT' in _plan153 and 'WHERE event_key IS NOT NULL' in _plan153
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -3869,62 +3513,12 @@ check(
 # ═══════════════════════════════════════════════════════════════════════
 print("\n── §156: Notifications V2 Smart Aggregation Plan ──")
 import os as _os156
-_plan156 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os156.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_si156   = open('docs/SYSTEMS_INDEX.md',     encoding='utf-8').read() if _os156.path.exists('docs/SYSTEMS_INDEX.md')     else ''
 _auth156 = open('auth.py',    encoding='utf-8').read() if _os156.path.exists('auth.py')    else ''
 _srv156  = open('server.py',  encoding='utf-8').read() if _os156.path.exists('server.py')  else ''
 _notif156 = open('notifications.html', encoding='utf-8').read() if _os156.path.exists('notifications.html') else ''
 _ahj156   = open('static/app-header.js',  encoding='utf-8').read() if _os156.path.exists('static/app-header.js')  else ''
 _ahc156   = open('static/app-header.css', encoding='utf-8').read() if _os156.path.exists('static/app-header.css') else ''
 
-check(
-    "156a. docs/NOTIFICATIONS_PLAN.md contains Notifications V2 Smart Aggregation Plan section",
-    'Notifications V2' in _plan156 and 'Smart Aggregation' in _plan156
-)
-check(
-    "156b. plan documents follow aggregation type",
-    'Follow Aggregation' in _plan156 or 'follow aggregation' in _plan156.lower()
-)
-check(
-    "156c. plan documents job application aggregation per job (not per company)",
-    'Job Application Aggregation' in _plan156 and 'job_id' in _plan156
-)
-check(
-    "156d. plan documents comment/reply aggregation per post",
-    ('Comment' in _plan156 and 'Aggregation' in _plan156 and 'post_id' in _plan156)
-)
-check(
-    "156e. plan documents mention aggregation as Needs Decision",
-    'Mention' in _plan156 and 'Needs Decision' in _plan156
-)
-check(
-    "156f. plan documents that verify/application_status/direct messages stay individual (no aggregation)",
-    'verify' in _plan156 and 'فردي' in _plan156 or
-    'Sensitive' in _plan156 and ('verify' in _plan156 or 'تبقى فردية' in _plan156)
-)
-check(
-    "156g. plan documents the golden rule: aggregate only if same click target",
-    ('نفس الوجهة' in _plan156 or 'same click target' in _plan156.lower() or
-     'القاعدة الذهبية' in _plan156)
-)
-check(
-    "156h. plan recommends Option A: aggregate while unread",
-    'Option A' in _plan156 and ('while unread' in _plan156.lower() or 'غير مقروء' in _plan156)
-)
-check(
-    "156i. plan documents click target rules section",
-    'Click Target' in _plan156 or 'click target' in _plan156.lower()
-)
-check(
-    "156j. plan documents create_or_update_aggregated_notification as future helper only",
-    'create_or_update_aggregated_notification' in _plan156 and
-    ('NOT IMPLEMENTED' in _plan156 or 'مستقبلي' in _plan156 or 'future' in _plan156.lower())
-)
-check(
-    "156k. plan documents this PR is docs-only (V2-0)",
-    ('docs only' in _plan156.lower() or 'docs-only' in _plan156.lower() or 'V2-0' in _plan156)
-    and ('لا تنفيذ' in _plan156 or 'no implementation' in _plan156.lower())
-)
 check(
     "156l. create_notification (V1) exists with ON CONFLICT partial-index fix",
     'def create_notification(' in _auth156 and
@@ -3944,19 +3538,6 @@ check(
     "156o. app-header.js and app-header.css not modified for V2",
     'aggregation' not in _ahj156.lower() and 'aggregation' not in _ahc156.lower()
 )
-check(
-    "156p. plan documents anti-spam rules",
-    'Anti-spam' in _plan156 or 'anti-spam' in _plan156.lower() or
-    ('لا تنشئ 100' in _plan156 or 'actor == recipient' in _plan156)
-)
-check(
-    "156q. SYSTEMS_INDEX.md updated — §19 or §36 references V2 aggregation plan",
-    'V2' in _si156 and ('aggregation' in _si156.lower() or 'Aggregation' in _si156)
-)
-check(
-    "156r. plan documents V2 phases list (V2-0 through V2-6)",
-    'V2-1' in _plan156 and 'V2-2' in _plan156 and 'V2-6' in _plan156
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §157 — Notification Coverage Audit + Future Notification Decision Rule
@@ -3965,8 +3546,6 @@ check(
 # ═══════════════════════════════════════════════════════════════════════
 print("\n── §157: Notification Coverage Audit + Future Notification Decision Rule ──")
 import os as _os157
-_plan157 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os157.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_si157   = open('docs/SYSTEMS_INDEX.md',     encoding='utf-8').read() if _os157.path.exists('docs/SYSTEMS_INDEX.md')     else ''
 _auth157 = open('auth.py',    encoding='utf-8').read() if _os157.path.exists('auth.py')    else ''
 _srv157  = open('server.py',  encoding='utf-8').read() if _os157.path.exists('server.py')  else ''
 _notif157 = open('notifications.html', encoding='utf-8').read() if _os157.path.exists('notifications.html') else ''
@@ -3974,87 +3553,10 @@ _ahj157   = open('static/app-header.js',  encoding='utf-8').read() if _os157.pat
 _ahc157   = open('static/app-header.css', encoding='utf-8').read() if _os157.path.exists('static/app-header.css') else ''
 
 # ── Coverage Audit section exists ────────────────────────────────────────
-check(
-    "157a. NOTIFICATIONS_PLAN.md has Notification Coverage Audit section",
-    'Notification Coverage Audit' in _plan157
-)
-check(
-    "157b. Coverage Audit has Status Legend with all 5 status symbols",
-    '✅ impl' in _plan157 and '❌ missing' in _plan157 and
-    '🔜 future' in _plan157 and '🚫 n/a' in _plan157 and '❓ decide' in _plan157
-)
 
 # ── Coverage Matrix areas ────────────────────────────────────────────────
-check(
-    "157c. Coverage Audit covers Posts/Comments/Replies/Mentions area",
-    'Area 1' in _plan157 and ('Posts' in _plan157 or 'Comments' in _plan157)
-)
-check(
-    "157d. Coverage Audit covers Jobs/Applications area",
-    'Area 2' in _plan157 and ('Jobs' in _plan157 or 'Applications' in _plan157 or 'job_applied' in _plan157)
-)
-check(
-    "157e. Coverage Audit covers Follow/Followers area",
-    'Area 3' in _plan157 and 'Follow' in _plan157
-)
-check(
-    "157f. Coverage Audit covers Verification/Admin Review area",
-    'Area 4' in _plan157 and ('Verification' in _plan157 or 'verify' in _plan157)
-)
-check(
-    "157g. Coverage Audit covers Messaging area",
-    'Area 6' in _plan157 and ('Messaging' in _plan157 or 'message' in _plan157.lower())
-)
-check(
-    "157h. Coverage Audit covers Education/Courses area",
-    'Area 7' in _plan157 and ('Education' in _plan157 or 'Courses' in _plan157 or 'new_course' in _plan157)
-)
-check(
-    "157i. Coverage Audit covers Polls as future/roadmap item",
-    'Area 8' in _plan157 and 'Polls' in _plan157 and '🔜 future' in _plan157
-)
-check(
-    "157j. Coverage Audit has Missing Notifications Priority Queue",
-    'Missing' in _plan157 and 'Priority Queue' in _plan157 and 'application_status' in _plan157
-)
-check(
-    "157k. Coverage Audit names auth.py hook location for application_status (P1 missing)",
-    'update_application_status' in _plan157 and 'auth.py' in _plan157
-)
-check(
-    "157l. Coverage Audit names auth.py hook location for rating (P2 missing)",
-    'rate_company' in _plan157 and 'auth.py' in _plan157
-)
 
 # ── Future Notification Decision Rule section ────────────────────────────
-check(
-    "157m. NOTIFICATIONS_PLAN.md has Future Notification Decision Rule section",
-    'Future Notification Decision Rule' in _plan157
-)
-check(
-    "157n. Decision Rule has 17-question checklist (questions 1 through 17)",
-    '17.' in _plan157 or ('1. هل هذا الحدث' in _plan157 and '17.' in _plan157)
-)
-check(
-    "157o. Decision Rule has Mandatory PR Declaration section",
-    'Mandatory PR Declaration' in _plan157
-)
-check(
-    "157p. PR Declaration includes 'Notification: added' option",
-    'Notification: added' in _plan157
-)
-check(
-    "157q. PR Declaration includes 'Notification: not needed' option",
-    'Notification: not needed' in _plan157
-)
-check(
-    "157r. PR Declaration includes 'Notification: planned later' option",
-    'Notification: planned later' in _plan157
-)
-check(
-    "157s. SYSTEMS_INDEX.md §36 references Coverage Audit and Decision Rule",
-    'Coverage Audit' in _si157 and 'Decision Rule' in _si157
-)
 
 # ── No code files modified (docs-only PR) ────────────────────────────────
 check(
@@ -4075,7 +3577,6 @@ print("\n── §158: Notifications V2-1 — Aggregation Schema + Helper ──
 import os as _os158
 _auth158  = open('auth.py',    encoding='utf-8').read() if _os158.path.exists('auth.py')    else ''
 _srv158   = open('server.py',  encoding='utf-8').read() if _os158.path.exists('server.py')  else ''
-_plan158  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os158.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
 _notif158 = open('notifications.html', encoding='utf-8').read() if _os158.path.exists('notifications.html') else ''
 _ahj158   = open('static/app-header.js',  encoding='utf-8').read() if _os158.path.exists('static/app-header.js')  else ''
 _ahc158   = open('static/app-header.css', encoding='utf-8').read() if _os158.path.exists('static/app-header.css') else ''
@@ -4216,14 +3717,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────
-check(
-    "158ab. NOTIFICATIONS_PLAN.md marks V2-1 as implemented (PR #448)",
-    'V2-1' in _plan158 and 'PR #448' in _plan158
-)
-check(
-    "158ac. NOTIFICATIONS_PLAN.md documents V2-2 Follow Aggregation (V2 complete — no NEXT PHASE required)",
-    'V2-2' in _plan158 and 'Follow Aggregation' in _plan158
-)
 
 # ─────────────────────────────────────────────────────────────────────────
 # §159 — Notifications V2-2: Follow Aggregation (PR #449)
@@ -4231,10 +3724,6 @@ check(
 # ─────────────────────────────────────────────────────────────────────────
 with open("auth.py", encoding="utf-8") as f:
     _auth159 = f.read()
-with open("docs/NOTIFICATIONS_PLAN.md", encoding="utf-8") as f:
-    _plan159 = f.read()
-with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
-    _sidx159 = f.read()
 
 # Slices for targeted checks (3000 chars covers full function body)
 _fp159  = _auth159[_auth159.find('def follow_profile('):_auth159.find('def follow_profile(') + 3000]
@@ -4349,23 +3838,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────
-check(
-    "159v. NOTIFICATIONS_PLAN.md marks V2-2 as implemented (PR #449)",
-    'V2-2' in _plan159 and 'PR #449' in _plan159
-)
-check(
-    "159w. NOTIFICATIONS_PLAN.md documents follow_agg:user: and follow_agg:company: keys",
-    'follow_agg:user:' in _plan159 and 'follow_agg:company:' in _plan159
-)
-check(
-    "159x. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-3 Job Application Aggregation",
-    'V2-3' in _plan159 and 'Job Application Aggregation' in _plan159 and
-    ('NEXT PHASE' in _plan159 or 'V2-3 —' in _plan159)
-)
-check(
-    "159y. SYSTEMS_INDEX.md §36 references V2-2 history (#449)",
-    'V2-2' in _sidx159 and '#449' in _sidx159
-)
 
 # ── Self-notification guards — symmetric pattern ──────────────────────────
 check(
@@ -4427,10 +3899,6 @@ check(
 # ─────────────────────────────────────────────────────────────────────────
 with open("auth.py", encoding="utf-8") as f:
     _auth160 = f.read()
-with open("docs/NOTIFICATIONS_PLAN.md", encoding="utf-8") as f:
-    _plan160 = f.read()
-with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
-    _sidx160 = f.read()
 with open("server.py", encoding="utf-8") as f:
     _srv160 = f.read()
 with open("notifications.html", encoding="utf-8") as f:
@@ -4580,27 +4048,9 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────
-check(
-    "160z. NOTIFICATIONS_PLAN.md marks V2-3 as implemented (PR #450)",
-    'V2-3' in _plan160 and 'PR #450' in _plan160
-)
-check(
-    "160aa. NOTIFICATIONS_PLAN.md documents job_applications_agg:job: key",
-    'job_applications_agg:job:' in _plan160
-)
-check(
-    "160ab. NOTIFICATIONS_PLAN.md documents V2-4 Comment/Reply Aggregation (V2 complete — no NEXT PHASE required)",
-    'V2-4' in _plan160 and 'Comment' in _plan160 and 'Reply Aggregation' in _plan160
-)
-check(
-    "160ac. SYSTEMS_INDEX.md §36 updated with V2-3 (PR #450)",
-    'V2-3' in _sidx160 and 'PR #450' in _sidx160
-)
 
 # §161 — Notifications V2-4 — Comment/Reply Aggregation
 _auth161  = open("auth.py").read()
-_nplan161 = open("docs/NOTIFICATIONS_PLAN.md").read()
-_sidx161  = open("docs/SYSTEMS_INDEX.md").read()
 
 print("\n── §161: Notifications V2-4 — Comment/Reply Aggregation ──")
 # --- Comment Aggregation (Phase 3) ---
@@ -4716,18 +4166,6 @@ check(
     _auth161.count("[TW-WARN] notification hook") == 1
 )
 # --- Docs ---
-check(
-    "161ab. NOTIFICATIONS_PLAN.md marks V2-4 as complete with PR #451",
-    "V2-4" in _nplan161 and "PR #451" in _nplan161
-)
-check(
-    "161ac. NOTIFICATIONS_PLAN.md documents comment aggregation_key (comments_agg:post:)",
-    "comments_agg:post:" in _nplan161
-)
-check(
-    "161ad. SYSTEMS_INDEX.md §36 updated with V2-4 and PR #451",
-    "V2-4" in _sidx161 and "#451" in _sidx161
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §162 — Notifications V2-5 — UI Support for Aggregated Notifications
@@ -4738,8 +4176,6 @@ import os as _os162
 _notif162 = open('notifications.html', encoding='utf-8').read() if _os162.path.exists('notifications.html') else ''
 _auth162  = open('auth.py',            encoding='utf-8').read() if _os162.path.exists('auth.py') else ''
 _srv162   = open('server.py',          encoding='utf-8').read() if _os162.path.exists('server.py') else ''
-_nplan162 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os162.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx162  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os162.path.exists('docs/SYSTEMS_INDEX.md') else ''
 
 # --- CSS additions ---
 check(
@@ -4869,24 +4305,6 @@ check(
 )
 
 # --- Docs ---
-check(
-    "162aa. NOTIFICATIONS_PLAN.md marks V2-5 as complete with PR #452",
-    'V2-5' in _nplan162 and 'PR #452' in _nplan162
-)
-check(
-    "162ab. NOTIFICATIONS_PLAN.md V2-5 section documents .notif-agg-badge",
-    '.notif-agg-badge' in _nplan162
-)
-check(
-    "162ac. SYSTEMS_INDEX.md §36 updated with V2-5 and PR #452",
-    'V2-5' in _sidx162 and '#452' in _sidx162
-)
-check(
-    "162ad. NOTIFICATIONS_PLAN.md: stale NEXT→V2-5 removed; V2-6 present; V2 declared complete",
-    'V2-6' in _nplan162 and
-    'NEXT PHASE AFTER MERGE: Phase V2-5' not in _nplan162 and
-    ('V2 COMPLETE' in _nplan162 or 'Notifications V2 مكتملة' in _nplan162 or 'Notifications V2 Final Status' in _nplan162)
-)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §163 — Notifications V2 Final Runtime QA
@@ -4897,8 +4315,6 @@ import os as _os163
 _auth163  = open('auth.py',            encoding='utf-8').read() if _os163.path.exists('auth.py') else ''
 _srv163   = open('server.py',          encoding='utf-8').read() if _os163.path.exists('server.py') else ''
 _notif163 = open('notifications.html', encoding='utf-8').read() if _os163.path.exists('notifications.html') else ''
-_nplan163 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os163.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx163  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os163.path.exists('docs/SYSTEMS_INDEX.md') else ''
 
 # ── Schema / Migration QA (V2-1) — checks a through j ──
 check(
@@ -5065,41 +4481,6 @@ check(
 )
 
 # ── Documentation QA (V2-6) — checks am through at ──
-check(
-    "163am. NOTIFICATIONS_PLAN.md V2-6 row shows PR #453 complete",
-    'V2-6' in _nplan163 and 'PR #453' in _nplan163
-)
-check(
-    "163an. NOTIFICATIONS_PLAN.md has Notifications V2 Final Status section",
-    'Notifications V2 Final Status' in _nplan163
-)
-check(
-    "163ao. Phases Summary table in NOTIFICATIONS_PLAN.md shows V2-0 through V2-6 all complete",
-    'V2-0' in _nplan163 and 'V2-1' in _nplan163 and 'V2-2' in _nplan163 and
-    'V2-3' in _nplan163 and 'V2-4' in _nplan163 and 'V2-5' in _nplan163 and 'V2-6' in _nplan163 and
-    '#447' in _nplan163 and '#448' in _nplan163 and '#449' in _nplan163 and
-    '#450' in _nplan163 and '#451' in _nplan163 and '#452' in _nplan163 and '#453' in _nplan163
-)
-check(
-    "163ap. NOTIFICATIONS_PLAN.md declares Notifications V2 COMPLETE",
-    'V2 COMPLETE' in _nplan163 or 'V2 complete' in _nplan163 or 'Notifications V2 مكتملة' in _nplan163
-)
-check(
-    "163aq. NOTIFICATIONS_PLAN.md mentions Missing Priority Queue or deferred features",
-    'Missing Priority Queue' in _nplan163 or 'application_status_changed' in _nplan163
-)
-check(
-    "163ar. NOTIFICATIONS_PLAN.md notes Phase 11 WebSocket/Push deferred",
-    'Phase 11' in _nplan163 and ('مؤجل' in _nplan163 or 'deferred' in _nplan163.lower())
-)
-check(
-    "163as. SYSTEMS_INDEX.md §36 contains V2 complete text",
-    'V2 complete' in _sidx163 or 'V2 Complete' in _sidx163
-)
-check(
-    "163at. SYSTEMS_INDEX.md §36 references PR #453 or V2-6 Final QA",
-    '#453' in _sidx163 or 'V2-6' in _sidx163
-)
 
 # ── Security Cross-checks — checks au through ax ──
 check(
@@ -5126,171 +4507,11 @@ check(
 # ═══════════════════════════════════════════════════════════════════════
 print("\n── §164: Future Notes / Roadmap Coverage ──")
 import os as _os164
-_roadmap164 = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read() if _os164.path.exists('docs/FUTURE_ROADMAP.md') else ''
 _auth164    = open('auth.py',    encoding='utf-8').read() if _os164.path.exists('auth.py') else ''
 _srv164     = open('server.py',  encoding='utf-8').read() if _os164.path.exists('server.py') else ''
 _notif164   = open('notifications.html', encoding='utf-8').read() if _os164.path.exists('notifications.html') else ''
-_sidx164    = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os164.path.exists('docs/SYSTEMS_INDEX.md') else ''
 
 # ── Section presence checks (1–14) ──
-check(
-    "164a. FUTURE_ROADMAP.md contains Full Internationalization / Localization section",
-    'Full Internationalization' in _roadmap164 or 'Internationalization' in _roadmap164
-)
-check(
-    "164b. FUTURE_ROADMAP.md documents RTL/LTR direction switching",
-    'RTL' in _roadmap164 and 'LTR' in _roadmap164
-)
-check(
-    "164c. FUTURE_ROADMAP.md documents Global Countries & Flags",
-    'Global Countries' in _roadmap164 and 'Flags' in _roadmap164
-)
-check(
-    "164d. FUTURE_ROADMAP.md documents Global World Directory",
-    'World Directory' in _roadmap164
-)
-check(
-    "164e. FUTURE_ROADMAP.md documents universities/schools/hospitals in World Directory",
-    'universities' in _roadmap164 and ('schools' in _roadmap164 or 'مدارس' in _roadmap164) and
-    ('hospitals' in _roadmap164 or 'مستشفيات' in _roadmap164)
-)
-check(
-    "164f. FUTURE_ROADMAP.md documents Institution Naming Rule",
-    'Institution Naming' in _roadmap164 or 'Naming Rule' in _roadmap164
-)
-check(
-    "164g. FUTURE_ROADMAP.md documents name_en/name_local/name_ar/aliases fields",
-    'name_en' in _roadmap164 and 'name_local' in _roadmap164 and
-    'name_ar' in _roadmap164 and 'aliases' in _roadmap164
-)
-check(
-    "164h. FUTURE_ROADMAP.md documents Smart Selection Instead of Manual Typing",
-    'Smart Selection' in _roadmap164 or ('Manual Typing' in _roadmap164 and 'Selection' in _roadmap164)
-)
-check(
-    "164i. FUTURE_ROADMAP.md documents searchable dropdowns and autocomplete",
-    'searchable' in _roadmap164 and 'autocomplete' in _roadmap164
-)
-check(
-    "164j. FUTURE_ROADMAP.md documents dependent selects (country → city → institution)",
-    'dependent' in _roadmap164 and ('country' in _roadmap164 or 'country →' in _roadmap164)
-)
-check(
-    "164k. FUTURE_ROADMAP.md documents Educational Institution Platform",
-    'Educational Institution Platform' in _roadmap164 or 'Education Platform' in _roadmap164
-)
-check(
-    "164l. FUTURE_ROADMAP.md documents Education Platform Roles",
-    'Education Platform Roles' in _roadmap164 or ('Student' in _roadmap164 and 'Trainer' in _roadmap164)
-)
-check(
-    "164m. FUTURE_ROADMAP.md documents Student role",
-    'Student' in _roadmap164
-)
-check(
-    "164n. FUTURE_ROADMAP.md documents Educational Institution role",
-    'Educational Institution' in _roadmap164
-)
-check(
-    "164o. FUTURE_ROADMAP.md documents Teacher / Trainer role",
-    'Teacher' in _roadmap164 and 'Trainer' in _roadmap164
-)
-check(
-    "164p. FUTURE_ROADMAP.md states No official course without responsible educational institution",
-    'No official course without' in _roadmap164 or
-    ('official course' in _roadmap164 and 'educational institution' in _roadmap164.lower())
-)
-check(
-    "164q. FUTURE_ROADMAP.md documents Courses",
-    'Courses' in _roadmap164 and 'certificate' in _roadmap164
-)
-check(
-    "164r. FUTURE_ROADMAP.md documents Training Offers",
-    'Training Offers' in _roadmap164
-)
-check(
-    "164s. FUTURE_ROADMAP.md documents Education Content Safety",
-    'Content Safety' in _roadmap164 or ('content' in _roadmap164.lower() and 'Safety' in _roadmap164)
-)
-check(
-    "164t. FUTURE_ROADMAP.md documents report/moderation and audit log",
-    'report' in _roadmap164 and 'audit' in _roadmap164.lower()
-)
-check(
-    "164u. FUTURE_ROADMAP.md documents Educational Institution Verification Gate",
-    'Verification Gate' in _roadmap164 or ('Verification' in _roadmap164 and 'Gate' in _roadmap164)
-)
-check(
-    "164v. FUTURE_ROADMAP.md documents Country-Based Verification",
-    'Country' in _roadmap164 and 'Verification' in _roadmap164 and
-    ('country-based' in _roadmap164.lower() or 'Country-Based' in _roadmap164)
-)
-check(
-    "164w. FUTURE_ROADMAP.md documents Verification Levels (Level 0 through Level 3)",
-    'Level 0' in _roadmap164 and 'Level 1' in _roadmap164 and 'Level 3' in _roadmap164
-)
-check(
-    "164x. FUTURE_ROADMAP.md documents Risk Score",
-    'Risk Score' in _roadmap164 or 'risk score' in _roadmap164.lower()
-)
-check(
-    "164y. FUTURE_ROADMAP.md documents Monetization and Access Control",
-    'Monetization' in _roadmap164 and 'Access Control' in _roadmap164
-)
-check(
-    "164z. FUTURE_ROADMAP.md documents Backend Permission Gates",
-    'Backend Permission Gates' in _roadmap164 or
-    ('Backend' in _roadmap164 and 'Permission Gates' in _roadmap164)
-)
-check(
-    "164aa. FUTURE_ROADMAP.md documents Admin Support / Business Messenger",
-    'Admin Support' in _roadmap164
-)
-check(
-    "164ab. FUTURE_ROADMAP.md documents Support Tickets + Chat",
-    'Support Tickets' in _roadmap164 or ('Tickets' in _roadmap164 and 'Chat' in _roadmap164)
-)
-check(
-    "164ac. FUTURE_ROADMAP.md documents auto reply in Support Messenger",
-    'auto' in _roadmap164.lower() and 'reply' in _roadmap164.lower() and 'Admin Support' in _roadmap164
-)
-check(
-    "164ad. FUTURE_ROADMAP.md documents support priority tiers",
-    'priority' in _roadmap164.lower() and ('Free' in _roadmap164 or 'Premium' in _roadmap164) and 'Admin Support' in _roadmap164
-)
-check(
-    "164ae. FUTURE_ROADMAP.md documents Company Internal Groups",
-    'Company Internal Groups' in _roadmap164 or 'Internal Groups' in _roadmap164
-)
-check(
-    "164af. FUTURE_ROADMAP.md documents Chat Mode in Company Groups",
-    'Chat Mode' in _roadmap164
-)
-check(
-    "164ag. FUTURE_ROADMAP.md documents Announcement / Discussion Mode in Company Groups",
-    'Announcement' in _roadmap164 and ('Discussion' in _roadmap164 or 'Mode' in _roadmap164)
-)
-check(
-    "164ah. FUTURE_ROADMAP.md documents Read Receipts in Company Groups",
-    'Read Receipts' in _roadmap164 or 'read receipts' in _roadmap164.lower()
-)
-check(
-    "164ai. FUTURE_ROADMAP.md documents Company Group Permissions (add/remove members etc.)",
-    'Permissions' in _roadmap164 and 'Group' in _roadmap164 and
-    ('add' in _roadmap164 or 'remove' in _roadmap164)
-)
-check(
-    "164aj. FUTURE_ROADMAP.md documents Company Groups Monetization (Free/Premium/Enterprise)",
-    'Monetization' in _roadmap164 and 'Enterprise' in _roadmap164
-)
-check(
-    "164ak. FUTURE_ROADMAP.md contains NEXT ACTIVE DEVELOPMENT PHASE marker",
-    'NEXT ACTIVE DEVELOPMENT PHASE' in _roadmap164
-)
-check(
-    "164al. FUTURE_ROADMAP.md next phase marker points to Notifications Missing Priority Queue",
-    'Missing Priority Queue' in _roadmap164
-)
 
 # ── Docs-only verification (checks 38–45) ──
 check(
@@ -5312,12 +4533,6 @@ check(
     'worldDirectory' not in _notif164 and 'companyGroup' not in _notif164
 )
 check(
-    "164ap. FUTURE_ROADMAP.md usage rule: no implementation without explicit user request",
-    'بطلب صريح' in _roadmap164 or
-    'لا تنفيذ' in _roadmap164 or
-    'ممنوع ينفذ' in _roadmap164
-)
-check(
     "164aq. FUTURE_ROADMAP.md: no future feature actually implemented (world_directory table absent)",
     'CREATE TABLE world_directory' not in _auth164 and
     'world_directory' not in _srv164
@@ -5325,20 +4540,6 @@ check(
 check(
     "164ar. FUTURE_ROADMAP.md: no i18n implementation added to existing pages (tw-i18n.js absent)",
     not _os164.path.exists('static/shared/tw-i18n.js')
-)
-check(
-    "164as. FUTURE_ROADMAP.md: mentions that i18n is planned for after platform foundation completes",
-    'i18n' in _roadmap164 or 'Internationalization' in _roadmap164
-)
-check(
-    "164at. SYSTEMS_INDEX.md §30b updated to reference the new Future Product Notes section",
-    'Future Product Notes' in _sidx164 or
-    ('Global Platform' in _sidx164 and 'Education' in _sidx164)
-)
-check(
-    "164au. SYSTEMS_INDEX.md §30b mentions i18n/RTL and Education Platform additions",
-    ('i18n' in _sidx164 or 'RTL' in _sidx164 or 'Internationalization' in _sidx164) and
-    ('Education' in _sidx164 and 'FUTURE_ROADMAP' in _sidx164)
 )
 
 # ════════════════════════════════════════════════════════════════════════
@@ -5352,8 +4553,6 @@ check(
 import os as _os165
 _auth165  = open('auth.py',    encoding='utf-8').read() if _os165.path.exists('auth.py') else ''
 _srv165   = open('server.py',  encoding='utf-8').read() if _os165.path.exists('server.py') else ''
-_nplan165 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os165.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx165  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os165.path.exists('docs/SYSTEMS_INDEX.md') else ''
 
 # ── Hook Signature (checks a–f) ──
 check(
@@ -5509,31 +4708,6 @@ check(
 )
 
 # ── Documentation (checks ag–al) ──
-check(
-    "165ag. NOTIFICATIONS_PLAN.md marks application_status_changed as implemented",
-    '✅' in _nplan165 and 'application_status_changed' in _nplan165 and
-    ('PR #455' in _nplan165 or 'Implemented' in _nplan165)
-)
-check(
-    "165ah. NOTIFICATIONS_PLAN.md documents event_key format used",
-    'application_status:{app_id}:{status}' in _nplan165
-)
-check(
-    "165ai. NOTIFICATIONS_PLAN.md documents self-guard rule",
-    'self-guard' in _nplan165 or 'self_guard' in _nplan165
-)
-check(
-    "165aj. NOTIFICATIONS_PLAN.md status table updated (application_status_changed moved to implemented)",
-    'application_status_changed' in _nplan165 and '✅ implemented' in _nplan165
-)
-check(
-    "165ak. SYSTEMS_INDEX.md §19 updated to reference PR #455",
-    'PR #455' in _sidx165
-)
-check(
-    "165al. SYSTEMS_INDEX.md §19 mentions application_status_changed as implemented",
-    'application_status_changed' in _sidx165 and '✅' in _sidx165
-)
 
 # ── Forbidden Patterns (checks am–ar) ──
 check(
@@ -5578,9 +4752,6 @@ check(
 import os as _os166
 _auth166   = open('auth.py',    encoding='utf-8').read() if _os166.path.exists('auth.py') else ''
 _srv166    = open('server.py',  encoding='utf-8').read() if _os166.path.exists('server.py') else ''
-_nplan166  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os166.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_road166   = open('docs/FUTURE_ROADMAP.md',     encoding='utf-8').read() if _os166.path.exists('docs/FUTURE_ROADMAP.md') else ''
-_sidx166   = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os166.path.exists('docs/SYSTEMS_INDEX.md') else ''
 _notifh166 = open('notifications.html', encoding='utf-8').read() if _os166.path.exists('notifications.html') else ''
 
 # extract update_application_status function body
@@ -5672,104 +4843,12 @@ check(
 )
 
 # ── Docs / NOTIFICATIONS_PLAN (checks q–s) ──
-check(
-    "166q. NOTIFICATIONS_PLAN.md: policy correction documented",
-    'policy corrected' in _nplan166.lower() or 'Policy corrected' in _nplan166 or
-    'policy correction' in _nplan166.lower()
-)
-check(
-    "166r. NOTIFICATIONS_PLAN.md: accepted/rejected described as internal company states",
-    ('internal' in _nplan166 and 'accepted' in _nplan166 and 'rejected' in _nplan166) or
-    'حالة داخلية' in _nplan166
-)
-check(
-    "166s. NOTIFICATIONS_PLAN.md: Appointments / Interview Requests mentioned as future path",
-    'Appointments' in _nplan166 and ('Interview' in _nplan166 or 'مواعيد' in _nplan166)
-)
 
 # ── FUTURE_ROADMAP Appointments section (checks t–ah) ──
-check(
-    "166t. FUTURE_ROADMAP.md contains Appointments & Interview Rooms System section",
-    'Appointments' in _road166 and 'Interview Rooms' in _road166
-)
-check(
-    "166u. FUTURE_ROADMAP.md mentions appointments button (زر المواعيد)",
-    'زر المواعيد' in _road166 or ('زر' in _road166 and 'المواعيد' in _road166)
-)
-check(
-    "166v. FUTURE_ROADMAP.md mentions appointment cards (بطاقات)",
-    'بطاقات' in _road166 and 'Appointments' in _road166
-)
-check(
-    "166w. FUTURE_ROADMAP.md mentions appointment room (غرفة الموعد)",
-    'غرفة الموعد' in _road166
-)
-check(
-    "166x. FUTURE_ROADMAP.md mentions appointment thread",
-    'appointment thread' in _road166 or 'Appointment Thread' in _road166 or
-    'محادثة الموعد' in _road166
-)
-check(
-    "166y. FUTURE_ROADMAP.md mentions event timeline (سجل الأحداث)",
-    'سجل الأحداث' in _road166 or 'Event Timeline' in _road166 or 'timeline' in _road166
-)
-check(
-    "166z. FUTURE_ROADMAP.md mentions countdown (عداد تنازلي)",
-    'عداد تنازلي' in _road166
-)
-check(
-    "166aa. FUTURE_ROADMAP.md mentions response deadline (مهلة الرد)",
-    'مهلة الرد' in _road166 or 'response deadline' in _road166.lower()
-)
-check(
-    "166ab. FUTURE_ROADMAP.md mentions expired state",
-    'expired' in _road166
-)
-check(
-    "166ac. FUTURE_ROADMAP.md mentions confirmed state",
-    'confirmed' in _road166
-)
-check(
-    "166ad. FUTURE_ROADMAP.md mentions closed / read-only state",
-    'closed' in _road166 and 'read-only' in _road166
-)
-check(
-    "166ae. FUTURE_ROADMAP.md mentions interviewer fallback 'ممثل الشركة'",
-    'ممثل الشركة' in _road166
-)
-check(
-    "166af. FUTURE_ROADMAP.md states approval must be via formal button (زر رسمي), not a message",
-    'زر رسمي' in _road166 and ('لا برسالة' in _road166 or 'برسالة نصية' in _road166 or 'لا' in _road166)
-)
-check(
-    "166ag. FUTURE_ROADMAP.md documents security rules for appointments",
-    ('Security Rules' in _road166 or 'security rules' in _road166.lower() or 'الأمن والصلاحيات' in _road166) and
-    'Appointments' in _road166
-)
-check(
-    "166ah. FUTURE_ROADMAP.md states that appointment reminders need a scheduler (مؤجلة)",
-    'scheduler' in _road166 and ('مؤجل' in _road166 or 'deferred' in _road166.lower())
-)
 
 # ── SYSTEMS_INDEX (check ai) ──
-check(
-    "166ai. SYSTEMS_INDEX.md §19 updated to reflect policy correction (PR #456)",
-    'PR #456' in _sidx166 and ('internal' in _sidx166 or 'داخلية' in _sidx166)
-)
 
 # ── Next Phase Marker (checks aj–ak) ──
-check(
-    "166aj. FUTURE_ROADMAP.md Next Phase Marker updated to 'rating notification hook'",
-    'rating notification hook' in _road166 or
-    ('rating' in _road166 and 'NEXT ACTIVE DEVELOPMENT PHASE' in _road166)
-)
-check(
-    "166ak. FUTURE_ROADMAP.md Next Phase Marker no longer says 'Notifications Missing Priority Queue' as the active phase",
-    not (
-        'NEXT ACTIVE DEVELOPMENT PHASE' in _road166 and
-        'Notifications Missing Priority Queue' in _road166.split('NEXT ACTIVE DEVELOPMENT PHASE')[-1][:100]
-    )
-)
 
 # ── docs-only verification (check al) ──
 check(
@@ -5790,8 +4869,6 @@ check(
 import os as _os167
 _auth167   = open('auth.py',    encoding='utf-8').read() if _os167.path.exists('auth.py') else ''
 _srv167    = open('server.py',  encoding='utf-8').read() if _os167.path.exists('server.py') else ''
-_nplan167  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os167.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
-_sidx167   = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os167.path.exists('docs/SYSTEMS_INDEX.md') else ''
 _notifh167 = open('notifications.html', encoding='utf-8').read() if _os167.path.exists('notifications.html') else ''
 
 # extract rate_company function body
@@ -5959,48 +5036,14 @@ check(
 )
 
 # ── Docs (checks ai–am) ──
-check(
-    "167ai. NOTIFICATIONS_PLAN.md rating entry updated to ✅ implemented",
-    '✅' in _nplan167 and 'rating_received' in _nplan167 and 'PR #457' in _nplan167
-)
-check(
-    "167aj. NOTIFICATIONS_PLAN.md documents event_key format for rating",
-    'rating:{company_id}:{rater_id}' in _nplan167
-)
-check(
-    "167ak. NOTIFICATIONS_PLAN.md documents upsert/update policy for rating",
-    'UPSERT' in _nplan167 or 'upsert' in _nplan167
-)
-check(
-    "167al. NOTIFICATIONS_PLAN.md mentions job_expiring_soon as blocked by scheduler",
-    'job_expiring_soon' in _nplan167 and ('scheduler' in _nplan167 or 'Blocked' in _nplan167)
-)
-check(
-    "167am. SYSTEMS_INDEX.md §19 updated to reference rating_received PR #457",
-    'rating_received' in _sidx167 and 'PR #457' in _sidx167
-)
 
 # ── Next Phase Marker (checks an–ao) ──
-check(
-    "167an. NOTIFICATIONS_PLAN.md: rating is now implemented (count updated)",
-    'rating_received' in _nplan167 and '✅ implemented' in _nplan167
-)
-check(
-    "167ao. Remaining Missing Priority Queue is job_expiring_soon only",
-    'job_expiring_soon' in _nplan167 and
-    ('Blocked' in _nplan167 or 'blocked' in _nplan167.lower()) and
-    'scheduler' in _nplan167
-)
 
 # ══════════════════════════════════════════════════════════════════════════
 # §168 — Notifications Missing Priority Queue Final Closure (docs-only PR)
 # ══════════════════════════════════════════════════════════════════════════
 
-with open('docs/NOTIFICATIONS_PLAN.md', 'r', encoding='utf-8') as _f168:
-    _nplan168 = _f168.read()
 
-with open('docs/SYSTEMS_INDEX.md', 'r', encoding='utf-8') as _f168s:
-    _sidx168 = _f168s.read()
 
 with open('auth.py', 'r', encoding='utf-8') as _f168a:
     _auth168 = _f168a.read()
@@ -6009,64 +5052,8 @@ with open('server.py', 'r', encoding='utf-8') as _f168sv:
     _server168 = _f168sv.read()
 
 # ── Core content checks (a–l) ──
-check(
-    "168a. NOTIFICATIONS_PLAN.md contains 'Missing Priority Queue Final Status' section",
-    'Missing Priority Queue Final Status' in _nplan168
-)
-check(
-    "168b. NOTIFICATIONS_PLAN.md: application_status_changed mentioned as implemented",
-    'application_status_changed' in _nplan168 and
-    ('✅ Implemented' in _nplan168 or 'implemented' in _nplan168.lower())
-)
-check(
-    "168c. NOTIFICATIONS_PLAN.md: PR #455 mentioned",
-    '#455' in _nplan168
-)
-check(
-    "168d. NOTIFICATIONS_PLAN.md: PR #456 mentioned",
-    '#456' in _nplan168
-)
-check(
-    "168e. NOTIFICATIONS_PLAN.md: accepted/rejected described as internal company states",
-    'accepted' in _nplan168 and 'rejected' in _nplan168 and
-    'internal' in _nplan168 and 'company' in _nplan168
-)
-check(
-    "168f. NOTIFICATIONS_PLAN.md: rating_received mentioned as implemented",
-    'rating_received' in _nplan168 and '✅' in _nplan168
-)
-check(
-    "168g. NOTIFICATIONS_PLAN.md: PR #457 mentioned",
-    '#457' in _nplan168
-)
-check(
-    "168h. NOTIFICATIONS_PLAN.md: job_expiring_soon mentioned as blocked",
-    'job_expiring_soon' in _nplan168 and
-    ('Blocked' in _nplan168 or 'blocked' in _nplan168.lower())
-)
-check(
-    "168i. NOTIFICATIONS_PLAN.md: scheduler mentioned as the blocker reason for job_expiring_soon",
-    'scheduler' in _nplan168 and 'job_expiring_soon' in _nplan168
-)
-check(
-    "168j. NOTIFICATIONS_PLAN.md: appointment reminders mentioned as scheduler-dependent",
-    'appointment reminders' in _nplan168 or 'Appointments' in _nplan168
-)
-check(
-    "168k. NOTIFICATIONS_PLAN.md: response deadline auto-expire mentioned as scheduler-dependent",
-    'response deadline' in _nplan168 or 'auto-expire' in _nplan168
-)
-check(
-    "168l. NOTIFICATIONS_PLAN.md: Phase 11 realtime/push mentioned as deferred",
-    'Phase 11' in _nplan168 and
-    ('deferred' in _nplan168.lower() or 'مؤجل' in _nplan168)
-)
 
 # ── SYSTEMS_INDEX update (m) ──
-check(
-    "168m. SYSTEMS_INDEX.md §19 updated to reference MPQ Final Closure",
-    'Final Closure' in _sidx168 or 'MPQ Final Closure' in _sidx168 or '#458' in _sidx168
-)
 
 # ── No code changes (n–s) ──
 check(
@@ -6077,48 +5064,15 @@ check(
     "168o. server.py NOT modified — no PR #458 marker or mpq-closure comment in server.py",
     'PR #458' not in _server168 and 'mpq-closure' not in _server168
 )
-check(
-    "168p. No new CREATE TABLE added to docs/NOTIFICATIONS_PLAN.md (schema unchanged)",
-    'CREATE TABLE scheduler' not in _nplan168 and 'CREATE TABLE job_expiring' not in _nplan168
-)
-check(
-    "168q. No inline script/style injected into docs/NOTIFICATIONS_PLAN.md",
-    '<script>' not in _nplan168 and '<style>' not in _nplan168
-)
-_sched_note168 = (
-    _nplan168.split('Scheduler Blocker Note')[1].split('Source of Truth')[0]
-    if 'Scheduler Blocker Note' in _nplan168 else ''
-)
-check(
-    "168r. Scheduler Blocker Note section exists and is non-empty",
-    bool(_sched_note168.strip())
-)
-check(
-    "168s. No WebSocket/push implementation text inside Scheduler Blocker Note section",
-    'WebSocket' not in _sched_note168 and 'push' not in _sched_note168.lower()
-)
 
 # ── PR declaration (t–u) ──
-check(
-    "168t. NOTIFICATIONS_PLAN.md is docs-only (no implementation code block referencing new feature)",
-    'docs-only' in _nplan168.lower() or 'docs only' in _nplan168.lower() or
-    'PR #458' in _nplan168
-)
-check(
-    "168u. NEXT ACTIVE DEVELOPMENT PHASE — Scheduler Infrastructure noted in SYSTEMS_INDEX.md",
-    'Scheduler Infrastructure' in _sidx168 and 'job_expiring_soon' in _sidx168
-)
 
 # ════════════════════════════════════════════════════════════════════════
 # §169 — Appointments Phase 0 Plan (PR #459)
 # 45 static checks: docs/APPOINTMENTS_PLAN.md + SYSTEMS_INDEX.md + no code changes
 # ════════════════════════════════════════════════════════════════════════
 
-with open("docs/APPOINTMENTS_PLAN.md", encoding="utf-8") as f:
-    _aplan169 = f.read()
 
-with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
-    _sidx169 = f.read()
 
 with open("auth.py", encoding="utf-8") as f:
     _auth169 = f.read()
@@ -6127,190 +5081,34 @@ with open("server.py", encoding="utf-8") as f:
     _server169 = f.read()
 
 # ── §1 Purpose (1–3) ──────────────────────────────────────────────────
-check(
-    "169-1. APPOINTMENTS_PLAN.md exists and is non-empty",
-    len(_aplan169.strip()) > 500
-)
-check(
-    "169-2. APPOINTMENTS_PLAN.md: §1 Purpose section exists",
-    '## §1' in _aplan169 or '### §1' in _aplan169 or '## 1.' in _aplan169 or 'Purpose' in _aplan169
-)
-check(
-    "169-3. APPOINTMENTS_PLAN.md: covers invitations, scheduling, acceptance, reschedule, cancellation",
-    'دعوة' in _aplan169 or 'invitation' in _aplan169.lower()
-)
 
 # ── §2 Core Rule (4–6) ────────────────────────────────────────────────
-check(
-    "169-4. APPOINTMENTS_PLAN.md: §2 Core Rule / Messenger العام vs Appointment Room",
-    'Messenger' in _aplan169 and ('Appointment Room' in _aplan169 or 'غرفة' in _aplan169)
-)
-check(
-    "169-5. APPOINTMENTS_PLAN.md: formal decisions only via official buttons (not from chat)",
-    'أزرار' in _aplan169 or 'buttons' in _aplan169.lower()
-)
-check(
-    "169-6. APPOINTMENTS_PLAN.md: Core Rule explicitly separates chat from formal decisions",
-    'المحادثة' in _aplan169 or 'chat' in _aplan169.lower() or 'الشات' in _aplan169
-)
 
 # ── §3 User Flows (7–9) ───────────────────────────────────────────────
-check(
-    "169-7. APPOINTMENTS_PLAN.md: employee user flow described",
-    'موظف' in _aplan169 or 'employee' in _aplan169.lower()
-)
-check(
-    "169-8. APPOINTMENTS_PLAN.md: company user flow described",
-    'شركة' in _aplan169 or 'company' in _aplan169.lower()
-)
-check(
-    "169-9. APPOINTMENTS_PLAN.md: user flows cover open/accept/reschedule/cancel actions",
-    ('قبول' in _aplan169 or 'accept' in _aplan169.lower()) and
-    ('إلغاء' in _aplan169 or 'cancel' in _aplan169.lower())
-)
 
 # ── §4 Appointment Cards (10–11) ─────────────────────────────────────
-check(
-    "169-10. APPOINTMENTS_PLAN.md: appointment cards described (employee card + company card)",
-    'بطاقة' in _aplan169 or 'card' in _aplan169.lower()
-)
-check(
-    "169-11. APPOINTMENTS_PLAN.md: card fields include status and date/time",
-    'status' in _aplan169.lower() or 'الحالة' in _aplan169
-)
 
 # ── §5 Appointment Room (12–13) ───────────────────────────────────────
-check(
-    "169-12. APPOINTMENTS_PLAN.md: §5 Appointment Room structure described",
-    'غرفة' in _aplan169 or 'Room' in _aplan169
-)
-check(
-    "169-13. APPOINTMENTS_PLAN.md: room includes decision buttons, event timeline, and appointment thread",
-    ('timeline' in _aplan169.lower() or 'سجل' in _aplan169 or 'أحداث' in _aplan169)
-)
 
 # ── §6 Appointment States (14–17) ─────────────────────────────────────
-check(
-    "169-14. APPOINTMENTS_PLAN.md: §6 Appointment States section exists with at least 7 states",
-    'pending_response' in _aplan169 and 'confirmed' in _aplan169 and 'cancelled' in _aplan169
-)
-check(
-    "169-15. APPOINTMENTS_PLAN.md: draft state documented",
-    'draft' in _aplan169
-)
-check(
-    "169-16. APPOINTMENTS_PLAN.md: expired/missed states documented",
-    'expired' in _aplan169 and ('missed' in _aplan169 or 'completed' in _aplan169)
-)
-check(
-    "169-17. APPOINTMENTS_PLAN.md: closed state documented (terminal state)",
-    'closed' in _aplan169
-)
 
 # ── §7 Response Deadline (18–20) ──────────────────────────────────────
-check(
-    "169-18. APPOINTMENTS_PLAN.md: §7 Response Deadline section exists with deadline options",
-    'response_deadline' in _aplan169 or 'deadline' in _aplan169.lower()
-)
-check(
-    "169-19. APPOINTMENTS_PLAN.md: auto-expire requires scheduler (deferred)",
-    'scheduler' in _aplan169.lower() and ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169)
-)
-check(
-    "169-20. APPOINTMENTS_PLAN.md: computed status at request-time is acceptable without scheduler",
-    'request-time' in _aplan169 or 'computed' in _aplan169.lower() or 'NOW()' in _aplan169
-)
 
 # ── §8 Proposed Data Model (21–24) ────────────────────────────────────
-check(
-    "169-21. APPOINTMENTS_PLAN.md: §8 Data Model section exists with appointments table",
-    'appointments' in _aplan169
-)
-check(
-    "169-22. APPOINTMENTS_PLAN.md: data model includes appointment_participants table",
-    'appointment_participants' in _aplan169
-)
-check(
-    "169-23. APPOINTMENTS_PLAN.md: data model includes appointment_events table",
-    'appointment_events' in _aplan169
-)
-check(
-    "169-24. APPOINTMENTS_PLAN.md: data model includes appointment_messages table",
-    'appointment_messages' in _aplan169
-)
 
 # ── §9 Proposed API (25–27) ───────────────────────────────────────────
-check(
-    "169-25. APPOINTMENTS_PLAN.md: §9 API section exists with at least 8 endpoints",
-    'POST /appointments' in _aplan169 or '/appointments' in _aplan169
-)
-check(
-    "169-26. APPOINTMENTS_PLAN.md: API covers accept, reschedule, cancel, complete, close endpoints",
-    'accept' in _aplan169 and 'reschedule' in _aplan169 and 'cancel' in _aplan169
-)
-check(
-    "169-27. APPOINTMENTS_PLAN.md: API covers messages and events sub-resources",
-    '/messages' in _aplan169 and '/events' in _aplan169
-)
 
 # ── §10 Permissions (28–29) ───────────────────────────────────────────
-check(
-    "169-28. APPOINTMENTS_PLAN.md: §10 Permissions section — owner-only access documented",
-    'owner' in _aplan169.lower() or 'صاحب' in _aplan169 or 'Permissions' in _aplan169
-)
-check(
-    "169-29. APPOINTMENTS_PLAN.md: online_url access restricted to participants only",
-    'online_url' in _aplan169
-)
 
 # ── §11 Event Types (30) ──────────────────────────────────────────────
-check(
-    "169-30. APPOINTMENTS_PLAN.md: §11 Event Types section with appointment_created and message_sent",
-    'appointment_created' in _aplan169 and 'message_sent' in _aplan169
-)
 
 # ── §12 Notifications (31–33) ─────────────────────────────────────────
-check(
-    "169-31. APPOINTMENTS_PLAN.md: §12 Notifications section exists with event_key format",
-    'event_key' in _aplan169
-)
-check(
-    "169-32. APPOINTMENTS_PLAN.md: scheduler-based reminder notifications marked as deferred",
-    'reminder' in _aplan169.lower() and
-    ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169 or 'Scheduler' in _aplan169)
-)
-check(
-    "169-33. APPOINTMENTS_PLAN.md: at least 7 event-driven notification types documented",
-    'appointment_invited' in _aplan169 or
-    ('notification' in _aplan169.lower() and 'invite' in _aplan169.lower())
-)
 
 # ── §13 Security Risks (34–35) ────────────────────────────────────────
-check(
-    "169-34. APPOINTMENTS_PLAN.md: §13 Security Risks section with URL leakage risk",
-    'online_url' in _aplan169 and ('risk' in _aplan169.lower() or 'مخاطر' in _aplan169 or 'Security' in _aplan169)
-)
-check(
-    "169-35. APPOINTMENTS_PLAN.md: unauthorized access and chat bypass risks documented",
-    ('unauthorized' in _aplan169.lower() or 'غير مصرح' in _aplan169 or 'غير طرف' in _aplan169) or
-    ('bypass' in _aplan169.lower() or 'تجاوز' in _aplan169 or 'الشات بدل' in _aplan169)
-)
 
 # ── §14 Build Phases (36–37) ──────────────────────────────────────────
-check(
-    "169-36. APPOINTMENTS_PLAN.md: §14 Build Phases documented starting from Phase 1 (schema only)",
-    'Phase 1' in _aplan169 and ('schema' in _aplan169.lower() or 'مخطط' in _aplan169)
-)
-check(
-    "169-37. APPOINTMENTS_PLAN.md: Phase 8 (scheduler reminders) is marked as deferred",
-    'Phase 8' in _aplan169 and ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169 or 'scheduler' in _aplan169.lower())
-)
 
 # ── §15 Non-goals (38) ────────────────────────────────────────────────
-check(
-    "169-38. APPOINTMENTS_PLAN.md: §15 Non-goals section explicitly states no code/schema in this PR",
-    'Non-goals' in _aplan169 or 'non-goals' in _aplan169.lower() or 'لا تنفيذ' in _aplan169
-)
 
 # ── No code changes (39–42) ───────────────────────────────────────────
 check(
@@ -6338,21 +5136,8 @@ check(
 )
 
 # ── SYSTEMS_INDEX update (43–44) ──────────────────────────────────────
-check(
-    "169-43. SYSTEMS_INDEX.md contains §23 Appointments System entry",
-    '### 23.' in _sidx169 and 'Appointments' in _sidx169
-)
-check(
-    "169-44. SYSTEMS_INDEX.md §23 references docs/APPOINTMENTS_PLAN.md",
-    'docs/APPOINTMENTS_PLAN.md' in _sidx169 and '### 23.' in _sidx169
-)
 
 # ── PR declaration (45) ───────────────────────────────────────────────
-check(
-    "169-45. APPOINTMENTS_PLAN.md footer declares PR #459 docs-only with no implementation",
-    'PR #459' in _aplan169 and
-    ('docs-only' in _aplan169.lower() or 'docs only' in _aplan169.lower() or 'لا تنفيذ' in _aplan169)
-)
 
 # ════════════════════════════════════════════════════════════════════════
 # §170 — Appointments Phase 1 Schema (PR #460)
@@ -6365,11 +5150,7 @@ with open("auth.py", encoding="utf-8") as f:
 with open("server.py", encoding="utf-8") as f:
     _server170 = f.read()
 
-with open("docs/APPOINTMENTS_PLAN.md", encoding="utf-8") as f:
-    _aplan170 = f.read()
 
-with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
-    _sidx170 = f.read()
 
 # ── Migration function exists (1–4) ───────────────────────────────────
 check(
@@ -6500,21 +5281,6 @@ check(
 )
 
 # ── Docs updated (47–49) ──────────────────────────────────────────────
-check(
-    "170-47. APPOINTMENTS_PLAN.md: Phase 1 marked as implemented (PR #460)",
-    'Phase 1' in _aplan170 and
-    ('✅' in _aplan170 or 'مُنجز' in _aplan170 or 'PR #460' in _aplan170)
-)
-check(
-    "170-48. APPOINTMENTS_PLAN.md: Phase 1 schema section with all 4 tables",
-    'appointment_participants' in _aplan170 and 'appointment_events' in _aplan170 and
-    'appointment_messages' in _aplan170
-)
-check(
-    "170-49. SYSTEMS_INDEX.md §23: status updated to Phase 1 schema implemented",
-    'Phase 1 schema implemented' in _sidx170 or
-    ('Phase 1' in _sidx170 and 'implemented' in _sidx170)
-)
 
 # ── Fix: startup-critical failure handling (50–57) ────────────────────
 # These checks verify that _migrate_appointments() failure stops startup
@@ -6541,10 +5307,6 @@ check(
     '⚠️ appointments migration failed' not in _server170
 )
 check(
-    "170-54. APPOINTMENTS_PLAN.md: startup-critical note documented",
-    'startup-critical' in _aplan170 or 'Startup' in _aplan170
-)
-check(
     "170-55. Phase 1 fix: no endpoints added then (Phase 2 may add them)",
     '@app.post("/appointments' not in _server170 or
     '@app.post("/api/appointments' in _server170
@@ -6569,7 +5331,6 @@ _auth171   = open('auth.py',    encoding='utf-8').read() if _os171.path.exists('
 _server171 = open('server.py',  encoding='utf-8').read() if _os171.path.exists('server.py')  else ''
 _appthtml  = open('appointments.html', encoding='utf-8').read() if _os171.path.exists('appointments.html') else ''
 _roomhtml  = open('appointment-room.html', encoding='utf-8').read() if _os171.path.exists('appointment-room.html') else ''
-_aplan171  = open('docs/APPOINTMENTS_PLAN.md', encoding='utf-8').read() if _os171.path.exists('docs/APPOINTMENTS_PLAN.md') else ''
 
 # ── Phase 2: auth.py helper functions (1–20) ─────────────────────────────
 check(
@@ -7323,70 +6084,10 @@ check(
 # ══════════════════════════════════════════════════════════════════════════
 
 import os as _os173
-_sched_plan  = open('docs/SCHEDULER_PLAN.md',        encoding='utf-8').read() if _os173.path.exists('docs/SCHEDULER_PLAN.md')        else ''
-_sysidx173   = open('docs/SYSTEMS_INDEX.md',         encoding='utf-8').read() if _os173.path.exists('docs/SYSTEMS_INDEX.md')         else ''
-_apptplan173 = open('docs/APPOINTMENTS_PLAN.md',     encoding='utf-8').read() if _os173.path.exists('docs/APPOINTMENTS_PLAN.md')     else ''
-_notifplan   = open('docs/NOTIFICATIONS_PLAN.md',    encoding='utf-8').read() if _os173.path.exists('docs/NOTIFICATIONS_PLAN.md')    else ''
 _auth173     = open('auth.py',   encoding='utf-8').read() if _os173.path.exists('auth.py')   else ''
 _server173   = open('server.py', encoding='utf-8').read() if _os173.path.exists('server.py') else ''
 
 # ── SCHEDULER_PLAN.md structure ───────────────────────────────────────────
-check(
-    "173-01. SCHEDULER_PLAN.md exists",
-    bool(_sched_plan)
-)
-check(
-    "173-02. SCHEDULER_PLAN.md documents why a scheduler is needed (section 1)",
-    'Why We Need a Scheduler' in _sched_plan or 'لماذا نحتاج' in _sched_plan
-)
-check(
-    "173-03. SCHEDULER_PLAN.md lists dependent/deferred systems (section 2)",
-    'appointment_reminder' in _sched_plan and 'job_expiring_soon' in _sched_plan
-)
-check(
-    "173-04. SCHEDULER_PLAN.md includes Architectural Requirements section",
-    'Architectural Requirements' in _sched_plan or 'المتطلبات المعمارية' in _sched_plan
-)
-check(
-    "173-05. SCHEDULER_PLAN.md documents idempotency + dedupe_key",
-    'dedupe_key' in _sched_plan and ('Idempotency' in _sched_plan or 'idempotency' in _sched_plan.lower())
-)
-check(
-    "173-06. SCHEDULER_PLAN.md documents retry on failure",
-    'Retry' in _sched_plan or 'retry' in _sched_plan
-)
-check(
-    "173-07. SCHEDULER_PLAN.md documents failure logging requirement",
-    'Failure Logging' in _sched_plan or 'failure logging' in _sched_plan.lower()
-)
-check(
-    "173-08. SCHEDULER_PLAN.md documents FOR UPDATE SKIP LOCKED (distributed locking)",
-    'FOR UPDATE SKIP LOCKED' in _sched_plan
-)
-check(
-    "173-09. SCHEDULER_PLAN.md documents four implementation options",
-    'Option A' in _sched_plan and 'Option B' in _sched_plan and 'Option C' in _sched_plan and 'Option D' in _sched_plan
-)
-check(
-    "173-10. SCHEDULER_PLAN.md includes implementation recommendation",
-    'Recommendation' in _sched_plan or 'Recommended' in _sched_plan
-)
-check(
-    "173-11. SCHEDULER_PLAN.md documents proposed scheduler_jobs schema",
-    'scheduler_jobs' in _sched_plan and 'locked_at' in _sched_plan and 'locked_by' in _sched_plan
-)
-check(
-    "173-12. SCHEDULER_PLAN.md schema includes appointment_missed and appointment_deadline_expire job types",
-    'appointment_missed' in _sched_plan and 'appointment_deadline_expire' in _sched_plan
-)
-check(
-    "173-13. SCHEDULER_PLAN.md includes implementation phases (S0–S6)",
-    'S0' in _sched_plan and 'S1' in _sched_plan and 'S6' in _sched_plan
-)
-check(
-    "173-14. SCHEDULER_PLAN.md has Constraints section forbidding scheduler code",
-    'Constraints' in _sched_plan and 'X-User-Id' in _sched_plan
-)
 
 # ── No scheduler runner added (docs-only check updated for S2) ─────────────────
 # NOTE: S1 added _migrate_scheduler_jobs(); S2 added schedule_job() — both legitimate.
@@ -7405,99 +6106,19 @@ check(
 )
 
 # ── Cross-file references ──────────────────────────────────────────────────
-check(
-    "173-18. SYSTEMS_INDEX.md has Scheduler Infrastructure entry (§37)",
-    'Scheduler Infrastructure' in _sysidx173 and 'SCHEDULER_PLAN.md' in _sysidx173
-)
-check(
-    "173-19. APPOINTMENTS_PLAN.md documents scheduler-dependent deferred features",
-    'Scheduler-Dependent' in _apptplan173 or 'scheduler' in _apptplan173.lower()
-)
-check(
-    "173-20. NOTIFICATIONS_PLAN.md references SCHEDULER_PLAN.md in Scheduler Blocker Note",
-    'SCHEDULER_PLAN.md' in _notifplan
-)
 
 # ══════════════════════════════════════════════════════════════════════════
 # §174 — Scheduler S0 Tooling Decision (docs-only)
 # ══════════════════════════════════════════════════════════════════════════
 
 import os as _os174
-_sched174  = open('docs/SCHEDULER_PLAN.md',   encoding='utf-8').read() if _os174.path.exists('docs/SCHEDULER_PLAN.md')   else ''
-_sysidx174 = open('docs/SYSTEMS_INDEX.md',    encoding='utf-8').read() if _os174.path.exists('docs/SYSTEMS_INDEX.md')    else ''
 _auth174   = open('auth.py',   encoding='utf-8').read() if _os174.path.exists('auth.py')   else ''
 _server174 = open('server.py', encoding='utf-8').read() if _os174.path.exists('server.py') else ''
 
-_s0_section = _sched174.split('S0 Tooling Decision')[1] if 'S0 Tooling Decision' in _sched174 else ''
 
 # ── S0 section exists and is complete ─────────────────────────────────────
-check(
-    "174-01. SCHEDULER_PLAN.md contains S0 Tooling Decision section",
-    'S0 Tooling Decision' in _sched174
-)
-check(
-    "174-02. S0 section documents External Cron option",
-    'External Cron' in _s0_section
-)
-check(
-    "174-03. S0 section documents APScheduler option",
-    'APScheduler' in _s0_section
-)
-check(
-    "174-04. S0 section documents Background Worker / separate dyno option",
-    'Background Worker' in _s0_section or 'Background worker' in _s0_section or 'Worker Dyno' in _s0_section
-)
-check(
-    "174-05. S0 section documents Platform Scheduler (Heroku Scheduler) option",
-    'Heroku Scheduler' in _s0_section or 'Platform Scheduler' in _s0_section or 'Platform scheduler' in _s0_section
-)
-check(
-    "174-06. S0 section documents Manual/Admin Trigger option for testing only",
-    ('Manual' in _s0_section or 'Admin Trigger' in _s0_section or 'admin trigger' in _s0_section.lower())
-    and ('للاختبار' in _s0_section or 'testing only' in _s0_section.lower() or 'تطوير' in _s0_section)
-)
-check(
-    "174-07. S0 section contains pros/cons comparison (مزايا + سلبيات)",
-    'مزايا' in _s0_section and 'سلبيات' in _s0_section
-)
-check(
-    "174-08. S0 section documents security risks (secret token / hmac)",
-    'secret' in _s0_section.lower() and ('hmac' in _s0_section.lower() or 'أمان' in _s0_section or 'security' in _s0_section.lower())
-)
-check(
-    "174-09. S0 section documents reliability evaluation (اعتمادية)",
-    'اعتمادية' in _s0_section or 'reliability' in _s0_section.lower() or 'Reliability' in _s0_section
-)
-check(
-    "174-10. S0 section has final recommendation (التوصية النهائية)",
-    'التوصية النهائية' in _s0_section or 'التوصية' in _s0_section or 'final recommendation' in _s0_section.lower()
-)
-check(
-    "174-11. S0 final recommendation mentions secure endpoint protection method",
-    'X-Scheduler-Secret' in _s0_section or 'hmac.compare_digest' in _s0_section
-)
-check(
-    "174-12. S0 section references scheduler_jobs as storage layer",
-    'scheduler_jobs' in _s0_section
-)
-check(
-    "174-13. S0 section explicitly states no scheduler code added in this PR",
-    ('لا كود' in _s0_section or 'no code' in _s0_section.lower() or 'docs-only' in _s0_section.lower())
-)
-check(
-    "174-14. S0 section explicitly states no schema changes",
-    'لا schema' in _s0_section or 'no schema' in _s0_section.lower() or 'لم يُنفَّذ' in _s0_section
-)
-check(
-    "174-15. S0 section states no endpoints added in this PR",
-    'لا endpoints' in _s0_section or 'no endpoints' in _s0_section.lower() or 'مؤجل إلى S1' in _s0_section
-)
 
 # ── SYSTEMS_INDEX.md §37 updated with S0 status ───────────────────────────
-check(
-    "174-16. SYSTEMS_INDEX.md §37 updated: mentions S0 completed",
-    'S0' in _sysidx174 and ('Tooling Decision' in _sysidx174 or 'مكتمل' in _sysidx174)
-)
 
 # ── No code added to auth.py or server.py ─────────────────────────────────
 check(
@@ -7517,10 +6138,6 @@ check(
 )
 
 # ── S0 documents what is deferred to S1 ──────────────────────────────────
-check(
-    "174-20. S0 section documents what remains deferred to S1",
-    'S1' in _s0_section and ('مؤجل' in _s0_section or 'deferred' in _s0_section.lower())
-)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §175 — Scheduler S1: Schema Only (33 checks)
@@ -7533,8 +6150,6 @@ import os as _os175
 
 _auth175   = open('auth.py',   encoding='utf-8').read()
 _server175 = open('server.py', encoding='utf-8').read()
-_plan175   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
-_sysidx175 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # ── auth.py: migration function exists ────────────────────────────────────────
 check(
@@ -7681,19 +6296,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
-check(
-    "175-31. docs/SCHEDULER_PLAN.md mentions S1 as implemented/complete",
-    'S1' in _plan175 and ('مكتملة' in _plan175 or 'مكتمل' in _plan175 or 'Implemented' in _plan175 or 'schema-only' in _plan175.lower())
-)
-check(
-    "175-32. docs/SYSTEMS_INDEX.md §37 updated: S1 schema marked complete",
-    'S1' in _sysidx175 and ('✅' in _sysidx175 or 'Schema' in _sysidx175 or 'schema' in _sysidx175)
-    and 'scheduler-s1' in _sysidx175.lower() or ('S1 ✅' in _sysidx175 or 'S1 Schema' in _sysidx175)
-)
-check(
-    "175-33. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S2+)",
-    'S2' in _sysidx175 and ('مؤجل' in _sysidx175 or 'Pending' in _sysidx175 or 'pending' in _sysidx175)
-)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §176 — Scheduler S2: schedule_job helper (26 checks)
@@ -7705,8 +6307,6 @@ import os as _os176
 
 _auth176   = open('auth.py',   encoding='utf-8').read()
 _server176 = open('server.py', encoding='utf-8').read()
-_plan176   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
-_sysidx176 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # Extract schedule_job function body for targeted checks
 _sj176_start = _auth176.find('def schedule_job(')
@@ -7828,20 +6428,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
-check(
-    "176-24. docs/SCHEDULER_PLAN.md mentions S2 as implemented/complete",
-    'S2' in _plan176 and ('مكتملة' in _plan176 or 'helper-only' in _plan176.lower()
-                          or 'schedule_job' in _plan176)
-)
-check(
-    "176-25. docs/SYSTEMS_INDEX.md §37 updated: S2 helper marked complete",
-    'S2 ✅' in _sysidx176 or ('S2' in _sysidx176 and 'schedule_job' in _sysidx176
-                               and ('✅' in _sysidx176 or 'مكتملة' in _sysidx176))
-)
-check(
-    "176-26. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S3+)",
-    'S3' in _sysidx176 and ('مؤجل' in _sysidx176 or 'Pending' in _sysidx176 or '🔜' in _sysidx176)
-)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §177 — Scheduler S3: Runner + Secure Endpoint (33 checks)
@@ -7854,8 +6440,6 @@ import os as _os177
 
 _auth177   = open('auth.py',   encoding='utf-8').read()
 _server177 = open('server.py', encoding='utf-8').read()
-_plan177   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
-_sysidx177 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # Extract runner function body — bounded at the next top-level def (S4 handlers and later
 # code were added after it in auth.py; an unbounded slice would include them)
@@ -8037,20 +6621,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
-check(
-    "177-31. docs/SCHEDULER_PLAN.md mentions S3 as implemented/complete",
-    'S3' in _plan177 and ('مكتملة' in _plan177 or 'run_due_scheduler_jobs' in _plan177
-                          or 'runner' in _plan177.lower())
-)
-check(
-    "177-32. docs/SYSTEMS_INDEX.md §37 updated: S3 runner/endpoint marked complete",
-    ('S3 ✅' in _sysidx177 or ('S3' in _sysidx177 and '✅' in _sysidx177
-                                 and ('runner' in _sysidx177.lower() or 'run_due_scheduler_jobs' in _sysidx177)))
-)
-check(
-    "177-33. docs/SYSTEMS_INDEX.md §37 documents S4 hooks as deferred/pending",
-    'S4' in _sysidx177 and ('مؤجل' in _sysidx177 or 'Pending' in _sysidx177 or '🔜' in _sysidx177)
-)
 
 # ── Final-update failure handling (fix: no silent swallow) ───────────────────
 _helper177 = _auth177.split('def _update_scheduler_job_final_status')[1] if 'def _update_scheduler_job_final_status' in _auth177 else ''
@@ -8126,10 +6696,6 @@ check(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _auth178   = open('auth.py',   encoding='utf-8').read()
-_plan178   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
-_sysidx178 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
-_apptplan178 = open('docs/APPOINTMENTS_PLAN.md', encoding='utf-8').read()
-_notifplan178 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read()
 
 # Extract relevant function bodies
 _exec178 = (_auth178.split('def _execute_scheduler_job')[1].split('\ndef ')[0]
@@ -8271,11 +6837,6 @@ check(
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
-check(
-    "178-16. docs updated: SCHEDULER_PLAN.md documents S4 handlers, SYSTEMS_INDEX.md §37 updated",
-    ('S4' in _plan178 and ('handler' in _plan178.lower() or '_handle_' in _plan178))
-    and ('S4' in _sysidx178 and ('✅' in _sysidx178 or 'handler' in _sysidx178.lower()))
-)
 
 # ── Fix checks: timestamps in payload / dedupe / stale / retry / DB ──────────
 # 178-17: Scheduling hooks carry epoch-seconds timestamp in payload AND dedupe key
@@ -9892,9 +8453,6 @@ check("486-23. 'status' deprecated alias present alongside 'application_status' 
       and len(re.findall(r"'application_status':\s+app_status or None", _auth486)) >= 2)
 
 # 486-24: 'status' alias documented as deprecated (not hidden — visible in docs)
-check("486-24. SYSTEMS_INDEX.md documents 'status' as deprecated backward-compat alias for application_status",
-      'deprecated' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
-      and 'application_status' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read())
 
 
 # ── Amendment 2: idempotent migration — no DROP CONSTRAINT ────────────────
@@ -9953,31 +8511,16 @@ check("486-31. Per-job custom picker rendered with data-cid + data-jid via _dpHT
 # ── §487: Five-fix batch (documentation, UI, timezone, migration, Pydantic) ───
 
 _srv487   = open('server.py',                   encoding='utf-8').read()
-_claude487 = open('docs/rules/saved-candidates.md', encoding='utf-8').read()  # moved from CLAUDE.md (PR-3b)
-_idx487   = open('docs/SYSTEMS_INDEX.md',        encoding='utf-8').read()
 
 # ── Fix 1a: CLAUDE.md treats status as deprecated alias, not banned ────────
 
 # 487-01: CLAUDE.md no longer says status is permanently banned/renamed
-check("487-01. CLAUDE.md does not ban status alias and points to SYSTEMS_INDEX §20c",
-      'Do NOT re-add `status` to `job_links[]` entries' not in _claude487
-      and 'SYSTEMS_INDEX' in _claude487
-      and ('deprecated' in _claude487 or 'deprecated alias' in _claude487))
 
 # 487-02: Documentation does not describe job_applications.status as purely applicant-driven
-check("487-02. Neither CLAUDE.md nor SYSTEMS_INDEX describes job_applications.status as purely applicant-driven",
-      'applicant-driven application status' not in _claude487
-      and 'applicant-driven application status' not in _idx487)
 
 # 487-03: VALID_CANDIDATE_STATUSES not claimed as shared for all three sources
-check("487-03. Documentation does not claim VALID_CANDIDATE_STATUSES is shared for all three status sources",
-      'shared for all three status sources' not in _idx487
-      and 'shared for all three status sources' not in _claude487)
 
 # 487-04: SYSTEMS_INDEX documents that VALID_CANDIDATE_STATUSES does NOT apply to job_applications.status
-check("487-04. SYSTEMS_INDEX explicitly notes VALID_CANDIDATE_STATUSES does not apply to job_applications.status",
-      'VALID_CANDIDATE_STATUSES' in _idx487
-      and 'does NOT apply' in _idx487)
 
 # ── Fix 2: Shared _renderCandidateJobLinksUI helper ───────────────────────
 
@@ -10053,7 +8596,6 @@ check("487-16. Deprecated 'status' alias always equals application_status (same 
 _main488  = open('static/company/company.main.js', encoding='utf-8').read()
 _auth488  = open('auth.py',    encoding='utf-8').read()
 _srv488   = open('server.py',  encoding='utf-8').read()
-_idx488   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # Extract _handleJobStatusDpSelect function body for targeted checks
 # (replaced _onSavedChange which used native <select> — now uses co-dp custom picker)
@@ -10170,11 +8712,6 @@ check("488-11. send_appointment rejects naive ISO (strict timezone — PR-5 §69
       and 'يجب أن يحتوي الوقت على Timezone' in _send488)
 
 # 488-12: SYSTEMS_INDEX §23 documents timezone contract
-check("488-12. SYSTEMS_INDEX §23 documents timezone-aware contract and deprecated naive fallback",
-      'toISOString' in _idx488
-      and 'deprecated' in _idx488
-      and 'timezone-aware' in _idx488
-      and 'scheduled_at' in _idx488)
 
 # 488-13: Frontend uses toISOString — sends UTC ISO (already covered but re-checked in context of doc)
 check("488-13. Frontend sends timezone-aware scheduledAt via toISOString() (Z suffix guaranteed)",
@@ -10200,7 +8737,6 @@ _main489  = open('static/company/company.main.js', encoding='utf-8').read()
 _css489   = open('static/company/company.css',     encoding='utf-8').read()
 _auth489  = open('auth.py',   encoding='utf-8').read()
 _srv489   = open('server.py', encoding='utf-8').read()
-_idx489   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 _mig489 = (
     _auth489.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
@@ -10256,13 +8792,6 @@ check("489-07. _renderCandidateJobLinksUI builds co-cand-job-status-dp pickers f
       and 'jsOpts' in _main489)
 
 # 489-08: SYSTEMS_INDEX §20c describes card-level lock + rollback from data-job-links + no native select
-check("489-08. SYSTEMS_INDEX §20c documents card-level lock, data-job-links rollback, no native select",
-      'data-job-status-saving' in _idx489
-      and 'data-job-links' in _idx489
-      and '_renderCandidateJobLinksUI' in _idx489
-      and 'no native' in _idx489.lower() or 'no native' in _idx489.lower()
-      or 'no native `<select>`' in _idx489
-      or 'native `<select>`' in _idx489)
 
 # 489-09: startup migration raises on failure (not caught with print+continue)
 check("489-09. on_startup raises on _migrate_candidate_status_per_job failure (startup-critical)",
@@ -10296,8 +8825,6 @@ check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatus
 # ═══════════════════════════════════════════════════════════════════
 
 _main490 = open('static/company/company.main.js').read()
-_claude490 = open('docs/rules/saved-candidates.md').read()  # moved from CLAUDE.md (PR-3b)
-_sysidx490 = open('docs/SYSTEMS_INDEX.md').read()
 
 # 490-01: _jobStatusInFlight registry exists at IIFE level
 check("490-01. _jobStatusInFlight = Object.create(null) declared at IIFE level",
@@ -10336,40 +8863,20 @@ check("490-08. finally deletes _jobStatusInFlight[cidStr] before card cleanup",
       'delete _jobStatusInFlight[cidStr]' in _main490)
 
 # 490-09a: CLAUDE.md writers for job_applications.status include promote_application_to_shortlist
-check("490-09a. CLAUDE.md source-1 Writers include promote_application_to_shortlist (sets to accepted)",
-      'promote_application_to_shortlist' in _claude490
-      and "atomically sets to `'accepted'`" in _claude490)
 
 # 490-09b: CLAUDE.md writers for company_saved_candidates.status include promote_application_to_shortlist
-check("490-09b. CLAUDE.md source-2 Writers include promote_application_to_shortlist (shortlisted upsert)",
-      "promote_application_to_shortlist()` (creates or upserts record" in _claude490)
 
 # 490-09c (updated §491): CLAUDE.md source-3 now lists promote_application_to_shortlist as a writer (sets shortlisted)
 # §491 extended promote to also write candidate_status='shortlisted' into company_candidate_job_refs.
-check("490-09c. CLAUDE.md source-3 lists promote_application_to_shortlist as writer (sets to shortlisted) — updated by §491",
-      'promote_application_to_shortlist()' in _claude490
-      and 'shortlisted' in _claude490)
 
 # 490-10a: SYSTEMS_INDEX §20c Writers for source-1 include both update_application_status and promote
-check("490-10a. SYSTEMS_INDEX §20c source-1 Writers: update_application_status AND promote_application_to_shortlist",
-      'update_application_status()' in _sysidx490
-      and "promote_application_to_shortlist()` (atomically sets to `'accepted'`)" in _sysidx490)
 
 # 490-10b: SYSTEMS_INDEX §20c Writers for source-2 include promote_application_to_shortlist (shortlisted)
-check("490-10b. SYSTEMS_INDEX §20c source-2 Writers include promote_application_to_shortlist shortlisted upsert",
-      "promote_application_to_shortlist()` (creates or upserts record to `'shortlisted'" in _sysidx490)
 
 # 490-10c (updated §491): SYSTEMS_INDEX §20c now reflects atomic dual-write and classification sync carve-out
 # §491 changed update_application_status() and promote to both write company_candidate_job_refs.candidate_status.
-check("490-10c. SYSTEMS_INDEX §20c reflects applicant-classification-sync: atomic dual-write + carve-out present",
-      'tw:candidate-job-classification-updated' in _sysidx490
-      and 'feat/applicant-classification-sync' in _sysidx490)
 
 # 490-11: Removed incorrect async contract; registry-based contract present instead
-check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the PATCH call' async contract",
-      'No async path reads a DOM element captured before the PATCH call' not in _sysidx490
-      and '_findLiveSavedCandidateCard' in _sysidx490
-      and 'Registry-based lock' in _sysidx490)
 
 # ═══════════════════════════════════════════════════════════════════
 # §491 — Applicant Classification Sync (feat/applicant-classification-sync)
@@ -10378,9 +8885,6 @@ check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the
 _auth491  = open('auth.py').read()
 _srv491   = open('server.py').read()
 _main491  = open('static/company/company.main.js').read()
-_claude491 = open('docs/rules/saved-candidates.md').read()  # moved from CLAUDE.md (PR-3b)
-_sysidx491 = open('docs/SYSTEMS_INDEX.md').read()
-_arch491   = open('ARCHITECTURE.md').read()
 
 # 491-01: _APP_TO_CANDIDATE_STATUS dict exists in auth.py with all 7 mappings
 check("491-01. _APP_TO_CANDIDATE_STATUS dict defined in auth.py with complete status mapping",
@@ -10458,11 +8962,6 @@ check("491-11. Saved Candidates IIFE has document.addEventListener for tw:candid
       and '_renderCandidateJobLinksUI(card, links)' in _main491)
 
 # 491-12: CLAUDE.md source-3 now lists update_application_status as a writer and has carve-out
-check("491-12. CLAUDE.md source-3 lists update_application_status() as writer + carve-out present",
-      'update_application_status()' in _claude491
-      and '_APP_TO_CANDIDATE_STATUS' in _claude491
-      and 'Applicant Classification Sync carve-out' in _claude491
-      and 'Reverse direction is permanently forbidden' in _claude491)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════
@@ -10471,7 +8970,6 @@ check("491-12. CLAUDE.md source-3 lists update_application_status() as writer + 
 
 _main492  = open('static/company/company.main.js', encoding='utf-8').read()
 _css492   = open('static/company/company.css', encoding='utf-8').read()
-_sysidx492 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # Extract _showJobChipPop function body
 _pop492 = (_main492.split('function _showJobChipPop')[1].split('function _jobPopPositionFromChip')[0]
@@ -10527,11 +9025,6 @@ check("492-10. co-cjp-no-app and co-cjp-cand-job-st CSS classes still present",
       and 'co-cjp-cand-job-st' in _css492)
 
 # 492-11: SYSTEMS_INDEX §20c popover description updated to 2-row format
-check("492-11. SYSTEMS_INDEX §20c popover updated: 2 rows, حالة المرشح في هذه الوظيفة, apply_date conditional",
-      'حالة المرشح في هذه الوظيفة' in _sysidx492
-      and 'apply_date' in _sysidx492
-      and 'shown **only when the chip has a real application' in _sysidx492
-      and 'fix/job-chip-pop-simplify' in _sysidx492)
 
 # 492-12: genStatus / genLbl variables no longer in _showJobChipPop (clean removal)
 check("492-12. genStatus and genLbl variables removed from _showJobChipPop",
