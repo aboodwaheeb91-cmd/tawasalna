@@ -1,7 +1,6 @@
-/* home.api.js — feed API calls for Home V2
+/* home.api.js — API calls for Home V2 (all through twApi — CLAUDE.md → API Client Rule)
  *
- * All requests send Authorization: Bearer <jwt> from Home.state.jwt.
- * user_id is NEVER passed as a query param — the server reads it from the token.
+ * user_id is NEVER passed as a query param to /home/feed — the server reads it from the token.
  *
  * loadFeed returns a Promise<Array|null>:
  *   Array  — items from the API
@@ -12,7 +11,7 @@
   'use strict';
   window.Home = window.Home || {};
 
-  var FEED_URL   = '/home/feed';
+  var FEED_URL      = '/home/feed';
   var DEFAULT_LIMIT = 30;
 
   window.Home.api = {
@@ -20,32 +19,38 @@
       var state = window.Home.state;
 
       if (state.abortCtrl) { state.abortCtrl.abort(); }
-      state.abortCtrl     = new AbortController();
+      var ctrl            = new AbortController();
+      state.abortCtrl     = ctrl;
       state.currentFilter = filter;
       state.loading       = true;
-
-      var headers = {};
-      if (state.jwt) headers['Authorization'] = 'Bearer ' + state.jwt;
 
       var url = FEED_URL
         + '?filter=' + encodeURIComponent(filter)
         + '&limit='  + (limit || DEFAULT_LIMIT);
 
-      return fetch(url, { headers: headers, signal: state.abortCtrl.signal })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (data) {
-          state.loading     = false;
-          state.nextCursor  = data.next_cursor || null;
-          return data.items || [];
-        })
-        .catch(function (err) {
-          state.loading = false;
-          if (err && err.name === 'AbortError') return null;
-          throw err;
-        });
+      return twApi(url, { signal: ctrl.signal }).then(function (res) {
+        if (ctrl.signal.aborted) return null;
+        state.loading = false;
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = res.data || {};
+        state.nextCursor = data.next_cursor || null;
+        return data.items || [];
+      });
+    },
+
+    /* Profile completion score (emp) — GET /profile/{id}/score → { score, tips, level } | null */
+    loadScore: function (userId) {
+      return twApi('/profile/' + encodeURIComponent(userId) + '/score').then(function (res) {
+        return (res.ok && res.data && typeof res.data.score === 'number') ? res.data : null;
+      });
+    },
+
+    /* Active jobs of the signed-in company — GET /company/jobs (JWT owner) → number | null */
+    loadActiveJobsCount: function () {
+      return twApi('/company/jobs?view=active').then(function (res) {
+        if (!res.ok || !res.data || !Array.isArray(res.data.jobs)) return null;
+        return res.data.jobs.filter(function (j) { return j.effective_status === 'active'; }).length;
+      });
     }
   };
 }());

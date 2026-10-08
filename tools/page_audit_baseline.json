@@ -62,10 +62,10 @@
   "home-v2.html": {
     "colors": 0,
     "dialogs": 0,
-    "fetch": 1,
-    "forsa": 9,
+    "fetch": 0,
+    "forsa": 0,
     "helpers": 0,
-    "ls_session": 1,
+    "ls_session": 0,
     "no_header": 0,
     "no_shell": 0
   },
@@ -90,13 +90,13 @@
     "no_shell": 0
   },
   "landing.html": {
-    "colors": 35,
+    "colors": 30,
     "dialogs": 0,
     "fetch": 0,
-    "forsa": 3,
+    "forsa": 0,
     "helpers": 0,
     "ls_session": 0,
-    "no_header": 1,
+    "no_header": 0,
     "no_shell": 0
   },
   "messages.html": {

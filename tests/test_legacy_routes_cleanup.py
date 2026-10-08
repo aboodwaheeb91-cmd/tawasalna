@@ -101,8 +101,9 @@ check('2. header menu: "بنك المواهب" (twT people.talent_bank) uses twT
       and _strings_ar.get('people.talent_bank') == 'بنك المواهب' and 'بحث عن موظفين' not in tws)
 check('2. twTalentBankHref → /u/{tw_id}?cand=',
       "'/u/' + encodeURIComponent(u.tw_id) + '?cand='" in tws)
-check('2. home.nav.js co sidebar → twTalentBankHref (label "بنك المواهب")',
-      "label: 'بنك المواهب',  href: twTalentBankHref(user)" in read('static/home/home.nav.js'))
+# Behaviour (labels / hrefs per account type) — node tests/test_home_landing_runtime.js (PR 4.1)
+check('2. home.nav.js co sidebar → twTalentBankHref + people.talent_bank key',
+      re.search(r"labelKey: 'people\.talent_bank',\s+href: twTalentBankHref\(user\)", read('static/home/home.nav.js')) is not None)
 msg_js = read('messages.render.js')
 check('2. messages / edu-profile home → unified app header (twHomeHref in tw_shared.js — HEADER-NAV.md)',
       'goMessengerHome' not in msg_js and 'twTalentBankHref' not in msg_js
@@ -119,9 +120,8 @@ main_js = read('static/company/company.main.js')
 check('2. company.main.js: empty ?cand= opens Talent Bank (cand !== null)',
       'if (cand !== null)' in main_js and '_pendingManageOpen      = cand || null;' in main_js)
 home_main = read('static/home/home.main.js')
-check('2. home.main.js guard decides from TwAuthSync.getSessionSnapshot()',
-      'TwAuthSync.getSessionSnapshot()' in home_main
-      and "localStorage.getItem('tw_user')" not in home_main)
+check('2. home.main.js guard = twRequireAuth() (TwAuthSync snapshot — SHELL-09), no localStorage',
+      'twRequireAuth()' in home_main and 'localStorage' not in home_main)
 check('2. server.py: Heroku comment fixed → Railway', 'Heroku' not in srv)
 
 # ── 3. Legacy URLs → shared redirect page; deleted endpoints → 404/405 ───────

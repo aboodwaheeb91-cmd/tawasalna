@@ -6584,17 +6584,17 @@ setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 
 | الملف | المسؤولية |
 |-------|----------|
-| `home.utils.js` | constants (JOB_TYPES, NEWS_CATS, EMPTY_LABELS) + DOM helpers (el, txt, makeAvatar, timeAgo, icons) |
-| `home.state.js` | shared runtime state: `Home.state = { user, jwt, currentFilter, loading, abortCtrl, nextCursor }` |
-| `home.api.js` | `Home.api.loadFeed(filter, limit)` — fetch + abort + error handling |
+| `home.utils.js` | labels via `twT` (`jobType` / `newsCat` / `emptyLabels` — keys `home.*`) + DOM helpers (el, txt, icon = `twIconEl`, timeAgo, icons = `twIcon.hydrate`) |
+| `home.state.js` | shared runtime state: `Home.state = { user, currentFilter, loading, abortCtrl, nextCursor }` (`user` = `{id, user_type, tw_id}` from `twRequireAuth`) |
+| `home.api.js` | `twApi` only (PR 4.1): `loadFeed(filter, limit)` (abort on filter change) · `loadScore(id)` → `GET /profile/{id}/score` · `loadActiveJobsCount()` → `GET /company/jobs?view=active` (`effective_status === 'active'`) |
 | `home.cards.js` | `Home.cards.renderCard / renderOpportunityCard / renderPostCard / renderNewsCard` |
 | `home.render.js` | `Home.render.showSkeleton / showEmpty / showError / renderFeed` |
 | `home.filters.js` | `Home.filters.init() / load(filter)` — tab wiring + orchestration |
 | ~~`home.header.js`~~ | انحذف PR 3.2 — الهيدر + الشريط السفلي = الهيدر الموحّد (`docs/design-system/HEADER-NAV.md`) |
-| `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments (co sidebar "بنك المواهب" → `twTalentBankHref(user)`) |
-| `home.main.js` | bootstrap only: auth guard (TwAuthSync snapshot), populate state, init modules, load initial feed |
+| `home.nav.js` | `Home.nav.init(user)` — sidebar + banner per user type. Account links = `twAccountHref(user)` only (no legacy route) · co "بنك المواهب" → `twTalentBankHref(user)` · emp completion box = `/score` (hidden until it loads / on failure) · co banner stat = active jobs (API) · edu = no stats (no API) |
+| `home.main.js` | bootstrap only: `twRequireAuth()` (SHELL-09), title via `twT`, populate state, init modules, load initial feed |
 
-**Auth guard (`home.main.js`, PR-4):** يقرر من `TwAuthSync.getSessionSnapshot()` فقط — غير مصادق → `/login` (expired/stale/invalid → `TwAuthSync.invalidateSession('home_guard')` أولاً). ممنوع الرجوع لـ `tw_user` كمصدر قرار.  
+**Auth guard (`home.main.js`, PR 4.1):** `twRequireAuth()` (SHELL-09) — guest / expired / stale / invalid → `/login?next=/home`؛ logout / تبديل حساب بتاب تاني بنفس الـ guard. ممنوع guard محلي أو قراءة `tw_user` / `tw_jwt` كمصدر قرار.  
 **ممنوع** إعادة `static/home-v2.js` — حُذف (PR-4).  
 **ممنوع** تضخيم `home.main.js` بمنطق — هو bootstrap فقط.
 

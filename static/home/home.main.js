@@ -11,31 +11,28 @@
 (function () {
   'use strict';
 
-  /* Auth guard — must run before any module touches the DOM.
-   * Decides from TwAuthSync.getSessionSnapshot() only — never tw_user alone.
-   * expired / stale / invalid → invalidate the session, then /login.
-   * guest or TwAuthSync missing → /login (fail-closed). */
-  var _snap = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
-    ? TwAuthSync.getSessionSnapshot() : null;
-  if (!_snap || !_snap.isAuthenticated) {
-    if (_snap && _snap.state !== 'guest') TwAuthSync.invalidateSession('home_guard');
-    location.replace('/login');
-    return;
-  }
-  var _u = getTwUser(), _jwt = '';
-  try { _jwt = localStorage.getItem('tw_jwt') || ''; } catch (e) {}
+  /* Auth guard — the shared Protected Page Guard (SHELL-09) runs before any request.
+   * guest / expired / stale / invalid → /login?next=/home · logout or account switch in
+   * another tab is handled by the same guard (TwAuthSync.onSessionChange). */
+  var snap = twRequireAuth();
+  if (!snap) return;
 
-  /* Populate shared state */
-  window.Home.state.user = _u;
-  window.Home.state.jwt  = _jwt;
+  document.title = twT('page.title', { page: twT('header.home') });
+
+  /* Populate shared state — session from TwAuthSync (snapshot) + the cached profile fields */
+  var u = getTwUser() || {};
+  window.Home.state.user = {
+    id:        Number(snap.userId),
+    user_type: snap.userType,
+    tw_id:     u.tw_id || ''
+  };
 
   /* Init modules */
   window.Home.filters.init();
-  window.Home.nav.init(_u);
+  window.Home.nav.init(window.Home.state.user);
 
-  /* Render initial Lucide icons already in the DOM (feed / sidebar — header + bottom nav
-   * come from the unified app chrome, HEADER-NAV.md) */
-  window.Home.utils.icons();
+  /* Static icons already in the DOM (header + bottom nav come from the unified app chrome) */
+  window.Home.utils.icons(document.body);
 
   /* Load default feed */
   window.Home.filters.load('all');

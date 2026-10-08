@@ -2,10 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
 <!--tw:shell-head-->
-<title>الرئيسية — تواصلنا</title>
+<meta name="tw-page" content="auth">
+<title></title>
 <link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/home-v2.css">
-<script src="/static/vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
 
@@ -15,13 +15,13 @@
 <!-- Shell — Profile V2 card geometry wraps filters + feed -->
 <div class="hw-shell">
 
-<!-- Filter Bar -->
+<!-- Filter Bar (data-filter values = GET /home/feed allowlist — never translated) -->
 <div class="hw-fbar">
   <div class="hw-fbar-inner">
-    <button class="hw-ft active" data-filter="all">الكل</button>
-    <button class="hw-ft" data-filter="opportunities">فرص</button>
-    <button class="hw-ft" data-filter="posts">منشورات</button>
-    <button class="hw-ft" data-filter="news">أخبار</button>
+    <button class="hw-ft active" data-filter="all" data-tw-t="common.all"></button>
+    <button class="hw-ft" data-filter="opportunities" data-tw-t="jobs.title"></button>
+    <button class="hw-ft" data-filter="posts" data-tw-t="home.filter.posts"></button>
+    <button class="hw-ft" data-filter="news" data-tw-t="home.filter.news"></button>
   </div>
 </div>
 
@@ -33,12 +33,12 @@
 
     <!-- Type banner — co/edu only -->
     <div id="hwBanner" class="hw-banner hidden">
-      <div class="hw-banner-ico"><i id="hwBIco" data-lucide="briefcase" width="20" height="20"></i></div>
+      <div class="hw-banner-ico" id="hwBIco"></div>
       <div class="hw-banner-info">
         <h3 id="hwBTitle"></h3>
         <p id="hwBSub"></p>
       </div>
-      <div class="hw-banner-stats" id="hwBStats"></div>
+      <div class="hw-banner-stats hidden" id="hwBStats"></div>
     </div>
 
     <!-- Feed list (populated by Home.render via static/home/ modules) -->
@@ -46,19 +46,19 @@
 
     <!-- Empty state -->
     <div id="hwEmpty" class="hw-empty hidden">
-      <div class="hw-state-ico"><i data-lucide="rss" width="22" height="22"></i></div>
-      <h3>لا يوجد محتوى بعد</h3>
-      <p>ارجع لاحقاً أو جرّب فلتراً آخر</p>
+      <div class="hw-state-ico"><i data-tw-icon="rss" data-tw-size="xl"></i></div>
+      <h3></h3>
+      <p></p>
     </div>
 
     <!-- Error state -->
     <div id="hwError" class="hw-error hidden">
-      <div class="hw-state-ico"><i data-lucide="wifi-off" width="22" height="22"></i></div>
-      <h3>تعذّر تحميل المحتوى</h3>
-      <p>تحقق من اتصالك بالإنترنت</p>
+      <div class="hw-state-ico"><i data-tw-icon="wifi-off" data-tw-size="xl"></i></div>
+      <h3 data-tw-t="home.error_title"></h3>
+      <p data-tw-t="common.check_connection"></p>
       <button class="hw-retry">
-        <i data-lucide="refresh-cw" width="14" height="14"></i>
-        إعادة المحاولة
+        <i data-tw-icon="refresh" data-tw-size="sm"></i>
+        <span data-tw-t="home.retry"></span>
       </button>
     </div>
 
@@ -67,22 +67,22 @@
   <!-- SIDEBAR (desktop only) -->
   <aside class="hw-sidebar">
 
-    <div class="hw-sb-box">
-      <div class="hw-sb-hdr">اكتمال الملف الشخصي</div>
+    <!-- Profile completion — emp only, % from GET /profile/{id}/score (shown once it loads) -->
+    <div class="hw-sb-box hidden" id="sbComplBox">
+      <div class="hw-sb-hdr" data-tw-t="home.completion.title"></div>
       <div class="hw-compl-bar"><div class="hw-compl-fill" id="sbFill"></div></div>
       <div class="hw-compl-row">
-        <span>اكتمال الملف</span>
-        <span id="sbPct">—</span>
+        <span data-tw-t="home.completion.label"></span>
+        <span id="sbPct"></span>
       </div>
-      <a id="sbComplLink" href="/profile"
-         style="display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;font-weight:700;color:var(--g)">
-        <i data-lucide="arrow-left" width="13" height="13"></i>
-        تحسين ملفي
+      <a id="sbComplLink" class="hw-compl-link">
+        <i data-tw-icon="forward" data-tw-size="xs"></i>
+        <span data-tw-t="home.completion.improve"></span>
       </a>
     </div>
 
     <div class="hw-sb-box">
-      <div class="hw-sb-hdr">روابط سريعة</div>
+      <div class="hw-sb-hdr" data-tw-t="home.quick_links"></div>
       <div id="sbLinks"></div>
     </div>
 
