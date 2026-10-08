@@ -4,9 +4,9 @@
 <!--tw:shell-head-->
 <link rel="dns-prefetch" href="https://tawasolna.com">
 <title>تواصلنا - منصة التوظيف والتوثيق العربية</title>
-<meta name="description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta name="description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الأفراد والشركات والجهات التعليمية.">
 <meta property="og:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
-<meta property="og:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta property="og:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الأفراد والشركات والجهات التعليمية.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://tawasolna.com">
 <meta property="og:locale" content="ar_AR">
@@ -18,10 +18,11 @@
 <meta property="og:image:alt" content="تواصلنا">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
-<meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الأفراد والشركات والجهات التعليمية.">
 <meta name="twitter:image" content="https://tawasolna.com/static/og-image.png">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://tawasolna.com">
+<link rel="stylesheet" href="/static/app-header.css">
 <noscript><style>body{opacity:1!important}</style></noscript>
 <style>
 /* Landing — page CSS after the shell's tw_shared.css (SHELL-04).
@@ -52,21 +53,6 @@ body.ready{opacity:1;}
 @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.1) translateY(-20px);}}
 .grid-bg{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:60px 60px;}
 
-/* ══ NAV ══ */
-nav{position:fixed;top:0;left:0;right:0;z-index:100;height:60px;display:flex;align-items:center;padding:0 5%;background:rgba(7,11,24,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);transition:background .3s;}
-nav.scrolled{background:rgba(7,11,24,.92);}
-.nav-logo img{display:block;}
-.nav-links{display:flex;gap:var(--space-11);margin-right:auto;margin-left:var(--space-12);}
-.nav-link{font-size:var(--size-font-md);font-weight:600;color:var(--lp-text-2);text-decoration:none;transition:color .2s;}
-.nav-link:hover{color:var(--lp-text);}
-.nav-btns{display:flex;gap:var(--space-4);margin-right:auto;}
-.btn-ghost{padding:7px var(--space-9);border-radius:var(--radius-md);border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--lp-text-2);font-family:'Cairo',sans-serif;font-size:var(--size-font-md);font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-3);}
-.btn-ghost:hover{border-color:rgba(255,255,255,.35);color:var(--lp-text);}
-.btn-primary{padding:7px var(--space-9);border-radius:var(--radius-md);border:none;background:linear-gradient(135deg,var(--color-brand-primary),var(--color-brand-secondary));color:var(--color-text-primary);font-family:'Cairo',sans-serif;font-size:var(--size-font-md);font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-3);box-shadow:0 0 20px rgba(var(--color-brand-primary-rgb),.2);}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(var(--color-brand-primary-rgb),.35);}
-
-@media(max-width:768px){.nav-links{display:none;}}
-
 /* ══ SECTIONS ══ */
 section{position:relative;z-index:1;padding:80px 5%;}
 .section-label{display:inline-flex;align-items:center;gap:var(--space-4);background:rgba(var(--color-brand-primary-rgb),.08);border:1px solid rgba(var(--color-brand-primary-rgb),.2);border-radius:var(--radius-pill);padding:5px var(--space-8);font-size:var(--size-font-xs);font-weight:700;color:var(--color-brand-primary);margin-bottom:var(--space-10);letter-spacing:.04em;}
@@ -78,7 +64,7 @@ section{position:relative;z-index:1;padding:80px 5%;}
 .reveal.visible{opacity:1;transform:none;}
 
 /* ══ HERO ══ */
-#hero{padding:0;min-height:100vh;display:flex;align-items:center;padding-top:60px;}
+#hero{padding:0;min-height:calc(100vh - var(--ah-h));display:flex;align-items:center;}
 .hero-inner{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;gap:var(--space-13);padding:80px 5% 60px;width:100%;max-width:1200px;margin:0 auto;}
 .hero-text{flex:1;min-width:0;}
 .hero-chip{display:inline-flex;align-items:center;gap:var(--space-4);background:rgba(var(--color-brand-primary-rgb),.08);border:1px solid rgba(var(--color-brand-primary-rgb),.22);border-radius:var(--radius-pill);padding:var(--space-3) var(--space-9);font-size:var(--size-font-sm);font-weight:700;color:var(--color-brand-primary);margin-bottom:28px;}
@@ -276,21 +262,8 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 </div>
 <div class="grid-bg" aria-hidden="true"></div>
 
-<!-- ══ NAV ══ -->
-<nav role="navigation" aria-label="التنقل الرئيسي">
-  <a href="/" aria-label="تواصلنا - الرئيسية">
-    <img src="/static/33333.svg" height="36" alt="تواصلنا">
-  </a>
-  <div class="nav-links">
-    <a href="#who" class="nav-link">من نخدم</a>
-    <a href="#features" class="nav-link">المميزات</a>
-    <a href="#verify" class="nav-link">التوثيق</a>
-  </div>
-  <div class="nav-btns">
-    <a href="/login" class="btn-ghost">دخول</a>
-    <a href="/login#register" class="btn-primary">ابدأ مجاناً</a>
-  </div>
-</nav>
+<!-- ══ HEADER — unified app header (twMountAppChrome · guest: logo · تسجيل الدخول · إنشاء حساب) ══ -->
+<header data-tw-header></header>
 
 <!-- ══ MAIN ══ -->
 <main id="main">
@@ -308,13 +281,13 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       <h1 class="hero-h1">
         وظيفتك المثالية<br>تبدأ من ملف <span class="grad">موثوق</span>
       </h1>
-      <p class="hero-sub">تواصلنا تجمع الموظفين والشركات والجهات التعليمية. ابنِ ملفك المهني، وثّق خبراتك وشهاداتك، وانطلق نحو فرصتك.</p>
+      <p class="hero-sub">تواصلنا تجمع الأفراد والشركات والجهات التعليمية. ابنِ ملفك المهني، وثّق خبراتك وشهاداتك، وانطلق نحو وظيفتك.</p>
       <div class="hero-actions">
         <a href="/login#register" class="btn-hero-primary" id="heroCta">ابدأ مجاناً <i data-tw-icon="forward" data-tw-size="md"></i></a>
         <a href="#who" class="btn-hero-ghost">تعرّف على المنصة</a>
       </div>
       <div class="hero-pills">
-        <span class="pill"><span class="pill-check"><i data-tw-icon="check" data-tw-size="xs"></i></span> مجاني للموظفين</span>
+        <span class="pill"><span class="pill-check"><i data-tw-icon="check" data-tw-size="xs"></i></span> مجاني للحساب الشخصي</span>
         <span class="pill"><span class="pill-check"><i data-tw-icon="check" data-tw-size="xs"></i></span> توثيق موثوق</span>
         <span class="pill"><span class="pill-check"><i data-tw-icon="check" data-tw-size="xs"></i></span> رابط وQR خاص</span>
         <span class="pill"><span class="pill-check"><i data-tw-icon="check" data-tw-size="xs"></i></span> عربي 100%</span>
@@ -398,13 +371,13 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       </div>
       <div class="value-card reveal">
         <div class="vc-icon"><i data-tw-icon="briefcase" data-tw-size="2xl"></i></div>
-        <div class="vc-title">فرص عمل وتدريب</div>
+        <div class="vc-title">وظائف وتدريب</div>
         <div class="vc-sub">وظائف ودورات من شركات وجهات تعليمية موثوقة</div>
       </div>
       <div class="value-card reveal">
         <div class="vc-icon"><i data-tw-icon="users" data-tw-size="2xl"></i></div>
         <div class="vc-title">للجميع</div>
-        <div class="vc-sub">موظفون، شركات، وجهات تعليمية — في منصة واحدة</div>
+        <div class="vc-sub">أفراد، شركات، وجهات تعليمية — في منصة واحدة</div>
       </div>
     </div>
   </div>
@@ -423,7 +396,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 
       <div class="who-card green reveal">
         <div class="who-icon"><i data-tw-icon="user-round" data-tw-size="2xl"></i></div>
-        <div class="who-title">الموظف / الباحث عن عمل</div>
+        <div class="who-title">حساب شخصي — الباحث عن عمل</div>
         <div class="who-desc">ابنِ ملفك المهني، أضف خبراتك وشهاداتك، وابحث عن وظيفتك المثالية.</div>
         <ul class="who-list">
           <li>ملف شخصي احترافي موثوق</li>
@@ -434,18 +407,18 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 
       <div class="who-card blue reveal">
         <div class="who-icon"><i data-tw-icon="briefcase-business" data-tw-size="2xl"></i></div>
-        <div class="who-title">الشركة / المؤسسة</div>
-        <div class="who-desc">انشر وظائفك، ابحث عن المرشحين المؤهلين، وتواصل معهم مباشرة.</div>
+        <div class="who-title">حساب شركة</div>
+        <div class="who-desc">انشر وظائفك، ابحث عن الكفاءات المؤهلة، وتواصل معها مباشرة.</div>
         <ul class="who-list">
           <li>نشر وظائف وإدارة الطلبات</li>
-          <li>البحث في قاعدة موظفين موثقة</li>
-          <li>تواصل مباشر مع المرشحين</li>
+          <li>البحث في ملفات شخصية موثقة</li>
+          <li>تواصل مباشر مع المتقدمين</li>
         </ul>
       </div>
 
       <div class="who-card purple reveal">
         <div class="who-icon"><i data-tw-icon="graduation-cap" data-tw-size="2xl"></i></div>
-        <div class="who-title">الجهة التعليمية</div>
+        <div class="who-title">حساب جهة تعليمية</div>
         <div class="who-desc">انشر دوراتك وبرامجك، واعتمد شهادات خريجيك رسمياً عبر المنصة.</div>
         <ul class="who-list">
           <li>نشر الدورات والبرامج التدريبية</li>
@@ -484,7 +457,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       <div class="how-step reveal">
         <div class="how-num">٣</div>
         <div class="how-step-body">
-          <div class="how-step-title">انطلق نحو فرصتك</div>
+          <div class="how-step-title">انطلق نحو وظيفتك</div>
           <div class="how-step-desc">شارك ملفك بروابط أو QR وطابق سيرتك مع أفضل الوظائف</div>
         </div>
       </div>
@@ -530,7 +503,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       <div class="feat-card reveal">
         <div class="feat-icon fi-pink"><i data-tw-icon="chat" data-tw-size="2xl"></i></div>
         <div class="feat-title">تواصل مباشر</div>
-        <div class="feat-desc">رسائل مباشرة بين الموظفين والشركات داخل المنصة بدون وسيط.</div>
+        <div class="feat-desc">رسائل مباشرة بين الأفراد والشركات داخل المنصة بدون وسيط.</div>
       </div>
 
       <div class="feat-card reveal">
@@ -583,17 +556,17 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 <section id="cta" aria-label="ابدأ الآن">
   <div class="cta-box reveal">
     <h2 class="cta-title">جاهز لتبدأ رحلتك المهنية؟</h2>
-    <p class="cta-sub">سجّل الآن مجاناً وابنِ ملفك الموثوق.<br>الموظف مجاني دائماً.</p>
+    <p class="cta-sub">سجّل الآن مجاناً وابنِ ملفك الموثوق.<br>الحساب الشخصي مجاني دائماً.</p>
     <a href="/login#register" class="cta-btn" id="ctaMainBtn">
       <i data-tw-icon="forward" data-tw-size="lg"></i>
       ابدأ مجاناً
     </a>
     <div class="cta-links">
-      <a href="/login#register-emp" class="cta-link">كموظف</a>
+      <a href="/login#register-emp" class="cta-link">حساب شخصي</a>
       <span class="cta-divider">/</span>
-      <a href="/login#register-co" class="cta-link">كشركة</a>
+      <a href="/login#register-co" class="cta-link">حساب شركة</a>
       <span class="cta-divider">/</span>
-      <a href="/login#register-edu" class="cta-link">كجهة تعليمية</a>
+      <a href="/login#register-edu" class="cta-link">حساب جهة تعليمية</a>
     </div>
   </div>
 </section>
@@ -651,18 +624,6 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
       }
     });
   });
-
-  /* ── Nav scrolled class ── */
-  var _nav = document.querySelector('nav');
-  function _onScroll() {
-    if (window.scrollY > 20) {
-      _nav.classList.add('scrolled');
-    } else {
-      _nav.classList.remove('scrolled');
-    }
-  }
-  window.addEventListener('scroll', _onScroll, { passive: true });
-  _onScroll();
 
   /* ── Scroll reveal (IntersectionObserver) ── */
   var _revealObs = new IntersectionObserver(function (entries) {

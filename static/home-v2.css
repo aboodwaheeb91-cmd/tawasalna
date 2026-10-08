@@ -100,12 +100,6 @@ img{display:block;max-width:100%}
 
 /* --- Opportunity Card (opp_type=job currently) --- */
 .hw-jhead{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
-.hw-jlogo{
-  width:44px;height:44px;border-radius:10px;flex-shrink:0;
-  background:rgba(var(--color-ink-rgb),.06);display:flex;align-items:center;justify-content:center;
-  color:var(--muted);overflow:hidden;
-}
-.hw-jlogo img{width:100%;height:100%;object-fit:cover}
 .hw-jinfo{flex:1;min-width:0}
 .hw-jtitle{font-size:15px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hw-jco{font-size:12px;color:var(--muted)}
@@ -118,13 +112,6 @@ img{display:block;max-width:100%}
 
 /* --- Post Card --- */
 .hw-phead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.hw-pav{
-  width:38px;height:38px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--b),var(--p));
-  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--color-text-on-fill);
-  overflow:hidden;
-}
-.hw-pav img{width:100%;height:100%;object-fit:cover}
 .hw-pname{font-size:14px;font-weight:700}
 .hw-psub{font-size:11px;color:var(--muted)}
 .hw-pbody{
@@ -245,4 +232,5 @@ img{display:block;max-width:100%}
   .hw-compl-bar{height:5px;border-radius:3px;background:var(--color-surface-hover);margin:8px 0 4px}
   .hw-compl-fill{height:100%;border-radius:3px;background:var(--g);width:0;transition:width .5s}
   .hw-compl-row{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  .hw-compl-link{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;font-weight:700;color:var(--g)}
 }

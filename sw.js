@@ -8,13 +8,14 @@
 //   - New API endpoints need NO change here: the API is never cached by default.
 //
 // Bump BUILD_TIME whenever this file changes so `activate` deletes old caches.
-const BUILD_TIME = '20261006_2100';
+const BUILD_TIME = '20261008_1200';
 const CACHE_NAME = 'tawasolna-v6-' + BUILD_TIME;
 
 // Precached public pages. OFFLINE_FALLBACK is the single offline response for
 // navigations — never a private page from the cache.
 // The fallback page is served through the Page Shell (F39), so the shell's shared
-// CSS / JS (partials/shell-*.html), the page's own tw-icons.js and its logo
+// CSS / JS (partials/shell-*.html), the page's own tw-icons.js + app-header.css (unified
+// guest header — HEADER-NAV.md) and its logo
 // (/static/33333.svg) are precached too — keep this list in sync with the partials
 // and the page (test_landing_shell.py checks it).
 // They are stored without ?v= and matched with ignoreSearch offline (see fetch).
@@ -26,6 +27,7 @@ const STATIC_ASSETS = [
   '/static/tw_shared.js',
   '/static/shared/auth-sync.js',
   '/static/shared/tw-icons.js',
+  '/static/app-header.css',
   '/static/33333.svg'
 ];
 

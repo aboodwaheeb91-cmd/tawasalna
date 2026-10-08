@@ -115,7 +115,8 @@
 | `home-v2` · `notifications` · `messages` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail` | ✅ PR 3.2 |
 | `profile-showcase.html` | 🔜 المرحلة 4 — الهيدر فيه قسم «معاينة كزائر» ثابت داخل القائمة (`scEyeWrap` + `scMenuDynamic`) وأزرار مالك، و `profile-v2.css` فيه نسخة مجمّدة من `.sc-header` (SIZE-08)، ونفس الملفات فيها منطق المتابعة اللي ممنوع نلمسه هلّق. |
 | `company-profile.html` | 🔜 المرحلة 4 — `.co-hdr` فيه أزرار مالك + `coMenuDynamic`، و `company.main.js` بيعتمد عليه، ونفس الصفحة فيها منطق المتابعة. |
-| `landing.html` · `index.html` (login) · الأدمن | خارج النطاق — صفحات دخول / أدمن إلها هيدرها الخاص. |
+| `landing.html` | ✅ PR 4.1 — هيدر الزائر الموحّد (لوغو · تسجيل الدخول · إنشاء حساب) بدون شريط سفلي؛ روابط الأقسام الداخلية (`#who` …) انشالت من الهيدر (الهيدر تنقّل بس). |
+| `index.html` (login) · الأدمن | خارج النطاق — صفحة دخول / أدمن إلها هيدرها الخاص. |
 
 ---
 

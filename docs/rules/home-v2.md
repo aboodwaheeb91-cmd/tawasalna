@@ -40,11 +40,11 @@ These rules are permanent and apply to all future AI sessions:
    - **ممنوع** إضافة `questions` أو `courses` أو أي filter آخر قبل بناء جدوله وendpoint حقيقي.
    - فلتر `news` فارغ بسبب غياب بيانات = **مقبول**. فلتر بدون جدول/API = **ممنوع**.
 
-8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
+8. **كل طلب عبر `twApi` (PR 4.1).** الـ JWT بيحطّه `twApi` (`getAuthHeaders`) — ممنوع `fetch` مباشر أو قراءة `tw_jwt` / `tw_user` بأي module. أرقام الشريط الجانبي والبانر من API بس: اكتمال الملف (emp) = `GET /profile/{id}/score` (الصندوق مخفي لحد ما يوصل الرقم أو لو فشل) · وظائف نشطة (co) = `GET /company/jobs?view=active` · رقم بدون API ما بينعرض (ممنوع `—` أو رقم ثابت). روابط الحساب = `twAccountHref(user)` بس (ممنوع `/profile` · `/company-profile` · `/edu-profile`).
 
 9. **CSS offset is single-source:** الهيدر الموحّد `position:sticky` (في التدفق الطبيعي) — لا `padding-top` على الـ body؛ مسافة الشريط السفلي = `body.tw-has-bnav` (`app-header.css`). `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
 
-10. **`home.html` و `static/home-v2.js` محذوفان (PR-4).** ممنوع إعادتهما. Auth guard في `home.main.js` يقرر من `TwAuthSync.getSessionSnapshot()` فقط (expired/stale/invalid → `invalidateSession('home_guard')` ثم `/login`؛ guest أو TwAuthSync غير موجود → `/login`).
+10. **`home.html` و `static/home-v2.js` محذوفان (PR-4).** ممنوع إعادتهما. Auth guard في `home.main.js` = `twRequireAuth()` (SHELL-09 — PR 4.1) بس.
 
 11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). الهيدر نفسه = DS-HNAV (`docs/design-system/HEADER-NAV.md` — PR 3.2). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
 

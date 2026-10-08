@@ -1,7 +1,8 @@
 /* home.state.js — shared runtime state for Home V2
  *
  * Single source of truth for all modules. Never read localStorage
- * directly in any other module — read from Home.state.user/jwt instead.
+ * directly in any module — the session comes from twRequireAuth (home.main.js)
+ * and every request goes through twApi (auth headers added there).
  *
  * Cursor pagination contract (not yet active):
  *   API will return { items: [...], next_cursor: "<opaque string>" | null }
@@ -13,8 +14,7 @@
   window.Home = window.Home || {};
 
   window.Home.state = {
-    user:          null,
-    jwt:           '',
+    user:          null,   // { id, user_type, tw_id } — set by home.main.js
     currentFilter: 'all',
     loading:       false,
     abortCtrl:     null,

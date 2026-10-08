@@ -1,90 +1,98 @@
 /* home.nav.js — sidebar + banner per user type for Home V2.
- * The bottom nav is the unified one (tw_shared.js _TW_BOTTOM_NAV — HEADER-NAV.md HNAV-06). */
+ * The bottom nav is the unified one (tw_shared.js _TW_BOTTOM_NAV — HEADER-NAV.md HNAV-06).
+ * Links: the account page is twAccountHref(user) (/u/{tw_id}) — never a legacy route.
+ * Numbers come from the API only; a number with no API is not shown. */
 (function () {
   'use strict';
   window.Home = window.Home || {};
 
-  function _banner(ico, title, sub, stats) {
+  function _banner(icon, titleKey, subKey) {
     var bannerEl = document.getElementById('hwBanner');
     if (!bannerEl) return;
+    var ico = document.getElementById('hwBIco');
+    ico.textContent = '';
+    ico.appendChild(window.Home.utils.icon(icon, 'lg'));
+    document.getElementById('hwBTitle').textContent = twT(titleKey);
+    document.getElementById('hwBSub').textContent   = twT(subKey);
     bannerEl.classList.remove('hidden');
-    document.getElementById('hwBIco').setAttribute('data-lucide', ico);
-    document.getElementById('hwBTitle').textContent = title;
-    document.getElementById('hwBSub').textContent   = sub;
+  }
+
+  function _bannerStat(value, labelKey) {
     var statsEl = document.getElementById('hwBStats');
-    statsEl.innerHTML = '';
-    stats.forEach(function (s) {
-      var d      = document.createElement('div');
-      d.className = 'hw-bstat';
-      var strong = document.createElement('strong');
-      strong.textContent = s.v;
-      var span   = document.createElement('span');
-      span.textContent   = s.l;
-      d.appendChild(strong);
-      d.appendChild(span);
-      statsEl.appendChild(d);
-    });
-    window.Home.utils.icons();
+    if (!statsEl) return;
+    var d      = document.createElement('div');
+    d.className = 'hw-bstat';
+    var strong = document.createElement('strong');
+    strong.textContent = String(value);
+    var span   = document.createElement('span');
+    span.textContent   = twT(labelKey);
+    d.appendChild(strong);
+    d.appendChild(span);
+    statsEl.appendChild(d);
+    statsEl.classList.remove('hidden');
   }
 
   function _sbLinks(links) {
     var c = document.getElementById('sbLinks');
     if (!c) return;
-    c.innerHTML = '';
+    c.textContent = '';
     links.forEach(function (l) {
       var a   = document.createElement('a');
       a.className  = 'hw-sb-lnk';
       a.href       = l.href;
-      var ico  = document.createElement('i');
-      ico.setAttribute('data-lucide', l.icon);
-      ico.setAttribute('width',  '15');
-      ico.setAttribute('height', '15');
+      a.appendChild(window.Home.utils.icon(l.icon, 'sm'));
       var span = document.createElement('span');
-      span.textContent = l.label;
-      a.appendChild(ico);
+      span.textContent = twT(l.labelKey);
       a.appendChild(span);
       c.appendChild(a);
     });
-    window.Home.utils.icons();
+  }
+
+  /* Completion box (emp) — score from GET /profile/{id}/score; hidden until it loads / on failure */
+  function _completion(user, accountUrl) {
+    window.Home.api.loadScore(user.id).then(function (sc) {
+      if (!sc) return;
+      var pct = Math.max(0, Math.min(100, Math.round(sc.score)));
+      document.getElementById('sbFill').style.width = pct + '%';
+      document.getElementById('sbPct').textContent  = twT('home.completion.pct', { n: pct });
+      document.getElementById('sbComplLink').href   = accountUrl;
+      document.getElementById('sbComplBox').classList.remove('hidden');
+    });
   }
 
   window.Home.nav = {
     init: function (user) {
-      var type       = user.user_type || 'emp';
-      var profileUrl = user.tw_id ? '/u/' + user.tw_id : '/profile';
+      var type       = user.user_type;
+      var accountUrl = twAccountHref(user);
 
       if (type === 'emp') {
-        document.getElementById('sbComplLink').href  = profileUrl;
+        _completion(user, accountUrl);
         _sbLinks([
-          { icon: 'user',      label: 'ملفي الشخصي', href: profileUrl   },
-          { icon: 'briefcase', label: 'تصفح الفرص',   href: '/home'      },
-          { icon: 'newspaper', label: 'الأخبار',       href: '/home'      },
-          { icon: 'settings',  label: 'الإعدادات',     href: '/settings'  },
+          { icon: 'user',      labelKey: 'home.link.my_profile', href: accountUrl  },
+          { icon: 'briefcase', labelKey: 'home.link.browse_jobs', href: '/home'    },
+          { icon: 'newspaper', labelKey: 'home.filter.news',     href: '/home'     },
+          { icon: 'settings',  labelKey: 'menu.settings',        href: '/settings' }
         ]);
 
       } else if (type === 'co') {
-        var _coUrl = user.tw_id ? '/u/' + user.tw_id : '/company-profile';
-        document.getElementById('sbComplLink').href         = _coUrl;
-        _banner('briefcase', 'فرص شركتك', 'تابع الفرص المنشورة والمتقدمين', [
-          { v: '—', l: 'فرصة نشطة' }, { v: '—', l: 'متقدم جديد' }
-        ]);
+        _banner('briefcase', 'home.banner.co_title', 'home.banner.co_sub');
+        window.Home.api.loadActiveJobsCount().then(function (n) {
+          if (n !== null) _bannerStat(n, 'home.banner.active_jobs');
+        });
         _sbLinks([
-          { icon: 'layout-dashboard', label: 'لوحة التحكم', href: _coUrl          },
-          { icon: 'users',            label: 'بنك المواهب',  href: twTalentBankHref(user) },
-          { icon: 'plus-circle',      label: 'نشر فرصة',    href: _coUrl          },
-          { icon: 'settings',         label: 'الإعدادات',    href: '/settings'     },
+          { icon: 'layout-dashboard', labelKey: 'home.link.dashboard',  href: accountUrl             },
+          { icon: 'users',            labelKey: 'people.talent_bank',   href: twTalentBankHref(user) },
+          { icon: 'plus-circle',      labelKey: 'jobs.post',            href: accountUrl             },
+          { icon: 'settings',         labelKey: 'menu.settings',        href: '/settings'            }
         ]);
 
       } else if (type === 'edu') {
-        document.getElementById('sbComplLink').href         = '/edu-profile';
-        _banner('graduation-cap', 'دورات مؤسستك', 'تابع الدورات المنشورة وطلبات التوثيق', [
-          { v: '—', l: 'دورة نشطة' }, { v: '—', l: 'طلب توثيق' }
-        ]);
+        _banner('graduation-cap', 'home.banner.edu_title', 'home.banner.edu_sub');
         _sbLinks([
-          { icon: 'layout-dashboard', label: 'لوحة التحكم',    href: '/edu-profile' },
-          { icon: 'book-open',        label: 'الدورات',          href: '/edu-profile' },
-          { icon: 'shield-check',     label: 'طلبات التوثيق',  href: '/edu-profile' },
-          { icon: 'settings',         label: 'الإعدادات',        href: '/settings'    },
+          { icon: 'layout-dashboard', labelKey: 'home.link.dashboard',  href: accountUrl  },
+          { icon: 'book-open',        labelKey: 'home.link.courses',    href: accountUrl  },
+          { icon: 'shield-check',     labelKey: 'home.link.verify_req', href: accountUrl  },
+          { icon: 'settings',         labelKey: 'menu.settings',        href: '/settings' }
         ]);
       }
     }

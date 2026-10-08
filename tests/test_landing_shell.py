@@ -151,11 +151,13 @@ check("G03 shared assets carry the content hash ?v= (busts the 1-day /static cac
 
 print("\nH — F30 close-out of PR #560 (signup links · offline logo · page ?v= · share image)")
 UI = read("index.ui.js")
-links = dict((t.strip(), h) for h, t in re.findall(r'<a href="(/login[^"]*)" class="[^"]+"[^>]*>\s*([^<]+)', RAW))
-check("H01 signup links open the register form (exact hash per role)",
-      links.get("ابدأ مجاناً") == "/login#register" and links.get("تسجيل") == "/login#register"
-      and links.get("كموظف") == "/login#register-emp" and links.get("كشركة") == "/login#register-co"
-      and links.get("كجهة تعليمية") == "/login#register-edu" and links.get("دخول") == "/login", links)
+hrefs = re.findall(r'<a href="(/login[^"]*)"', RAW)
+check("H01 signup links open the register form (one link per role hash + general register)",
+      all(h in hrefs for h in ("/login#register", "/login#register-emp", "/login#register-co",
+                               "/login#register-edu", "/login")), hrefs)
+check("H01b guest header = unified app header (twMountAppChrome — HEADER-NAV.md), no page nav",
+      RAW.count("<header data-tw-header></header>") == 1 and "<nav" not in RAW
+      and "/static/app-header.css" in RAW)
 check("H02 index.ui.js hash router maps each hash to the right form",
       "hash === '#register-emp')      { showRegister(); selectType('emp'); }" in UI
       and "hash === '#register-co')  { showRegister(); selectType('co');  }" in UI

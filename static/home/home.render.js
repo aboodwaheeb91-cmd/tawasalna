@@ -31,12 +31,10 @@
       feedEl.classList.remove('hidden');
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
-      window.Home.utils.icons();
     },
 
     showEmpty: function (filter) {
-      var L = window.Home.utils.EMPTY_LABELS[filter]
-            || { h: 'لا يوجد محتوى', p: 'ارجع لاحقاً أو جرّب فلتراً آخر' };
+      var L = window.Home.utils.emptyLabels(filter);
       feedEl.innerHTML = '';
       feedEl.classList.add('hidden');
       var h3 = emptyEl.querySelector('h3');
@@ -68,7 +66,6 @@
       feedEl.classList.remove('hidden');
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
-      window.Home.utils.icons();
     }
   };
 }());
