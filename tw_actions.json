@@ -11,11 +11,11 @@
     },
     "open_room": {
       "labelKey": "appt.open_room", "icon": "log-in", "type": "secondary",
-      "visibleTo": ["emp", "co", "edu"], "auth": true
+      "visibleTo": ["emp", "co"], "auth": true
     },
     "follow": {
       "labelKey": "action.follow", "icon": "user-plus", "type": "primary",
-      "visibleTo": ["guest", "emp", "co", "edu"], "targets": ["co"], "auth": true
+      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
     },
     "message": {
       "labelKey": "action.message", "icon": "messages", "type": "secondary",
@@ -39,7 +39,7 @@
     },
     "close_room": {
       "labelKey": "action.close_room", "icon": "lock", "type": "danger",
-      "visibleTo": ["emp", "co"], "auth": true,
+      "visibleTo": ["co"], "auth": true,
       "confirm": { "titleKey": "action.close_room_title", "messageKey": "action.close_room_msg",
                    "confirmKey": "action.close_room", "danger": true }
     }

@@ -81,6 +81,13 @@ const b = ctxFor(CO).twAction('schedule', { ownerId: 5, targetType: 'emp' });
 check('A8 type → shared class · icon + label from the registry',
   b.className === 'tw-act tw-act-primary' && b.children[0].icon === 'calendar'
   && b.children[1].textContent === 'T:action.schedule' && b.getAttribute('data-tw-action') === 'schedule');
+check('A10 follow (SYSTEMS_INDEX §20 — any account → any account, not itself): emp on emp · co on edu · owner never',
+  !!ctxFor(EMP).twAction('follow', { ownerId: 11, targetType: 'emp' })
+  && !!ctxFor(CO).twAction('follow', { ownerId: 12, targetType: 'edu' })
+  && ctxFor(EMP).twAction('follow', { ownerId: 7, targetType: 'emp' }) === null);
+check('A11 close_room company only (auth.close_appointment) · open_room emp + co (§23)',
+  !!ctxFor(CO).twAction('close_room', {}) && ctxFor(EMP).twAction('close_room', {}) === null
+  && !!ctxFor(EMP).twAction('open_room', {}) && ctxFor(EDU).twAction('open_room', {}) === null);
 check('A9 unknown id → nothing', ctxFor(CO).twAction('nope', {}) === null);
 
 console.log('\nB — guest → login');

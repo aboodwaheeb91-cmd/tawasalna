@@ -795,16 +795,16 @@ Before → Click → Loading → Result → Back → Refresh
 |--------------|-------|--------------------------------------|-----------|---------|----------|
 | `schedule` — تحديد موعد | primary | `co` · هدف `emp` (مش نفسه) | شركة مسجّلة | — | `tw-schedule.js` (`twScheduleButton`) |
 | `schedule_new` — دعوة مقابلة جديدة | primary | `co` | شركة مسجّلة | — | `appointments.html` (FAB) |
-| `open_room` — فتح غرفة الموعد | secondary | `emp` · `co` · `edu` | طرفا الموعد (السيرفر بيرجّع مواعيده بس) | — | `appointments.html` |
-| `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · هدف `co` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
-| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `open_room` — فتح غرفة الموعد | secondary | `emp` · `co` (§23 — المواعيد بين الشركة والشخص) | طرفا الموعد (السيرفر بيرجّع مواعيده بس) | — | `appointments.html` |
+| `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · أي هدف (§20 — أي حساب بيتابع أي حساب، مش نفسه) | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | المرحلة 4 |
 | `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | المرحلة 4 |
-| `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (ضيف → دخول) | — | المرحلة 4 |
+| `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | المرحلة 4 |
 | `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | المرحلة 4 |
-| `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` (ضيف → دخول) | — | المرحلة 4 |
-| `close_room` — إغلاق الغرفة | danger | `emp` · `co` | طرفا الموعد | `twConfirm` danger | المرحلة 4 (`appointment-room.html`) |
+| `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` بس (§15 · غيره 403) — ضيف → دخول | — | المرحلة 4 |
+| `close_room` — إغلاق الغرفة | danger | `co` | الشركة صاحبة الموعد بس (`auth.close_appointment`) | `twConfirm` danger | المرحلة 4 (`appointment-room.html`) |
 
-> قيم المرحلة 4 مأخوذة من VM-02 + BTN-17؛ بتتأكّد مع كل صفحة وقت تحويلها (تعديل بالسجل، مش بالصفحة).
+> القيم متطابقة مع SYSTEMS_INDEX (§15 · §18 · §20 · §23 · §23b · §24) ومع فحص الـ endpoint نفسه. أي اختلاف بيظهر وقت تحويل صفحة بالمرحلة 4 → تعديل بالسجل (مش بالصفحة) + سطر هون.
 
 ### الممنوعات
 
