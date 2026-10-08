@@ -59,6 +59,18 @@
     "appt.status.expired": "انتهت المهلة",
     "appt.status.missed": "فائت",
     "appt.status.completed": "مكتملة",
-    "appt.status.closed": "مغلق"
+    "appt.status.closed": "مغلق",
+
+    "action.schedule": "تحديد موعد",
+    "action.follow": "متابعة",
+    "action.message": "مراسلة",
+    "action.edit_profile": "تعديل الملف",
+    "action.report": "إبلاغ",
+    "action.share": "مشاركة",
+    "action.apply_job": "التقديم للوظيفة",
+    "action.close_room": "إغلاق الغرفة",
+    "action.close_room_title": "إغلاق الغرفة نهائياً",
+    "action.close_room_msg": "هل تريد إغلاق الغرفة نهائياً؟ لن يمكن إرسال رسائل بعد الإغلاق.",
+    "action.verify_required": "هذا الإجراء يحتاج حساباً موثّقاً"
   }
 }

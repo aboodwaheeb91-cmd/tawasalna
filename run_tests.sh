@@ -89,6 +89,7 @@ PY_DB=(
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────
 NODE_TESTS=(
+  test_actions_registry_runtime.js
   test_appointments_guard_runtime.js
   test_auth_next_icon_hydrate_runtime.js
   test_auth_sync_runtime.js

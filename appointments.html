@@ -93,7 +93,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 </div>
 
 <!-- Company: New Appointment FAB -->
-<button class="fab" id="fabNew" data-tw-t-label="appt.new" style="display:none"><i data-tw-icon="add"></i></button>
 
 <!-- Unified bottom nav (HNAV-06) — appointments tab is current by path -->
 <nav data-tw-bottom-nav></nav>
@@ -127,11 +126,13 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 
   // DOM
   const listEl = document.getElementById('apptList');
-  const fabNew = document.getElementById('fabNew');
 
   twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
 
-  if (IS_CO) { fabNew.style.display = 'flex'; }
+  // + (new appointment) — Actions Registry `schedule_new` decides who sees it (BUTTONS.md BTN-19)
+  const fabNew = twAction('schedule_new', { className: 'fab', iconOnly: true, iconSize: null,
+    onClick: function(){ twScheduleInterview({}); } });
+  if (fabNew) document.body.appendChild(fabNew);
 
   // Filter tabs
   document.getElementById('filterBar').addEventListener('click', function(e){
@@ -233,12 +234,9 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 
     const footer = document.createElement('div');
     footer.className = 'card-footer';
-    const btnRoom = document.createElement('a');
-    btnRoom.className = 'btn-room';
-    btnRoom.href = '/appointment-room?id=' + encodeURIComponent(a.id);
-    btnRoom.appendChild(twIconEl('log-in', { size: 'sm' }));
-    btnRoom.appendChild(document.createTextNode(' ' + twT('appt.open_room')));
-    footer.appendChild(btnRoom);
+    const btnRoom = twAction('open_room', { href: '/appointment-room?id=' + encodeURIComponent(a.id),
+      className: 'btn-room' });
+    if (btnRoom) footer.appendChild(btnRoom);
     card.appendChild(footer);
 
     return card;
@@ -262,10 +260,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       res.data.forEach(a => listEl.appendChild(renderCard(a)));
     });
   }
-
-  // + → the shared Schedule Interview dialog (tw-schedule.js — PR 3.10): pick the person by
-  // name (applicants / candidates / Talent Bank) + an active job. No internal request-number field.
-  fabNew.addEventListener('click', function(){ twScheduleInterview({}); });
 
   loadAppointments();
 })();

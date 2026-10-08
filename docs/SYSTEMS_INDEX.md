@@ -1130,6 +1130,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 60. Actions Registry — سجل الإجراءات / الأزرار (PR 3.7) ✅
+**Purpose:** لكل زر إجراء (متابعة، مراسلة، تحديد موعد، تعديل الملف، إبلاغ، مشاركة، التقديم…) تعريف واحد: نوعه، مين بيشوفه، مين بيكبسه، خطورته. الصفحات ما بتكتب شروط ظهور.
+**Source of Truth:** `tw_actions.json` (السجل) · `tw_actions.py` (`load_registry` · `validate_overrides` · `parse_stored` · `merged` · `page_block`) · `site_settings` key `actions_override` · `twActionState` + `twAction` بـ `tw_shared.js` · `.tw-act` + `.tw-act-{primary|secondary|danger|ghost}` بـ `tw_shared.css` · `docs/design-system/BUTTONS.md` BTN-19 (جدول الإجراءات).
+**Details:**
+- **المدخل:** `labelKey` (twT §59) · `icon` (DS-ICON) · `type` (primary / secondary / danger / ghost → `.tw-act-*` من التوكنز، BTN-02/03) · `visibleTo` ⊆ `guest · owner · emp · co · edu` · `targets` ⊆ `emp · co · edu` (نوع صاحب الصفحة/الهدف) · `auth` · `enabledWhen` ⊆ `verified` · `confirm {titleKey, messageKey, confirmKey, danger}` (DS-OVL `twConfirm`). `tw_actions.py` بيفحص السجل عند تشغيل السيرفر (مفتاح twT موجود، أيقونة بالـ registry، قيم معروفة) — غلط → السيرفر ما بيقوم (F9).
+- **الزائر (VM-01/02 — ما في منطق علاقة جديد):** snapshot `TwAuthSync` بس: بدون جلسة → `guest` · `userId === ctx.ownerId` → `owner` · غير هيك نوع الحساب. `ctx.mode` بيقبل إشارة VM الموجودة بالصفحة (`owner` / `guest` / `registered` / `public-user`).
+- **`twActionState(id, ctx)`** → `hidden` (برّا visibleTo / targets / موقوف من الأدمن / id مش معروف) · `login` (ضيف + `auth`) · `disabled` (`ctx.disabled` أو شرط `enabledWhen` ناقص) · `enabled`. **`twAction(id, ctx)`** → `<button>` (أو `<a>` مع `ctx.href`) أو `null`: أيقونة + `<span class="tw-act-lbl">` · ضيف بيكبس → `twLoginHref(path + query)` · `confirm` → `twConfirm` أول (بدون tw-overlay.js → ما بينفّذ — fail closed). `ctx.className` بيحل محل كلاس النوع (شكل خاص بالمكان، مثلاً FAB).
+- **التسليم:** `tw_actions.page_block()` → `<script>window.TW_ACTIONS=…</script>` بينضاف لكتلة النصوص بنفس الـ marker `<!--tw:strings-->` (قبل `tw_shared.js`) — السجل + override الأدمن مدموجين بالسيرفر، ما في DB call وقت تقديم صفحة.
+- **Admin (بدون واجهة هلق):** `GET /admin/actions` ← `{actions, overrides, audiences, types}` · `PUT /admin/actions` body `{"overrides": {id: {"enabled": false, "visibleTo": [...]}}}` ← بيستبدل الـ map كلها (all-or-nothing). خطأ ← 422 `{ok:false, error:{code, message, field}}`: `unknown_action` · `unknown_field` (المسموح `enabled` · `visibleTo`) · `invalid_value` · `invalid_body`. `check_admin` (admin JWT) + كل حفظ بالـ log. قيمة مخزّنة قديمة/خربانة بتنشال (log) — ما بتوقف الصفحات.
+- **المستهلكين (PR 3.7):** `tw-schedule.js` (`twScheduleButton` → `twActionState('schedule')` + `twAction('schedule')`؛ قاعدتها القديمة بتشتغل بس إذا `tw_shared.js` مش محمّل) · `appointments.html` (FAB `schedule_new` + «فتح غرفة الموعد» `open_room`). الباقي (follow / message / edit_profile / report / share / apply_job / close_room) معرّف بالسجل — صفحاته بتتحوّل بالمرحلة 4. قيم الظهور متطابقة مع §15 / §18 / §20 / §23 / §23b / §24 والـ endpoints (follow أي حساب → أي حساب · close_room شركة بس · open_room emp + co).
+**Do not recreate:** ❌ شرط ظهور زر إجراء بصفحة (`if (IS_CO)` / `userType === …` / `isOwner`) بدل `twAction` · ❌ سجل أو جدول صلاحيات أزرار تاني · ❌ override بمكان غير `site_settings` · ❌ زر إجراء خطر بدون `confirm` بالسجل · ❌ اعتبار الظهور حماية (VM-07 — الـ backend بيتحقق دايماً).
+**Cross-references:** §59 Strings (labelKey + نفس آلية override) · DS-ICON F37 · DS-OVL §48 (`twConfirm`) · VIEWER-MODES VM-01/02/07 · BUTTONS.md BTN-17 / BTN-19 · NAV-07 (`twLoginHref`).
+**Test:** `node test_actions_registry_runtime.js`
+**Status:** ✅ النظام + tw-schedule + appointments (2026-10-07 — PR 3.7) · واجهة أدمن + باقي الصفحات 🔜 المرحلة 4
+
+---
+
 ### 51. CRS — Change Routing System ✅
 **Purpose:** Workflow يُطبِّق F30/F31 على مستوى الطلب — يُصنِّف نوع التغيير، يُحدِّد المالك عبر F31+SYSTEMS_INDEX، يضبط الحد الأدنى من القراءة، ويُصدر حكماً (PROCEED / STOP / DISCUSS). ليس Source of Truth لأي نظام، وليس طبقة فوق F30/F31.
 **Source of Truth:** `docs/CHANGE_ROUTER.md` — CRS-01 (Routing Engine A–I) · CRS-02 (Architectural Sanity Check) · CRS-03 (Execution Scope / Credit Control)

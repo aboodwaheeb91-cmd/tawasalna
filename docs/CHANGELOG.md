@@ -11,6 +11,13 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.7 — سجل إجراءات موحّد (Actions Registry) — 2026-10-07
+
+- `tw_actions.json` + `tw_actions.py` (جديد — SYSTEMS_INDEX §60 · BUTTONS.md BTN-19): لكل إجراء labelKey · أيقونة · نوع · visibleTo · targets · auth · enabledWhen · confirm. `twActionState` / `twAction` بـ `tw_shared.js` + `.tw-act-*` بـ `tw_shared.css`.
+- `server.py`: `window.TW_ACTIONS` مع كتلة النصوص بـ `<!--tw:strings-->` · `GET/PUT /admin/actions` (`check_admin`، override بـ `site_settings.actions_override`).
+- مرجع: `tw-schedule.js` (زر «تحديد موعد») + `appointments.html` (FAB + «فتح غرفة الموعد»). `tw_strings.json` += مفاتيح `action.*`. اختبار: `test_actions_registry_runtime.js`.
+- تصحيح القيم مقابل SYSTEMS_INDEX: `follow` بدون `targets` (§20 — أي حساب بيتابع أي حساب) · `close_room` → `co` بس (`auth.close_appointment`) · `open_room` → `emp` + `co` (§23).
+
 ## PR 3.9 — حذف الكود الميت والمؤقت — 2026-10-07
 
 - **الأرقام:** كود الإنتاج −586 / +16 سطر (15 ملف) · الاختبارات والتوثيق الباقي. ملفين انحذفوا كاملين: `messages.debug.js` · `static/app-header.js`.

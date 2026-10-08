@@ -1,0 +1,47 @@
+{
+  "_doc": "Actions Registry (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60). One entry per action id. Validated by tw_actions.py at server start; delivered to pages as window.TW_ACTIONS (with admin overrides) at <!--tw:strings-->; rendered only by twAction(id, ctx) in tw_shared.js.",
+  "actions": {
+    "schedule": {
+      "labelKey": "action.schedule", "icon": "calendar", "type": "primary",
+      "visibleTo": ["co"], "targets": ["emp"], "auth": true
+    },
+    "schedule_new": {
+      "labelKey": "appt.new", "icon": "add", "type": "primary",
+      "visibleTo": ["co"], "auth": true
+    },
+    "open_room": {
+      "labelKey": "appt.open_room", "icon": "log-in", "type": "secondary",
+      "visibleTo": ["emp", "co"], "auth": true
+    },
+    "follow": {
+      "labelKey": "action.follow", "icon": "user-plus", "type": "primary",
+      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
+    },
+    "message": {
+      "labelKey": "action.message", "icon": "messages", "type": "secondary",
+      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
+    },
+    "edit_profile": {
+      "labelKey": "action.edit_profile", "icon": "edit", "type": "secondary",
+      "visibleTo": ["owner"], "auth": true
+    },
+    "report": {
+      "labelKey": "action.report", "icon": "report", "type": "ghost",
+      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
+    },
+    "share": {
+      "labelKey": "action.share", "icon": "share", "type": "ghost",
+      "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": false
+    },
+    "apply_job": {
+      "labelKey": "action.apply_job", "icon": "send", "type": "primary",
+      "visibleTo": ["guest", "emp"], "auth": true
+    },
+    "close_room": {
+      "labelKey": "action.close_room", "icon": "lock", "type": "danger",
+      "visibleTo": ["co"], "auth": true,
+      "confirm": { "titleKey": "action.close_room_title", "messageKey": "action.close_room_msg",
+                   "confirmKey": "action.close_room", "danger": true }
+    }
+  }
+}
