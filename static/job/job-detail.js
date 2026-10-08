@@ -1,49 +1,39 @@
-/* job-detail.js — Job detail page logic
- * Security: all fetch calls use Authorization: Bearer {jwt} only — via getAuthHeaders() (tw_shared.js).
- * XSS safety: all API data set via textContent, never innerHTML.
- * Shared systems (Phase C — PAGE-SHELL / ICON / IMAGE / FEEDBACK):
+/* job-detail.js — Job detail page logic (PR 4.8 — unified page checklist)
+ * Shared systems only:
  *   session  → TwAuthSync.getSessionSnapshot() (public page; guest actions → twLoginHref(this job))
- *   icons    → twIcon.hydrate (static <i data-tw-icon> in the HTML) / twIconEl (dynamic) — DS-ICON
- *   logos    → twAvatarHtml (tw_shared.js)
- *   feedback → showToast (tw_shared.js — F34)
+ *   API      → twApi (tw_shared.js — never fetch; JWT added by twApi itself)
+ *   actions  → twAction('apply_job' | 'share' | 'report') — Actions Registry decides who sees what
+ *   overlays → twModal (DS-OVL) for «تقديم» and «إبلاغ» · selects → DS-SEL (.ep-select + scSelectInit)
+ *   text     → twT (tw_strings.json) · dates → twFormatDate (Gregorian, one format site-wide)
+ *   icons    → twIcon.hydrate (static) / twIconEl (dynamic) — DS-ICON · logos → twAvatarHtml — DS-IMAGE
+ *   feedback → showToast (DS-FEEDBACK — F34)
+ * XSS safety: API data via textContent only, never innerHTML.
  */
 (function () {
   'use strict';
 
-  // ── Auth & state ────────────────────────────────────────────
+  // ── Session ─────────────────────────────────────────────────
   // Public page: visitors read the job without login. The session is decided by
   // TwAuthSync.getSessionSnapshot() only (VM-10) — never by tw_user alone.
-  // Not authenticated (guest / expired / stale / invalid) → guest view; actions that
-  // need an account send the visitor to /login?next=<this job> (_toLogin — NAV-07).
   var _snap   = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
     ? TwAuthSync.getSessionSnapshot() : null;
   var _authed = !!(_snap && _snap.isAuthenticated);
-  var _user   = _authed ? getTwUser() : null;   // display cache (tw_id / name) — tw_shared.js
-
-  // Authorization header for an authenticated session (getAuthHeaders — tw_shared.js); none for guests.
-  function _hdrs(json) {
-    if (_authed) return getAuthHeaders(json);
-    return json ? { 'Content-Type': 'application/json' } : {};
-  }
+  var _user   = _authed ? getTwUser() : null;   // display cache (tw_id / skills) — tw_shared.js
 
   // twLoginHref (tw_shared.js) validates the internal path and encodes it as ?next=.
   function _toLogin() { location.href = twLoginHref(location.pathname + location.search); }
 
-  var _jobId   = null;
-  var _job     = null;
-  var _applied = false;
+  var _jobId       = null;
+  var _job         = null;
+  var _applyState  = null;   // null = open · 'applied' · 'paused' · 'closed'
 
   // ── Utility ─────────────────────────────────────────────────
   function _el(id) { return document.getElementById(id); }
 
-  var _JOB_TYPES = {
-    full_time: 'دوام كامل',
-    part_time: 'دوام جزئي',
-    contract:  'عقد',
-    freelance: 'فريلانس',
-    internship:'تدريب',
-    remote:    'عن بُعد'
-  };
+  var _JOB_TYPES = ['full_time', 'part_time', 'contract', 'freelance', 'internship', 'remote'];
+  function _jobTypeLabel(t) {
+    return _JOB_TYPES.indexOf(t) !== -1 ? twT('job.type.' + t) : t;
+  }
 
   function _skillName(s) {
     if (!s) return '';
@@ -70,12 +60,13 @@
   function _timeAgo(iso) {
     if (!iso) return '';
     var diff = (Date.now() - new Date(iso).getTime()) / 1000;
-    if (diff < 60)      return 'الآن';
-    if (diff < 3600)    return Math.floor(diff / 60) + ' دقيقة';
-    if (diff < 86400)   return Math.floor(diff / 3600) + ' ساعة';
-    if (diff < 2592000) return Math.floor(diff / 86400) + ' يوم';
-    if (diff < 31536000)return Math.floor(diff / 2592000) + ' شهر';
-    return Math.floor(diff / 31536000) + ' سنة';
+    if (!isFinite(diff)) return '';
+    if (diff < 60)       return twT('job.ago.now');
+    if (diff < 3600)     return twT('job.ago.minutes', { n: Math.floor(diff / 60) });
+    if (diff < 86400)    return twT('job.ago.hours',   { n: Math.floor(diff / 3600) });
+    if (diff < 2592000)  return twT('job.ago.days',    { n: Math.floor(diff / 86400) });
+    if (diff < 31536000) return twT('job.ago.months',  { n: Math.floor(diff / 2592000) });
+    return twT('job.ago.years', { n: Math.floor(diff / 31536000) });
   }
 
   function _chip(iconName, text, cls) {
@@ -91,10 +82,26 @@
     return typeof name === 'string' && /^([CF][#+]|\.NET)/i.test(name);
   }
 
-  // ── Save (placeholder — full feature in future PR with backend) ──
+  // Company link: a real <a href="/u/{tw_id}"> (Smart Router) — no role="link" on a div.
+  function _companyHref(job) {
+    return job && job.company_tw_id ? '/u/' + encodeURIComponent(job.company_tw_id) : '';
+  }
+  function _setLink(a, href) {
+    if (!a) return;
+    if (href) { a.href = href; a.classList.add('is-link'); }
+    else { a.removeAttribute('href'); a.classList.remove('is-link'); }
+  }
+
+  function _salaryText(job) {
+    if (job.salary_hidden) return twT('job.salary_hidden');
+    if (!job.salary_min) return null;
+    return job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') + (job.currency ? ' ' + job.currency : '');
+  }
+
+  // ── Save (placeholder — no backend / registry entry yet) ──────
   function toggleSave() {
     if (!_authed) { _toLogin(); return; }
-    showToast('ميزة حفظ الوظائف قريباً', 'info');
+    showToast(twT('job.save_soon'), 'info');
   }
 
   // ── Skeleton / state ────────────────────────────────────────
@@ -120,9 +127,11 @@
     hideSkeleton();
     var c = _el('jdContent');
     if (c) c.classList.add('hidden');
+    var bar = _el('jdStickyBar');
+    if (bar) bar.classList.add('hidden');
     var box = _el('jdStateBox');
     if (!box) return;
-    box.innerHTML = '';
+    box.textContent = '';
     var ico = document.createElement('div');
     ico.className = 'jd-state-ico';
     ico.appendChild(twIconEl(type === 'error' ? 'alert' : 'info'));   // 40px — local (ICON-05 T3)
@@ -133,8 +142,9 @@
     box.appendChild(ico); box.appendChild(h3); box.appendChild(p);
     if (type === 'error') {
       var btn = document.createElement('button');
-      btn.className = 'jd-retry'; _label(btn, 'رجوع', 'back', true);
-      btn.onclick = function () { twNavBack(twHomeHref()); };   // NAV-05 resolver (tw_shared.js)
+      btn.type = 'button';
+      btn.className = 'jd-retry'; _label(btn, twT('header.back'), 'back', true);
+      btn.addEventListener('click', function () { twNavBack(twHomeHref()); });   // NAV-05 resolver
       box.appendChild(btn);
     }
     box.classList.remove('hidden');
@@ -145,74 +155,94 @@
     var raw = new URLSearchParams(location.search).get('id');
     _jobId = raw ? parseInt(raw, 10) || null : null;
     if (!_jobId) {
-      showState('error', 'رقم الوظيفة مفقود', 'الرجاء العودة وإعادة المحاولة');
+      showState('error', twT('job.err.missing_id'), twT('job.err.missing_id_sub'));
       return;
     }
     showSkeleton();
-    fetch('/jobs/' + _jobId, { headers: _hdrs() })
-    .then(function (r) {
-      if (r.status === 404) {
-        var err = new Error('notfound'); err.code = 404; throw err;
+    twApi('/jobs/' + _jobId).then(function (res) {
+      var job = res.ok && res.data ? res.data.job : null;
+      if (!job) {
+        hideSkeleton();
+        if (res.ok || res.status === 404) {
+          showState('error', twT('job.err.not_found'), twT('job.err.not_found_sub'));
+        } else {
+          showState('error', twT('job.err.load'), twApiMessage(res, twT('common.check_connection')));
+        }
+        return;
       }
-      if (!r.ok) { var e2 = new Error('fail'); throw e2; }
-      return r.json();
-    })
-    .then(function (data) {
-      _job = data.job;
-      if (!_job) { var e3 = new Error('notfound'); e3.code = 404; throw e3; }
+      _job = job;
       hideSkeleton();
       renderJob(_job);
       _applyOwnerMode(_job);
       showContent();
-      _checkJobStatus(_job);
+      _applyState = _statusApplyState(_job);
+      _renderActions();
       loadUserSkillsThenMatch();
       loadSimilarJobs();
       _checkAlreadyApplied();
-    })
-    .catch(function (err) {
-      hideSkeleton();
-      if (err.code === 404) {
-        showState('error', 'الوظيفة غير موجودة', 'ربما تم حذف هذه الوظيفة أو انتهت صلاحيتها');
-      } else {
-        showState('error', 'حدث خطأ في التحميل', 'تحقق من اتصال الإنترنت ثم حاول مجدداً');
-      }
     });
   }
 
-  // Disable apply button when job is paused or closed.
-  function _checkJobStatus(job) {
-    if (!job || job.status === 'active') return;
-    var msg = job.status === 'paused' ? 'التقديم موقوف مؤقتاً' : 'انتهى التقديم';
-    document.querySelectorAll('.jd-apply-trigger').forEach(function (b) {
-      _label(b, msg);
-      b.disabled = true;
-      b.classList.add('applied');
-    });
-    _applied = true;
+  // Paused / closed job → apply button disabled with the reason.
+  function _statusApplyState(job) {
+    if (!job || job.status === 'active' || !job.status) return null;
+    return job.status === 'paused' ? 'paused' : 'closed';
   }
 
-  // Check if the logged-in employee has already applied, then disable the button.
+  // Has the signed-in personal account already applied? → disabled «تم التقديم».
   function _checkAlreadyApplied() {
-    if (!_authed || _snap.userType !== 'emp') return;
-    fetch('/my/applications', { headers: _hdrs() })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (!data || !Array.isArray(data.applications)) return;
-        var already = data.applications.some(function (a) {
-          return String(a.job_id) === String(_jobId);
-        });
-        if (!already) return;
-        _applied = true;
-        document.querySelectorAll('.jd-apply-trigger').forEach(function (b) {
-          _label(b, 'تم التقديم', 'check', true); b.classList.add('applied'); b.disabled = true;
-        });
-      })
-      .catch(function () {});
+    if (!_authed || _snap.userType !== 'emp' || _applyState) return;
+    twApi('/my/applications').then(function (res) {
+      var apps = res.ok && res.data ? res.data.applications : null;
+      if (!Array.isArray(apps)) return;
+      var already = apps.some(function (a) { return String(a.job_id) === String(_jobId); });
+      if (!already) return;
+      _applyState = 'applied';
+      _renderApply();
+    });
+  }
+
+  // ── Action buttons (Actions Registry — twAction) ─────────────
+  // apply_job: visibleTo guest + emp → owner / co / edu never see it; guest → login (?next=).
+  var _APPLY_LABEL = { applied: 'job.applied', paused: 'job.status.paused', closed: 'job.status.closed' };
+
+  function _renderApply() {
+    document.querySelectorAll('[data-jd-apply-slot]').forEach(function (slot) {
+      slot.textContent = '';
+      var sticky = slot.getAttribute('data-jd-apply-slot') === 'sticky';
+      var btn = twAction('apply_job', {
+        ownerId: _job ? _job.company_id : null,
+        labelKey: _applyState ? _APPLY_LABEL[_applyState] : 'job.apply_now',
+        disabled: !!_applyState,
+        className: (sticky ? 'jd-sticky-apply' : 'jd-apply-btn') + (_applyState ? ' applied' : ''),
+        onClick: openApply,
+      });
+      if (btn) slot.appendChild(btn);
+      slot.hidden = !btn;
+    });
+  }
+
+  function _renderActions() {
+    _renderApply();
+    var defs = {
+      'share':      ['share',  { className: 'jd-share-btn', labelKey: 'job.share', onClick: shareJob }],
+      'share-icon': ['share',  { className: 'jd-sticky-share', iconOnly: true, iconSize: 'lg',
+                                 labelKey: 'job.share', onClick: shareJob }],
+      'report':     ['report', { className: 'jd-report-link', labelKey: 'job.report', onClick: openReport }],
+    };
+    document.querySelectorAll('[data-jd-action-slot]').forEach(function (slot) {
+      var d = defs[slot.getAttribute('data-jd-action-slot')];
+      slot.textContent = '';
+      var ctx = d ? Object.assign({ ownerId: _job ? _job.company_id : null }, d[1]) : null;
+      var btn = d ? twAction(d[0], ctx) : null;
+      if (btn) slot.appendChild(btn);
+      slot.hidden = !btn;
+    });
   }
 
   // ── Render job ──────────────────────────────────────────────
   function renderJob(job) {
-    document.title = 'تواصلنا — ' + (job.title || 'وظيفة');
+    document.title = twT('page.title', { page: job.title || twT('job.default_title') });
 
     // Company logo — DS-IMAGE (F38): org = rounded square; URL checked by twSafeImageUrl inside.
     // company_user_type (GET /jobs/{id}) = users.user_type of the publisher (co | edu) → fallback colour;
@@ -220,15 +250,14 @@
     var _coEntity = { full_name: job.company_name, avatar_url: job.company_logo,
                       user_type: job.company_user_type === 'edu' ? 'edu' : 'co' };
     var logoEl = _el('jdLogo');
-    if (logoEl) {
-      logoEl.innerHTML = twAvatarHtml(_coEntity, 'xl', { eager: true });
-      var logoBadge = _el('jdLogoBadge');
-      if (logoBadge) logoBadge.style.display = job.company_verified ? 'flex' : 'none';
-    }
+    if (logoEl) logoEl.innerHTML = twAvatarHtml(_coEntity, 'xl', { eager: true });
+    var logoBadge = _el('jdLogoBadge');
+    if (logoBadge) logoBadge.hidden = !job.company_verified;
 
-    // Title
     var titleEl = _el('jdTitle');
     if (titleEl) titleEl.textContent = job.title || '';
+
+    var coHref = _companyHref(job);
 
     // Company name + verified badge
     var coEl = _el('jdCoName');
@@ -236,31 +265,24 @@
       coEl.textContent = job.company_name || '';
       if (job.company_verified) {
         var badge = document.createElement('span');
-        badge.className = 'jd-co-badge'; badge.title = 'شركة موثقة';
+        badge.className = 'jd-co-badge'; badge.title = twT('job.verified_co');
         badge.appendChild(twIconEl('check', { size: 'xs' }));
         coEl.appendChild(badge);
       }
-      if (job.company_tw_id) {
-        coEl.onclick = function () { location.href = '/u/' + job.company_tw_id; };
-      }
+      _setLink(coEl, coHref);
     }
 
     // Meta chips
     var metaEl = _el('jdMeta');
     if (metaEl) {
-      metaEl.innerHTML = '';
+      metaEl.textContent = '';
       if (job.location)    metaEl.appendChild(_chip('map-pin', job.location));
-      if (job.job_type)    metaEl.appendChild(_chip('clock', _JOB_TYPES[job.job_type] || job.job_type));
+      if (job.job_type)    metaEl.appendChild(_chip('clock', _jobTypeLabel(job.job_type)));
       if (job.work_mode)   metaEl.appendChild(_chip('laptop', job.work_mode));
       if (job.experience_years && job.experience_years > 0)
-        metaEl.appendChild(_chip('bar-chart-2', job.experience_years + ' سنوات خبرة'));
-      if (job.salary_hidden) {
-        metaEl.appendChild(_chip('circle-dollar-sign', 'الراتب غير معلن'));
-      } else if (job.salary_min) {
-        var sal = job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') +
-                  (job.currency ? ' ' + job.currency : '');
-        metaEl.appendChild(_chip('circle-dollar-sign', sal, 'g'));
-      }
+        metaEl.appendChild(_chip('bar-chart-2', twT('job.exp_years', { n: job.experience_years })));
+      var sal = _salaryText(job);
+      if (sal) metaEl.appendChild(_chip('circle-dollar-sign', sal, job.salary_hidden ? '' : 'g'));
       if (job.profession_name_ar) metaEl.appendChild(_chip(job.profession_icon || 'briefcase', job.profession_name_ar, 'b'));
       if (job.created_at) metaEl.appendChild(_chip('calendar', _timeAgo(job.created_at)));
     }
@@ -268,10 +290,9 @@
     // Skill tags in header
     var tagsEl = _el('jdTags');
     if (tagsEl) {
-      tagsEl.innerHTML = '';
+      tagsEl.textContent = '';
       (job.skills || []).slice(0, 8).forEach(function (s) {
-        var sIcon = (window.TW && TW.getSkillIcon) ? (TW.getSkillIcon(s) || 'tag') : 'tag';
-        var chip = _chip(sIcon, s, 'g');
+        var chip = _chip(_skillIconName(s), s, 'g');
         if (_isLtrSkill(s)) chip.setAttribute('dir', 'ltr');
         tagsEl.appendChild(chip);
       });
@@ -288,7 +309,7 @@
     // Skills section (chip list)
     var skillsEl = _el('jdSkillChips');
     if (skillsEl && job.skills && job.skills.length) {
-      skillsEl.innerHTML = '';
+      skillsEl.textContent = '';
       job.skills.forEach(function (s) {
         var span = document.createElement('span');
         span.className = 'jd-skill-chip';
@@ -305,21 +326,18 @@
     var accProfEl = _el('jdAccProfChips');
     if (accProfEl) {
       var as = _el('jdAccProfSection');
-      if (job.accepts_all_professions) {
-        accProfEl.innerHTML = '';
-        var allSpan = document.createElement('span');
-        allSpan.className = 'jd-skill-chip';
-        allSpan.appendChild(twIconEl('users', { size: 'sm' }));
-        allSpan.appendChild(document.createTextNode(' مفتوح لجميع التخصصات'));
-        accProfEl.appendChild(allSpan);
-        if (as) as.classList.remove('hidden');
-      } else if (job.accepted_professions && job.accepted_professions.length) {
-        accProfEl.innerHTML = '';
-        job.accepted_professions.forEach(function (p) {
+      var profs = job.accepts_all_professions
+        ? [{ icon: 'users', name: twT('job.all_prof') }]
+        : (job.accepted_professions || []).map(function (p) {
+            return { icon: p.icon || 'briefcase', name: p.name_ar || p.name_en || '' };
+          });
+      if (profs.length) {
+        accProfEl.textContent = '';
+        profs.forEach(function (p) {
           var span = document.createElement('span');
           span.className = 'jd-skill-chip';
-          span.appendChild(twIconEl(p.icon || 'briefcase', { size: 'sm' }));
-          span.appendChild(document.createTextNode(' ' + (p.name_ar || p.name_en || '')));
+          span.appendChild(twIconEl(p.icon, { size: 'sm' }));
+          span.appendChild(document.createTextNode(p.name));
           accProfEl.appendChild(span);
         });
         if (as) as.classList.remove('hidden');
@@ -327,30 +345,23 @@
     }
 
     // Sidebar — job info rows
-    _sideVal('jdSiCo',   job.company_name,
-      job.company_tw_id ? function () { location.href = '/u/' + job.company_tw_id; } : null);
+    _sideVal('jdSiCo', job.company_name, coHref);
     _sideVal('jdSiLoc',  job.location);
-    _sideVal('jdSiType', job.job_type ? (_JOB_TYPES[job.job_type] || job.job_type) : null);
+    _sideVal('jdSiType', job.job_type ? _jobTypeLabel(job.job_type) : null);
     _sideVal('jdSiMode', job.work_mode || null);
-    var _expLabel = (function() {
+    var _expLabel = (function () {
       if (job.experience_years === undefined || job.experience_years === null) return null;
       if (window.TW && TW.EXP_LEVELS) {
-        for (var _ei = 0; _ei < TW.EXP_LEVELS.length; _ei++) {
-          if (TW.EXP_LEVELS[_ei].value === job.experience_years) return TW.EXP_LEVELS[_ei].label;
+        for (var i = 0; i < TW.EXP_LEVELS.length; i++) {
+          if (TW.EXP_LEVELS[i].value === job.experience_years) return TW.EXP_LEVELS[i].label;
         }
       }
-      return job.experience_years > 0 ? job.experience_years + ' سنوات' : null;
+      return job.experience_years > 0 ? twT('job.exp_years_short', { n: job.experience_years }) : null;
     }());
     _sideVal('jdSiExp', _expLabel);
-    _sideVal('jdSiSal',  job.salary_hidden
-      ? 'الراتب غير معلن'
-      : (job.salary_min
-          ? job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') + (job.currency ? ' ' + job.currency : '')
-          : null));
-    _sideVal('jdSiViews', job.views ? job.views + ' مشاهدة' : null);
-    _sideVal('jdSiDate', job.created_at
-      ? new Date(job.created_at).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })
-      : null);
+    _sideVal('jdSiSal', _salaryText(job));
+    _sideVal('jdSiViews', job.views ? twT('job.views_n', { n: job.views }) : null);
+    _sideVal('jdSiDate', twFormatDate(job.created_at) || null);   // Gregorian, one format (tw_shared.js)
 
     // Sidebar — company card
     var coAvEl = _el('jdCoCardAv');
@@ -358,51 +369,47 @@
     var cnEl = _el('jdCoCardName');
     if (cnEl) {
       cnEl.textContent = job.company_name || '';
-      if (job.company_tw_id) {
-        cnEl.onclick = function () { location.href = '/u/' + job.company_tw_id; };
-      }
+      _setLink(cnEl, coHref);
     }
     var cvEl = _el('jdCoCardVerif');
     if (cvEl) {
-      if (job.company_verified) _label(cvEl, 'شركة موثقة', 'check', true);
+      if (job.company_verified) _label(cvEl, twT('job.verified_co'), 'check', true);
       else cvEl.textContent = '';
     }
-
-    // Apply modal title
-    var mt = _el('jdModalTitle');
-    if (mt) mt.textContent = 'تقديم على: ' + (job.title || 'الوظيفة');
   }
 
-  function _sideVal(id, val, onClick) {
+  // Value cell of a sidebar row; with href the value is a real <a> (no click handler on a div).
+  function _sideVal(id, val, href) {
     var el = _el(id);
     if (!el) return;
-    if (val) {
-      el.textContent = val;
-      if (onClick) { el.classList.add('link'); el.onclick = onClick; }
-    } else {
+    if (!val) {
       var row = el.closest('.jd-sc-row');
-      if (row) row.style.display = 'none';
+      if (row) row.hidden = true;
+      return;
+    }
+    el.textContent = '';
+    if (href) {
+      var a = document.createElement('a');
+      a.className = 'jd-sc-link';
+      a.href = href;
+      a.textContent = val;
+      el.appendChild(a);
+    } else {
+      el.textContent = val;
     }
   }
 
   // ── Match section ────────────────────────────────────────────
   function loadUserSkillsThenMatch() {
-    // Match is only relevant for employees who may apply.
-    if (!_authed || _snap.userType !== 'emp') {
-      var sec = _el('jdMatchSection');
-      if (sec) sec.style.display = 'none';
-      return;
-    }
-    fetch('/profile/' + _snap.userId + '/full', { headers: _hdrs() })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (data) {
+    // Match is only relevant for personal accounts that may apply.
+    if (!_authed || _snap.userType !== 'emp') return;
+    twApi('/profile/' + _snap.userId + '/full').then(function (res) {
       var skillSet = new Set();
-      if (data && data.profile && data.profile.skills) {
-        data.profile.skills.forEach(function (s) {
-          var name = _skillName(s).toLowerCase().trim();
-          if (name) skillSet.add(name);
-        });
-      }
+      var prof = res.ok && res.data ? res.data.profile : null;
+      (prof && prof.skills || []).forEach(function (s) {
+        var name = _skillName(s).toLowerCase().trim();
+        if (name) skillSet.add(name);
+      });
       // tw_user cache fallback (getTwUser — tw_shared.js) — not source of truth
       if (!skillSet.size && _user) {
         (_user.skills || []).forEach(function (s) {
@@ -411,8 +418,7 @@
         });
       }
       _computeAndRenderMatch(_job, skillSet);
-    })
-    .catch(function () { _computeAndRenderMatch(_job, new Set()); });
+    });
   }
 
   function _computeAndRenderMatch(job, userSkillSet) {
@@ -426,27 +432,24 @@
 
   function renderMatch(pct, matched, missing) {
     var sec = _el('jdMatchSection');
-    if (!sec) return;
+    if (!sec || (_job && _isOwner(_job))) return;
 
     var ring = _el('jdMatchRing');
     var body = _el('jdMatchBody');
+    var pSpan = ring ? ring.querySelector('.jd-match-pct') : null;
+    var lSpan = ring ? ring.querySelector('.jd-match-lbl') : null;
 
     if (pct === null || pct === undefined) {
-      // No skills available
-      if (ring) {
-        ring.style.background = 'rgba(255,255,255,.06)';
-        var pctSpan = ring.querySelector('.jd-match-pct');
-        if (pctSpan) pctSpan.textContent = '–';
-        var lblSpanNull = ring.querySelector('.jd-match-lbl');
-        if (lblSpanNull) lblSpanNull.textContent = '';
-      }
+      if (ring) ring.style.removeProperty('--jd-match-pct');
+      if (pSpan) pSpan.textContent = '–';
+      if (lSpan) lSpan.textContent = '';
       if (body) {
-        body.innerHTML = '';
+        body.textContent = '';
         var p = document.createElement('p');
         p.className = 'jd-match-noskills';
-        p.textContent = 'أضف مهاراتك في ملفك الشخصي لرؤية نسبة التطابق. ';
+        p.textContent = twT('job.match.noskills') + ' ';
         var lnk = document.createElement('a');
-        lnk.href = twAccountHref(_user); lnk.textContent = 'أكمل مهاراتك الآن';   // tw_shared.js (Auth Gateway rule 3)
+        lnk.href = twAccountHref(_user); lnk.textContent = twT('job.match.complete');   // Auth Gateway rule 3
         p.appendChild(lnk);
         body.appendChild(p);
       }
@@ -454,25 +457,17 @@
       return;
     }
 
-    // Update ring with conic-gradient
-    if (ring) {
-      var pStr = pct + '%';
-      ring.style.background = 'conic-gradient(var(--ac) 0% ' + pStr +
-        ', rgba(255,255,255,.08) ' + pStr + ')';
-      var pSpan = ring.querySelector('.jd-match-pct');
-      if (pSpan) pSpan.textContent = pStr;
-      var lSpan = ring.querySelector('.jd-match-lbl');
-      if (lSpan) lSpan.textContent = pct >= 80 ? 'عالي' : pct >= 50 ? 'جيد' : 'جزئي';
-    }
+    var level = pct >= 80 ? 'high' : pct >= 50 ? 'good' : 'partial';
+    // Ring fill = CSS conic-gradient driven by --jd-match-pct (colors stay tokens in job-detail.css)
+    if (ring) ring.style.setProperty('--jd-match-pct', pct + '%');
+    if (pSpan) pSpan.textContent = pct + '%';
+    if (lSpan) lSpan.textContent = twT('job.match.' + level);
 
     if (body) {
-      body.innerHTML = '';
+      body.textContent = '';
       var title = document.createElement('div');
       title.className = 'jd-match-title';
-      title.textContent =
-        pct >= 80 ? 'ملفك يتطابق بنسبة ' + pct + '% مع هذه الوظيفة!' :
-        pct >= 50 ? 'تطابق جيد — ' + pct + '% من المهارات' :
-                   'تطابق جزئي — ' + pct + '% من المهارات';
+      title.textContent = twT('job.match.title_' + level, { pct: pct });
       body.appendChild(title);
 
       if (matched.length || missing.length) {
@@ -482,216 +477,200 @@
           var sp = document.createElement('span');
           sp.className = 'jd-ms yes';
           sp.appendChild(twIconEl('check', { size: 'xs' }));
-          sp.appendChild(document.createTextNode(' ' + s));
+          sp.appendChild(document.createTextNode(s));
           chips.appendChild(sp);
         });
         missing.slice(0, 4).forEach(function (s) {
           var sp = document.createElement('span');
           sp.className = 'jd-ms no';
           sp.appendChild(twIconEl('close', { size: 'xs' }));
-          sp.appendChild(document.createTextNode(' ' + s));
+          sp.appendChild(document.createTextNode(s));
           chips.appendChild(sp);
         });
         body.appendChild(chips);
       }
     }
-
     sec.classList.remove('hidden');
   }
 
   // ── Similar jobs ─────────────────────────────────────────────
   function loadSimilarJobs() {
-    fetch('/jobs', { headers: _hdrs() })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
+    twApi('/jobs').then(function (res) {
+      var list = _el('jdSimilarList');
+      if (!list) return;
+      var jobs = res.ok && res.data && Array.isArray(res.data.jobs) ? res.data.jobs : [];
       var jobProfId = _job && _job.profession_id ? _job.profession_id : null;
       var jobSkills = (_job && _job.skills ? _job.skills : [])
         .map(function (s) { return String(_skillName(s)).toLowerCase().trim(); })
         .filter(Boolean);
 
-      var all = (data.jobs || []).filter(function (j) { return String(j.id) !== String(_jobId); });
-
       // Score each candidate: only jobs with a real signal appear
-      var scored = all.map(function (j) {
-        var score = 0;
-        if (jobProfId && j.profession_id && j.profession_id === jobProfId) score += 3;
-        if (jobSkills.length) {
-          var jSkills = (j.skills || [])
-            .map(function (s) { return String(_skillName(s)).toLowerCase().trim(); })
-            .filter(Boolean);
-          jSkills.forEach(function (s) { if (jobSkills.indexOf(s) !== -1) score += 1; });
-        }
-        return { job: j, score: score };
-      });
-
-      var similar = scored
+      var similar = jobs
+        .filter(function (j) { return String(j.id) !== String(_jobId); })
+        .map(function (j) {
+          var score = 0;
+          if (jobProfId && j.profession_id && j.profession_id === jobProfId) score += 3;
+          (j.skills || []).forEach(function (s) {
+            if (jobSkills.indexOf(String(_skillName(s)).toLowerCase().trim()) !== -1) score += 1;
+          });
+          return { job: j, score: score };
+        })
         .filter(function (item) { return item.score > 0; })
         .sort(function (a, b) { return b.score - a.score; })
         .slice(0, 3)
         .map(function (item) { return item.job; });
 
-      ['jdSimilarList', 'jdSimilarListMobile'].forEach(function (cid) {
-        var el = _el(cid); if (!el) return;
-        el.innerHTML = '';
-        if (!similar.length) {
-          var p = document.createElement('p');
-          p.className = 'jd-sim-empty';
-          p.textContent = 'لا توجد وظائف مشابهة حالياً';
-          el.appendChild(p); return;
-        }
-        similar.forEach(function (j) {
-          var item = document.createElement('div');
-          item.className = 'jd-sim-item';
-          var av = document.createElement('div');
-          av.className = 'jd-sim-av';
-          av.appendChild(twIconEl('building-2', { size: 'md' }));
-          var info = document.createElement('div');
-          var t = document.createElement('div'); t.className = 'jd-sim-title'; t.textContent = j.title || '';
-          var c = document.createElement('div'); c.className = 'jd-sim-co';
-          c.textContent = (j.company_name || '') + (j.location ? ' · ' + j.location : '');
-          info.appendChild(t); info.appendChild(c);
-          item.appendChild(av); item.appendChild(info);
-          (function (jid) {
-            item.addEventListener('click', function () { location.href = '/job-detail?id=' + jid; });
-          }(j.id));
-          el.appendChild(item);
-        });
+      list.textContent = '';
+      if (!similar.length) {
+        var p = document.createElement('p');
+        p.className = 'jd-sim-empty';
+        p.textContent = twT('job.similar_empty');
+        list.appendChild(p);
+        return;
+      }
+      similar.forEach(function (j) {
+        var item = document.createElement('a');   // a real link (was a div with a click handler)
+        item.className = 'jd-sim-item';
+        item.href = '/job-detail?id=' + encodeURIComponent(j.id);
+        var av = document.createElement('span');
+        av.className = 'jd-sim-av';
+        av.appendChild(twIconEl('building-2', { size: 'md' }));
+        var info = document.createElement('span');
+        info.className = 'jd-sim-info';
+        var t = document.createElement('span'); t.className = 'jd-sim-title'; t.textContent = j.title || '';
+        var c = document.createElement('span'); c.className = 'jd-sim-co';
+        c.textContent = (j.company_name || '') + (j.location ? ' · ' + j.location : '');
+        info.appendChild(t); info.appendChild(c);
+        item.appendChild(av); item.appendChild(info);
+        list.appendChild(item);
       });
-    })
-    .catch(function () {});
+    });
   }
 
-  // ── Owner mode — hide apply, show ownership badge ────────────
+  // ── Owner mode — ownership title; no save / sticky bar / match ─
+  // (apply / report visibility for the owner comes from the Actions Registry, not from here)
+  function _isOwner(job) {
+    return !!(_authed && job && (_snap.userType === 'co' || _snap.userType === 'edu')
+      && Number(_snap.userId) === Number(job.company_id));
+  }
+
   function _applyOwnerMode(job) {
-    if (!_authed || !job) return;
-    var isOwner = (_snap.userType === 'co' || _snap.userType === 'edu')
-      && parseInt(_snap.userId, 10) === job.company_id;
-    if (!isOwner) return;
-
-    // Sidebar card: change title, hide actions
-    var title = _el('jdApplyCardTitle');
-    _label(title, 'هذه وظيفتك', 'check', false);
-    var actions = document.querySelector('.jd-apply-actions');
-    if (actions) actions.style.display = 'none';
-
-    // Mobile sticky bar: hide entirely
+    if (!_isOwner(job)) return;
+    _label(_el('jdApplyCardTitle'), twT('job.yours'), 'check', false);
+    document.querySelectorAll('.jd-save-trigger').forEach(function (b) { b.hidden = true; });
     var stickyBar = _el('jdStickyBar');
-    if (stickyBar) stickyBar.style.display = 'none';
-
-    // Match section is irrelevant for the job owner
-    var matchSec = _el('jdMatchSection');
-    if (matchSec) matchSec.style.display = 'none';
+    if (stickyBar) stickyBar.classList.add('hidden');
   }
 
-  // ── Apply ────────────────────────────────────────────────────
+  // ── Apply (twModal — DS-OVL) ─────────────────────────────────
   function openApply() {
     if (!_authed) { _toLogin(); return; }
-    if (_snap.userType !== 'emp') {
-      showToast('التقديم متاح للموظفين فقط', 'error');
-      return;
-    }
-    if (_applied) return;
-    var ov = _el('jdApplyOverlay');
-    if (ov) ov.classList.add('show');
-  }
+    if (_applyState) return;
+    var form = document.createElement('div');
+    var hint = document.createElement('p');
+    hint.className = 'jd-modal-hint';
+    hint.textContent = twT('job.apply.hint');
+    var field = document.createElement('div');
+    field.className = 'tw-field';
+    var lbl = document.createElement('label');
+    lbl.htmlFor = 'jdCoverLetter';
+    lbl.textContent = twT('job.apply.cover');
+    var ta = document.createElement('textarea');
+    ta.id = 'jdCoverLetter';
+    ta.className = 'tw-textarea';
+    ta.rows = 4;
+    ta.placeholder = twT('job.apply.cover_ph');
+    field.appendChild(lbl); field.appendChild(ta);
+    form.appendChild(hint); form.appendChild(field);
 
-  function closeApply(ev) {
-    if (!ev || ev.target.id === 'jdApplyOverlay') {
-      var ov = _el('jdApplyOverlay');
-      if (ov) ov.classList.remove('show');
-    }
-  }
-
-  function confirmApply() {
-    if (!_authed) { _toLogin(); return; }
-    if (!_jobId) { showToast('خطأ في معرّف الوظيفة', 'error'); return; }
-    var cover = _el('jdCoverLetter') ? (_el('jdCoverLetter').value || '') : '';
-    var triggers = document.querySelectorAll('.jd-apply-trigger');
-    triggers.forEach(function (b) { b.disabled = true; _label(b, 'جاري التقديم...'); });
-    fetch('/jobs/' + _jobId + '/apply', {
-      method: 'POST',
-      headers: _hdrs(true),
-      body: JSON.stringify({ cover_letter: cover })
-    })
-    .then(function (r) {
-      return r.json().then(function (data) {
-        if (!r.ok) {
-          var err = new Error(data.detail || 'apply_failed');
-          err.statusCode = r.status;
-          throw err;
-        }
-        return data;
-      });
-    })
-    .then(function (data) {
-      _applied = true;
-      var label = data.already_applied ? 'قدّمت مسبقاً' : 'تم التقديم';
-      triggers.forEach(function (b) {
-        b.disabled = true; _label(b, label, 'check', true); b.classList.add('applied');
-      });
-      closeApply();
-      showToast(data.already_applied ? 'لقد قدّمت على هذه الوظيفة مسبقاً' : 'تم إرسال طلبك بنجاح');
-    })
-    .catch(function (err) {
-      triggers.forEach(function (b) { b.disabled = false; _label(b, 'تقديم الآن', 'forward', false); });
-      var msg = (err && err.statusCode === 403)
-        ? 'التقديم متاح للموظفين فقط'
-        : 'حدث خطأ أثناء التقديم، حاول مجدداً';
-      showToast(msg, 'error');
+    twModal({
+      title: twT('job.apply.title', { title: (_job && _job.title) || twT('job.default_title') }),
+      content: form,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT('job.apply.send'), variant: 'primary', onClick: function () { return submitApply(ta.value || ''); } },
+      ],
     });
+  }
+
+  // Resolves true (close the modal) on success, false (keep it open) on failure.
+  function submitApply(cover) {
+    if (!_jobId) return Promise.resolve(false);
+    return twApi('/jobs/' + _jobId + '/apply', { method: 'POST', body: { cover_letter: cover } })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = res.status === 403 ? twT('job.apply.emp_only')
+                  : twApiMessage(res, twT('job.apply.err'));
+          showToast(msg, 'error');
+          return false;
+        }
+        var dup = !!(res.data && res.data.already_applied);
+        _applyState = 'applied';
+        _renderApply();
+        showToast(twT(dup ? 'job.apply.duplicate' : 'job.apply.ok'), dup ? 'info' : 'success');
+        return true;
+      });
   }
 
   // ── Share ────────────────────────────────────────────────────
   function shareJob() {
-    var title = (_job && _job.title) ? _job.title : 'وظيفة على تواصلنا';
+    var title = (_job && _job.title) ? _job.title : twT('job.share.default_title');
     var url   = location.href;
     if (navigator.share) {
       navigator.share({ title: title, url: url }).catch(function () {});
     } else if (navigator.clipboard) {
       navigator.clipboard.writeText(url)
-        .then(function () { showToast('تم نسخ رابط الوظيفة'); })
-        .catch(function () { showToast('رابط: ' + url, 'info'); });
+        .then(function () { showToast(twT('job.share.copied')); })
+        .catch(function () { showToast(twT('job.share.link', { url: url }), 'info'); });
     }
   }
 
-  // ── Report ───────────────────────────────────────────────────
+  // ── Report (twModal — DS-OVL · select = DS-SEL) ──────────────
+  var _REPORT_TYPES = ['fraud', 'spam', 'misleading', 'harassment', 'other'];
+
   function openReport() {
     if (!_authed) { _toLogin(); return; }   // /reports/submit requires a JWT
-    var s = _el('jdReportSheet');
-    if (s) s.classList.add('open');
-    var r = _el('jdReportReason');
-    if (r) r.value = '';
+    var form = document.createElement('div');
+
+    var f1 = document.createElement('div'); f1.className = 'tw-field';
+    var l1 = document.createElement('label'); l1.htmlFor = 'jdReportType'; l1.textContent = twT('job.report.type');
+    var sel = document.createElement('select'); sel.id = 'jdReportType'; sel.className = 'tw-select ep-select';
+    _REPORT_TYPES.forEach(function (t) {
+      var o = document.createElement('option'); o.value = t; o.textContent = twT('job.report.' + t);
+      sel.appendChild(o);
+    });
+    f1.appendChild(l1); f1.appendChild(sel);
+
+    var f2 = document.createElement('div'); f2.className = 'tw-field';
+    var l2 = document.createElement('label'); l2.htmlFor = 'jdReportReason'; l2.textContent = twT('job.report.details');
+    var ta = document.createElement('textarea'); ta.id = 'jdReportReason'; ta.className = 'tw-textarea';
+    ta.rows = 3; ta.placeholder = twT('job.report.details_ph');
+    f2.appendChild(l2); f2.appendChild(ta);
+
+    form.appendChild(f1); form.appendChild(f2);
+
+    twModal({
+      title: twT('job.report.title'),
+      content: form,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT('job.report.send'), variant: 'danger', onClick: function () {
+            return submitReport(sel.value || 'other', ta.value.trim());
+          } },
+      ],
+    });
+    if (window.scSelectInit) scSelectInit();   // DS-SEL engine for the report type
   }
 
-  function closeReport() {
-    var s = _el('jdReportSheet');
-    if (s) s.classList.remove('open');
-  }
-
-  function submitReport() {
-    var type   = _el('jdReportType')   ? _el('jdReportType').value   : 'other';
-    var reason = _el('jdReportReason') ? _el('jdReportReason').value.trim() : '';
-    if (!reason) { showToast('اكتب سبب البلاغ', 'error'); return; }
-    var btn = _el('jdReportSubmitBtn');
-    if (btn) { btn.disabled = true; _label(btn, 'جاري الإرسال...'); }
-    fetch('/reports/submit', {
-      method: 'POST',
-      headers: _hdrs(true),
-      body: JSON.stringify({
-        reported_id:   _jobId,
-        reported_type: 'job',
-        report_type:   type,
-        reason:        reason,
-        target_url:    location.href
-      })
-    })
-    .then(function (r) {
-      if (r.ok) { showToast('تم إرسال البلاغ'); closeReport(); }
-      else { showToast('خطأ في إرسال البلاغ', 'error'); }
-    })
-    .catch(function () { showToast('خطأ في إرسال البلاغ', 'error'); })
-    .then(function () {
-      if (btn) { btn.disabled = false; _label(btn, 'إرسال البلاغ', 'report', true); }
+  function submitReport(type, reason) {
+    if (!reason) { showToast(twT('job.report.need_reason'), 'error'); return false; }
+    return twApi('/reports/submit', { method: 'POST', body: {
+      reported_id: _jobId, reported_type: 'job', report_type: type,
+      reason: reason, target_url: location.href,
+    } }).then(function (res) {
+      if (!res.ok) { showToast(twApiMessage(res, twT('job.report.err')), 'error'); return false; }
+      showToast(twT('job.report.ok'));
+      return true;
     });
   }
 
@@ -699,37 +678,9 @@
   function _init() {
     twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
     // Header + back button = unified app chrome (tw_shared.js twMountAppChrome — HEADER-NAV.md)
-
-    document.querySelectorAll('.jd-apply-trigger').forEach(function (btn) {
-      btn.addEventListener('click', openApply);
-    });
-
-    document.querySelectorAll('.jd-share-trigger').forEach(function (btn) {
-      btn.addEventListener('click', shareJob);
-    });
-
     document.querySelectorAll('.jd-save-trigger').forEach(function (btn) {
       btn.addEventListener('click', toggleSave);
     });
-
-    var overlay = _el('jdApplyOverlay');
-    if (overlay) overlay.addEventListener('click', closeApply);
-
-    var cancelBtn = _el('jdApplyCancel');
-    if (cancelBtn) cancelBtn.addEventListener('click', function () { closeApply(); });
-
-    var confirmBtn = _el('jdApplyConfirm');
-    if (confirmBtn) confirmBtn.addEventListener('click', confirmApply);
-
-    var reportBtn = _el('jdReportBtn');
-    if (reportBtn) reportBtn.addEventListener('click', openReport);
-
-    var reportClose = _el('jdReportClose');
-    if (reportClose) reportClose.addEventListener('click', closeReport);
-
-    var reportSubmit = _el('jdReportSubmitBtn');
-    if (reportSubmit) reportSubmit.addEventListener('click', submitReport);
-
     loadJob();
   }
 

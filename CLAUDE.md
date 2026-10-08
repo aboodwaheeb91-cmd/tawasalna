@@ -306,7 +306,9 @@ These rules are permanent and apply to all future AI sessions.
 
 8. **Do NOT redirect to `/messages` or `/notifications` as the post-login landing destination.** These are secondary destinations reachable from the dashboard, not entry points after login.
 
-9. **Role selector is register-only.** The three role cards (`#empBtn`, `#coBtn`, `#eduBtn`) are inside `#typeRow` which is hidden by default. `showRegister()` unhides it; `showLogin()` hides it. Do NOT show the role selector on the login form.
+9. **Role selector is register-only.** The three role cards (`#empBtn`, `#coBtn`, `#eduBtn`) are inside `#typeRow` which is hidden by default. `showRegister()` unhides it; `showLogin()` hides it. Do NOT show the role selector on the login form. Since PR 4.8 the cards are a native radio group (`#typeRow[role=radiogroup]` → `<label>` + `<input type="radio" name="accountType">`, keyboard arrows) — ❌ `div onclick` cards / `span` links on this page.
+
+9b. **Login / register = `twApi` + `TwAuthSync.startSession(user, token)` (PR 4.8).** `startSession` (`auth-sync.js`) is the only writer of a new `tw_user` + `tw_jwt` pair — ❌ `localStorage` in `index.auth.js`. Errors: fixed text by status (login) · server's Arabic validation text for register 4xx (409 under the email field) — ❌ raw `res.json()` without a status check.
 
 10. **`index.auth.js` must not contain DOM/appearance code.** UI side-effects (show/hide forms, button states, toast) belong in `index.ui.js`. The separation is mandatory — auth logic must remain testable in isolation.
 
@@ -333,6 +335,7 @@ These rules are permanent and apply to all future AI sessions.
 2. **أي نص جديد بالواجهة لازم يكون مفتاح بـ `twT`، مش نص ثابت.** `twT(key, vars)` بـ `tw_shared.js` · المفاتيح بـ `tw_strings.json` · HTML ثابت عبر `data-tw-t` / `data-tw-t-label` · الصفحة لازم فيها `<!--tw:strings-->` قبل `tw_shared.js` (الـ shell فيه).
 3. **الكلمة نفسها من `docs/GLOSSARY.md`:** «وظائف» مش «فرص» · «حساب شخصي / حساب شركة / حساب جهة تعليمية» (الكود `emp` / `co` / `edu` ما بيتغيّر) · «المتقدمون» (قدّموا) ≠ «المرشحون» (مراحل التوظيف) ≠ «بنك المواهب» (المحفوظين).
 - ❌ dictionary أو دالة ترجمة تانية · ❌ HTML جوّا نص · ❌ قراءة `window.TW_STRINGS` مباشرة.
+4. **تاريخ معروض = `twFormatDate(value)`** (`tw_shared.js` — ميلادي، شكل واحد، أشهر من `date.month.*` — SYSTEMS_INDEX §59a). ❌ `toLocaleDateString('ar-…')` بصفحة بتنلمس (`ar-SA` = هجري).
 - Spec: SYSTEMS_INDEX §59 · test `python tests/test_strings_system.py`.
 
 ---

@@ -4,11 +4,12 @@
 <!--tw:shell-head-->
 <title>تواصلنا - تفاصيل الوظيفة</title>
 <link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <link rel="stylesheet" href="/static/job/job-detail.css">
 </head>
 <body>
 
-<a href="#jdMain" class="skip-link">تخطى للمحتوى الرئيسي</a>
+<a href="#jdMain" class="skip-link" data-tw-t="common.skip_to_content"></a>
 
 <!-- Unified app header with back; fallback = home when there is no in-site history (HEADER-NAV.md HNAV-03) -->
 <header data-tw-header data-back="home"></header>
@@ -18,10 +19,10 @@
 
   <!-- Skeleton (shown while loading) -->
   <div id="jdSkeleton">
-    <div style="height:120px;margin-bottom:var(--space-8);border-radius:var(--radius-3xl)" class="jd-skl"></div>
-    <div style="height:70px;margin-bottom:var(--space-6);border-radius:var(--radius-xl)" class="jd-skl"></div>
-    <div style="height:160px;margin-bottom:var(--space-6);border-radius:var(--radius-2xl)" class="jd-skl"></div>
-    <div style="height:120px;border-radius:var(--radius-2xl)" class="jd-skl"></div>
+    <div class="jd-skl jd-skl-hero"></div>
+    <div class="jd-skl jd-skl-row"></div>
+    <div class="jd-skl jd-skl-block"></div>
+    <div class="jd-skl jd-skl-card"></div>
   </div>
 
   <!-- Error / empty state -->
@@ -35,25 +36,26 @@
       <div class="jd-hd-top">
         <div class="jd-logo-wrap">
           <div class="jd-logo" id="jdLogo" aria-hidden="true"></div>
-          <span class="jd-logo-badge" id="jdLogoBadge" style="display:none" title="شركة موثقة"><i data-tw-icon="star" data-tw-size="xs" data-tw-filled></i></span>
+          <span class="jd-logo-badge" id="jdLogoBadge" hidden data-tw-t-label="job.verified_co"><i data-tw-icon="star" data-tw-size="xs" data-tw-filled></i></span>
         </div>
         <div class="jd-info">
           <h1 class="jd-title" id="jdTitle"></h1>
-          <div class="jd-co-name" id="jdCoName" role="link" tabindex="0"></div>
-          <div class="jd-meta" id="jdMeta" aria-label="تفاصيل الوظيفة"></div>
+          <!-- Company name: a real link to /u/{tw_id} when known, plain text otherwise -->
+          <a class="jd-co-name" id="jdCoName"></a>
+          <div class="jd-meta" id="jdMeta" data-tw-t-label="job.meta_label"></div>
         </div>
       </div>
-      <div class="jd-tags" id="jdTags" aria-label="المهارات المطلوبة"></div>
+      <div class="jd-tags" id="jdTags" data-tw-t-label="job.skills_required"></div>
     </div>
 
-    <!-- Content grid -->
+    <!-- Content grid: main, then sidebar (below the main column on mobile) -->
     <div class="jd-grid">
 
       <!-- Main column -->
       <div class="jd-main">
 
         <!-- Match section (revealed after skill load) -->
-        <div id="jdMatchSection" class="jd-match hidden" role="region" aria-label="نسبة التطابق مع ملفك">
+        <div id="jdMatchSection" class="jd-match hidden" role="region" data-tw-t-label="job.match_label">
           <div class="jd-match-ring" id="jdMatchRing" aria-hidden="true">
             <span class="jd-match-pct">–</span>
             <span class="jd-match-lbl" id="jdMatchLbl"></span>
@@ -63,100 +65,95 @@
 
         <!-- Description -->
         <div class="jd-section hidden" id="jdDescSection">
-          <div class="jd-sec-title"><i data-tw-icon="file-text" data-tw-size="md"></i>وصف الوظيفة</div>
+          <div class="jd-sec-title"><i data-tw-icon="file-text" data-tw-size="md"></i><span data-tw-t="job.desc"></span></div>
           <div class="jd-body-text" id="jdDesc"></div>
         </div>
 
         <!-- Skills required -->
         <div class="jd-section hidden" id="jdSkillsSection">
-          <div class="jd-sec-title"><i data-tw-icon="wrench" data-tw-size="md"></i>المهارات المطلوبة</div>
-          <div class="jd-skill-chips" id="jdSkillChips" aria-label="المهارات"></div>
+          <div class="jd-sec-title"><i data-tw-icon="wrench" data-tw-size="md"></i><span data-tw-t="job.skills_required"></span></div>
+          <div class="jd-skill-chips" id="jdSkillChips" data-tw-t-label="job.skills"></div>
         </div>
 
         <!-- Accepted professions -->
         <div class="jd-section hidden" id="jdAccProfSection">
-          <div class="jd-sec-title"><i data-tw-icon="users" data-tw-size="md"></i>التخصصات المقبولة</div>
-          <div class="jd-skill-chips" id="jdAccProfChips" aria-label="التخصصات المقبولة"></div>
-        </div>
-
-        <!-- Similar jobs — mobile only -->
-        <div class="jd-section jd-mobile-only">
-          <div class="jd-sec-title"><i data-tw-icon="briefcase" data-tw-size="md"></i>وظائف مشابهة</div>
-          <div id="jdSimilarListMobile"></div>
+          <div class="jd-sec-title"><i data-tw-icon="users" data-tw-size="md"></i><span data-tw-t="job.accepted_prof"></span></div>
+          <div class="jd-skill-chips" id="jdAccProfChips" data-tw-t-label="job.accepted_prof"></div>
         </div>
 
       </div><!-- end .jd-main -->
 
-      <!-- Sidebar -->
-      <div class="jd-sidebar" role="complementary" aria-label="معلومات إضافية">
+      <!-- Sidebar (desktop: side column · mobile: under the main content) -->
+      <aside class="jd-sidebar" data-tw-t-label="job.side_label">
 
-        <!-- Apply card -->
+        <!-- Apply card (mobile: the sticky bar carries these actions) -->
         <div class="jd-apply-card">
-          <div class="jd-apply-title" id="jdApplyCardTitle">هل أنت مهتم؟</div>
+          <div class="jd-apply-title" id="jdApplyCardTitle" data-tw-t="job.interested"></div>
           <div class="jd-apply-actions">
-            <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن<i data-tw-icon="forward" data-tw-size="sm"></i></button>
-            <button type="button" class="jd-save-btn jd-save-trigger" id="jdSaveBtn" aria-label="حفظ الوظيفة"><i data-tw-icon="bookmark" data-tw-size="md"></i>حفظ</button>
+            <!-- «تقديم» = twAction('apply_job') (Actions Registry) — rendered by the page script -->
+            <div class="jd-apply-slot" data-jd-apply-slot="card"></div>
+            <button type="button" class="jd-save-btn jd-save-trigger" id="jdSaveBtn" data-tw-t-label="job.save_label"><i data-tw-icon="bookmark" data-tw-size="md"></i><span data-tw-t="job.save"></span></button>
           </div>
-          <button type="button" class="jd-share-btn jd-share-trigger"><i data-tw-icon="share" data-tw-size="sm"></i>مشاركة الوظيفة</button>
-          <button type="button" class="jd-report-link" id="jdReportBtn"><i data-tw-icon="report" data-tw-size="sm"></i>إبلاغ عن هذه الوظيفة</button>
+          <div class="jd-act-slot" data-jd-action-slot="share"></div>
+          <div class="jd-act-slot" data-jd-action-slot="report"></div>
         </div>
 
         <!-- Job info -->
         <div class="jd-side-card">
-          <div class="jd-sc-title">معلومات الوظيفة</div>
+          <div class="jd-sc-title" data-tw-t="job.info"></div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="building-2" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">الشركة</div><div class="jd-sc-val" id="jdSiCo"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.company"></div><div class="jd-sc-val" id="jdSiCo"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="map-pin" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">الموقع</div><div class="jd-sc-val" id="jdSiLoc"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.location"></div><div class="jd-sc-val" id="jdSiLoc"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="clock" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">نوع العمل</div><div class="jd-sc-val" id="jdSiType"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.work_type"></div><div class="jd-sc-val" id="jdSiType"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="laptop" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">طريقة العمل</div><div class="jd-sc-val" id="jdSiMode"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.work_mode"></div><div class="jd-sc-val" id="jdSiMode"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="bar-chart-2" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">سنوات الخبرة</div><div class="jd-sc-val" id="jdSiExp"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.exp"></div><div class="jd-sc-val" id="jdSiExp"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="circle-dollar-sign" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">الراتب</div><div class="jd-sc-val" id="jdSiSal"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.salary"></div><div class="jd-sc-val" id="jdSiSal"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="eye" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">المشاهدات</div><div class="jd-sc-val" id="jdSiViews"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.views"></div><div class="jd-sc-val" id="jdSiViews"></div></div>
           </div>
           <div class="jd-sc-row">
             <div class="jd-sc-ico"><i data-tw-icon="calendar" data-tw-size="md"></i></div>
-            <div><div class="jd-sc-lbl">تاريخ النشر</div><div class="jd-sc-val" id="jdSiDate"></div></div>
+            <div><div class="jd-sc-lbl" data-tw-t="job.date"></div><div class="jd-sc-val" id="jdSiDate"></div></div>
           </div>
         </div>
 
         <!-- Company card -->
         <div class="jd-side-card">
-          <div class="jd-sc-title">عن الشركة</div>
+          <div class="jd-sc-title" data-tw-t="job.about_co"></div>
           <div class="jd-co-card">
             <div class="jd-co-av" id="jdCoCardAv" aria-hidden="true"></div>
             <div>
-              <div class="jd-co-cname" id="jdCoCardName" role="link" tabindex="0"></div>
+              <a class="jd-co-cname" id="jdCoCardName"></a>
               <div class="jd-co-verified" id="jdCoCardVerif"></div>
             </div>
           </div>
         </div>
 
-        <!-- Similar jobs — desktop only -->
-        <div class="jd-side-card jd-desktop-only">
-          <div class="jd-sc-title">وظائف مشابهة</div>
+        <!-- Similar jobs (one list — the sidebar shows on every width) -->
+        <div class="jd-side-card">
+          <div class="jd-sc-title" data-tw-t="job.similar"></div>
           <div id="jdSimilarList"></div>
         </div>
 
-      </div><!-- end .jd-sidebar -->
+      </aside><!-- end .jd-sidebar -->
 
     </div><!-- end .jd-grid -->
 
@@ -165,57 +162,18 @@
 </div><!-- end .jd-shell -->
 
 <!-- Sticky apply bar — mobile only -->
-<div class="jd-sticky-bar" id="jdStickyBar" role="toolbar" aria-label="تقديم على الوظيفة">
+<div class="jd-sticky-bar" id="jdStickyBar" role="toolbar" data-tw-t-label="job.sticky_label">
   <div class="jd-sticky-inner">
-    <button type="button" class="jd-sticky-apply jd-apply-trigger" aria-label="تقديم على الوظيفة">تقديم الآن<i data-tw-icon="forward" data-tw-size="sm"></i></button>
-    <button type="button" class="jd-sticky-save jd-save-trigger" id="jdStickySaveBtn" aria-label="حفظ الوظيفة"><i data-tw-icon="bookmark" data-tw-size="lg"></i></button>
-    <button type="button" class="jd-sticky-share jd-share-trigger" aria-label="مشاركة الوظيفة"><i data-tw-icon="share" data-tw-size="lg"></i></button>
-  </div>
-</div>
-
-<!-- Apply modal -->
-<div class="jd-overlay" id="jdApplyOverlay" role="dialog" aria-modal="true" aria-labelledby="jdModalTitle">
-  <div class="jd-modal">
-    <div class="jd-modal-title" id="jdModalTitle">تقديم على الوظيفة</div>
-    <div class="jd-modal-hint">سيتم إرفاق ملفك الشخصي تلقائياً مع طلب التوظيف.</div>
-    <div class="jd-mf">
-      <label for="jdCoverLetter">رسالة تغطية (اختياري)</label>
-      <textarea id="jdCoverLetter" placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
-    </div>
-    <div class="jd-mact">
-      <button type="button" class="jd-mbtn jd-mbtn-ok" id="jdApplyConfirm">إرسال الطلب<i data-tw-icon="check" data-tw-size="sm"></i></button>
-      <button type="button" class="jd-mbtn jd-mbtn-no" id="jdApplyCancel">إلغاء</button>
-    </div>
-  </div>
-</div>
-
-<!-- Report sheet -->
-<div id="jdReportSheet" class="jd-report-sheet" role="dialog" aria-modal="true">
-  <div class="jd-report-panel">
-    <div class="jd-report-title" id="jdReportTitle"><i data-tw-icon="report" data-tw-size="md"></i>إبلاغ عن محتوى مخالف</div>
-    <div class="jd-rfield">
-      <label for="jdReportType">نوع البلاغ</label>
-      <select id="jdReportType">
-        <option value="fraud">احتيال أو نصب</option>
-        <option value="spam">سبام أو إعلان مزيف</option>
-        <option value="misleading">معلومات مضللة</option>
-        <option value="harassment">تحرش أو مضايقة</option>
-        <option value="other">أخرى</option>
-      </select>
-    </div>
-    <div class="jd-rfield">
-      <label for="jdReportReason">تفاصيل البلاغ</label>
-      <textarea id="jdReportReason" placeholder="اشرح سبب البلاغ..." rows="3"></textarea>
-    </div>
-    <div class="jd-rbtns">
-      <button id="jdReportSubmitBtn" class="jd-rbtn-submit"><i data-tw-icon="report" data-tw-size="sm"></i>إرسال البلاغ</button>
-      <button id="jdReportClose" class="jd-rbtn-cancel">إلغاء</button>
-    </div>
+    <div class="jd-sticky-slot" data-jd-apply-slot="sticky"></div>
+    <button type="button" class="jd-sticky-save jd-save-trigger" id="jdStickySaveBtn" data-tw-t-label="job.save_label"><i data-tw-icon="bookmark" data-tw-size="lg"></i></button>
+    <div class="jd-sticky-icon-slot" data-jd-action-slot="share-icon"></div>
   </div>
 </div>
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
 <script src="/static/shared/tw-options-data.js"></script>
 <script src="/static/shared/tw-skills.js"></script>
 <script src="/static/job/job-detail.js"></script>

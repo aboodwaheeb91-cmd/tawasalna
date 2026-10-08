@@ -357,6 +357,21 @@ function twTApply(root) {
 }
 window.twTApply = twTApply;
 
+// ── Date display (PR 4.8 · SYSTEMS_INDEX §59a) ──
+// twFormatDate(value) → «8 أكتوبر 2026»: Gregorian calendar, Western digits, month names from
+// the Strings System (date.month.1–12 = DS-DATE DATE-07 labels), order from date.format.long.
+// The ONE formatter for showing a date — never toLocaleDateString('ar-…') in a page
+// (ar-SA = Hijri, ar-EG = Eastern digits → the same date looked different on every page).
+// value: ISO string / Date / epoch ms. Empty / invalid → ''. Day = the viewer's local day.
+function twFormatDate(value) {
+  if (value === null || value === undefined || value === '') return '';
+  var d = new Date(value);
+  if (!isFinite(d.getTime())) return '';
+  return twT('date.format.long', {
+    day: d.getDate(), month: twT('date.month.' + (d.getMonth() + 1)), year: d.getFullYear() });
+}
+window.twFormatDate = twFormatDate;
+
 // ── XSS Protection (§54 Safe Rendering — single canonical implementation) ──
 // twEscAttr: canonical escaping for attribute values and text content.
 // Handles null/undefined → ''; handles numeric 0 → "0" (correct; old sanitize returned '').

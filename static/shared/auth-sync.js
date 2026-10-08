@@ -236,6 +236,36 @@
       }
     },
 
+    // New session after login / register (PR 4.8 — Auth Gateway). The ONLY writer of a NEW
+    // tw_user + tw_jwt pair: clears the old keys (allowlist only), writes both, then accepts the
+    // pair only if the VM-10A state machine says 'authenticated' (JWT parses, not expired,
+    // user_id / user_type = the user's). Anything else → both keys removed, false.
+    // Fires handlers with reason 'login'; other tabs pick it up via 'storage'.
+    startSession: function (user, jwt) {
+      function _clear() {
+        for (var j = 0; j < _SESSION_KEYS.length; j++) {
+          try { localStorage.removeItem(_SESSION_KEYS[j]); } catch (e) {}
+        }
+      }
+      if (!user || typeof user !== 'object' || typeof jwt !== 'string' || !jwt.trim()) return false;
+      try {
+        _clear();
+        localStorage.setItem('tw_user', JSON.stringify(user));
+        localStorage.setItem('tw_jwt', jwt);
+      } catch (e) {
+        console.warn('[TwAuthSync] startSession write failed:', e);
+        _clear();
+        return false;
+      }
+      if (!_resolveSession().isAuthenticated) {
+        _clear();
+        _check('login_rejected');
+        return false;
+      }
+      _check('login');
+      return true;
+    },
+
     // Same-account token renewal (PR 1.8 — PUT /auth/password returns a fresh JWT
     // because every older JWT of the user is now rejected by the server).
     // The ONLY way a page replaces tw_jwt after login. Accepts a JWT for the CURRENT
