@@ -79,7 +79,6 @@ function _applyStatusToEl(el, status) {
 function updateMessageStatus(data) {
   var status = data.status;
   var ids = data.ids || (data.id != null ? [data.id] : []);
-  twDebugLog('status_update', { status: status, ids: ids.join(',') });
   ids.forEach(function(id) {
     var el = document.querySelector('[data-msg-id="' + id + '"]');
     if (el) {
@@ -164,7 +163,6 @@ function connectWS() {
       var convId  = Number(_currentConvId);
 
       if (data.type === 'message' && fromId === convId) {
-        var _twRx = performance.now();
         var msgs = document.getElementById('messages');
         var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
         var innerHtml = '<div class="msg in">'
@@ -186,7 +184,6 @@ function connectWS() {
           );
         }
         scrollDown();
-        twDebugLog('WS→DOM', { ms: (performance.now() - _twRx).toFixed(0), id: data.id, from: fromId, via: typingEl ? 'transform' : 'append' });
       }
 
       if (data.type === 'message') {

@@ -3233,51 +3233,18 @@ check(
     'Phase 7' in _nplan146 and ('مكتمل' in _nplan146 or 'منفَّذ' in _nplan146)
 )
 
-# §147 — Notifications Phase 8 — Verification Status Notification Hook
+# §147 — Notifications Phase 8 — old verify_requests hook removed with the old system (PR 3.9)
 _srv147 = open("server.py").read()
 _nplan147 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
-print("\n── §147: Notifications Phase 8 — Verification Status Notification Hook ──")
+print("\n── §147: Notifications Phase 8 — old verify hook removed (PR 3.9) ──")
 check(
-    "147a. admin_update_verify fetches verify_requests.user_id before UPDATE",
-    "SELECT user_id FROM verify_requests WHERE id = :id" in _srv147
+    "147a. admin_update_verify + verify_requests reads gone from server.py (verification = KYC)",
+    "def admin_update_verify(" not in _srv147 and "verify_requests" not in _srv147
 )
 check(
-    "147b. Phase 8 notification hook present in admin_update_verify",
-    "Phase 8: notify request owner" in _srv147 or
-    "verify notification" in _srv147
-)
-check(
-    "147c. notification type is 'verify'",
-    "type_=\"verify\"" in _srv147 or "type_='verify'" in _srv147
-)
-check(
-    "147d. notification uses event_key with verify_{status}:verify_request:{req_id}:admin",
-    'event_key=f"verify_{data.status}:verify_request:{req_id}:admin"' in _srv147
-)
-check(
-    "147e. notification entity_type is 'verify_request'",
-    "entity_type=\"verify_request\"" in _srv147 or "entity_type='verify_request'" in _srv147
-)
-check(
-    "147f. notification link is '/settings'",
-    'link="/settings"' in _srv147 or "link='/settings'" in _srv147
-)
-check(
-    "147g. approved vs rejected title/body branch present",
-    "تم مراجعة طلب توثيقك" in _srv147 and "طلب توثيقك يحتاج مراجعة" in _srv147
-)
-check(
-    "147h. hook is non-fatal — try/except with TW-WARN log",
-    "TW-WARN" in _srv147 and "verify notification" in _srv147
-)
-check(
-    "147i. hook does not fire if verify_request row not found (vr_rows guard)",
-    "if vr_rows:" in _srv147
-)
-check(
-    "147j. NOTIFICATIONS_PLAN.md marks Phase 8 as complete",
-    'Phase 8' in _nplan147 and ('مكتمل' in _nplan147 or 'منفَّذ' in _nplan147)
+    "147j. NOTIFICATIONS_PLAN.md still records Phase 8",
+    'Phase 8' in _nplan147
 )
 
 # §148 — Notifications Phase 9 — Per-Notification Read + Pagination
@@ -3332,7 +3299,7 @@ check(
 
 # §149 — Notifications Phase 10 — Unread Badge in App Header
 _srv149 = open("server.py").read()
-_ahjs149 = open("static/app-header.js").read()
+_ahjs149 = open("static/app-header.js").read() if os.path.exists("static/app-header.js") else ""  # removed PR 3.9
 _ahcss149 = open("static/app-header.css").read()
 _nplan149 = open("docs/NOTIFICATIONS_PLAN.md").read()
 
@@ -3417,8 +3384,8 @@ check(
     'websocket' not in _srv150.lower().replace('/ws/{user_id}', '').split('/notifications')[0][-50:]
 )
 check(
-    "150f. unread badge uses setInterval polling — no WebSocket in app-header.js",
-    'setInterval' in _ahjs150 and 'WebSocket' not in _ahjs150 and 'EventSource' not in _ahjs150
+    "150f. static/app-header.js removed (PR 3.9) — no header-level polling / WebSocket file left",
+    not _os150.path.exists('static/app-header.js')
 )
 check(
     "150g. No X-User-Id in notifications.html (JWT Bearer only)",
@@ -3785,8 +3752,8 @@ check(
     'data-ah-notif-badge' in _co_html
 )
 check(
-    "154h. company-profile.html loads app-header.js script",
-    'app-header.js' in _co_html
+    "154h. company-profile.html no longer loads the deleted app-header.js (PR 3.9)",
+    'app-header.js' not in _co_html
 )
 check(
     "154i. profile-showcase.html bell has data-ah-notif-badge (not old data-badge=notif)",
@@ -3795,8 +3762,8 @@ check(
     if 'scBellBtn' in _sc_html else 'data-ah-notif-badge' in _sc_html
 )
 check(
-    "154j. profile-showcase.html loads app-header.js script",
-    'app-header.js' in _sc_html
+    "154j. profile-showcase.html no longer loads the deleted app-header.js (PR 3.9)",
+    'app-header.js' not in _sc_html
 )
 check(
     "154k. No X-User-Id in app-header.js",
@@ -4442,8 +4409,7 @@ check(
 # ── No frontend changes ───────────────────────────────────────────────────
 with open("notifications.html", encoding="utf-8") as _f159n:
     _notif_html_159 = _f159n.read()
-with open("static/app-header.js", encoding="utf-8") as _f159aj:
-    _ahj_159 = _f159aj.read()
+_ahj_159 = open("static/app-header.js", encoding="utf-8").read() if os.path.exists("static/app-header.js") else ""  # removed PR 3.9
 with open("static/app-header.css", encoding="utf-8") as _f159ac:
     _ahc_159 = _f159ac.read()
 check(
@@ -4473,8 +4439,7 @@ with open("server.py", encoding="utf-8") as f:
     _srv160 = f.read()
 with open("notifications.html", encoding="utf-8") as f:
     _notif_html_160 = f.read()
-with open("static/app-header.js", encoding="utf-8") as f:
-    _ahj_160 = f.read()
+_ahj_160 = open("static/app-header.js", encoding="utf-8").read() if os.path.exists("static/app-header.js") else ""  # removed PR 3.9
 with open("static/app-header.css", encoding="utf-8") as f:
     _ahc_160 = f.read()
 
@@ -10853,211 +10818,21 @@ else:
         )
 
 # ═══════════════════════════════════════════════════════════════════════
-# §SEC-3 — VerifyRequestInput duplicate user_id + IDOR on POST /verify-request
-# 10 tests (5 static + 5 behavioral):
-#   Bug A: duplicate field overrides int → Optional[str]=None, frontend gets 422
-#   Bug B: endpoint uses data.user_id from body → IDOR (any user can forge owner)
-#   After fix: user_id=Optional[int]=None, endpoint uses token["user_id"]
+# §SEC-3 — POST /verify-request (old verification system) — REMOVED in PR 3.9
+# Verification is KYC only now (/kyc/* · /admin/kyc). The old endpoint, its input
+# model and its data function must not come back (no IDOR surface left to test).
 # ═══════════════════════════════════════════════════════════════════════
-print("\n── §SEC-3: VerifyRequestInput duplicate user_id + IDOR ──")
-
-import sys as _sys_sec3, os as _os_sec3, re as _re_sec3
-
+print("\n── §SEC-3: old /verify-request removed (PR 3.9) ──")
 _srv_sec3_src = open("server.py", encoding="utf-8").read()
-
-# Extract VerifyRequestInput class block once
-_vri_block_sec3 = _srv_sec3_src[
-    _srv_sec3_src.find('class VerifyRequestInput'):
-    _srv_sec3_src.find('class AdminLoginInput')
-] if 'class VerifyRequestInput' in _srv_sec3_src else ''
-
-# ── Static checks ─────────────────────────────────────────────────────
-
-# sec-3-01: duplicate user_id field must be gone — check only within VRI block
-check(
-    "sec-3-01. [STATIC] VerifyRequestInput has no duplicate user_id: Optional[str] = None",
-    not bool(_re_sec3.search(
-        r'user_id\s*:\s*Optional\[str\]',
-        _vri_block_sec3
-    ))
-)
-
-# sec-3-02: stray top_k field removed from VerifyRequestInput
-check(
-    "sec-3-02. [STATIC] stray top_k field removed from VerifyRequestInput",
-    'top_k' not in _vri_block_sec3
-)
-
-# sec-3-03: user_id in VerifyRequestInput must be int-compatible (not str)
-check(
-    "sec-3-03. [STATIC] VerifyRequestInput.user_id is Optional[int] (not str)",
-    not bool(_re_sec3.search(r'user_id\s*:\s*Optional\[str\]', _vri_block_sec3)) and
-    bool(_re_sec3.search(r'user_id\s*:\s*Optional\[int\]', _vri_block_sec3))
-)
-
-# sec-3-04: endpoint uses token["user_id"] not data.user_id (IDOR fix)
-_rv_block_sec3 = _srv_sec3_src[
-    _srv_sec3_src.find('def request_verification('):
-    _srv_sec3_src.find('def request_verification(') + 400
-] if 'def request_verification(' in _srv_sec3_src else ''
-check(
-    "sec-3-04. [STATIC] request_verification uses token[user_id] not data.user_id",
-    'token["user_id"]' in _rv_block_sec3 or "token['user_id']" in _rv_block_sec3
-)
-
-# sec-3-05: data.user_id not passed to create_verify_request
-check(
-    "sec-3-05. [STATIC] create_verify_request not called with data.user_id",
-    'create_verify_request(data.user_id' not in _rv_block_sec3
-)
-
-# sec-3-05b: payload explicitly excludes user_id before reaching data layer
-check(
-    "sec-3-05b. [STATIC] payload built with exclude={user_id} before create_verify_request",
-    'exclude={"user_id"}' in _rv_block_sec3 or "exclude={'user_id'}" in _rv_block_sec3
-)
-
-# ── Behavioral runtime tests ───────────────────────────────────────────
-import types as _types_sec3, hmac as _hmac_sec3
-import base64 as _b64_sec3, json as _json_sec3, time as _time_sec3
-from unittest.mock import patch as _Patch_sec3, MagicMock as _MM_sec3
-
-_srv_sec3 = None
-_srv_sec3_err = None
-try:
-    _os_sec3.environ.setdefault('SUPABASE_DB_URL', 'postgresql://x:x@localhost/x')
-    if 'pg8000' not in _sys_sec3.modules:
-        _pg3 = _types_sec3.ModuleType('pg8000')
-        _pg3.native = _types_sec3.ModuleType('pg8000.native')
-        _pg3.native.Connection = object
-        _pg3.dbapi = _types_sec3.ModuleType('pg8000.dbapi')
-        _sys_sec3.modules['pg8000'] = _pg3
-        _sys_sec3.modules['pg8000.native'] = _pg3.native
-        _sys_sec3.modules['pg8000.dbapi'] = _pg3.dbapi
-    import server as _srv_sec3
-except Exception as _e_sec3:
-    _srv_sec3_err = str(_e_sec3)
-
-if _srv_sec3 is not None:
-    from fastapi.testclient import TestClient as _TC_sec3
-
-    _client_sec3 = _TC_sec3(_srv_sec3.app)
-
-    # Build a valid JWT for user_id=1
-    _sec3_secret = _srv_sec3.JWT_SECRET
-    _sec3_payload = {'user_id': 1, 'user_type': 'emp',
-                     'iat': int(_time_sec3.time()), 'exp': int(_time_sec3.time()) + 3600}
-    _sec3_hdr = _b64_sec3.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
-    _sec3_bdy = _b64_sec3.urlsafe_b64encode(
-        _json_sec3.dumps(_sec3_payload).encode()).rstrip(b'=').decode()
-    _sec3_sig = _b64_sec3.urlsafe_b64encode(
-        _hmac_sec3.new(_sec3_secret.encode(),
-                       f'{_sec3_hdr}.{_sec3_bdy}'.encode(), 'sha256').digest()
-    ).rstrip(b'=').decode()
-    _sec3_jwt = f'{_sec3_hdr}.{_sec3_bdy}.{_sec3_sig}'
-    _sec3_hdrs = {'Authorization': f'Bearer {_sec3_jwt}',
-                  'Content-Type': 'application/json'}
-
-    # sec-3-06: integer user_id in body → must NOT get 422 (fixed validation)
-    _r3_int = _client_sec3.post('/verify-request',
-        json={'user_id': 1, 'item_type': 'exp', 'document_url': 'http://x.com'},
-        headers=_sec3_hdrs)
-    check(
-        "sec-3-06. [BEHAVIORAL] integer user_id in body no longer causes 422",
-        _r3_int.status_code != 422
-    )
-
-    # sec-3-07: IDOR fixed — body user_id ignored, JWT user_id used
-    _sec3_called_uid = []
-    def _fake_create_sec3(uid, data):
-        _sec3_called_uid.append(uid)
-        return {'id': 1, 'user_id': uid, 'status': 'pending'}
-    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3):
-        _r3_idor = _client_sec3.post('/verify-request',
-            json={'user_id': 99, 'item_type': 'exp', 'document_url': 'http://x.com'},
-            headers=_sec3_hdrs)
-    check(
-        "sec-3-07. [BEHAVIORAL] IDOR fixed: body user_id=99 with JWT=1 → create called with 1",
-        _sec3_called_uid == [1] or _sec3_called_uid == ['1']
-    )
-
-    # sec-3-08: missing user_id in body — JWT user_id is used (no null to DB)
-    _sec3_called_uid2 = []
-    def _fake_create_sec3b(uid, data):
-        _sec3_called_uid2.append(uid)
-        return {'id': 1, 'user_id': uid, 'status': 'pending'}
-    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3b):
-        _r3_missing = _client_sec3.post('/verify-request',
-            json={'item_type': 'exp', 'document_url': 'http://x.com'},
-            headers=_sec3_hdrs)
-    check(
-        "sec-3-08. [BEHAVIORAL] missing body user_id → create called with JWT user_id (not None)",
-        _sec3_called_uid2 and _sec3_called_uid2[0] is not None
-    )
-
-    # sec-3-09: valid request succeeds end-to-end with JWT user_id
-    _sec3_called_uid3 = []
-    def _fake_create_sec3c(uid, data):
-        _sec3_called_uid3.append(uid)
-        return {'id': 7, 'user_id': uid, 'status': 'pending'}
-    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3c):
-        _r3_ok = _client_sec3.post('/verify-request',
-            json={'item_type': 'edu', 'document_url': 'http://x.com'},
-            headers=_sec3_hdrs)
-    check(
-        "sec-3-09. [BEHAVIORAL] valid request returns success with JWT user_id",
-        _r3_ok.status_code == 200 and
-        (_sec3_called_uid3 == [1] or _sec3_called_uid3 == ['1'])
-    )
-
-    # sec-3-10: no JWT → 401 (auth guard unchanged)
-    _r3_noauth = _client_sec3.post('/verify-request',
-        json={'item_type': 'exp', 'document_url': 'http://x.com'})
-    check(
-        "sec-3-10. [BEHAVIORAL] no JWT → 401 (auth guard still enforced)",
-        _r3_noauth.status_code == 401
-    )
-
-    # sec-3-11: payload contract — IDOR body: first arg=1 AND user_id absent from payload
-    _sec3_call11 = []
-    def _fake_create_sec3_11(uid, payload):
-        _sec3_call11.append({'uid': uid, 'payload': dict(payload)})
-        return {'id': 1, 'user_id': uid, 'status': 'pending'}
-    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3_11):
-        _client_sec3.post('/verify-request',
-            json={'user_id': 99, 'item_type': 'exp', 'document_url': 'http://x.com'},
-            headers=_sec3_hdrs)
-    check(
-        "sec-3-11. [BEHAVIORAL] payload clean: body user_id=99, JWT=1 → uid=1 AND user_id NOT in payload",
-        bool(_sec3_call11) and
-        (_sec3_call11[0]['uid'] == 1 or _sec3_call11[0]['uid'] == '1') and
-        'user_id' not in _sec3_call11[0]['payload']
-    )
-
-    # sec-3-12: payload contract — missing body user_id: first arg=1 AND user_id absent from payload
-    _sec3_call12 = []
-    def _fake_create_sec3_12(uid, payload):
-        _sec3_call12.append({'uid': uid, 'payload': dict(payload)})
-        return {'id': 1, 'user_id': uid, 'status': 'pending'}
-    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3_12):
-        _client_sec3.post('/verify-request',
-            json={'item_type': 'edu', 'document_url': 'http://x.com'},
-            headers=_sec3_hdrs)
-    check(
-        "sec-3-12. [BEHAVIORAL] payload clean: no user_id in body, JWT=1 → uid=1 AND user_id NOT in payload",
-        bool(_sec3_call12) and
-        (_sec3_call12[0]['uid'] == 1 or _sec3_call12[0]['uid'] == '1') and
-        'user_id' not in _sec3_call12[0]['payload']
-    )
-
-else:
-    for _sec3_n in ["06", "07", "08", "09", "10", "11", "12"]:
-        check(
-            f"sec-3-{_sec3_n}. [BEHAVIORAL] server import available for SEC-3 behavioral tests",
-            False,
-            _srv_sec3_err
-        )
-
+_auth_sec3_src = open("auth.py", encoding="utf-8").read()
+check("sec-3-01. [STATIC] POST /verify-request route gone",
+      '@app.post("/verify-request")' not in _srv_sec3_src)
+check("sec-3-02. [STATIC] VerifyRequestInput / VerifyUpdateInput gone",
+      "class VerifyRequestInput" not in _srv_sec3_src and "class VerifyUpdateInput" not in _srv_sec3_src)
+check("sec-3-03. [STATIC] create_verify_request gone from auth.py + server.py",
+      "create_verify_request" not in _auth_sec3_src and "create_verify_request" not in _srv_sec3_src)
+check("sec-3-04. [STATIC] admin verify-requests endpoints gone",
+      '"/admin/verify-requests"' not in _srv_sec3_src and '"/admin/verify/{req_id}"' not in _srv_sec3_src)
 print()
 
 # ══════════════════════════════════════════════════════════════════════════════

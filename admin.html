@@ -176,14 +176,10 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <!-- ═══ القسم 2: النشاط ═══ -->
     <div style="margin-bottom:10px">
       <div class="sec-hdr">📊 النشاط</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <div class="stat-card" style="background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.2)">
           <div class="stat-num" style="color:#60a5fa" id="statTotalJobs">--</div>
           <div class="stat-lbl">الوظائف</div>
-        </div>
-        <div class="stat-card" style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2)">
-          <div class="stat-num" style="color:#fbbf24" id="statPending">--</div>
-          <div class="stat-lbl">طلبات توثيق</div>
         </div>
         <div class="stat-card" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)">
           <div class="stat-num" style="color:#f87171" id="statKYC">--</div>
@@ -212,9 +208,8 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
 
     <!-- ═══ التبويبات ═══ -->
     <!-- ── Navigation Tabs ── -->
-<div class="tabs" style="grid-template-columns:repeat(6,1fr)">
+<div class="tabs" style="grid-template-columns:repeat(5,1fr)">
       <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span>مستخدمون</span></button>
-      <button class="tab" onclick="showTab('verify',this)"><span class="tab-ico">✅</span><span>توثيق</span></button>
       <button class="tab" onclick="showTab('jobs',this)"><span class="tab-ico">💼</span><span>وظائف</span></button>
       <button class="tab" onclick="showTab('reports',this)"><span class="tab-ico">🚨</span><span>بلاغات <span id="reportsBadge" style="display:none;background:#f87171;color:#fff;border-radius:10px;padding:0 4px;font-size:.5rem;position:absolute;top:4px;right:4px"></span></span></button>
       <button class="tab" onclick="showTab('kyc',this)"><span class="tab-ico">🪪</span><span>KYC <span id="kycPendingBadge" style="display:none;background:#f87171;color:#fff;border-radius:10px;padding:0 4px;font-size:.5rem;position:absolute;top:4px;right:4px"></span></span></button>
@@ -235,12 +230,6 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
       </div>
       <div id="usersTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
       <div id="usersPag" class="pag"></div>
-    </div>
-
-    <!-- VERIFY TAB -->
-    <!-- ── Verify Tab ── -->
-<div id="tab-verify" style="display:none">
-      <div id="verifyTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
     <!-- JOBS TAB -->
@@ -331,7 +320,7 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
 
 // ── State ──
 // Admin session = short-lived admin JWT, held only by TwAdminSession (static/shared/admin-session.js).
-let _allUsers=[], _allVerify=[], _allJobs=[], _allKYC=[], _msgUserId=null;
+let _allUsers=[], _allJobs=[], _allKYC=[], _msgUserId=null;
 const PAG_SIZE = 20;
 let _usersPage=1, _jobsPage=1;
 let _logob64 = '';
@@ -420,10 +409,9 @@ async function uploadLogo(btn){
 function showTab(name,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  ['users','verify','jobs','reports','kyc','errors'].forEach(t=>{
+  ['users','jobs','reports','kyc','errors'].forEach(t=>{
     document.getElementById('tab-'+t).style.display = t===name?'block':'none';
   });
-  if(name==='verify') renderVerify(_allVerify);
   if(name==='jobs' && !_allJobs.length) loadJobs();
   if(name==='reports') loadReports();
   if(name==='kyc' && !_allKYC.length) loadKYC();
@@ -435,7 +423,6 @@ function updateStats(){
   var el=function(id){var e=document.getElementById(id);return e||{textContent:''};};
   el('statTotalUsers').textContent=_allUsers.length;
   el('statTotalJobs').textContent=_allJobs.length;
-  el('statPending').textContent=_allVerify.filter(v=>v.status==='pending').length;
   el('statKYC').textContent=_allKYC.filter(k=>k.step==='review').length;
   el('statEmployees').textContent=_allUsers.filter(u=>u.user_type==='emp').length;
   el('statCompanies').textContent=_allUsers.filter(u=>u.user_type==='co').length;
@@ -445,7 +432,6 @@ function updateStats(){
 // ── Load All ──
 async function loadAll(){
   try{ await loadUsers(); }catch(e){ console.error('[Admin] loadUsers:',e); }
-  try{ await loadVerify(); }catch(e){ console.error('[Admin] loadVerify:',e); }
   try{ loadAdminStats(); }catch(e){ console.error('[Admin] stats:',e); }
 }
 
@@ -516,47 +502,6 @@ function renderUsers(list){
 function goUsersPage(p){_usersPage=p;filterUsers();}
 
 function openUserDetail(id){ window.location.href='admin-view.html?id='+id; }
-
-// ── Verify Requests ──
-async function loadVerify(){
-  const r=await TwAdminSession.fetch('/admin/verify-requests',{headers:adminHeaders()});
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const data=await r.json();
-  _allVerify=data.requests||[];
-  updateStats();
-}
-
-function renderVerify(list){
-  const tb=document.getElementById('verifyTable');
-  var kycPending=_allKYC.filter(k=>k.step==='review'&&k.status==='pending');
-  var html='';
-  if(kycPending.length){
-    html+='<div style="margin-bottom:10px"><div style="font-size:.72rem;font-weight:700;color:var(--ac);margin-bottom:6px">🪪 KYC قيد المراجعة ('+kycPending.length+')</div>'+
-      kycPending.map(k=>
-        '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,200,150,.2);margin-bottom:5px;background:rgba(0,200,150,.04)">'+
-        '<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+twEscHtml(k.full_name)+'</div>'+
-        '<div style="font-size:.68rem;color:var(--t3)">'+twEscHtml(k.email)+'</div></div>'+
-        '<div style="display:flex;gap:5px">'+
-        '<button class="ab" style="font-size:.68rem" onclick="openKYCDocs('+Number(k.id)+','+Number(k.user_id)+')">🪪 عرض المستندات</button>'+
-        '<button class="ab" style="background:rgba(0,200,150,.1);color:#00c896;font-size:.68rem" onclick="approveKYC('+k.user_id+')">✅ قبول</button>'+
-        '<button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;font-size:.68rem" onclick="rejectKYC('+k.user_id+')">❌ رفض</button>'+
-        '</div></div>'
-      ).join('')+'</div>';
-  }
-  if(!list.length&&!kycPending.length){
-    tb.innerHTML=html+'<div class="tw-empty"><span class="tw-empty-ico">📋</span><div class="tw-empty-title">لا توجد طلبات توثيق</div></div>';
-    return;
-  }
-  tb.innerHTML=html+list.map(v=>`
-    <div class="tr">
-      <div><div class="u-nm">${twEscHtml(v.user_name)||'—'}</div><div class="u-em">${twEscHtml(v.item_title||v.item_type)||'—'}</div></div>
-      <span class="statu pending">معلق</span>
-      <div style="display:flex;gap:5px">
-        <button class="ab" style="color:#00c896" onclick="approveVerify(${v.id})">✅</button>
-        <button class="ab" style="color:#f87171" onclick="rejectVerify(${v.id})">❌</button>
-      </div>
-    </div>`).join('');
-}
 
 // ── Jobs ──
 async function loadJobs(){
@@ -720,22 +665,6 @@ async function deleteJob(id){
   }catch(e){showToast('خطأ','error');}
 }
 
-async function approveVerify(id){
-  try{
-    await TwAdminSession.fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'approved'})});
-    showToast('تمت الموافقة ✅');
-    loadVerify();
-  }catch(e){showToast('خطأ','error');}
-}
-
-async function rejectVerify(id){
-  try{
-    await TwAdminSession.fetch('/admin/verify/'+id,{method:'PUT',headers:adminHeaders(),body:JSON.stringify({status:'rejected'})});
-    showToast('تم الرفض');
-    loadVerify();
-  }catch(e){showToast('خطأ','error');}
-}
-
 async function approveKYC(userId){
   try{
     await TwAdminSession.fetch('/admin/kyc/'+userId+'/approve',{method:'PUT',headers:adminHeaders()});
@@ -847,14 +776,6 @@ var _msgTemplates={
 function setMsgTemplate(type){
   var ta=document.getElementById('msgBody');
   if(ta&&_msgTemplates[type]) ta.value=_msgTemplates[type];
-}
-
-function adminToast(msg,type){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.className='toast '+(type||'s')+' show';
-  clearTimeout(t._t);
-  t._t=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
 function showSessionExpired(){ showAdminLogin(TwAdminSession.EXPIRED_MSG); }

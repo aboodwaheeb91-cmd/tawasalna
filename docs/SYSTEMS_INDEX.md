@@ -210,7 +210,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 19. Notifications System ✅ (Phases 0–10 complete · Phase 11 deferred · V2 complete PRs #447–#453 · P1 app_status PRs #455–#456 · rating_received PR #457 · MPQ Final Closure PR #458)
 **Purpose:** User notifications for messages, job applications, verification status, profile activity. Includes hooks for comment / reply / mention / job-apply / follow / verify / application_status_changed (viewed only) / rating_received actions. Unread badge in app header via polling. V2 Smart Aggregation for follow, job application, comment, and reply hooks.
 **Source of Truth:** `notifications` table · `auth.py` helpers (`create_notification` with event_key idempotency, `create_or_update_aggregated_notification` V2 helper, `get_notifications`, `mark_notifications_read`, `mark_notification_read`, `get_unread_notifications`) · `server.py` endpoints: `GET /notifications/{user_id}` (JWT + pagination), `PUT /notifications/{user_id}/read` (bulk), `PUT /notifications/{user_id}/read/{notif_id}` (single), `GET /notifications/{user_id}/unread-count` · `static/app-header.js` (`_pollUnreadBadge`) · `notifications.html` (`_buildNotifCard` with V2-5 aggregation badge)
-**Transport (current):** HTTP polling — `fetch('/notifications/'+userId, {headers:{Authorization:'Bearer '+jwt}})` in `notifications.html` + 60s `setInterval` polling for badge in `app-header.js`. No WebSocket for notifications.
+**Transport (current):** HTTP polling — `fetch('/notifications/'+userId, {headers:{Authorization:'Bearer '+jwt}})` in `notifications.html` + header badge via `loadGlobalBadges()` + Badge WS in `tw_shared.js` (VM-10). No WebSocket route for notifications.
 **Details:** `docs/NOTIFICATIONS_PLAN.md` (full phased plan — Phase 0–11 + V1 Status + V2 Final Status + P1 policy + Missing Priority Queue Final Status + Scheduler Blocker Note) · `ARCHITECTURE.md §49`
 **Status:** Phases 0–10 ✅ complete (PRs #431–#440). Phase 11 (Real-time / Push) is intentionally deferred — requires WebSocket P0 security debt resolution + explicit user decision. V2 Smart Aggregation complete (V2-0 to V2-6, PRs #447–#453). **application_status_changed ✅ hook PR #455 · ✅ policy corrected PR #456 · ✅ all-7-internal PR #479** — all 7 pipeline statuses are internal company states; `_INTERNAL_STATUSES` contains all 7; the notification block in `update_application_status()` can never fire for any classify action. **rating_received ✅ PR #457** — hook in `rate_company()` (auth.py), type_=`rating_received`, event_key=`rating:{company_id}:{rater_id}`, link=`/u/{tw_id}`, individual (no aggregation). **Missing Priority Queue complete except: job_expiring_soon (P2 Blocked by scheduler).** Scheduler-dependent notifications (job_expiring_soon, appointment reminders, response deadline auto-expire, reminder before interview) are deferred until Scheduler Infrastructure is built by independent architectural decision.
 **Do not recreate:** Do not create per-feature notification tables. Do not use `X-User-Id` header — JWT Bearer only. Do not use `innerHTML` with notification API data. Do not add a WebSocket route for notifications — Phase 11 requires explicit approval. `event_key` format: `{type}:{entity_type}:{entity_id}:{actor_id}` — all hooks must follow this pattern. `aggregation_key` format: `{kind}_agg:{target_type}:{target_id}` — do not expose on frontend or use to generate routes. `notification.link` always comes from backend — never generate routes from `aggregation_key` on the frontend. **Policy rule (permanent): `accepted`/`rejected` application statuses must never trigger a direct notification to the applicant — these are internal company workflow states.** **Scheduler rule (permanent): do not implement any time-based notification (job_expiring_soon, appointment reminders, response deadline, interview reminder) without first building Scheduler Infrastructure in a dedicated PR with explicit user approval.**
@@ -221,7 +221,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Follow / unfollow any account (emp · co · edu), follow state, counters, followers / following lists. **Rule:** any signed-in account follows any other account, never itself; guest → 401 → `twLoginHref`.
 **Source of Truth:** `profile_follows` (follower_id, followed_id — UNIQUE + no-self CHECK) · `server.py → _follow_set()` (the only follow action) + `_resolve_account_id()` · `auth.py → follow_profile / unfollow_profile / get_follow_state / get_profile_followers_list / get_profile_following_list` · endpoints `POST|DELETE|GET /profile/{id}/follow` · `GET /profile/{id}/followers` · `GET /profile/{id}/following` · frontend via `twApi` only: `profile-v2.api.js` (`followProfile` / `unfollowProfile` / `getFollowersList` / `getFollowingList`) · `static/company/company.api.js` (`followAccount` / `getCompanyFollowersList`).
 **Details:** `ARCHITECTURE.md §53` · test `python -m pytest test_follow_system.py -q` (needs `TW_TEST_DB_URL`).
-**Legacy (PR 3.9 removes):** `company_follows` table — rows copied by `_migrate_company_follows_to_profile_follows()` (startup, optional, `ON CONFLICT DO NOTHING`, count logged), then read/written by nobody · `/company/follow/{id}` + `GET /company/{id}/followers` = aliases calling the same functions.
+**Legacy:** `company_follows` table — rows copied by `_migrate_company_follows_to_profile_follows()` (startup, optional, `ON CONFLICT DO NOTHING`, count logged), read/written by nobody else. Migration + table stay until the production check + `DROP` decision (PR 3.9 report). The `/company/follow/{id}` + `GET /company/{id}/followers` aliases were **deleted in PR 3.9** — `/profile/{id}/*` only.
 **Do not recreate:** ❌ a second follow table ("connections" / "friends" / per-type) · ❌ reading or writing `company_follows` · ❌ a per-account-type follow endpoint or permission (e.g. "emp only") · ❌ direct `fetch` for follow — `twApi` · ❌ counting followers from anything but `profile_follows`.
 
 ---
@@ -231,7 +231,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** Follow System §20 — `profile_follows` · `GET /profile/{id}/followers` (PR 3.5)
 **Responsible files:**
 - `auth.py` — `get_profile_followers_list(...)` (shared with the employee profile)
-- `server.py` — `GET /profile/{company_id}/followers?limit=&offset=&type=` (`/company/{id}/followers` = alias until PR 3.9)
+- `server.py` — `GET /profile/{company_id}/followers?limit=&offset=&type=` (the `/company/{id}/followers` alias was deleted in PR 3.9)
 - `company-profile.html` — `#coStatFollowersTile` (clickable tile) + `#coFollowListModal` (modal HTML)
 - `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
 - `static/company/company.main.js` — Company Followers Modal IIFE + Soft Refresh IIFE
@@ -422,10 +422,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 23. Credential Verification / KYC
 **Purpose:** Users submit documents for credential verification; admin approves/rejects; verified badge shown on profile.
-**Source of Truth:** `verify_requests` table (status: pending/approved/rejected) · `profiles.is_verified`
+**Source of Truth:** KYC only — `kyc_submissions` · `/kyc/*` · `GET /admin/kyc` + approve / reject · `profiles.is_verified`. The old per-item request system (`POST /verify-request` · `GET /admin/verify-requests` · `PUT /admin/verify/{req_id}` · `create_verify_request` · admin «توثيق» tab · `verify_request` owner field · `stats.verified_count`) was **deleted in PR 3.9**; the `verify_requests` table is no longer created or read (`DROP` pending — PR 3.9 report).
 **Details:** `ARCHITECTURE.md §52` · `docs/rules/project-reference.md → Key Workflows → Credential Verification Flow`
 **Admin document viewing (PR-7c):** `GET /admin/kyc/{submission_id}/docs` (`check_admin`) → short-lived (300s) Supabase signed URLs for ID + selfie, `Cache-Control: no-store`; only paths exactly `kyc-docs/{user_id of the submission}_{kind}_{12hex}.{ext}` are signed, anything else → `url: null` + `reason`. `GET /admin/kyc` returns an explicit allowlist only (`auth._ADMIN_KYC_LIST_COLUMNS`: `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at`) — never `email_code` / `phone_code` / `id_front_url` / `selfie_url`, never `SELECT ks.*`. `admin.html` → "عرض المستندات" modal before approve/reject. Spec: `ARCHITECTURE.md → Image Upload Security Contract`.
-**Do not recreate:** Admin approval endpoint is `PUT /admin/verify/{req_id}`. Do not auto-approve without admin review. Do not expose KYC paths in list endpoints, log a signed URL, or make `kyc-docs` public.
+**Do not recreate:** ❌ a second verification flow next to KYC (no `/verify-request`, no `verify_requests` reads). Do not auto-approve without admin review. Do not expose KYC paths in list endpoints, log a signed URL, or make `kyc-docs` public.
 
 ---
 
@@ -476,7 +476,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 29. File Uploads / Image Upload
 **Purpose:** Upload and crop profile avatars, company logos, and verification documents. Files stored via Supabase storage.
-**Source of Truth:** `POST /upload/image` endpoint · `profiles.avatar_url` · `profiles.logo_url` (company) · `verify_requests.document_url`
+**Source of Truth:** `POST /upload/image` endpoint · `profiles.avatar_url` · `profiles.logo_url` (company)
 **Details:** `ARCHITECTURE.md Profile V2 Avatar Module`
 **Do not recreate:** Do not store files in the DB as base64. Do not bypass the upload endpoint. Do not call `fetch('/upload/image')` directly from page modules — use `TW.uploadImage()` from `static/shared/tw-upload.js`.
 
@@ -1146,7 +1146,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `docs/security/PROFILE-DATA-VISIBILITY.md` · `project_public_profile()` / `project_owner_profile()` / `project_owner_kyc_status()` / `calculate_age_from_dob()` in `auth.py`
 **Details:** `docs/security/PROFILE-DATA-VISIBILITY.md` (field tiers, endpoint ownership contract, cross-user lookup, cache boundary, OTP security, projection function contracts, derived public fields rule)
 **Tier 1 — Public** (no auth): `id`, `tw_id`, `full_name`, `user_type`, `is_verified`, `headline`, `bio`, `short_bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`, `title`, `profile_color`, `profile_style`, `profession_id`, `profession`, `sections_order`, `custom_sections`, `first_name`, `middle_name`, `last_name`, `experience[]`, `education[]`, `courses[]`, `skills[]`, `langs[]`, `links[]`, `following_count`, `age` (backend-derived from `dob` — never `dob` itself in Tier 1). Never: `dob`, `phone`, `email`, `verify_request`, `password_hash`. Via `GET /profile/{id}`.
-**Tier 2 — Owner-Only** (JWT, `token.user_id == uid`): all Tier 1 + `email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`, `verify_request`. Also includes `age` alongside `dob` for UI convenience. Via `GET /profile/{id}/full`.
+**Tier 2 — Owner-Only** (JWT, `token.user_id == uid`): all Tier 1 + `email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`. Also includes `age` alongside `dob` for UI convenience. Via `GET /profile/{id}/full`.
 **Tier 3 — KYC-Owner** (JWT, `token.user_id == uid`): exactly 7 fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at` — **never** `email_code`, `phone_code`, OTP values, `kyc_status`, `docs_submitted`, `created_at`, `updated_at`. Via `GET /kyc/status/{id}`.
 **Tier 4 — Never Returned**: `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens, `dob` in public responses.
 **Derived Public Fields Rule:** Derived fields may be computed from private source fields only inside the backend projection boundary. The private source field must never be copied into the public response. `age` is the canonical example: `dob` → `calculate_age_from_dob()` → `age` in response, `dob` discarded.
@@ -1226,4 +1226,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-07 — PR 3.8 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-07 — PR 3.9 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

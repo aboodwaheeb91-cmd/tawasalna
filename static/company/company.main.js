@@ -2338,7 +2338,6 @@
   var _jobPopTarget = null;
 
   function _statusLabel(s) { return _STATUS_LABELS[s] || _STATUS_LABELS['saved']; }
-  function _statusKey(s)   { return _STATUS_LABELS[s] ? s : 'saved'; }
 
   // ── Owner guard ────────────────────────────────────────────────
   function _isOwner() {

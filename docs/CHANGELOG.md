@@ -11,6 +11,17 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 3.9 — حذف الكود الميت والمؤقت — 2026-10-07
+
+- **الأرقام:** كود الإنتاج −586 / +16 سطر (15 ملف) · الاختبارات والتوثيق الباقي. ملفين انحذفوا كاملين: `messages.debug.js` · `static/app-header.js`.
+- **نظام طلب التوثيق القديم (قرار زعتر — التوثيق = KYC بس):** `POST /verify-request` · `GET /admin/verify-requests` · `PUT /admin/verify/{req_id}` · `VerifyRequestInput` / `VerifyUpdateInput` · `create_verify_request` · حقل `verify_request` بملف المالك · `stats.verified_count` بصفحة الشركة (كان دايماً 0) · `CREATE TABLE verify_requests` · تبويب «توثيق» + كرت «طلبات توثيق» بـ `admin.html` (KYC تبويبه موجود). الجدول نفسه ما انحذف (`DROP` بقرار زعتر).
+- **سطر «المتصلون الآن» (قرار زعتر):** `#onlineRow` + `renderOnlineRow()` + CSS `.online-*` (ما كان إله مصدر بيانات).
+- **Aliases المتابعة (#576):** `POST|DELETE /company/follow/{id}` · `GET /company/{id}/followers` — الواجهة بتستعمل `/profile/{id}/*` بس.
+- **هيدر قديم بعد #577:** `static/app-header.js` (`initAppHeader` ما حدا بيستدعيه) + سطرين `<script>` بـ `company-profile.html` / `profile-showcase.html`.
+- **مؤقت/ميت:** `messages.debug.js` + 3 استدعاءات `twDebugLog` · `get_full_profile_by_tw_id` · `adminToast` · `loadUserApplications` / `loadCompanyJobs` (admin-view) · `_showFieldErr` (profile-v2.exp) · `showSaved` (settings) · `_statusKey` (company.main).
+- **ما انحذف:** `company_follows` + migration تبعه (ما في تأكيد من الإنتاج) · `/admin/message` + `/admin/news` (مستعملين) · `applyNavLogo` (بـ `tw_shared.js` — جلسة تانية) · دوال مقفولة باختبارات أو مشكوكة (تقرير PR 3.9).
+- Docs: SYSTEMS_INDEX §19 · §20 · §20a · §23 · §29 · §52 · ARCHITECTURE (company stats · KYC · Follow · Admin · messages online row · public_id V · schema) · `docs/rules/{project-reference,vm10-header,home-v2}.md` · `PROFILE-DATA-VISIBILITY.md` · `NOTIFICATIONS_PLAN.md` · IMAGE-SYSTEM · FUTURE_ROADMAP. Tests: `test_follow_system.py` (aliases → 404) · `test_post_comments.py` (§147 · §SEC-3 · §150f · §154h/j) · `test_global_ui_visibility.py` M02 · `test_page_shell_security.py` · `test_tw_shared_runtime.js` T11b.
+
 ## PR 3.8 — DS-COLOR المرحلة 2: كل لون من التوكنز + override أدمن — 2026-10-07
 
 - `tw_shared.css`: مجموعة توكنز كاملة (COLOR-SYSTEM CLR-35) — brand text/hover · `--color-ink(-rgb)` / `--color-overlay(-rgb)` · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status `*-strong` · categorical لوحة المنشور. قاعدة التوأم `-rgb` + جدول دمج (من ← إلى). القواعد الموجودة صارت مبنية على `--color-ink-rgb` (نفس القيمة) — جاهزة لـ `[data-theme="light"]` (CLR-23، بدون بناء).

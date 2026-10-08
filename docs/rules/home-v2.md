@@ -14,7 +14,6 @@ These rules are permanent and apply to all future AI sessions:
 3. **Files are split — keep them split (modular structure):**
    - `home-v2.html` — HTML هيكل فقط
    - `static/app-header.css` — CSS vars + `.sc-header` / `.sc-*` shared header classes
-   - `static/app-header.js` — `initAppHeader(user)` — layout-only (VM-10 compliant): avatar + logout delegation; no polling, no setInterval, no session resolution
    - `static/home-v2.css` — أنماط الصفحة (`.hw-*` namespace)
    - `static/home/home.utils.js` — constants + DOM helpers
    - `static/home/home.state.js` — shared state (`window.Home.state`)

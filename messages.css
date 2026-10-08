@@ -49,32 +49,6 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   color:#fff;border-color:transparent;box-shadow:0 2px 10px rgba(0,200,150,.22);
 }
 
-/* ── Online row ── */
-.online-row{border-bottom:1px solid var(--border);padding:10px 0 10px 12px;}
-.online-row-head{font-size:.66rem;font-weight:800;color:var(--t2);padding:0 14px 8px;}
-.online-row-items{display:flex;gap:14px;overflow-x:auto;padding:0 14px;}
-.online-row-items::-webkit-scrollbar{display:none;}
-.online-empty{font-size:.68rem;color:var(--t3);padding:6px 0;width:100%;text-align:center;}
-.online-item{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;width:54px;cursor:pointer;}
-.online-ava-wrap{position:relative;width:48px;height:48px;}
-.online-ava{
-  width:48px;height:48px;border-radius:50%;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;font-weight:800;color:#fff;
-  border:2px solid var(--bg2);
-}
-.online-ava img{width:100%;height:100%;object-fit:cover;display:block;}
-.online-dot{
-  position:absolute;bottom:-2px;left:-2px;width:13px;height:13px;border-radius:50%;
-  background:#00c896;border:2px solid var(--bg2);
-}
-.online-type-badge{
-  position:absolute;top:-2px;right:-2px;width:15px;height:15px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:.52rem;
-  border:2px solid var(--bg2);line-height:1;
-}
-.online-name{font-size:.62rem;color:var(--t2);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-
 .conv-items{flex:1;overflow-y:auto;}
 
 /* thin scrollbars */

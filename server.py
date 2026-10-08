@@ -114,9 +114,9 @@ from auth import (
     search_schedule_people,
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     get_public_profile, get_full_profile, update_profile,
-    get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
+    get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
-    add_experience, update_experience, reorder_experience, add_education, add_course, update_education, update_course, create_verify_request,
+    add_experience, update_experience, reorder_experience, add_education, add_course, update_education, update_course,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
@@ -1370,14 +1370,6 @@ def get_company_profile(company_id: str, request: Request):
         )
         jobs_count = j_rows[0][0] if j_rows else 0
 
-        # ── verified_count from DB ──
-        v_rows = conn.run(
-            "SELECT COUNT(*) FROM verify_requests "
-            "WHERE item_company = :name AND status = 'verified'",
-            name=profile.get("full_name", "")
-        )
-        verified_count = v_rows[0][0] if v_rows else 0
-
     finally:
         release_conn(conn)
 
@@ -1395,7 +1387,6 @@ def get_company_profile(company_id: str, request: Request):
         "posts_count":      posts_count,
         "views_count":      views_count,
         "followers_count":  extras["followers_count"],
-        "verified_count":   verified_count,
         "rating_avg":       extras["rating_avg"],
         "rating_count":     extras["rating_count"],
     }
@@ -1795,20 +1786,8 @@ class CourseInput(BaseModel):
     certificate_url: Optional[str] = None
     description: Optional[str] = None
 
-class VerifyRequestInput(BaseModel):
-    user_id: Optional[int] = None   # ignored server-side — owner determined from JWT
-    item_type: Optional[str] = None   # exp / edu / course
-    item_id: Optional[int] = None
-    item_title: Optional[str] = None
-    item_company: Optional[str] = None
-    document_url: Optional[str] = None
-    notes: Optional[str] = None
-
 class AdminLoginInput(BaseModel):
     password: str
-
-class VerifyUpdateInput(BaseModel):
-    status: str
 
 class AdminMessageInput(BaseModel):
     user_id: int
@@ -2387,27 +2366,6 @@ class ReportInput(BaseModel):
 
 
 # ══ Phase 2 Step 4: Company social endpoints (rate) ══
-# Follow System (PR 3.5): /company/follow/{id} and /company/{id}/followers are TEMPORARY
-# aliases of /profile/{id}/follow and /profile/{id}/followers — same functions, same
-# profile_follows table — kept only for pages cached by old browsers. Delete in PR 3.9.
-@app.post("/company/follow/{company_id}")
-def company_follow(company_id: str, token=Depends(verify_token)):
-    r = _follow_set(token, company_id, True)   # alias — delete in PR 3.9
-    return {"status": "success", "following": r["is_following"], **r}
-
-
-@app.delete("/company/follow/{company_id}")
-def company_unfollow(company_id: str, token=Depends(verify_token)):
-    r = _follow_set(token, company_id, False)  # alias — delete in PR 3.9
-    return {"status": "success", "following": r["is_following"], **r}
-
-
-@app.get("/company/{company_id}/followers")
-def company_followers_list(company_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
-    """Alias of GET /profile/{id}/followers (PR 3.5) — delete in PR 3.9."""
-    return profile_followers_list(company_id, request, limit, offset, type)
-
-
 @app.post("/company/rate/{company_id}")
 def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_token)):
     user_id   = token.get("user_id")
@@ -3807,7 +3765,7 @@ def full_profile(user_id: str, token=Depends(verify_token)):
 # ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
 # ONE rule: any signed-in account (emp / co / edu) follows any other account, never
 # itself. Guest → 401 (verify_token) → the page sends them to login. One table:
-# profile_follows. /company/follow/* are temporary aliases of _follow_set (PR 3.9).
+# profile_follows. The /company/follow/* aliases were removed in PR 3.9.
 
 def _resolve_account_id(raw: str) -> int:
     """Numeric users.id or tw_id → users.id. 404 when unknown."""
@@ -5159,18 +5117,6 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
     return {"status": "success", "dry_run": dry, "report": report}
 
 
-@app.post("/verify-request")
-def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):
-    try:
-        payload = data.dict(exclude={"user_id"})
-        req = create_verify_request(int(token["user_id"]), payload)
-        return {"status": "success", "request": req}
-    except ValueError as e:
-        raise HTTPException(404, detail=str(e))
-    except Exception as e:
-        print(f"Verify request error: {e}")
-        raise HTTPException(500, detail="خطأ في الخادم")
-
 # ══════════════════════════════════════════
 # Jobs & Match
 # ══════════════════════════════════════════
@@ -5598,68 +5544,6 @@ def get_all_users(request: Request):
     except Exception as e:
         print(f"get_all_users error: {e}")
         raise _server_error("get_all_users", e)
-    finally:
-        release_conn(conn)
-
-@app.get("/admin/verify-requests")
-def admin_verify_requests(request: Request):
-    check_admin(request)
-    conn = get_conn()
-    try:
-        rows = conn.run("""
-            SELECT vr.id, vr.user_id, u.full_name AS user_name,
-                   vr.item_type, vr.item_id, vr.item_title, vr.item_company,
-                   vr.notes, vr.status, vr.created_at
-            FROM verify_requests vr
-            JOIN users u ON u.id = vr.user_id
-            ORDER BY vr.created_at DESC
-        """)
-        cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
-        reqs = [dict(zip(cols, r)) for r in rows]
-        for r in reqs:
-            if r.get("created_at"):
-                r["created_at"] = str(r["created_at"])[:10]
-        return {"requests": reqs, "total": len(reqs)}
-    except Exception as e:
-        print(f"verify_requests error: {e}")
-        raise _server_error("admin_verify_requests", e)
-    finally:
-        release_conn(conn)
-
-@app.put("/admin/verify/{req_id}")
-def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
-    check_admin(request)
-    conn = get_conn()
-    try:
-        # Fetch request owner before update (needed for notification)
-        vr_rows = conn.run("SELECT user_id FROM verify_requests WHERE id = :id", id=req_id)
-        conn.run(
-            "UPDATE verify_requests SET status = :s WHERE id = :id",
-            s=data.status, id=req_id
-        )
-        # Phase 8: notify request owner on verification decision (non-fatal)
-        try:
-            if vr_rows:
-                req_owner_id = int(vr_rows[0][0])
-                approved = data.status == "approved"
-                create_notification(
-                    user_id=req_owner_id,
-                    type_="verify",
-                    title="تم مراجعة طلب توثيقك" if approved else "طلب توثيقك يحتاج مراجعة",
-                    body="تمت الموافقة على طلب التوثيق ✅" if approved else "تم رفض طلب التوثيق",
-                    link="/settings",
-                    entity_id=req_id,
-                    entity_type="verify_request",
-                    event_key=f"verify_{data.status}:verify_request:{req_id}:admin"
-                )
-        except Exception as _ne:
-            print(f"[TW-WARN] verify notification (req {req_id}) failed: {_ne}")
-        return {"success": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"update_verify error: {e}")
-        raise _server_error("admin_update_verify", e)
     finally:
         release_conn(conn)
 
