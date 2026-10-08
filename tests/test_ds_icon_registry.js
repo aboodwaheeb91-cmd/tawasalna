@@ -153,7 +153,8 @@ check('registry names are unique', new Set(entries.map(e => e.name)).size === en
 // ── 6. consumers = phase-C pages only (one PR per page adds itself here) ──
 // + unified app header pages (PR 3.2 — HEADER-NAV.md: the header renders its icons with twIcon)
 const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', 'appointment-room.html',
-  'home-v2.html', 'notifications.html', 'messages.html', 'edu-profile.html', 'settings.html'];
+  'home-v2.html', 'notifications.html', 'messages.html', 'edu-profile.html', 'settings.html',
+  'index.html'];   // index.html: PR 4.8 (Lucide → DS-ICON)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {

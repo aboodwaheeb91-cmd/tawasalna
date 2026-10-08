@@ -102,6 +102,7 @@ NODE_TESTS=(
   test_ds_icon_registry.js          # its RTL browser part prints SKIP without Playwright
   test_ds_image_runtime.js
   test_ds_overlay_runtime.js
+  test_login_jobdetail_runtime.js
   test_messages_page_runtime.js
   test_notifications_page_runtime.js
   test_home_landing_runtime.js
