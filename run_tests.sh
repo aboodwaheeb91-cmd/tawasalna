@@ -50,6 +50,7 @@ PY_PYTEST=(
 
 # ── Python — run as a script (own checks + exit code) ──────────────────────
 PY_SCRIPT=(
+  test_admin_pages_min.py
   test_admin_safe_rendering.py
   test_app_icons.py
   test_applicants_candidates_split.py

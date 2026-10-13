@@ -298,23 +298,12 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
   </div>
 </div>
 
-<!-- MIGRATE CONFIRM MODAL (PR-7c) -->
-<div class="modal-ov" id="migConfirmModal" style="display:none">
-  <div class="modal-box">
-    <div class="modal-title">⬆️ ترحيل الصور إلى التخزين</div>
-    <div style="font-size:.75rem;color:var(--t2);margin-bottom:12px">سيتم رفع صور data: المخزّنة داخل قاعدة البيانات إلى التخزين واستبدالها بروابط. القيم غير الصالحة تبقى كما هي. متابعة؟</div>
-    <div style="display:flex;gap:8px">
-      <button class="mbtn mbtn-ok" onclick="runMigrateDataImages(this)">ترحيل</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('migConfirmModal').style.display='none'">إلغاء</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <!--tw:strings-->
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
 <script>
 'use strict';
 
@@ -332,11 +321,9 @@ async function adminLogin(){
   const btn = document.querySelector('.login-btn');
   btn.textContent = 'جاري...'; btn.disabled = true;
   try {
-    const r = await fetch('/tw-ctrl-login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({password:p})
-    });
-    const data = await r.json();
+    // No admin session yet → shared client without user auth (a 401 here = wrong password, not an expired session).
+    const r = await twApi('/tw-ctrl-login', {method:'POST', auth:false, body:{password:p}});
+    const data = r.data || {};
     if(r.ok && data.token){
       TwAdminSession.setToken(data.token);
       document.getElementById('login-expired').style.display='none';
@@ -397,10 +384,11 @@ async function uploadLogo(btn){
 
 // ── Load Logo on init ──
 (function(){
-  fetch('/admin/logo').then(r=>r.json()).then(d=>{
-    if(d.logo_wide&&/^(https?:\/\/|\/(?!\/))/.test(d.logo_wide)){
+  TwAdminSession.fetch('/admin/logo').then(r=>r.json()).then(d=>{
+    var logo=twSafeImageUrl(d.logo_wide);
+    if(logo){
       var p=document.getElementById('prevWide');
-      if(p){p.innerHTML='<img src="'+twEscAttr(d.logo_wide)+'" style="max-height:38px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
+      if(p){p.innerHTML='<img src="'+twEscAttr(logo)+'" style="max-height:38px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
     }
   }).catch(()=>{});
 })();
@@ -437,7 +425,7 @@ async function loadAll(){
 
 function loadAdminStats(){
   Promise.all([
-    fetch('/jobs').then(r=>r.ok?r.json():{jobs:[]}).catch(()=>({jobs:[]})),
+    TwAdminSession.fetch('/jobs').then(r=>r.ok?r.json():{jobs:[]}).catch(()=>({jobs:[]})),
     TwAdminSession.fetch('/admin/kyc',{headers:adminHeaders()}).then(r=>r.ok?r.json():{submissions:[]}).catch(()=>({submissions:[]}))
   ]).then(([jobsData,kycData])=>{
     _allJobs=jobsData.jobs||[];
@@ -485,16 +473,16 @@ function renderUsers(list){
   renderPagination('usersPag',list.length,_usersPage,PAG_SIZE,'goUsersPage');
   var colors={co:'border-right:3px solid rgba(37,99,255,.5);background:rgba(37,99,255,.04)',edu:'border-right:3px solid rgba(124,58,237,.5);background:rgba(124,58,237,.04)'};
   tb.innerHTML=paged.map(u=>`
-    <div class="tr" style="${colors[u.user_type]||''};cursor:pointer" onclick="openUserDetail(${u.id})">
+    <div class="tr" style="${colors[u.user_type]||''};cursor:pointer" onclick="openUserDetail(${Number(u.id)})">
       <div class="user-info">
         <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
         <div><div class="u-nm">${twEscHtml(u.full_name)||'—'}</div><div class="u-em">${twEscHtml(u.email)}</div></div>
       </div>
       <span style="padding:2px 8px;border-radius:20px;font-size:.65rem;${u.user_type==='co'?'background:rgba(37,99,255,.15);color:#60a5fa':u.user_type==='edu'?'background:rgba(124,58,237,.15);color:#a78bfa':'background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)'}">${typeLabel(u.user_type)}</span>
       <div style="display:flex;gap:5px">
-        <button class="ab" data-action="msg" data-uid="${u.id}" data-uname="${twEscAttr(u.full_name||'المستخدم')}" title="رسالة">✉️</button>
-        <button class="ab" onclick="event.stopPropagation();verifyUser(${u.id})" title="توثيق">✅</button>
-        <button class="ab" style="color:#f87171" onclick="event.stopPropagation();deleteUser(${u.id})" title="حذف">🗑</button>
+        <button class="ab" data-action="msg" data-uid="${Number(u.id)}" data-uname="${twEscAttr(u.full_name||'المستخدم')}" title="رسالة">✉️</button>
+        <button class="ab" onclick="event.stopPropagation();verifyUser(${Number(u.id)})" title="توثيق">✅</button>
+        <button class="ab" style="color:#f87171" onclick="event.stopPropagation();deleteUser(${Number(u.id)})" title="حذف">🗑</button>
       </div>
     </div>`).join('');
 }
@@ -527,7 +515,7 @@ function renderJobs(list){
     <div class="tr">
       <div><div class="u-nm">${twEscHtml(j.title)||'—'}</div><div class="u-em">${twEscHtml(j.company_name)||'—'}</div></div>
       <span class="statu ${j.status==='active'?'active':'pending'}">${j.status==='active'?'نشط':'متوقف'}</span>
-      <button class="ab" style="color:#f87171" onclick="deleteJob(${j.id})">🗑</button>
+      <button class="ab" style="color:#f87171" onclick="deleteJob(${Number(j.id)})">🗑</button>
     </div>`).join('');
 }
 
@@ -552,8 +540,8 @@ function renderKYC(list){
       <span class="statu ${k.step==='review'?'pending':'active'}">${k.step==='review'?'قيد المراجعة':k.step==='approved'?'موافق':'رفض'}</span>
       <div style="display:flex;gap:5px">
         <button class="ab" onclick="openKYCDocs(${Number(k.id)},${Number(k.user_id)})">🪪 عرض المستندات</button>
-        <button class="ab" style="color:#00c896" onclick="approveKYC(${k.user_id})">✅</button>
-        <button class="ab" style="color:#f87171" onclick="rejectKYC(${k.user_id})">❌</button>
+        <button class="ab" style="color:#00c896" onclick="approveKYC(${Number(k.user_id)})">✅</button>
+        <button class="ab" style="color:#f87171" onclick="rejectKYC(${Number(k.user_id)})">❌</button>
       </div>
     </div>`).join('');
 }
@@ -590,8 +578,8 @@ async function loadReports(){
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${rep.target_url&&/^(https?:\/\/|\/(?!\/))/.test(rep.target_url)?`<a href="${twEscAttr(rep.target_url)}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
-          <button class="ab" style="color:#f87171;font-size:.65rem" onclick="deleteReportedUser(${rep.reported_id})">🗑 حذف</button>
-          ${rep.status==='pending'?`<button class="ab" style="color:#00c896;font-size:.65rem" onclick="resolveReport(${rep.id})">✅ حل</button>`:''}
+          <button class="ab" style="color:#f87171;font-size:.65rem" onclick="deleteReportedUser(${Number(rep.reported_id)})">🗑 حذف</button>
+          ${rep.status==='pending'?`<button class="ab" style="color:#00c896;font-size:.65rem" onclick="resolveReport(${Number(rep.id)})">✅ حل</button>`:''}
         </div>
       </div>`).join('');
   }catch(e){
@@ -609,7 +597,7 @@ async function resolveReport(id){
 }
 
 async function deleteReportedUser(userId){
-  if(!confirm('حذف هذا المستخدم نهائياً؟')) return;
+  if(!await _confirmDeleteUser()) return;
   try{
     await TwAdminSession.fetch('/admin/user/'+userId,{method:'DELETE',headers:adminHeaders()});
     showToast('تم حذف المستخدم');
@@ -627,19 +615,23 @@ async function loadErrors(){
       tb.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">✅</span><div class="tw-empty-title">لا أخطاء مسجلة</div></div>';
       return;
     }
-    tb.innerHTML='<div style="font-size:.7rem;color:var(--t3);margin-bottom:8px">آخر '+data.count+' خطأ</div>'+
+    tb.innerHTML='<div style="font-size:.7rem;color:var(--t3);margin-bottom:8px">آخر '+Number(data.count||0)+' خطأ</div>'+
       data.errors.map(e=>
         '<div style="padding:8px 12px;border-bottom:1px solid var(--bdr);font-size:.72rem">'+
         '<span style="color:#f87171">'+twEscHtml(e.type)+'</span> · <span style="color:var(--t2)">'+twEscHtml(e.page)+'</span>'+
-        (e.line?' · line '+e.line:'')+
+        (e.line?' · line '+Number(e.line):'')+
         '<div style="color:var(--t3);margin-top:2px">'+twEscHtml(e.msg)+'</div></div>'
       ).join('');
   }catch(e){console.error(e);}
 }
 
 // ── Actions ──
+// Permanent account delete (DS-OVL danger confirm — says exactly what happens).
+function _confirmDeleteUser(){
+  return twConfirm({title:twT('admin.delete_user.title'),message:twT('admin.delete_user.message'),confirmText:twT('admin.delete.confirm'),danger:true});
+}
 async function verifyUser(id){
-  if(!confirm('توثيق هذا الحساب؟')) return;
+  if(!await twConfirm({title:twT('admin.verify.title'),message:twT('admin.verify.message'),confirmText:twT('admin.verify.confirm')})) return;
   try{
     await TwAdminSession.fetch('/admin/user/'+id+'/verify',{method:'PUT',headers:adminHeaders(),body:JSON.stringify({verified:true})});
     showToast('تم التوثيق ✅');
@@ -648,7 +640,7 @@ async function verifyUser(id){
 }
 
 async function deleteUser(id){
-  if(!confirm('حذف هذا المستخدم نهائياً؟')) return;
+  if(!await _confirmDeleteUser()) return;
   try{
     await TwAdminSession.fetch('/admin/user/'+id,{method:'DELETE',headers:adminHeaders()});
     showToast('تم الحذف');
@@ -657,7 +649,7 @@ async function deleteUser(id){
 }
 
 async function deleteJob(id){
-  if(!confirm('حذف هذه الوظيفة؟')) return;
+  if(!await twConfirm({title:twT('admin.delete_job.title'),message:twT('admin.delete_job.message'),confirmText:twT('admin.delete.confirm'),danger:true})) return;
   try{
     await TwAdminSession.fetch('/admin/jobs/'+id,{method:'DELETE',headers:adminHeaders()});
     showToast('تم الحذف');
@@ -741,9 +733,8 @@ async function _callMigrate(dry,btn){
   finally{ if(btn) btn.disabled=false; }
 }
 function scanDataImages(btn){ _callMigrate(true,btn); }
-function openMigrateConfirm(){ document.getElementById('migConfirmModal').style.display='flex'; }
-function runMigrateDataImages(btn){
-  document.getElementById('migConfirmModal').style.display='none';
+async function openMigrateConfirm(){
+  if(!await twConfirm({title:twT('admin.migrate.title'),message:twT('admin.migrate.message'),confirmText:twT('admin.migrate.confirm'),danger:true})) return;
   _callMigrate(false,null);
 }
 

@@ -1,18 +1,18 @@
 {
   "admin-view.html": {
-    "colors": 145,
-    "dialogs": 7,
+    "colors": 130,
+    "dialogs": 0,
     "fetch": 0,
     "forsa": 0,
-    "helpers": 2,
+    "helpers": 0,
     "ls_session": 0,
     "no_header": 1,
     "no_shell": 1
   },
   "admin.html": {
     "colors": 110,
-    "dialogs": 4,
-    "fetch": 3,
+    "dialogs": 0,
+    "fetch": 0,
     "forsa": 0,
     "helpers": 0,
     "ls_session": 0,
