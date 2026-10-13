@@ -7,6 +7,7 @@
  *   A  twScheduleButton visibility — company viewer + emp other side only (not self / not co / guest)
  *   B  open appointment → «فتح الموعد» → room · draft keeps «تحديد موعد» · one batched request
  *   C  twScheduleMount replaces slots · old page-specific modal / application_id field are gone
+ *   D  draft dialog (PR 4.0): opens on the draft's mode + place · switching to أونلاين sends mode on /send
  *
  * Run: node tests/test_schedule_interview_runtime.js
  */
@@ -34,7 +35,9 @@ function makeEl(tag) {
   const attrs = {}, listeners = {};
   const el = {
     tagName: String(tag).toUpperCase(), className: '', children: [], parentNode: null,
-    style: {},
+    style: {}, value: '', hidden: false,
+    get options() { return el.children; },
+    remove: i => { el.children.splice(i, 1); },
     setAttribute: (k, v) => { attrs[k] = String(v); },
     getAttribute: k => (Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null),
     hasAttribute: k => Object.prototype.hasOwnProperty.call(attrs, k),
@@ -44,6 +47,7 @@ function makeEl(tag) {
     replaceChild: (n, o) => { el.children[el.children.indexOf(o)] = n; n.parentNode = el; o.parentNode = null; },
     querySelectorAll: () => el.children.filter(c => c.hasAttribute && c.hasAttribute('data-tw-schedule-slot')),
     click: () => (listeners.click || []).forEach(fn => fn({ preventDefault() {}, stopPropagation() {} })),
+    find: pred => { if (pred(el)) return el; for (const c of el.children) { const f = c.find && c.find(pred); if (f) return f; } return null; },
   };
   // textContent like the DOM: own text once set, else the children's text (twAction → <span> label)
   let own = null;
@@ -56,12 +60,19 @@ function makeEl(tag) {
 
 function ctxFor(snapshot, openData, noRegistry) {
   const timers = [];
-  const calls = [];
+  const calls = [], posts = [], modals = [];
   const ctx = {
     console, Promise, encodeURIComponent, Object, Array, String, parseInt, isNaN, Intl, Date,
     setTimeout: fn => { timers.push(fn); return timers.length; }, clearTimeout: () => {},
     TwAuthSync: { getSessionSnapshot: () => snapshot },
-    twApi: url => { calls.push(url); return Promise.resolve({ ok: true, data: openData || {} }); },
+    twApi: (url, opts) => {
+      calls.push(url); posts.push({ url, body: opts && opts.body });
+      if (/\/send$/.test(url)) return Promise.resolve({ ok: true, data: { id: 4 } });
+      return Promise.resolve({ ok: true, data: openData || {} });
+    },
+    twModal: cfg => { modals.push(cfg); },
+    twApiMessage: (r, f) => f,
+    twSafeLinkUrl: u => (/^https?:\/\/\S+$/.test(u) ? u : ''),
     location: { href: '/u/U1' },
     document: {
       getElementById: () => null, createElement: makeEl,
@@ -79,7 +90,7 @@ function ctxFor(snapshot, openData, noRegistry) {
   }
   vm.runInContext(read('static/shared/tw-schedule.js'), ctx, { filename: 'tw-schedule.js' });
   const flush = async () => { while (timers.length) timers.shift()(); for (let i = 0; i < 5; i++) await null; };
-  return { ctx, calls, flush };
+  return { ctx, calls, posts, modals, flush };
 }
 
 const CO  = { isAuthenticated: true, userType: 'co',  userId: 8 };
@@ -137,6 +148,36 @@ const GUEST = { isAuthenticated: false, userType: null, userId: null };
       const o = s.indexOf('tw-overlay.js'), t = s.indexOf('tw-schedule.js');
       return o > 0 && t > o;
     }));
+
+  console.log('\nD — draft dialog keeps the draft mode (PR 4.0)');
+  const d = ctxFor(CO, { 6: { id: 4, status: 'draft', job_id: 3, job_title: 'مطوّر',
+    mode: 'onsite', online_url: null, location_text: 'مكتب عمّان' } });
+  const dBtn = d.ctx.twScheduleButton({ candidateId: 6, candidateName: 'سارة', jobId: 3 });
+  await d.flush();
+  dBtn.click();
+  const dlg = d.modals[0];
+  check('D0 draft click opens the shared dialog', !!dlg && !!dlg.content);
+  const form = dlg.content;
+  const seg = form.find(n => n.className === 'tw-sch-seg');
+  const [bOn, bOff] = seg.children;
+  const urlIn = form.find(n => n.type === 'url');
+  const locIn = form.find(n => n.tagName === 'INPUT' && n.maxLength === 500);
+  check('D1 draft حضوري → dialog opens on حضوري (not the أونلاين default)',
+    bOff.getAttribute('aria-pressed') === 'true' && bOn.getAttribute('aria-pressed') === 'false'
+    && urlIn.parentNode.hidden === true && locIn.parentNode.hidden === false);
+  check('D2 the draft place is loaded', locIn.value === 'مكتب عمّان', locIn.value);
+  // pick a date ~6 months ahead + switch to أونلاين with a link, then send
+  const pick = (cls, v) => { form.find(n => (n.className || '').indexOf(cls) !== -1).value = String(v); };
+  pick('tw-sch-yr', new Date().getFullYear() + 1); pick('tw-sch-mon', 6); pick('tw-sch-day', 15);
+  pick('tw-sch-hr', 10); pick('tw-sch-min', 0); pick('tw-sch-ap', 'am');
+  bOn.click();
+  urlIn.value = 'https://meet.example.com/abc';
+  await dlg.actions[1].onClick();
+  const send = d.posts.find(p => /\/api\/appointments\/4\/send$/.test(p.url));
+  check('D3 no new appointment is created for a draft', !d.posts.some(p => p.url === '/api/appointments'));
+  check('D4 /send carries the new mode + link (no place)', !!send && send.body.mode === 'online'
+    && send.body.online_url === 'https://meet.example.com/abc' && send.body.location_text === null,
+    JSON.stringify(send && send.body));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

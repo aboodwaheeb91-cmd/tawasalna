@@ -3861,6 +3861,7 @@ Custom override:
 | 4005 | Policy Violation | Typing rate limit exceeded; `_WS_MAX_VIOLATIONS` unknown events |
 | 4006 | Origin Denied | Origin header rejected by fail-closed origin policy |
 | 4007 | Too Many Connections | User already has `_WS_MAX_CONN_PER_USER = 10` active connections |
+| 4008 | Session Revoked (PR 4.0) | User's sessions ended (password change · admin reset · account deleted) → `_ws_revoke_user()` closes all their sockets. Client reconnects **only with a JWT different from the revoked one** (now, or 2s later, or on `token_renewed`) — never a 4001 loop, never a logout |
 
 ### Per-Event Authorization (Authenticated Loop)
 
@@ -12652,6 +12653,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id})` | `iat ≥ stamp` → survives |
 | Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
+| Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
 
 Known edge: a JWT issued **in the same second** as the change (iat == stamp) stays valid — accepted (second granularity of `iat`).
 
@@ -12782,12 +12784,12 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 |----------|---------|
 | `POST /api/appointments` | draft appointment (contract converted in PR 3.10 — every caller is `tw-schedule.js` via `twApi`) |
 | `GET /api/schedule/jobs` | `[{id, title}]` — active jobs of the company (`list_jobs_for_scheduling`) |
-| `GET /api/schedule/open?candidate_ids=1,2&job_id=` | `{"<uid>": {id, status, job_id, job_title, scheduled_at} \| null}` — newest appointment that still blocks a new one (not cancelled / expired / missed / closed — same set as the dup guard); ≤ 50 ids, digits only (`get_open_appointments`) |
+| `GET /api/schedule/open?candidate_ids=1,2&job_id=` | `{"<uid>": {id, status, job_id, job_title, scheduled_at, mode, online_url, location_text} \| null}` (mode / link / place since PR 4.0 — a draft re-opens on them) — newest appointment that still blocks a new one (not cancelled / expired / missed / closed — same set as the dup guard); ≤ 50 ids, digits only (`get_open_appointments`) |
 | `GET /api/schedule/people?q=` | `[{id, full_name, tw_id, avatar_url, sources}]` — name search (ILIKE, escaped) among the company's applicants · promoted pipeline candidates · Talent Bank; `emp` only, never the company; ≤ 20 (`search_schedule_people`) |
 
 ### Frontend — `static/shared/tw-schedule.js` (page asset after `tw-overlay.js`; never in the shell)
 
-- `twScheduleInterview(opts)` — DS-OVL `twModal`: person (search when unknown) · job (active-jobs picker when unknown) · DS-DATE DateTime (day / month / year + hour / minute (15-min step) / ص-م — `.ep-select` dropdowns, DS-SEL engine via `scSelectInit`; years = this + next; month change clears the day, year change re-checks it; nothing pre-selected) · type (أونلاين → `twSafeLinkUrl` + `https://` / حضوري → place) · reply deadline (24 / 48 / 72 / 168 h, default 48) · company rep · notes. Submit → create (Path B) → `/send`. A failed send keeps the draft id → the next submit sends it. Success → toast + `tw:appointment-scheduled` + room page.
+- `twScheduleInterview(opts)` — DS-OVL `twModal`: person (search when unknown) · job (active-jobs picker when unknown) · DS-DATE DateTime (day / month / year + hour / minute (15-min step) / ص-م — `.ep-select` dropdowns, DS-SEL engine via `scSelectInit`; years = this + next; month change clears the day, year change re-checks it; nothing pre-selected) · type (أونلاين → `twSafeLinkUrl` + `https://` / حضوري → place) · reply deadline (24 / 48 / 72 / 168 h, default 48) · company rep · notes. Submit → create (Path B) → `/send`. A failed send keeps the draft id → the next submit sends it. A draft opens on its own `mode` + link / place (PR 4.0); `/send` always carries the current `mode` → `send_appointment` updates the draft's mode (the other mode's field is cleared; unknown mode → 400; a mode change is recorded in the `appointment_sent` event payload). Success → toast + `tw:appointment-scheduled` + room page.
 - Time zone (DATE-13/14 Feature Contract): picked values = the company's local time → `new Date(y, m-1, d, h, mi).toISOString()`; backend stores UTC.
 - `twScheduleButton(opts)` — `null` unless `TwAuthSync` viewer is `co`, other side `emp`, not self. Batched `GET /api/schedule/open` (one request per job group per tick) → open (not draft) → «فتح الموعد» → `/appointment-room?id=`.
 - `twScheduleMount(root)` — `<span data-tw-schedule-slot data-candidate-id … data-class>` → the button (for HTML-string renderers).

@@ -6,6 +6,7 @@
     "common.all": "الكل",
     "common.check_connection": "تحقق من اتصالك وحاول مرة أخرى",
     "common.load_error": "خطأ في تحميل البيانات",
+    "api.bad_response": "وصل رد غير متوقع من الخادم، حاول مرة أخرى",
 
     "account.type.emp": "حساب شخصي",
     "account.type.co": "حساب شركة",

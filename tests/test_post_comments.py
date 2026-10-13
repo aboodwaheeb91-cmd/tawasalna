@@ -5722,9 +5722,24 @@ check(
     "171-103. auth.py: send_appointment deadline-before-scheduled validation still present",
     'مهلة الرد تنتهي بعد وقت الموعد' in _send_fn
 )
+def _send_effective_url_is_request_or_existing():
+    # Structure, not text (Testing & CI rule 6): send_appointment assigns effective_url
+    # = online_url or <existing value> (PR 4.0: the existing value only when the mode is unchanged).
+    import ast as _ast171
+    tree = _ast171.parse(_auth171)
+    fn = next((n for n in tree.body if isinstance(n, _ast171.FunctionDef) and n.name == 'send_appointment'), None)
+    if fn is None:
+        return False
+    for n in _ast171.walk(fn):
+        if (isinstance(n, _ast171.Assign) and any(isinstance(t, _ast171.Name) and t.id == 'effective_url' for t in n.targets)
+                and isinstance(n.value, _ast171.BoolOp) and isinstance(n.value.op, _ast171.Or)
+                and isinstance(n.value.values[0], _ast171.Name) and n.value.values[0].id == 'online_url'
+                and 'online_url' in _ast171.dump(n.value.values[1])):
+            return True
+    return False
 check(
     "171-104. auth.py: send_appointment uses effective_url from request OR existing appt",
-    'effective_url = online_url or appt.get' in _send_fn
+    _send_effective_url_is_request_or_existing()
 )
 check(
     "171-105. auth.py: reschedule_appointment uses effective_url from request OR existing appt",

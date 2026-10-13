@@ -11,6 +11,7 @@ var WS_MAX_RETRIES  = 5;       // reconnect attempts after a drop — then stop 
 var _wsReady        = false;   // true only after server sends auth_ok
 var _wsReconnectTimer      = null;  // active reconnect timer handle
 var _wsSessionSwitchTimer  = null;  // account-switch reconnect timer (cancellable)
+var WS_REVOKED_WAIT_MS = 2000;  // 4008: second look for this device's new JWT (PR 4.0)
 var _wsPendingJwt   = '';      // fresh JWT staged for next onopen auth frame (account switch)
 var _wsAuthTimeoutTimer = null; // cancellable handle for the 5s client-side auth timeout
 
@@ -138,6 +139,7 @@ function connectWS() {
   _wsTeardown();           // never two sockets: close the old one + any pending reconnect
   var capturedGen = _wsGen;
   var capturedUid = Number(_user.id);
+  var sentJwt = '';        // the JWT this socket authenticated with (4008 → never reuse it)
 
   var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   var wsUrl = protocol + '//' + window.location.host + '/ws/' + _user.id;
@@ -151,6 +153,7 @@ function connectWS() {
     _wsReady = false;
     // First message must be auth — no operational events until auth_ok received
     var jwt = _wsToken();
+    sentJwt = jwt;
     _wsPendingJwt = '';  // consume the pending JWT; reconnects use the current session token
     ws.send(JSON.stringify({type: 'auth', token: jwt}));
     // Client-side auth timeout: store handle so onclose and auth_ok can cancel it
@@ -250,6 +253,18 @@ function connectWS() {
     if (ws === _ws) _ws = null;
     // Auth/Policy close codes (4001-4007) — do not reconnect
     if (event.code >= 4001 && event.code <= 4007) return;
+    // 4008 Session Revoked (password change — PR 4.0): never reconnect with the revoked JWT.
+    // New JWT already there → reconnect now; else look once more after WS_REVOKED_WAIT_MS;
+    // still the old one → stay closed (TwAuthSync token_renewed reconnects via onSessionChange).
+    if (event.code === 4008) {
+      var tokenChanged = function () { var t = _wsToken(); return !!t && t !== sentJwt; };
+      if (tokenChanged()) { connectWS(); return; }
+      _wsReconnectTimer = setTimeout(function () {
+        _wsReconnectTimer = null;
+        if (capturedGen === _wsGen && tokenChanged()) connectWS();
+      }, WS_REVOKED_WAIT_MS);
+      return;
+    }
     if (_wsRetries < WS_MAX_RETRIES) {
       _wsRetries++;
       // Exponential backoff with jitter: 2^n seconds ± 1s, capped at 30s

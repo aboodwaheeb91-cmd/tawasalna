@@ -78,6 +78,7 @@ PY_SCRIPT=(
   test_talent_bank_v3.py
   test_ws_behavioral.py
   test_ws_security.py
+  test_ws_session_revoke.py
   test_modal_a11y.py
 )
 
@@ -117,6 +118,7 @@ NODE_TESTS=(
   test_vm01_bfcache_runtime.js
   test_ws_api.mjs
   test_ws_client.mjs
+  test_ws_session_revoke_client_runtime.js
 )
 
 # ── EXCLUDED — not run in CI (file|reason) ─────────────────────────────────

@@ -294,7 +294,7 @@
         jobId: draft ? draft.job_id : (parseInt(opts.jobId, 10) || null),
         jobTitle: draft ? (draft.job_title || '') : (opts.jobTitle || ''),
         draftId: draft ? draft.id : null,
-        mode: 'online',
+        mode: draft && draft.mode === 'onsite' ? 'onsite' : 'online',   // a draft opens on its own mode
         result: null,
       };
 
@@ -403,7 +403,8 @@
       }
       bOn.addEventListener('click', function () { setMode('online'); });
       bOff.addEventListener('click', function () { setMode('onsite'); });
-      setMode('online');
+      if (draft) { url.value = draft.online_url || ''; loc.value = draft.location_text || ''; }
+      setMode(st.mode);
 
       var dl = sel('tw-sch-dl', 'مهلة الرد', DEADLINES.map(function (h) {
         return { value: h, label: h === 168 ? 'أسبوع' : h + ' ساعة' };
@@ -467,7 +468,7 @@
           return twApi('/api/appointments/' + encodeURIComponent(c.data.id) + '/send', {
             method: 'POST', body: {
               scheduled_at: when.toISOString(), deadline_hours: hours,
-              online_url: link, location_text: place,
+              mode: st.mode, online_url: link, location_text: place,   // the server updates a draft's mode
               notes: extra.notes, representative_name: extra.representative_name,
             } }).then(function (s) {
             if (!s.ok) return fail(twApiMessage(s, 'أُنشئ الموعد لكن تعذّر إرسال الدعوة — اضغط «إرسال الدعوة» مجدداً'));
