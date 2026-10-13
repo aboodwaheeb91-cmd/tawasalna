@@ -6131,7 +6131,7 @@ Same color values are used in `.co-cand-status--*` badges — unified palette ac
 ## [P1] 55. Score System
 
 **Endpoint:** `GET /profile/{user_id}/score`
-**Auth:** None
+**Auth:** Optional — everyone gets `score` + `level`; `tips` + `items` only for the owner (Bearer JWT `user_id == id`) or an admin (`X-Admin-Token`) — `_score_detail_allowed` · `docs/security/PROFILE-DATA-VISIBILITY.md` → Completion score (PR 4.2a)
 
 ### Calculation — `_calc_profile_score(uid, conn)` (PR 4.2a — the ONE completion checklist, F29)
 
@@ -6177,9 +6177,9 @@ all read it through this endpoint; the browser never recomputes it.
 ```json
 {
   "score": <0-100>,
-  "tips": [{"tip": <str>, "points": <int>}],  // أعلى 3 نقاط ناقصة
   "level": "ممتاز|جيد|متوسط|يحتاج تحسين",
-  "items": [{"id": <PROFILE_SCORE_ITEMS id>, "done": <bool>, "points": <int>}]   // PR 4.2a
+  "tips": [{"tip": <str>, "points": <int>}],  // المالك / الأدمن بس — أعلى 3 نقاط ناقصة
+  "items": [{"id": <PROFILE_SCORE_ITEMS id>, "done": <bool>, "points": <int>}]   // المالك / الأدمن بس (PR 4.2a)
 }
 ```
 

@@ -28,9 +28,10 @@ function getProfileMetrics(id){
 }
 window.getProfileMetrics = getProfileMetrics;
 
-// Canonical completion score (server.py PROFILE_SCORE_ITEMS) → {score, tips, level, items} | null
+// Canonical completion score (server.py PROFILE_SCORE_ITEMS) → {score, level} for everyone;
+// + {tips, items} only when the JWT is the owner's (PROFILE-DATA-VISIBILITY → Completion score) | null
 function getScore(numId){
-  return twApi('/profile/' + encodeURIComponent(numId) + '/score', { auth: false })
+  return twApi('/profile/' + encodeURIComponent(numId) + '/score')
     .then(function(r){ return (r.ok && r.raw && typeof r.raw.score === 'number') ? r.raw : null; });
 }
 

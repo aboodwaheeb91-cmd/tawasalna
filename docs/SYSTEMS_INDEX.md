@@ -98,6 +98,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Owner-only strip showing profile completion % with checklist + Growth Mode suggestions at 100%.
 **Source of Truth:** score + checklist = `GET /profile/{id}/score` → `_calc_profile_score` / `PROFILE_SCORE_ITEMS` in `server.py` (PR 4.2a · F29 — one definition for Home, the stats tile and this card) · `profile-v2.completion.js` maps id → twT label + action · growth suggestions read `window._scProfile`
 **Details:** `docs/rules/profile-completion.md` · `ARCHITECTURE.md Profile Completion Strip` + `§55 Score System` · test `python tests/test_profile_v2_structure.py`
+**Privacy:** `score` + `level` public (shown on the page) · `items` + `tips` owner / admin only (`_score_detail_allowed` — PROFILE-DATA-VISIBILITY V1.3).
 **Do not recreate:** Do not compute a completion % in the browser. Do not create a second completion endpoint or checklist. Points must always sum to 100 (server). Do not show to visitors.
 
 ---
@@ -438,7 +439,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Users report inappropriate jobs, profiles, or content. Admin reviews in the admin panel → البلاغات tab (`GET /admin/reports`, pending badge). No user notification on submit (PR 1.5 — user id 1 is not an admin; never notify a user id as "the admin").
 **Source of Truth:** `reports` table (reported_id, reported_type, reason, status)
 **Details:** `ARCHITECTURE.md §58`
-**Frontend (PR 4.2a):** `twReportDialog({reportedId, reportedType})` in `tw_shared.js` — the ONE report form (DS-OVL `twModal` + reason chips `TW_REPORT_TYPES` → `report.type.*` twT keys + details textarea, required) → `twApi('POST /reports/submit')`; opened from `twAction('report', {onClick})`. Needs `tw-overlay.js` on the page (fail closed). Consumer: `profile-showcase.html` (`#scReportRow`). `job-detail.html` still has its own sheet → move to `twReportDialog` when that page is touched.
+**Frontend (PR 4.2a):** `twReportDialog({reportedId, reportedType})` in `tw_shared.js` — the ONE report form (DS-OVL `twModal` + reason chips `TW_REPORT_TYPES` → `report.type.*` twT keys + details textarea, required) → `twApi('POST /reports/submit')`; opened from `twAction('report', {onClick})`. Needs `tw-overlay.js` on the page (fail closed). Consumers: `profile-showcase.html` (`#scReportRow`, `reportedType:'user'`) · `job-detail.html` (`reportedType:'job'` — its own form removed with the `job.report.*` keys). One report form site-wide (F29).
 **Do not recreate:** `POST /reports/submit` is the single submission endpoint. Do not create per-entity report endpoints. Do not build a page-local report form — `twReportDialog`.
 
 ---

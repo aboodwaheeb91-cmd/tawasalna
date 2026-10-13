@@ -2,7 +2,8 @@
 
   A  _calc_profile_score = the ONE completion checklist (PROFILE_SCORE_ITEMS, F29): points sum to
      100 · empty profile → 0 · full → 100 · city / country count as location · profession_id counts
-  B  GET /profile/{id}/score returns score + items (the profile card reads them — no browser math)
+  B  GET /profile/{id}/score: everyone → score + level · items + tips only for the owner JWT / admin
+     (PROFILE-DATA-VISIBILITY → Completion score) — a visitor never gets the checklist
   C  load error (real profile-v2.render.js in node vm): 404 → "not found" (no retry) · network →
      "check connection" + retry · error state visible ([hidden] removed) and the skeleton hidden
      (root cause: CSS display:none + inline style '' → blank page)
@@ -65,19 +66,30 @@ check("A skills need 3 (2 skills → item missing, -10)", two["score"] == 90
 none = server._calc_profile_score(1, FakeConn(None, FULL_COUNTS))
 check("A no profiles row → 0", none["score"] == 0)
 
-print("\nB — GET /profile/{id}/score")
+print("\nB — GET /profile/{id}/score (privacy: checklist = owner / admin only)")
 from fastapi.testclient import TestClient  # noqa: E402
-_orig = (server.get_conn, server.release_conn)
+_orig = (server.get_conn, server.release_conn, server._password_changed_epoch)
 server.get_conn = lambda: FakeConn(FULL_PROF, dict(FULL_COUNTS, courses=0))
 server.release_conn = lambda c: None
+server._password_changed_epoch = lambda uid: None   # no DB for the session-invalidation lookup
+client = TestClient(server.app)
 try:
-    r = TestClient(server.app).get("/profile/7/score")
+    guest = client.get("/profile/7/score")
+    other = client.get("/profile/7/score",
+                       headers={"Authorization": "Bearer " + server._jwt_encode({"user_id": 8, "user_type": "co"})})
+    owner = client.get("/profile/7/score",
+                       headers={"Authorization": "Bearer " + server._jwt_encode({"user_id": 7, "user_type": "emp"})})
+    bad = client.get("/profile/7/score", headers={"X-Admin-Token": "not-a-valid-admin-jwt"})
 finally:
-    server.get_conn, server.release_conn = _orig
-body = r.json() if r.status_code == 200 else {}
-check("B 200 + score 95 + items with id/done/points", r.status_code == 200 and body.get("score") == 95
-      and len(body.get("items", [])) == len(ids)
-      and all(set(i) == {"id", "done", "points"} for i in body["items"]), (r.status_code, body))
+    server.get_conn, server.release_conn, server._password_changed_epoch = _orig
+g, o, w, b = (x.json() if x.status_code == 200 else {} for x in (guest, other, owner, bad))
+check("B visitor (no JWT) → score + level only — no items / tips",
+      guest.status_code == 200 and g.get("score") == 95 and set(g) == {"score", "level"}, (guest.status_code, g))
+check("B another account's JWT → no items / tips", set(o) == {"score", "level"}, o)
+check("B invalid admin token → no items / tips", set(b) == {"score", "level"}, (bad.status_code, b))
+check("B owner JWT → score 95 + tips + items with id/done/points",
+      w.get("score") == 95 and "tips" in w and len(w.get("items", [])) == len(ids)
+      and all(set(i) == {"id", "done", "points"} for i in w["items"]), w)
 
 NODE = r"""
 const vm = require('vm'), fs = require('fs');

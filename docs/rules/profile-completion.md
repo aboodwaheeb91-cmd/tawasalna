@@ -12,7 +12,7 @@ These rules are permanent and apply to all future AI sessions:
    - `renderProfile` in `profile-v2.render.js` renders it **only** when `_vt === 'owner'`; the `else` branch explicitly hides it and clears `#scComplList`
    - `_isOwnerActive()` inside `profile-v2.completion.js` checks `window._scViewerType === 'owner'` AND body has no `preview-public-user` / `preview-guest` class; `_render`, `_doAction`, and all click handlers bail immediately if this returns `false`
 
-2. **The score + checklist come only from `GET /profile/{id}/score` (PR 4.2a · F29).** `PROFILE_SCORE_ITEMS` / `_calc_profile_score` in `server.py` is the one definition shared with Home and the stats tile; `profile-v2.completion.js` maps each item `id` → label (`twT('profile.compl.item.<id>')`) + action and never computes a %. No server score yet / failed → card hidden. Growth suggestions + topic tags read `window._scProfile`. No localStorage.
+2. **The score + checklist come only from `GET /profile/{id}/score` (PR 4.2a · F29).** `PROFILE_SCORE_ITEMS` / `_calc_profile_score` in `server.py` is the one definition shared with Home and the stats tile; `profile-v2.completion.js` maps each item `id` → label (`twT('profile.compl.item.<id>')`) + action and never computes a %. No server score yet / failed → card hidden. `items` / `tips` come back only with the owner's JWT (PROFILE-DATA-VISIBILITY → Completion score) — `getScore` sends it through `twApi`; never call it with `auth:false`. Growth suggestions + topic tags read `window._scProfile`. No localStorage.
 
 3. **Points must always sum to 100 — in `PROFILE_SCORE_ITEMS` (server).** Adding or removing an item = rebalance there + a label key + an `_ACTIONS` entry in `completion.js` (an unknown id is skipped).
 

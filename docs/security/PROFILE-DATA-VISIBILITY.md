@@ -1,4 +1,4 @@
-# Profile Data Visibility System V1.2
+# Profile Data Visibility System V1.3
 
 **Status:** Active — enforced server-side since PR fix/profile-kyc-privacy-boundary  
 **Principle:** Fail Closed — every new DB column is Private by default until explicitly added to a tier allowlist.
@@ -81,6 +81,26 @@ Fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `su
 | `POST /kyc/phone/verify` | **Required JWT** | `uid = token.user_id` | No body user_id |
 | `POST /kyc/docs` | **Required JWT** | `uid = token.user_id` | No body user_id |
 | `GET /user/lookup/{tw_id}` | **Required JWT** | None (caller must be authenticated) | `id`, `tw_id`, `full_name`, `user_type` only |
+| `GET /profile/{id}/score` | Optional JWT / admin JWT | `token.user_id == uid` or `check_admin` → + `items` / `tips` | Everyone else: `score` + `level` only (see below) |
+
+---
+
+## Completion score: `/profile/{id}/score` (V1.3 — PR 4.2a)
+
+The completion checklist says **which** parts of a profile are missing or present (experience, location,
+languages, links, identity verification…). That is the owner's own working data, and a visitor must not
+be able to read it — even for a section the owner chose not to show — so:
+
+| Caller | Response |
+|--------|----------|
+| Owner — Bearer JWT with `user_id == id` | `score` · `level` · `tips` · `items[{id, done, points}]` |
+| Admin — valid admin JWT in `X-Admin-Token` (`check_admin`) | same as owner |
+| Anyone else (guest, another account, invalid / expired token, invalid admin token) | `score` · `level` only |
+
+**Why the score stays public:** the profile page shows it to every viewer (stats tile «القوة»), so it is
+already Tier 1 information; the per-item breakdown is not. Helper: `_score_detail_allowed(request, uid)`
+in `server.py` — the only place that decides. ❌ Returning `items` / `tips` without that check ·
+❌ a second score endpoint that exposes the checklist. Test: `python tests/test_profile_v2_structure.py` (B).
 
 ---
 
@@ -190,3 +210,4 @@ On other errors: show safe generic message from `detail.message` if present.
 | V1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | Initial privacy boundary enforcement |
 | V1.1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | OTP Delivery Fail-Closed contract; `is_*_otp_delivery_available()` helpers; 503 on send endpoints; settings.html 503 handling; owner hydration toast feedback |
 | V1.2 | fix/profile-public-derived-age | 2026-08-03 | Restore public derived `age` field; `calculate_age_from_dob()` helper; projection functions compute age at boundary; frontend uses `p.age` never `p.dob` |
+| V1.3 | PR 4.2a (#589) | 2026-10-13 | Completion score: `items` / `tips` owner (or admin) only — visitors get `score` + `level` (`_score_detail_allowed`) |

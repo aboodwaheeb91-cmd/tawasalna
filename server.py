@@ -3313,17 +3313,42 @@ def _calc_profile_score(uid: int, conn) -> dict:
     }
 
 
+def _score_detail_allowed(request: Request, uid: int) -> bool:
+    """Who may see the completion checklist (items + tips) of profile `uid` — PR 4.2a,
+    PROFILE-DATA-VISIBILITY.md "Completion score": the owner (Bearer JWT user_id == uid) or an
+    admin (valid admin JWT in X-Admin-Token). Everyone else gets the score only."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer ") and auth_header[7:]:
+        payload = _jwt_decode(auth_header[7:]) or {}
+        tok_uid = payload.get("user_id")
+        if tok_uid is not None and str(tok_uid) == str(uid):
+            return True
+    if request.headers.get("X-Admin-Token"):
+        try:
+            check_admin(request)
+            return True
+        except HTTPException:
+            return False
+    return False
+
+
 @app.get("/profile/{user_id}/score")
-def profile_score(user_id: int):
-    """Profile completion score. Uses _calc_profile_score — no algorithm duplication."""
+def profile_score(user_id: int, request: Request):
+    """Profile completion score. Uses _calc_profile_score — no algorithm duplication.
+    Public: {score, level} (the profile page shows the score to visitors — stats tile).
+    Owner / admin only: + tips + items — which items are missing is the owner's business
+    (PR 4.2a · docs/security/PROFILE-DATA-VISIBILITY.md → Completion score)."""
     try:
         conn = get_conn()
         try:
             data = _calc_profile_score(user_id, conn)
         finally:
             release_conn(conn)
-        return {"score": data["score"], "tips": data["tips"], "level": data["level"],
-                "items": data["items"]}
+        out = {"score": data["score"], "level": data["level"]}
+        if _score_detail_allowed(request, user_id):
+            out["tips"]  = data["tips"]
+            out["items"] = data["items"]
+        return out
     except HTTPException: raise
     except Exception as e: raise _server_error("profile_score", e)
 
