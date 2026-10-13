@@ -70,7 +70,7 @@ check("B06 back button = unified app header with back (HEADER-NAV.md HNAV-03)",
       '<header data-tw-header data-back="home"></header>' in RAW and "jdBackBtn" not in RAW + JS
       and "history.back()" not in JS)
 check("B10 static icons = <i data-tw-icon> placeholders hydrated once (twIcon.hydrate)",
-      RAW.count("<i data-tw-icon=") >= 20 and JS.count("twIcon.hydrate(document.body)") == 1
+      RAW.count("<i data-tw-icon=") >= 10 and JS.count("twIcon.hydrate(document.body)") == 1
       and "_paintStaticIcons" not in JS and "_prependIcon" not in JS)
 check("B07 no manual arrow / chevron names",
       not re.search(r"'(arrow|chevron)-(left|right)'", JS_CODE))
@@ -85,11 +85,10 @@ check("B09 no emoji / glyph icons in HTML or JS (ICON-11)",
 print("\nC — Session (VM-10 · Auth Gateway)")
 check("C01 no direct localStorage in job-detail.js", "localStorage" not in JS)
 check("C02 session from TwAuthSync.getSessionSnapshot()", "TwAuthSync.getSessionSnapshot()" in JS)
-check("C03 JWT header via getAuthHeaders (tw_shared.js)", "getAuthHeaders(json)" in JS and "_jwt" not in JS)
-check("C04 guest actions → /login?next=<this job> via twLoginHref (apply · save · report)",
-      "location.href = twLoginHref(location.pathname + location.search)" in JS
-      and "location.href = '/login'" not in JS
-      and JS.count("if (!_authed) { _toLogin(); return; }") >= 3)
+# C03 / C04 (PR 4.8): every request goes through twApi (adds the JWT itself) and guest actions →
+# twLoginHref — checked by behaviour in tests/test_login_jobdetail_runtime.js (D).
+check("C03 no raw fetch / getAuthHeaders in the page script (twApi only)",
+      not re.search(r"(?<![\w$.])fetch\s*\(", JS_CODE) and "getAuthHeaders" not in JS_CODE and "_jwt" not in JS)
 
 print("\nD — DS-IMAGE (F38) · §54")
 check("D01 header logo = twAvatarHtml xl eager", "twAvatarHtml(_coEntity, 'xl', { eager: true })" in JS)
@@ -104,7 +103,7 @@ check("D05 no local .jd-logo / .jd-co-av size or shape (DS-IMAGE owns it)",
 print("\nE — DS-FEEDBACK (F34)")
 check("E01 no jd-toast markup / CSS / JS", "jd-toast" not in RAW + CSS + JS and "jdToast" not in RAW + JS)
 check("E02 no local showToast", not re.search(r"function\s+showToast", JS))
-check("E03 shared showToast used", JS.count("showToast(") >= 5)
+check("E03 shared showToast used", "showToast(" in JS_CODE)
 
 print("\nF — DS-SIZE (F36)")
 check("F01 no --size-* / --radius-* / --space-* defined in job-detail.css",

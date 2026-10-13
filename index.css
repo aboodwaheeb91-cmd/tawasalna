@@ -1,59 +1,48 @@
 /* index.css — Auth Gateway styles (login + register page only)
    Scope: index.html exclusively. Do NOT import from other pages.
-   Version: auth-gw-v8 */
+   Version: auth-gw-v9 */
 
-/* ── Auth Local Color Roles — CLR-15 Tier 3 ────────────────────────────────────
-   Page-scoped roles with no Shared Semantic meaning in DS-COLOR.
-   Each name describes function, not value.
-   Review for promotion if the same role appears in 2+ other pages.             */
+/* ── Auth Local Color Roles — CLR-15 Tier 3 (PR 4.8: every value from DS-COLOR) ──
+   Page-scoped role names; values are Semantic tokens / Semantic RGB channels only
+   (no hex / rgba literal — page_audit colors = 0). Each name describes function, not value. */
 :root {
-  --auth-card-gradient-start:  rgba(20,30,55,.9);
-  --auth-card-gradient-end:    rgba(10,18,38,.95);
-  --auth-card-border:          rgba(255,255,255,.09);
-  --auth-card-shadow:          rgba(0,0,0,.6);
-  --auth-elevation-shadow:     rgba(0,0,0,.3);
-  /* --auth-ctrl-surface is #0d1526 — intentionally ≠ --color-surface-card-solid (#0d1426);
-     green channel differs by 1 unit. Do not replace with the Semantic token.           */
-  --auth-ctrl-surface:         #0d1526;
-  /* --auth-autofill-surface: opaque value — implementation choice for full visual masking.
-     Chromium UA autofill override may not produce the intended result with translucent values
-     in dark UI contexts (observed behavior, not a guaranteed UA spec rule).
-     Inputs sit inside .bubble (linear-gradient(rgba(20,30,55,.9),rgba(10,18,38,.95)) over #070b18),
-     so exact surface color is gradient-dependent and cannot be statically computed.
-     #161a26 is a best-effort dark approximation — manual Android Chrome verification pending. */
-  --auth-autofill-surface:     #161a26;
-  --auth-surface-idle:         rgba(255,255,255,.04);
-  --auth-surface-hover:        rgba(255,255,255,.07);
-  --auth-icon-bg-idle:         rgba(255,255,255,.10);
-  --auth-ctrl-border:          rgba(255,255,255,.1);
-  --auth-ctrl-border-hover:    rgba(255,255,255,.22);
-  --auth-input-border:         rgba(255,255,255,.09);
-  --auth-logo-sub:             rgba(255,255,255,.28); /* logo tagline — not placeholder text role */
-  --auth-text-subdued:         rgba(255,255,255,.35);
-  --auth-text-faint:           rgba(255,255,255,.3);
-  --auth-text-faint-hover:     rgba(255,255,255,.5);
-  --auth-text-icon-idle:       rgba(255,255,255,.45);
-  --auth-text-icon-hover:      rgba(255,255,255,.85);
-  --auth-text-tb-icon:         rgba(255,255,255,.55);
-  --auth-text-tb-sub:          rgba(255,255,255,.48);
-  --auth-text-google:          rgba(255,255,255,.6);
-  --auth-text-spinner-border:  rgba(255,255,255,.3);
-  --auth-skip-link-fg:         #0d1a2e;
-  --auth-grid-line:            rgba(255,255,255,.022); /* decorative grid — not border-default role */
-  --auth-strength-bar-track:   rgba(255,255,255,.08);  /* decorative bar track — not border-default role */
-  /* Password strength levels — categorical progression, NOT DS-COLOR status tokens */
-  --auth-strength-very-weak:   #ef4444;
-  --auth-strength-weak:        #f97316;
-  --auth-strength-medium:      #eab308;
-  --auth-strength-strong:      #22c55e;
+  --auth-card-gradient-start:  rgba(var(--color-surface-page-rgb), .9);
+  --auth-card-gradient-end:    var(--color-surface-card-solid);
+  --auth-card-border:          var(--color-border-default);
+  --auth-card-shadow:          rgba(var(--color-overlay-rgb), .6);
+  --auth-elevation-shadow:     rgba(var(--color-overlay-rgb), .3);
+  --auth-ctrl-surface:         var(--color-surface-card-solid);
+  /* Autofill mask must be OPAQUE (Chromium ignores translucent values in its autofill override). */
+  --auth-autofill-surface:     var(--color-surface-elevated);
+  --auth-surface-idle:         var(--color-surface-raised);
+  --auth-surface-hover:        var(--color-surface-hover);
+  --auth-icon-bg-idle:         rgba(var(--color-ink-rgb), .10);
+  --auth-ctrl-border:          rgba(var(--color-ink-rgb), .1);
+  --auth-ctrl-border-hover:    rgba(var(--color-ink-rgb), .22);
+  --auth-input-border:         var(--color-border-default);
+  --auth-logo-sub:             var(--color-text-placeholder); /* same .28 alpha — tagline role */
+  --auth-text-subdued:         rgba(var(--color-ink-rgb), .35);
+  --auth-text-faint:           rgba(var(--color-ink-rgb), .3);
+  --auth-text-faint-hover:     rgba(var(--color-ink-rgb), .5);
+  --auth-text-icon-idle:       rgba(var(--color-ink-rgb), .45);
+  --auth-text-icon-hover:      rgba(var(--color-ink-rgb), .85);
+  --auth-text-tb-icon:         rgba(var(--color-ink-rgb), .55);
+  --auth-text-tb-sub:          rgba(var(--color-ink-rgb), .48);
+  --auth-text-google:          rgba(var(--color-ink-rgb), .6);
+  --auth-text-spinner-border:  rgba(var(--color-ink-rgb), .3);
+  --auth-skip-link-fg:         var(--color-text-on-brand);
+  --auth-grid-line:            rgba(var(--color-ink-rgb), .022); /* decorative grid */
+  --auth-strength-bar-track:   var(--color-border-default);
+  /* Password strength = a risk signal → status tokens (weak = danger, medium = warning, strong = success) */
+  --auth-strength-very-weak:   var(--color-status-danger-strong);
+  --auth-strength-weak:        var(--color-status-warning-strong);
+  --auth-strength-medium:      var(--color-status-warning);
+  --auth-strength-strong:      var(--color-status-success-strong);
   --auth-strength-very-strong: var(--color-brand-primary);
-  /* Error banner — Legacy Visual Exception: uses red-500 (#ef4444) instead of status-danger (red-400).
-     Normalization requires explicit Visual Redesign approval.                           */
-  --auth-error-banner-bg:      rgba(239,68,68,.08);
-  --auth-error-banner-border:  rgba(239,68,68,.22);
-  /* Skeleton shimmer animation frames — decorative animation values, not UI surface roles */
-  --auth-skeleton-base:        rgba(255,255,255,.04);
-  --auth-skeleton-shine:       rgba(255,255,255,.09);
+  --auth-error-banner-bg:      rgba(var(--color-status-danger-strong-rgb), .08);
+  --auth-error-banner-border:  rgba(var(--color-status-danger-strong-rgb), .22);
+  --auth-skeleton-base:        var(--color-surface-raised);
+  --auth-skeleton-shine:       rgba(var(--color-ink-rgb), .09);
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -93,6 +82,10 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
   gap:4px;
 }
 .type-btn:hover{border-color:var(--auth-ctrl-border-hover);background:var(--auth-surface-hover);}
+/* Account type = native radio group (keyboard: arrows). The radio is visually hidden, the card shows focus. */
+.type-radio{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none;}
+.type-btn{position:relative;}
+.type-btn:focus-within{outline:2px solid var(--color-border-focus);outline-offset:2px;}
 .type-btn.active{border-color:var(--color-brand-primary);background:rgba(var(--color-brand-primary-rgb),.06);}
 .type-btn.active.inst{border-color:var(--color-brand-secondary);background:rgba(var(--color-brand-secondary-rgb),.06);}
 /* Dim unselected cards once a choice is made */
@@ -107,7 +100,7 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
   transition:background .25s,color .25s,box-shadow .25s;
   flex-shrink:0;
 }
-.tb-ico svg{width:28px;height:28px;stroke-width:2;}
+.tb-ico .tw-ico{stroke-width:2;}
 /* Active: teal icon + subtle glow (same colour for all types — intentional design) */
 .type-btn.active .tb-ico,
 .type-btn.active.inst .tb-ico{
@@ -194,8 +187,11 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── Switch link ── */
 .switch-link{text-align:center;margin-top:14px;font-size:.73rem;color:var(--auth-text-subdued);}
-.switch-link span{color:var(--color-brand-primary);cursor:pointer;font-weight:700;}
-.switch-link span:hover{text-decoration:underline;}
+.switch-link .link-btn{color:var(--color-brand-primary);font-weight:700;}
+/* Text-style buttons (switch login/register · forgot password) — real <button>, keyboard reachable */
+.link-btn{background:none;border:0;padding:0;font:inherit;cursor:pointer;}
+.link-btn:hover{text-decoration:underline;}
+.link-btn:focus-visible{outline:2px solid var(--color-border-focus);outline-offset:2px;border-radius:4px;}
 
 /* ── Utility ── */
 .hidden{display:none!important;}
@@ -211,7 +207,7 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── Forgot password ── */
 .forgot-wrap{text-align:left;margin-bottom:12px;}
-.forgot-link{font-size:.7rem;color:var(--auth-text-faint);cursor:pointer;}
+.forgot-link{font-size:.7rem;color:var(--auth-text-faint);}
 .forgot-link:hover{color:var(--auth-text-faint-hover);}
 
 /* ── OR divider ── */
@@ -282,8 +278,7 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 /* ── DS-INP: Email field direction override (INP-09) ── */
 #lEmail{direction:ltr;text-align:left;}
 
-/* Scoped [hidden] rule — SVGElement does not reflect .hidden as a DOM attribute;
-   this covers lEyeHide, field-error spans, and l-form-error banner inside loginSection only. */
+/* Scoped [hidden] rule — covers field-error spans and the l-form-error banner inside loginSection only. */
 #loginSection [hidden]{display:none!important;}
 
 /* ── DS-INP INP-11: Autofill visual contract (Login only) ──

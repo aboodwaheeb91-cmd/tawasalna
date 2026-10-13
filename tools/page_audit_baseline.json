@@ -70,19 +70,19 @@
     "no_shell": 0
   },
   "index.html": {
-    "colors": 42,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 3,
+    "fetch": 0,
     "forsa": 0,
-    "helpers": 1,
-    "ls_session": 8,
+    "helpers": 0,
+    "ls_session": 0,
     "no_header": 1,
-    "no_shell": 1
+    "no_shell": 0
   },
   "job-detail.html": {
-    "colors": 91,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 6,
+    "fetch": 0,
     "forsa": 0,
     "helpers": 0,
     "ls_session": 0,

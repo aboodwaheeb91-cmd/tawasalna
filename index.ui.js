@@ -1,8 +1,9 @@
-// index.ui.js — Auth Gateway: UI effects, form switching, role selector, utilities
-// Responsibilities: selectType(), showRegister(), showLogin(), toast() (→ showToast wrapper),
-//                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
+// index.ui.js — Auth Gateway: UI effects, form switching, role selector
+// Responsibilities: selectType(), showRegister(), showLogin(), checkPassStrength(),
+//                   button / radio / eye wiring, hash-based auto-route.
+// Shared (tw_shared.js): showToast (DS-FEEDBACK) · twT (Strings) · twIcon / twIconEl (DS-ICON).
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v9
+// Version: auth-gw-v10
 
 'use strict';
 
@@ -28,6 +29,9 @@ function selectType(type){
   if(activeEl){
     activeEl.classList.add('active');
     if(type !== 'emp') activeEl.classList.add('inst');
+    // Radio group state follows every path (click, keyboard arrows, #register-* hash route)
+    var radio = activeEl.querySelector('input[type="radio"]');
+    if(radio && !radio.checked) radio.checked = true;
   }
   var typeRow = document.getElementById('typeRow');
   if(typeRow) typeRow.classList.add('has-selection');
@@ -95,18 +99,16 @@ function _applyRegLabels(type){
       var el = document.getElementById(id);
       if(el) el.value = '';
     });
-    if(type === 'co'){
-      if(nameLabel) nameLabel.textContent = 'اسم الشركة / الجهة';
-      if(rName){
-        rName.placeholder = 'اسم شركتك أو مؤسستك...';
-        rName.setAttribute('autocomplete', 'organization');
-      }
-    } else { // edu
-      if(nameLabel) nameLabel.textContent = 'اسم المؤسسة التعليمية';
-      if(rName){
-        rName.placeholder = 'اسم الجامعة أو المركز...';
-        rName.setAttribute('autocomplete', 'organization');
-      }
+    var isCo = type === 'co';   // else edu
+    // Keys go on the data-tw-t* attributes too: a #register-co hash route runs before
+    // twTApply (DOMContentLoaded), which would otherwise put the generic label back.
+    var labelKey = isCo ? 'register.co_name' : 'register.edu_name';
+    var phKey    = isCo ? 'register.co_placeholder' : 'register.edu_placeholder';
+    if(nameLabel){ nameLabel.setAttribute('data-tw-t', labelKey); nameLabel.textContent = twT(labelKey); }
+    if(rName){
+      rName.setAttribute('data-tw-t-placeholder', phKey);
+      rName.placeholder = twT(phKey);
+      rName.setAttribute('autocomplete', 'organization');
     }
   }
 }
@@ -129,7 +131,10 @@ function _applyLoginUI(){
   _setBackLink(false);
   ['empBtn','coBtn','eduBtn'].forEach(function(id){
     var b = document.getElementById(id);
-    if(b) b.classList.remove('active','inst');
+    if(!b) return;
+    b.classList.remove('active','inst');
+    var radio = b.querySelector('input[type="radio"]');
+    if(radio) radio.checked = false;
   });
   var typeRow = document.getElementById('typeRow');
   if(typeRow) typeRow.classList.remove('has-selection');
@@ -194,12 +199,6 @@ window.addEventListener('popstate', function(e){
   }
 });
 
-// ── Toast compatibility wrapper ───────────────────────────────────────────────
-// Delegates to canonical DS-FEEDBACK runtime (tw_shared.js showToast). No local Surface.
-function toast(msg, type){
-  window.showToast(msg, type || 'success');
-}
-
 // ── Password strength bar ─────────────────────────────────────────────────────
 function checkPassStrength(val){
   var bar   = document.getElementById('passStrengthBar');
@@ -219,16 +218,17 @@ function checkPassStrength(val){
   if(/[0-9]/.test(val)) score++;
   if(/[^A-Za-z0-9]/.test(val)) score++;
   var levels = [
-    {w:'20%',tok:'--auth-strength-very-weak',t:'ضعيف جداً'},
-    {w:'40%',tok:'--auth-strength-weak',t:'ضعيف'},
-    {w:'60%',tok:'--auth-strength-medium',t:'متوسط'},
-    {w:'80%',tok:'--auth-strength-strong',t:'قوي'},
-    {w:'100%',tok:'--auth-strength-very-strong',t:'قوي جداً'}
+    {w:'20%',tok:'--auth-strength-very-weak'},
+    {w:'40%',tok:'--auth-strength-weak'},
+    {w:'60%',tok:'--auth-strength-medium'},
+    {w:'80%',tok:'--auth-strength-strong'},
+    {w:'100%',tok:'--auth-strength-very-strong'}
   ];
-  var level = levels[Math.min(score, 4)];
+  var idx = Math.min(score, 4);
+  var level = levels[idx];
   fill.style.width = level.w;
   fill.style.background = 'var(' + level.tok + ')';
-  label.textContent = level.t;
+  label.textContent = twT('register.strength.' + (idx + 1));
   label.style.color = 'var(' + level.tok + ')';
 }
 
@@ -243,60 +243,27 @@ function setBtnLoad(btn, loading){
     btn.disabled = true;
   } else {
     btn.classList.remove('tw-btn-loading');
-    btn.textContent = btn._orig || 'حفظ';
+    btn.textContent = btn._orig || '';
     btn.disabled = false;
   }
 }
 
-function twNavigate(url){
-  document.body.style.cssText = 'opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){ window.location.href = url; }, 180);
-}
-
-function initScrollProg(){
-  var p = document.createElement('div');
-  p.className = 'tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll', function(){
-    var pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
-    p.style.width = Math.min(pct, 100) + '%';
-  });
-}
-
-// ── Login password show/hide toggle (DS-INP INP-11) ─────────────────────────
-;(function(){
-  var eyeBtn  = document.getElementById('lPassEye');
-  var passEl  = document.getElementById('lPass');
-  var eyeShow = document.getElementById('lEyeShow');
-  var eyeHide = document.getElementById('lEyeHide');
-  if(!eyeBtn || !passEl) return;
+// ── Password show/hide toggle (DS-INP INP-11) — <button data-pass-eye="<input id>"> ──
+// Icon swap through DS-ICON (twIconEl eye / eye-off); label from the Strings System.
+document.querySelectorAll('[data-pass-eye]').forEach(function(eyeBtn){
+  var passEl = document.getElementById(eyeBtn.getAttribute('data-pass-eye'));
+  if(!passEl) return;
   eyeBtn.addEventListener('click', function(){
     var show = passEl.type === 'password';
     passEl.type = show ? 'text' : 'password';
     eyeBtn.setAttribute('aria-pressed', show ? 'true' : 'false');
-    eyeBtn.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
-    // SVGElement does not reflect .hidden as a DOM attribute; use setAttribute/removeAttribute
-    if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
-    if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
+    var lbl = twT(show ? 'login.hide_password' : 'login.show_password');
+    eyeBtn.setAttribute('aria-label', lbl);
+    eyeBtn.setAttribute('title', lbl);
+    eyeBtn.textContent = '';
+    eyeBtn.appendChild(twIconEl(show ? 'eye-off' : 'eye', { size: 'md' }));
   });
-}());
-
-// ── Register password show/hide toggle (DS-INP INP-11) ───────────────────────
-;(function(){
-  var eyeBtn  = document.getElementById('rPassEye');
-  var passEl  = document.getElementById('rPass');
-  var eyeShow = document.getElementById('rEyeShow');
-  var eyeHide = document.getElementById('rEyeHide');
-  if(!eyeBtn || !passEl) return;
-  eyeBtn.addEventListener('click', function(){
-    var show = passEl.type === 'password';
-    passEl.type = show ? 'text' : 'password';
-    eyeBtn.setAttribute('aria-pressed', show ? 'true' : 'false');
-    eyeBtn.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
-    if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
-    if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
-  });
-}());
+});
 
 // ── Register password strength listener (replaces oninput attr removed from HTML) ──
 ;(function(){
@@ -304,8 +271,30 @@ function initScrollProg(){
   if(passEl) passEl.addEventListener('input', function(){ checkPassStrength(passEl.value); });
 }());
 
-// ── Lucide icon init ──────────────────────────────────────────────────────────
-if(window.lucide && lucide.createIcons) lucide.createIcons();
+// ── Buttons + account type radios (no inline onclick in index.html) ─────────
+;(function(){
+  var loginBtn = document.getElementById('loginBtn');
+  if(loginBtn) loginBtn.addEventListener('click', function(){ doLogin(); });
+  var regBtn = document.getElementById('regBtn');
+  if(regBtn) regBtn.addEventListener('click', function(){ doRegister(); });
+  document.querySelectorAll('[data-auth-go]').forEach(function(b){
+    b.addEventListener('click', function(){
+      if(b.getAttribute('data-auth-go') === 'register') showRegister(); else showLogin();
+    });
+  });
+  // No reset flow yet (FUTURE_ROADMAP — phase 5) → honest notice, not a dead link.
+  var forgot = document.getElementById('forgotBtn');
+  if(forgot) forgot.addEventListener('click', function(){ showToast(twT('login.forgot_soon'), 'info'); });
+  var google = document.getElementById('googleBtn');
+  if(google) google.addEventListener('click', function(){ showToast(twT('login.google_soon'), 'info'); });
+  // Native radio group: click / Space / arrow keys all fire 'change' → selectType.
+  document.querySelectorAll('#typeRow input[name="accountType"]').forEach(function(r){
+    r.addEventListener('change', function(){ if(r.checked) selectType(r.value); });
+  });
+}());
+
+// ── DS-ICON: static <i data-tw-icon> placeholders (once) ─────────────────────
+if(window.twIcon && typeof twIcon.hydrate === 'function') twIcon.hydrate(document.body);
 
 // ── DS-NAV: Replace initial history entry with login state ───────────────────
 // Sets canonical nav.entryType='replace-init' + nav.authView='login' baseline.

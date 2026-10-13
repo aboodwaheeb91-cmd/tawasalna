@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v12
+// Version: auth-gw-v13
 
 'use strict';
 
@@ -68,17 +68,48 @@ function _lClearFieldError(wrapperId, errorId){
   if(input) input.setAttribute('aria-invalid', 'false');
 }
 
-function _lShowFormError(msg){
-  var banner = document.getElementById('l-form-error');
+// Form-level banner (DS-VAL VAL-09): 'l-form-error' (login) · 'r-form-error' (register).
+function _showFormBanner(id, msg){
+  var banner = document.getElementById(id);
   if(!banner) return;
   var textEl = banner.querySelector('.l-form-error-text');
   if(textEl) textEl.textContent = msg;
   banner.removeAttribute('hidden');
 }
-
-function _lClearFormError(){
-  var banner = document.getElementById('l-form-error');
+function _clearFormBanner(id){
+  var banner = document.getElementById(id);
   if(banner) banner.setAttribute('hidden', '');
+}
+function _lShowFormError(msg){ _showFormBanner('l-form-error', msg); }
+function _lClearFormError(){ _clearFormBanner('l-form-error'); }
+
+// The new session goes through TwAuthSync only (auth-sync.js — the one session writer).
+function _startSession(user, token){
+  return !!(window.TwAuthSync && typeof TwAuthSync.startSession === 'function'
+            && TwAuthSync.startSession(user, token));
+}
+
+// Login failure → fixed text by status / code (never the raw server text — API-MUT-11).
+function _loginErrorText(res){
+  var raw = res && res.raw;
+  if(res.status === 429 && raw && raw.detail && raw.detail.code === 'login_email_locked'){
+    return twT('login.err.locked');   // per-email lockout (PR 1.4) — keyed on the code
+  }
+  if(res.status === 429) return twT('login.err.too_many');
+  if(res.status === 0)   return twApiMessage(res, twT('login.err.network'));   // network / timeout
+  if(res.status >= 500)  return twT('login.err.server');
+  return twT('login.err.credentials');
+}
+
+// Register failure → { field, text }. 4xx text = the server's own Arabic validation message
+// (written in server.py — intentional, never str(e) — §54d); 409 = the email is taken → under
+// the email field. 429 / 5xx / network → fixed text in the form banner.
+function _registerError(res){
+  if(res.status === 409) return { field: 'email', text: twApiMessage(res, twT('register.err.failed')) };
+  if(res.status === 429) return { field: null, text: twT('register.err.too_many') };
+  if(res.status === 0)   return { field: null, text: twApiMessage(res, twT('login.err.network')) };
+  if(res.status >= 500)  return { field: null, text: twT('register.err.server') };
+  return { field: null, text: twApiMessage(res, twT('register.err.failed')) };
 }
 
 function _lIsValidEmail(v){
@@ -106,18 +137,18 @@ async function doLogin(){
   var hasError = false;
   if(!email){
     _lEmailErrorKind = 'required';
-    _lShowFieldError('wrapper-lEmail', 'l-email-error', 'البريد الإلكتروني مطلوب');
+    _lShowFieldError('wrapper-lEmail', 'l-email-error', twT('login.err.email_required'));
     hasError = true;
   } else if(!_lIsValidEmail(email)){
     _lEmailErrorKind = 'format';
-    _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+    _lShowFieldError('wrapper-lEmail', 'l-email-error', twT('login.err.email_format'));
     hasError = true;
   } else {
     _lEmailErrorKind = null;
     _lClearFieldError('wrapper-lEmail', 'l-email-error');
   }
   if(!pass){
-    _lShowFieldError('wrapper-lPass', 'l-pass-error', 'كلمة المرور مطلوبة');
+    _lShowFieldError('wrapper-lPass', 'l-pass-error', twT('login.err.pass_required'));
     hasError = true;
   } else {
     _lClearFieldError('wrapper-lPass', 'l-pass-error');
@@ -138,62 +169,31 @@ async function doLogin(){
   var _success = false;
 
   try {
-    var res = await fetch('/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email: email, password: pass})
-    });
-
-    // Safe JSON parse — non-JSON body (e.g. 502 HTML) must not throw to network handler
-    var data;
-    try { data = await res.json(); } catch(_e){ data = null; }
+    // twApi (API Client — PR 3A): never throws; network / timeout → ok:false, status 0.
+    var res = await twApi('/auth/login', {method: 'POST', auth: false, body: {email: email, password: pass}});
 
     if(!res.ok){
       // DS-VAL VAL-09: auth failure → form-level banner (not DS-FEEDBACK toast)
-      // HTTP-status-based safe messages only — never expose raw data.detail (API-MUT-11)
-      var safeMsg;
-      if(res.status === 429 && data && data.detail && data.detail.code === 'login_email_locked'){
-        // Per-email lockout (PR 1.4) — fixed client text keyed on the code, not raw detail
-        safeMsg = 'تم إيقاف تسجيل الدخول لهذا البريد مؤقتاً بسبب محاولات فاشلة متكررة، حاول بعد 15 دقيقة';
-      } else if(res.status === 429){
-        safeMsg = 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً';
-      } else if(res.status >= 500){
-        safeMsg = 'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً';
-      } else {
-        safeMsg = 'بيانات الدخول غير صحيحة';
-      }
-      _lShowFormError(safeMsg);
+      // Status-based fixed messages only — never the raw server text (API-MUT-11)
+      _lShowFormError(_loginErrorText(res));
       return;
     }
 
-    // Validate 2xx structure before writing storage — malformed success must not redirect
-    if(!data || !data.user || !data.user.id ||
-       !data.token || typeof data.token !== 'string' || !data.token.trim()){
-      _lShowFormError('تعذّر إكمال تسجيل الدخول، حاول مرة أخرى');
+    // One session writer (TwAuthSync.startSession — validates the pair; malformed 2xx → false,
+    // nothing kept, no redirect).
+    var data = res.data;
+    if(!data || !data.user || !_startSession(data.user, data.token)){
+      _lShowFormError(twT('login.err.incomplete'));
       return;
     }
 
-    // Atomic session write — clear only official session keys (allowlist), never startsWith('tw_')
-    // which would destroy user preferences (tw_cover_*, tw_prefs, theme, etc.)
-    try {
-      try { localStorage.removeItem('tw_user'); } catch(e){}
-      try { localStorage.removeItem('tw_jwt');  } catch(e){}
-      localStorage.setItem('tw_user', JSON.stringify(data.user));
-      localStorage.setItem('tw_jwt', data.token);
-    } catch(storageErr){
-      try { localStorage.removeItem('tw_user'); } catch(e){}
-      try { localStorage.removeItem('tw_jwt');  } catch(e){}
-      _lShowFormError('حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى');
-      return;
-    }
-
-    // Only mark success AFTER all critical writes complete
     _success = true;
     // Success operational feedback via DS-FEEDBACK F34 (success is not a form error)
-    toast('مرحباً بك', 'success');
+    showToast(twT('login.welcome'), 'success');
     setTimeout(function(){ redirect(data.user); }, 600);
   } catch(e){
-    _lShowFormError('تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى');
+    console.error('[login] unexpected error:', e);
+    _lShowFormError(twT('login.err.network'));
   } finally {
     // On failure only: restore button and unlock guard
     // On success: _submitting stays true, button stays loading until redirect
@@ -215,7 +215,7 @@ async function doLogin(){
       var v = emailEl.value.trim();
       if(v && !_lIsValidEmail(v)){
         _lEmailErrorKind = 'format';
-        _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+        _lShowFieldError('wrapper-lEmail', 'l-email-error', twT('login.err.email_format'));
       }
     });
     // Input: state machine drives all transitions
@@ -233,14 +233,14 @@ async function doLogin(){
       } else if(!v){
         if(_lSubmitAttempted){
           _lEmailErrorKind = 'required';
-          _lShowFieldError('wrapper-lEmail', 'l-email-error', 'البريد الإلكتروني مطلوب');
+          _lShowFieldError('wrapper-lEmail', 'l-email-error', twT('login.err.email_required'));
         } else if(_lEmailErrorKind === 'format'){
           _lEmailErrorKind = null;
           _lClearFieldError('wrapper-lEmail', 'l-email-error');
         }
       } else if(_lSubmitAttempted || _lEmailErrorKind === 'format'){
         _lEmailErrorKind = 'format';
-        _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+        _lShowFieldError('wrapper-lEmail', 'l-email-error', twT('login.err.email_format'));
       }
       // else: non-empty invalid, no submit attempted, no prior blur format — wait for blur
     });
@@ -253,7 +253,7 @@ async function doLogin(){
       if(passEl.value){
         _lClearFieldError('wrapper-lPass', 'l-pass-error');
       } else if(_lSubmitAttempted){
-        _lShowFieldError('wrapper-lPass', 'l-pass-error', 'كلمة المرور مطلوبة');
+        _lShowFieldError('wrapper-lPass', 'l-pass-error', twT('login.err.pass_required'));
       }
     });
   }
@@ -261,7 +261,7 @@ async function doLogin(){
 
 // ── DS-VAL helpers (register form) ──────────────────────────────────────────
 var _rSubmitAttempted = false;  // arms Required re-show after first submit
-var _rEmailErrorKind  = null;   // 'required' | 'format' | null — never compare message text
+var _rEmailErrorKind  = null;   // 'required' | 'format' | 'taken' (409) | null — never compare message text
 var _rSubmitting      = false;  // BTN-09: duplicate-submit guard (register only)
 
 // ── Register ──────────────────────────────────────────────────────────────────
@@ -288,26 +288,27 @@ async function doRegister(){
   }
 
   _rSubmitAttempted = true;
+  _clearFormBanner('r-form-error');   // fresh submit clears the last server error (VAL-12)
 
   // Inline field validation — collect all errors, show at once (DS-VAL VAL-06)
   // Clears stale errors for valid fields (autofill / password-manager)
   var hasError = false;
   if(curType === 'emp'){
     if(!_regFirstName){
-      _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', 'الاسم الأول مطلوب');
+      _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', twT('register.err.first_required'));
       hasError = true;
     } else {
       _lClearFieldError('wrapper-rFirstName', 'r-first-name-error');
     }
     if(!_regLastName){
-      _lShowFieldError('wrapper-rLastName', 'r-last-name-error', 'اسم العائلة مطلوب');
+      _lShowFieldError('wrapper-rLastName', 'r-last-name-error', twT('register.err.last_required'));
       hasError = true;
     } else {
       _lClearFieldError('wrapper-rLastName', 'r-last-name-error');
     }
   } else {
     if(!_regOrgName){
-      _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
+      _lShowFieldError('wrapper-rName', 'r-name-error', twT('register.err.name_required'));
       hasError = true;
     } else {
       _lClearFieldError('wrapper-rName', 'r-name-error');
@@ -315,27 +316,27 @@ async function doRegister(){
   }
   if(!email){
     _rEmailErrorKind = 'required';
-    _lShowFieldError('wrapper-rEmail', 'r-email-error', 'البريد الإلكتروني مطلوب');
+    _lShowFieldError('wrapper-rEmail', 'r-email-error', twT('login.err.email_required'));
     hasError = true;
   } else if(!_lIsValidEmail(email)){
     _rEmailErrorKind = 'format';
-    _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+    _lShowFieldError('wrapper-rEmail', 'r-email-error', twT('login.err.email_format'));
     hasError = true;
   } else {
     _rEmailErrorKind = null;
     _lClearFieldError('wrapper-rEmail', 'r-email-error');
   }
   if(!pass){
-    _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور مطلوبة');
+    _lShowFieldError('wrapper-rPass', 'r-pass-error', twT('login.err.pass_required'));
     hasError = true;
   } else if(pass.length < 6){
-    _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+    _lShowFieldError('wrapper-rPass', 'r-pass-error', twT('register.err.pass_short'));
     hasError = true;
   } else {
     _lClearFieldError('wrapper-rPass', 'r-pass-error');
   }
   if(!['emp','co','edu'].includes(curType)){
-    toast('اختر نوع الحساب', 'error');
+    showToast(twT('register.err.type_required'), 'error');
     hasError = true;
   }
   if(hasError){
@@ -347,7 +348,7 @@ async function doRegister(){
     return;
   }
 
-  _rSubmitting = true;                       // BTN-09: lock before fetch (synchronous)
+  _rSubmitting = true;                       // BTN-09: lock before the request (synchronous)
   var btn = document.getElementById('regBtn');
   btn.setAttribute('aria-busy', 'true');     // BTN-07: loading state ARIA
   setBtnLoad(btn, true);
@@ -362,20 +363,31 @@ async function doRegister(){
     } else {
       payload.full_name = _regOrgName;
     }
-    var res  = await fetch('/auth/register', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    });
-    var data = await res.json();
-    if(!res.ok){ toast(data.detail || 'خطأ في التسجيل', 'error'); return; }
-    localStorage.setItem('tw_user', JSON.stringify(data.user));
-    if(data.token) localStorage.setItem('tw_jwt', data.token);
-    toast('تم إنشاء حسابك! 🎉');
+    // twApi (API Client — PR 3A): status checked before the body is used (was res.json() with no ok check).
+    var res = await twApi('/auth/register', {method: 'POST', auth: false, body: payload});
+    if(!res.ok){
+      var err = _registerError(res);
+      if(err.field === 'email'){
+        _rEmailErrorKind = 'taken';
+        _lShowFieldError('wrapper-rEmail', 'r-email-error', err.text);
+        var emailInput = document.getElementById('rEmail');
+        if(emailInput) emailInput.focus();
+      } else {
+        _showFormBanner('r-form-error', err.text);
+      }
+      return;
+    }
+    var data = res.data;
+    if(!data || !data.user || !_startSession(data.user, data.token)){
+      _showFormBanner('r-form-error', twT('register.err.failed'));
+      return;
+    }
+    showToast(twT('register.success'), 'success');
     _success = true;                         // BTN-09: mark before redirect timer
     setTimeout(function(){ redirect(data.user); }, 700);
   } catch(e){
-    toast('تعذّر الاتصال بالخادم', 'error');
+    console.error('[register] unexpected error:', e);
+    _showFormBanner('r-form-error', twT('login.err.network'));
   } finally {
     // BTN-09: restore only on failure — stay locked on success until redirect
     if(!_success){
@@ -402,7 +414,7 @@ async function doRegister(){
       if(rFirstEl.value.trim()){
         _lClearFieldError('wrapper-rFirstName', 'r-first-name-error');
       } else {
-        _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', 'الاسم الأول مطلوب');
+        _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', twT('register.err.first_required'));
       }
     });
   }
@@ -414,7 +426,7 @@ async function doRegister(){
       if(rLastEl.value.trim()){
         _lClearFieldError('wrapper-rLastName', 'r-last-name-error');
       } else {
-        _lShowFieldError('wrapper-rLastName', 'r-last-name-error', 'اسم العائلة مطلوب');
+        _lShowFieldError('wrapper-rLastName', 'r-last-name-error', twT('register.err.last_required'));
       }
     });
   }
@@ -426,7 +438,7 @@ async function doRegister(){
       if(rNameEl.value.trim()){
         _lClearFieldError('wrapper-rName', 'r-name-error');
       } else {
-        _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
+        _lShowFieldError('wrapper-rName', 'r-name-error', twT('register.err.name_required'));
       }
     });
   }
@@ -437,7 +449,7 @@ async function doRegister(){
       var v = rEmailEl.value.trim();
       if(v && !_lIsValidEmail(v)){
         _rEmailErrorKind = 'format';
-        _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+        _lShowFieldError('wrapper-rEmail', 'r-email-error', twT('login.err.email_format'));
       }
     });
     // Input: state machine drives all transitions
@@ -449,14 +461,14 @@ async function doRegister(){
       } else if(!v){
         if(_rSubmitAttempted){
           _rEmailErrorKind = 'required';
-          _lShowFieldError('wrapper-rEmail', 'r-email-error', 'البريد الإلكتروني مطلوب');
+          _lShowFieldError('wrapper-rEmail', 'r-email-error', twT('login.err.email_required'));
         } else if(_rEmailErrorKind === 'format'){
           _rEmailErrorKind = null;
           _lClearFieldError('wrapper-rEmail', 'r-email-error');
         }
       } else if(_rSubmitAttempted || _rEmailErrorKind === 'format'){
         _rEmailErrorKind = 'format';
-        _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+        _lShowFieldError('wrapper-rEmail', 'r-email-error', twT('login.err.email_format'));
       }
       // else: non-empty invalid before submit and before any blur Format — wait for blur
     });
@@ -468,9 +480,9 @@ async function doRegister(){
       if(!_rSubmitAttempted) return;
       var v = rPassEl.value;
       if(!v){
-        _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور مطلوبة');
+        _lShowFieldError('wrapper-rPass', 'r-pass-error', twT('login.err.pass_required'));
       } else if(v.length < 6){
-        _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+        _lShowFieldError('wrapper-rPass', 'r-pass-error', twT('register.err.pass_short'));
       } else {
         _lClearFieldError('wrapper-rPass', 'r-pass-error');
       }
@@ -481,6 +493,7 @@ async function doRegister(){
 // ── Transient state reset helpers (called from index.ui.js on form switch) ───
 // Clears errors and submit flags without touching field values (fix H).
 function _resetRegisterTransientState(){
+  _clearFormBanner('r-form-error');
   _rSubmitAttempted = false;
   _rEmailErrorKind  = null;
   _lClearFieldError('wrapper-rName',       'r-name-error');

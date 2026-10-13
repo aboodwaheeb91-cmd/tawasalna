@@ -66,9 +66,10 @@ class TestPageShellSecurity(unittest.TestCase):
                 bad.append(str(p.relative_to(ROOT)))
         self.assertEqual(bad, [], "external script / CDN in pages")
 
-    def test_login_page_uses_local_lucide(self):
-        for name in ("index.html", "profile-showcase.html"):
-            self.assertIn('src="/static/vendor/lucide/lucide.min.js"', _read(ROOT / name), name)
+    def test_lucide_pages_use_local_copy(self):
+        # index.html moved to DS-ICON (PR 4.8) — no Lucide bundle there any more.
+        self.assertIn('src="/static/vendor/lucide/lucide.min.js"', _read(ROOT / "profile-showcase.html"))
+        self.assertNotIn("lucide", _read(ROOT / "index.html").lower())
 
     def test_old_app_header_js_removed(self):
         # PR 3.9: the pre-DS-HNAV header helper was loaded by no page — the header is

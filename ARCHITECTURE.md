@@ -8564,12 +8564,14 @@ Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English l
 
 | File | Responsibility |
 |------|---------------|
-| `index.html` | HTML structure only — logo, role selector, forms, skip link |
-| `index.css` | Auth page styles only — do NOT import from other pages |
-| `index.auth.js` | `redirect()`, `doLogin()`, `doRegister()`, on-load session check, Enter key handler |
-| `index.ui.js` | `selectType()`, `showRegister()`, `showLogin()`, `toast()`, `checkPassStrength()`, ITQAN utilities, hash auto-route |
+| `index.html` | HTML structure only — logo, role selector, forms, skip link · Page Shell markers (PR 4.8) · all text via `data-tw-t*` (Strings §59) · no inline `onclick` |
+| `index.css` | Auth page styles only — do NOT import from other pages · colors = `--color-*` tokens only (PR 4.8) |
+| `index.auth.js` | `redirect()`, `doLogin()`, `doRegister()`, on-load session check, Enter key handler · requests via `twApi` · session via `TwAuthSync.startSession` (PR 4.8) |
+| `index.ui.js` | `selectType()`, `showRegister()`, `showLogin()`, `checkPassStrength()`, button / radio / eye wiring, hash auto-route · icons `twIcon` (DS-ICON) · feedback `showToast` |
 
-**Loading order in `index.html`:** `tw_shared.js` → `index.auth.js` → `index.ui.js`
+**Loading order in `index.html` (PR 4.8):** Page Shell (`tw_shared.js` → `auth-sync.js`) → `tw-icons.js` → `index.auth.js` → `index.ui.js`
+
+**Login / register requests (PR 4.8):** `twApi('/auth/login' | '/auth/register', {method:'POST', auth:false, body})` — never `fetch`. Login failure → fixed text by status in the form banner `#l-form-error` (401 → wrong credentials · 429 + `login_email_locked` → lockout · 429 → too many · 5xx → server · 0 → twApi network text); never the raw server text. Register failure → 409 (email taken) under the email field; other 4xx → the server's own Arabic validation message in `#r-form-error`; 429 / 5xx / network → fixed text there. Success → `TwAuthSync.startSession(user, token)` (the only writer — refuses a malformed / foreign / expired token → banner, no redirect).
 
 Auth module loads first so the on-load redirect check fires before any UI initialises. Both modules are loaded before any user interaction can trigger `doLogin()` or `doRegister()`.
 
@@ -8583,13 +8585,15 @@ It is NOT a Landing Page and must not be redesigned as one.
 
 ### Role Selector (register-only)
 
-Three explicit cards replace the old 2-button + dropdown:
+Three cards = a native radio group (PR 4.8): `#typeRow[role=radiogroup]` → `<label class="type-btn" id="empBtn|coBtn|eduBtn">` + visually hidden `<input type="radio" name="accountType">`. Click / Space / arrow keys fire `change` → `selectType(value)`; `selectType()` also checks the radio (hash routes). Card names from `account.type.*` (GLOSSARY).
 
 | Card | user_type sent to API | Hash route |
 |------|-----------------------|------------|
-| 👤 موظف / باحث عن عمل | `emp` | `/login#register-emp` |
-| 🏢 شركة / صاحب عمل | `co` | `/login#register-co` |
-| 🎓 مؤسسة تعليمية | `edu` | `/login#register-edu` |
+| حساب شخصي / باحث عن عمل | `emp` | `/login#register-emp` |
+| حساب شركة / صاحب عمل | `co` | `/login#register-co` |
+| حساب جهة تعليمية | `edu` | `/login#register-edu` |
+
+«نسيت كلمة المرور؟» is a real `<button>` (no reset flow yet → info toast `login.forgot_soon`); «دخول» / «سجّل الآن» switches are `<button class="link-btn">`.
 
 - Role selector is **hidden on login view**, shown only when register form is open.
 - Login form derives role from the API response — it never asks the user to pick one.
@@ -8607,7 +8611,7 @@ Three explicit cards replace the old 2-button + dropdown:
 
 ### localStorage Rules
 
-- `localStorage.tw_user` — short-lived session cache; populated by `/auth/login` and `/auth/register` responses
+- `localStorage.tw_user` — short-lived session cache; populated by `/auth/login` and `/auth/register` responses — written only through `TwAuthSync.startSession` (PR 4.8; `index.auth.js` has no `localStorage` access)
 - `localStorage.tw_jwt` — JWT bearer token; 7-day expiry
 - **Neither is the authority for roles** — the user object from the API response is the source of truth
 - TODO (P1 next): call `POST /auth/verify-token` on page load before trusting the cached session
@@ -12644,6 +12648,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | Cache refresh | `_password_changed_cache_set(uid, epoch)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
 | DB error on lookup | logged `[session-invalidation]`, not cached, token allowed | the request then fails at its own DB call; rejecting would log everyone out on a DB blip |
 | New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id})` | `iat ≥ stamp` → survives |
+| Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
 
 Known edge: a JWT issued **in the same second** as the change (iat == stamp) stays valid — accepted (second granularity of `iat`).
