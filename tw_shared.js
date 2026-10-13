@@ -1270,6 +1270,7 @@ if (typeof document !== 'undefined' && typeof document.querySelector === 'functi
   var _reconnectTimer = null;  // active reconnect timer handle
   var _retries = 0;            // IIFE-level: persists across _initBadgeWS() calls; reset on auth_ok or new session
   var _sessionReinitTimer = null; // cancellable handle for 300ms session-switch reinit
+  var WS_REVOKED_WAIT_MS = 2000;  // 4008: second look for this device's new JWT (PR 4.0)
 
   function _clearSocket() {
     _gen++;
@@ -1367,6 +1368,19 @@ if (typeof document !== 'undefined' && typeof document.querySelector === 'functi
       if (event.code >= 4001 && event.code <= 4007) return;
       // Superseded by a newer session — do not reconnect
       if (capturedGen !== _gen) return;
+      // 4008 Session Revoked (password change — PR 4.0): never reconnect with the revoked JWT.
+      // New JWT already stored → reconnect now; else look once more after WS_REVOKED_WAIT_MS;
+      // still the old one → stay closed (TwAuthSync token_renewed reconnects via onSessionChange).
+      if (event.code === 4008) {
+        var revokedJwt = jwt;
+        var freshJwt = function () { try { return localStorage.getItem('tw_jwt') || ''; } catch (e) { return ''; } };
+        if (freshJwt() && freshJwt() !== revokedJwt) { _initBadgeWS(); return; }
+        _reconnectTimer = setTimeout(function () {
+          _reconnectTimer = null;
+          if (freshJwt() && freshJwt() !== revokedJwt) _initBadgeWS();
+        }, WS_REVOKED_WAIT_MS);
+        return;
+      }
       if (_retries < 5) {
         _retries++;
         var delay = Math.min(30000, Math.pow(2, _retries) * 1000 + Math.floor(Math.random() * 1000));

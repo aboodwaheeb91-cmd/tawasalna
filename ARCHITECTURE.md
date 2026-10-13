@@ -3861,7 +3861,7 @@ Custom override:
 | 4005 | Policy Violation | Typing rate limit exceeded; `_WS_MAX_VIOLATIONS` unknown events |
 | 4006 | Origin Denied | Origin header rejected by fail-closed origin policy |
 | 4007 | Too Many Connections | User already has `_WS_MAX_CONN_PER_USER = 10` active connections |
-| 4008 | Session Revoked (PR 4.0) | User's sessions ended (password change · admin reset · account deleted) → `_ws_revoke_user()` closes all their sockets. **Reconnect allowed** — fresh JWT gets back in, old JWT → 4001 |
+| 4008 | Session Revoked (PR 4.0) | User's sessions ended (password change · admin reset · account deleted) → `_ws_revoke_user()` closes all their sockets. Client reconnects **only with a JWT different from the revoked one** (now, or 2s later, or on `token_renewed`) — never a 4001 loop, never a logout |
 
 ### Per-Event Authorization (Authenticated Loop)
 
@@ -12653,7 +12653,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id})` | `iat ≥ stamp` → survives |
 | Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
-| Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client reconnects (4008 ∉ 4001–4007) → fresh JWT `auth_ok` / old JWT 4001. This process only (one worker) |
+| Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
 
 Known edge: a JWT issued **in the same second** as the change (iat == stamp) stays valid — accepted (second granularity of `iat`).
 
