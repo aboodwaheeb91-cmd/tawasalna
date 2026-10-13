@@ -797,8 +797,9 @@ Before → Click → Loading → Result → Back → Refresh
 | `schedule_new` — دعوة مقابلة جديدة | primary | `co` | شركة مسجّلة | — | `appointments.html` (FAB) |
 | `open_room` — فتح غرفة الموعد | secondary | `emp` · `co` (§23 — المواعيد بين الشركة والشخص) | طرفا الموعد (السيرفر بيرجّع مواعيده بس) | — | `appointments.html` |
 | `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · أي هدف (§20 — أي حساب بيتابع أي حساب، مش نفسه) | مسجّل (ضيف → دخول) | — | المرحلة 4 |
-| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | المرحلة 4 |
-| `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | المرحلة 4 |
+| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
+| `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
+| `verify_identity` — توثيق الهوية | primary | `emp` · `co` · `edu` (صاحب الحساب بصفحة `/settings`) | الحساب نفسه (§23 — `/kyc/*` بـ JWT) | — | `static/settings/settings.js` (PR 4.7) |
 | `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | المرحلة 4 |
 | `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | المرحلة 4 |
 | `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` بس (§15 · غيره 403) — ضيف → دخول | — | المرحلة 4 |

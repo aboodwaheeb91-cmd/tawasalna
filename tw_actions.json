@@ -25,6 +25,10 @@
       "labelKey": "action.edit_profile", "icon": "edit", "type": "secondary",
       "visibleTo": ["owner"], "auth": true
     },
+    "verify_identity": {
+      "labelKey": "settings.kyc.start", "icon": "shield-check", "type": "primary",
+      "visibleTo": ["emp", "co", "edu"], "auth": true
+    },
     "report": {
       "labelKey": "action.report", "icon": "report", "type": "ghost",
       "visibleTo": ["guest", "emp", "co", "edu"], "auth": true

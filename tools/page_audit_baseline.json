@@ -50,14 +50,14 @@
     "no_shell": 1
   },
   "edu-profile.html": {
-    "colors": 89,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 3,
+    "fetch": 0,
     "forsa": 0,
-    "helpers": 1,
-    "ls_session": 1,
+    "helpers": 0,
+    "ls_session": 0,
     "no_header": 0,
-    "no_shell": 1
+    "no_shell": 0
   },
   "home-v2.html": {
     "colors": 0,
@@ -130,13 +130,13 @@
     "no_shell": 1
   },
   "settings.html": {
-    "colors": 128,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 9,
+    "fetch": 0,
     "forsa": 0,
-    "helpers": 3,
-    "ls_session": 1,
+    "helpers": 0,
+    "ls_session": 0,
     "no_header": 0,
-    "no_shell": 1
+    "no_shell": 0
   }
 }

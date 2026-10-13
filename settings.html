@@ -1,730 +1,213 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="tw-page" content="auth">
-<title>تواصلنا - إعدادات الحساب</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root{--ac:#00c896;--ac2:#2563ff;--acr:0,200,150;}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100vh;}
-
-/* Header = unified app header with back (app-header.css · HEADER-NAV.md) */
-
-/* ── MAIN ── */
-.main{padding:20px 16px 48px;max-width:600px;margin:0 auto;}
-.page-title{font-size:1.15rem;font-weight:900;margin-bottom:6px;}
-.page-sub{font-size:.75rem;color:rgba(255,255,255,.35);margin-bottom:28px;}
-
-/* ── SECTION ── */
-.sec{margin-bottom:24px;}
-.sec-title{font-size:.65rem;font-weight:800;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-right:4px;}
-.card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;}
-
-/* ── ROW ── */
-.row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
-.row:last-child{border-bottom:none;}
-.row.clickable{cursor:pointer;}
-.row.clickable:hover{background:rgba(255,255,255,.03);}
-.row.readonly{opacity:.55;cursor:default;}
-.row-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
-.ico-green{background:rgba(0,200,150,.12);}
-.ico-blue{background:rgba(37,99,255,.12);}
-.ico-purple{background:rgba(139,92,246,.12);}
-.ico-orange{background:rgba(249,115,22,.12);}
-.ico-red{background:rgba(239,68,68,.12);}
-.ico-gray{background:rgba(255,255,255,.06);}
-.row-body{flex:1;min-width:0;}
-.row-name{font-size:.82rem;font-weight:700;margin-bottom:2px;}
-.row-val{font-size:.71rem;color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.row-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
-.row-tag{font-size:.62rem;color:rgba(255,255,255,.25);background:rgba(255,255,255,.05);border-radius:6px;padding:2px 7px;}
-.row-arrow{font-size:.75rem;color:rgba(255,255,255,.25);}
-
-/* ── DANGER ── */
-.danger-card{background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.12);border-radius:16px;}
-.danger-name{font-size:.82rem;font-weight:700;color:#f87171;}
-.danger-sub{font-size:.71rem;color:rgba(248,113,113,.5);}
-
-/* ── MODAL ── */
-.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:420px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;max-height:90vh;overflow-y:auto;}
-.overlay.show .modal{transform:translateY(0);}
-.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
-.mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:5px;}
-.mf input{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;transition:border-color .2s;}
-.mf input:focus{border-color:var(--ac);}
-.mf input[disabled]{opacity:.5;cursor:not-allowed;}
-.mact{display:flex;gap:8px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-ok:hover{opacity:.9;}
-.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
-.field-err{display:none;font-size:.68rem;color:#f87171;margin-top:4px;font-weight:700;}
-
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s,opacity .3s;pointer-events:none;opacity:0;white-space:nowrap;max-width:90vw;}
-.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
-.toast.success{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
-.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
-
-
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
-
-
-.kyc-step-dot{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:rgba(255,255,255,.4);flex-shrink:0;transition:all .3s;}
-.kyc-step-dot.active{border-color:#00c896;color:#00c896;background:rgba(0,200,150,.1);}
-.kyc-step-dot.done{border-color:#00c896;color:#fff;background:#00c896;}
-.kyc-step-line{flex:1;height:2px;background:rgba(255,255,255,.08);}
-
-</style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
-.sec-title{display:flex;align-items:center;justify-content:space-between;}
-.sec-saved{font-size:.65rem;color:var(--ac,#00c896);opacity:0;transition:opacity .3s;}
-.sec-saved.show{opacity:1;}
-
-/* ── Password Eye Icon ── */
-.pass-wrap{position:relative;display:flex;align-items:center;}
-.pass-wrap input{width:100%;padding-left:36px!important;}
-.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
-.pass-eye:hover{opacity:.9;}
-</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<!--tw:shell-head-->
+<!-- Unified app header with back (HEADER-NAV.md) -->
 <link rel="stylesheet" href="/static/app-header.css">
+<title></title>
+<meta name="tw-page" content="auth">
+<style>
+/* Settings — page styles (DS-COLOR --color-* tokens only — sizes stay raw until DS-SIZE phase 2 approval) */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--color-surface-page);
+  color: var(--color-text-body);
+  font-family: 'Cairo', sans-serif;
+  min-height: 100vh;
+}
+.skip-link {
+  position: absolute; top: -40px; right: 0;
+  background: var(--color-brand-primary); color: var(--color-text-on-brand);
+  padding: 8px 16px; border-radius: 0 0 10px 0;
+  font-size: .78rem; font-weight: 700; text-decoration: none; transition: top .2s; z-index: 10000;
+}
+.skip-link:focus { top: 0; }
+
+.st-main { max-width: 600px; margin: 0 auto; padding: 20px 16px 48px; }
+.st-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 900; margin-bottom: 6px; }
+.st-title svg { color: var(--color-brand-primary); }
+.st-sub { font-size: .72rem; color: var(--color-text-muted); margin-bottom: 32px; }
+
+/* ── Section ── */
+.st-sec { margin-bottom: 24px; }
+.st-sec-title { font-size: .65rem; font-weight: 800; color: var(--color-text-muted); letter-spacing: 1px; margin-bottom: 8px; padding-inline-start: 4px; }
+.st-card { background: var(--color-surface-card); border: 1px solid var(--color-border-subtle); border-radius: 16px; overflow: hidden; }
+
+/* ── Row (a <button> when it opens something) ── */
+.st-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px 16px; border: none; border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent; color: inherit; font-family: inherit; text-align: start;
+}
+.st-row:last-child { border-bottom: none; }
+button.st-row { cursor: pointer; transition: background-color .15s; }
+button.st-row:hover { background: var(--color-surface-hover); }
+button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: -2px; }
+.st-row.is-locked { opacity: .6; }
+.st-ico {
+  width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-surface-input); color: var(--color-text-secondary);
+}
+.st-ico.is-brand  { background: rgba(var(--color-brand-primary-rgb), .12); color: var(--color-brand-primary); }
+.st-ico.is-danger { background: rgba(var(--color-status-danger-rgb), .12); color: var(--color-status-danger); }
+.st-body { flex: 1; min-width: 0; }
+.st-name { font-size: .82rem; font-weight: 700; margin-bottom: 2px; }
+.st-val  { font-size: .72rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-end  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--color-text-muted); }
+.st-tag  { font-size: .6rem; color: var(--color-text-muted); background: var(--color-surface-input); border-radius: 8px; padding: 2px 6px; }
+.st-danger { border-color: rgba(var(--color-status-danger-rgb), .2); }
+.st-danger .st-name { color: var(--color-status-danger); }
+
+/* ── KYC status pill ── */
+.st-kyc-state { font-size: .65rem; font-weight: 700; }
+.st-kyc-state.is-approved { color: var(--color-status-success); }
+.st-kyc-state.is-review   { color: var(--color-status-warning); }
+.st-kyc-state.is-rejected { color: var(--color-status-danger); }
+
+/* ── Forms inside twModal (DS-OVL) ── */
+.st-form { display: flex; flex-direction: column; gap: 12px; }
+.st-field label { display: block; font-size: .72rem; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px; }
+.st-field .tw-input[dir="ltr"] { text-align: left; }
+.st-field.has-error .tw-input { border-color: var(--color-status-danger); }
+.st-err { display: none; font-size: .65rem; font-weight: 700; color: var(--color-status-danger); margin-top: 4px; }
+.st-field.has-error .st-err { display: block; }
+
+/* ── KYC steps ── */
+.st-steps { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+.st-dot {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: .65rem;
+  border: 2px solid var(--color-border-strong); color: var(--color-text-muted);
+}
+.st-dot.is-active { border-color: var(--color-brand-primary); color: var(--color-brand-primary); }
+.st-dot.is-done   { border-color: var(--color-brand-primary); background: var(--color-brand-primary); color: var(--color-text-on-brand); }
+.st-line { flex: 1; height: 2px; background: var(--color-border-subtle); }
+.st-hint { font-size: .72rem; color: var(--color-text-muted); line-height: 1.7; }
+.st-code { text-align: center; letter-spacing: 6px; font-size: .95rem; }
+.st-file {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 16px;
+  border: 2px dashed var(--color-border-strong); border-radius: 14px;
+  background: transparent; color: var(--color-text-secondary); font-family: inherit; font-size: .78rem; cursor: pointer; text-align: start;
+}
+.st-file.is-picked { border-style: solid; border-color: var(--color-brand-primary); color: var(--color-text-primary); }
+.st-result { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 12px 0; }
+.st-result svg { width: 40px; height: 40px; }
+.st-result.is-approved svg { color: var(--color-status-success); }
+.st-result.is-review svg   { color: var(--color-status-warning); }
+.st-result.is-rejected svg { color: var(--color-status-danger); }
+.st-result-title { font-size: .9rem; font-weight: 800; color: var(--color-text-primary); }
+</style>
 </head>
 <body>
-<!--
-╔══════════════════════════════════════════════╗
-║  TAWASALNA - SETTINGS                        ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
-║  DO NOT EDIT outside designated sections     ║
-╚══════════════════════════════════════════════╝
--->
-
+<a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
 
 <!-- Unified app header with back; fallback = own account page when there is no in-site history (HNAV-03) -->
 <header data-tw-header data-back="account"></header>
 
-<div class="main" role="main" id="main-content">
-  <div class="page-title">⚙️ إعدادات الحساب</div>
-  <div class="page-sub">إدارة معلومات حسابك وأمانه</div>
+<main class="st-main" id="main-content">
+  <h1 class="st-title"><i data-tw-icon="settings"></i><span data-tw-t="settings.title"></span></h1>
+  <p class="st-sub" data-tw-t="settings.subtitle"></p>
 
   <!-- ── معلومات التواصل ── -->
-  <div class="sec">
-    <div class="sec-title">معلومات التواصل</div>
-    <div class="card">
-      <div class="row readonly">
-        <div class="row-ico ico-blue">✉️</div>
-        <div class="row-body">
-          <div class="row-name">البريد الإلكتروني</div>
-          <div class="row-val" id="dispEmail">—</div>
-          <div class="row-val">تغيير البريد الإلكتروني — قريباً</div>
-        </div>
-        <div class="row-right"><span class="row-tag">🔒</span></div>
+  <section class="st-sec">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.contact"></h2>
+    <div class="st-card">
+      <!-- Email change hidden until FUTURE_ROADMAP 5.1 -->
+      <div class="st-row is-locked">
+        <span class="st-ico"><i data-tw-icon="mail"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.email"></span>
+          <span class="st-val" id="dispEmail">—</span>
+          <span class="st-val" data-tw-t="settings.email_soon"></span>
+        </span>
+        <span class="st-end"><i data-tw-icon="lock" data-tw-size="xs"></i></span>
       </div>
-      <div class="row clickable" onclick="openModal('phone')">
-        <div class="row-ico ico-orange">📱</div>
-        <div class="row-body">
-          <div class="row-name">رقم الهاتف</div>
-          <div class="row-val" id="dispPhone">لم يُضف بعد</div>
-        </div>
-        <div class="row-right"><span class="row-arrow">‹</span></div>
-      </div>
+      <button type="button" class="st-row" data-st-open="phone">
+        <span class="st-ico"><i data-tw-icon="phone"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.phone"></span>
+          <span class="st-val" id="dispPhone"></span>
+        </span>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </button>
     </div>
-  </div>
+  </section>
 
   <!-- ── الأمان ── -->
-  <div class="sec">
-    <div class="sec-title">الأمان</div>
-    <div class="card">
-      <div class="row clickable" onclick="openModal('password')">
-        <div class="row-ico ico-purple">🔒</div>
-        <div class="row-body">
-          <div class="row-name">كلمة المرور</div>
-          <div class="row-val">••••••••</div>
-        </div>
-        <div class="row-right"><span class="row-arrow">‹</span></div>
+  <section class="st-sec">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.security"></h2>
+    <div class="st-card">
+      <button type="button" class="st-row" data-st-open="password">
+        <span class="st-ico"><i data-tw-icon="lock"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.password"></span>
+          <span class="st-val" data-tw-t="settings.password_hint"></span>
+        </span>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </button>
+      <!-- KYC (SYSTEMS_INDEX §23) — the entry point of the identity-verification flow -->
+      <div class="st-row" id="kycRow">
+        <span class="st-ico is-brand"><i data-tw-icon="shield-check"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.kyc.title"></span>
+          <span class="st-val st-kyc-state" id="kycState"></span>
+        </span>
+        <span class="st-end" id="kycAction"></span>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- ── معلومات الحساب ── -->
-  <div class="sec">
-    <div class="sec-title">معلومات الحساب</div>
-    <div class="card">
-      <div class="row readonly">
-        <div class="row-ico ico-green">👤</div>
-        <div class="row-body">
-          <div class="row-name">الاسم الكامل</div>
-          <div class="row-val" id="dispName">—</div>
-        </div>
-        <div class="row-right"><span class="row-tag">من البروفايل</span></div>
+  <section class="st-sec">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.account"></h2>
+    <div class="st-card">
+      <div class="st-row is-locked">
+        <span class="st-ico"><i data-tw-icon="user"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.full_name"></span>
+          <span class="st-val" id="dispName">—</span>
+        </span>
+        <span class="st-end"><span class="st-tag" data-tw-t="settings.from_profile"></span></span>
       </div>
-      <div class="row readonly">
-        <div class="row-ico ico-orange">🏷️</div>
-        <div class="row-body">
-          <div class="row-name">نوع الحساب</div>
-          <div class="row-val" id="dispType">—</div>
-        </div>
-        <div class="row-right"><span class="row-tag">🔒</span></div>
+      <div class="st-row is-locked">
+        <span class="st-ico"><i data-tw-icon="tag"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.account_type"></span>
+          <span class="st-val" id="dispType">—</span>
+        </span>
+        <span class="st-end"><i data-tw-icon="lock" data-tw-size="xs"></i></span>
       </div>
-      <div class="row readonly">
-        <div class="row-ico ico-gray">#️⃣</div>
-        <div class="row-body">
-          <div class="row-name">معرّف الحساب</div>
-          <div class="row-val" id="dispID">—</div>
-        </div>
-        <div class="row-right"><span class="row-tag">🔒</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── منطقة الخطر ── -->
-  <div class="sec">
-    <div class="sec-title">منطقة الخطر</div>
-    <div class="danger-card">
-      <div class="row readonly">
-        <div class="row-ico ico-red">🗑️</div>
-        <div class="row-body">
-          <div class="danger-name">حذف الحساب</div>
-          <div class="danger-sub">حذف الحساب — قريباً</div>
-        </div>
+      <div class="st-row is-locked">
+        <span class="st-ico"><i data-tw-icon="id-card"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.account_id"></span>
+          <span class="st-val" id="dispID">—</span>
+        </span>
+        <span class="st-end"><i data-tw-icon="lock" data-tw-size="xs"></i></span>
       </div>
     </div>
-  </div>
+  </section>
 
-</div>
+  <!-- ── منطقة الخطر — account delete hidden until soft delete (plan 5.5 · F27) ── -->
+  <section class="st-sec">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.danger"></h2>
+    <div class="st-card st-danger">
+      <div class="st-row is-locked">
+        <span class="st-ico is-danger"><i data-tw-icon="delete"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.delete"></span>
+          <span class="st-val" data-tw-t="settings.delete_soon"></span>
+        </span>
+      </div>
+    </div>
+  </section>
+</main>
 
-<!-- ── MODALS ── -->
-<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal" id="modal"></div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<!--tw:strings-->
-<script src="/tw_shared.js"></script>
-<script src="/static/shared/auth-sync.js"></script>
-<script src="/static/shared/tw-icons.js"></script>
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <script src="/static/shared/tw-upload.js"></script>
-<script>
-'use strict';
-// ── Protected page guard (tw_shared.js — Auth Gateway rule 14) ──
-// Session from TwAuthSync snapshot only; guest / expired → /login?next=/settings.
-// Displayed account data comes from GET /profile/{uid}/full (owner-only, JWT) — never tw_user / tw_profile_data.
-const _snap = twRequireAuth();
-let _user = _snap ? { id: Number(_snap.userId), user_type: _snap.userType } : null;
-
-// Authorization via getAuthHeaders (tw_shared.js). 401 → TwAuthSync.invalidateSession →
-// the page guard sends the visitor to /login?next= (same path as an expired session).
-function api(path, opts) {
-  return fetch(path, Object.assign({ headers: getAuthHeaders(true) }, opts)).then(r => {
-    if (r.status === 401 && window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
-    return r.json().catch(() => ({})).then(body => ({ ok: r.ok, status: r.status, body: body }));
-  });
-}
-
-// Error text from any API error shape (normalizeErrorResponse — FBK M15)
-function apiErr(body, fallback) {
-  const n = normalizeErrorResponse(body);
-  const f = n.fieldErrors[0];
-  if (f && f.message) return f.message;
-  const g = n.generalError;
-  return (g && g.code !== 'unknown' && g.message) || fallback;
-}
-
-// ── Init display (API truth) ──
-function loadDisplay() {
-  const type = _user?.user_type === 'co' ? 'حساب شركة'
-              : _user?.user_type === 'edu' ? 'حساب مؤسسة تعليمية'
-              : 'حساب موظف';
-  document.getElementById('dispName').textContent = _user?.full_name || '—';
-  document.getElementById('dispEmail').textContent = _user?.email || '—';
-  document.getElementById('dispPhone').textContent = _user?.phone || 'لم يُضف بعد';
-  document.getElementById('dispType').textContent = type;
-  document.getElementById('dispID').textContent = _user?.tw_id || '—';
-}
-
-function loadAccount() {
-  if (!_user) return Promise.resolve();
-  return api('/profile/' + _user.id + '/full').then(res => {
-    if (!res.ok || !res.body.profile) {
-      if (res.status !== 401) showToast(apiErr(res.body, 'تعذّر تحميل بيانات الحساب'), 'error');
-      return;
-    }
-    const p = res.body.profile;
-    _user = { id: _user.id, user_type: p.user_type || _user.user_type, tw_id: p.tw_id || '',
-              full_name: p.full_name || '', email: p.email || '', phone: p.phone || '' };
-    loadDisplay();
-  }).catch(() => showToast('تعذّر الاتصال بالخادم', 'error'));
-}
-if (_snap) { loadDisplay(); loadAccount(); }
-
-// ── Input style ──
-const SS = 'width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;';
-
-// ── Modals ──
-function openModal(type) {
-  let h = '';
-
-  if (type === 'phone') {
-    h = `<div class="modal-title">📱 رقم الهاتف</div>
-    <div class="mf"><label>رقم الهاتف</label><input id="m-phone" autocomplete="off" type="tel" style="${SS};direction:ltr;text-align:left" value="${twEscAttr(_user?.phone || '')}" placeholder="+962 79 000 0000">
-      <div class="field-err" id="err-phone"></div>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePhone()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if (type === 'password') {
-    h = `<div class="modal-title">🔒 تغيير كلمة المرور</div>
-    <div class="mf"><label>كلمة المرور الحالية</label><input id="m-old" type="password" autocomplete="current-password" style="${SS}" placeholder="••••••••">
-      <div class="field-err" id="err-old"></div>
-    </div>
-    <div class="mf"><label>كلمة المرور الجديدة</label><input id="m-new" type="password" autocomplete="new-password" style="${SS}" placeholder="••••••••">
-      <div class="field-err" id="err-new"></div>
-    </div>
-    <div class="mf"><label>تأكيد كلمة المرور الجديدة</label><input id="m-conf" type="password" autocomplete="new-password" style="${SS}" placeholder="••••••••">
-      <div class="field-err" id="err-conf"></div>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePassword()">تغيير</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  }
-  if (!h) return;
-
-  document.getElementById('modal').innerHTML = h;
-  document.getElementById('overlay').classList.add('show');
-  history.pushState({ modal: type }, '', location.href);
-}
-
-function closeModal() {
-  document.getElementById('overlay').classList.remove('show');
-}
-
-// Back button closes modal
-window.addEventListener('popstate', e => {
-  if (e.state?.modal) closeModal();
-});
-
-// ── Validation helpers ──
-function setErr(id, msg) {
-  const el = document.getElementById(id);
-  if (el) { el.textContent = msg; el.style.display = 'block'; }
-  const inp = document.getElementById(id.replace('err-', 'm-'));
-  if (inp) inp.style.borderColor = '#f87171';
-}
-function clrErr(id) {
-  const el = document.getElementById(id);
-  if (el) el.style.display = 'none';
-  const inp = document.getElementById(id.replace('err-', 'm-'));
-  if (inp) inp.style.borderColor = '';
-}
-
-// ── Save functions — success only on r.ok; any error / network failure → error ──
-function savePhone() {
-  const phone = document.getElementById('m-phone')?.value.trim();
-  if (!phone) { setErr('err-phone', 'أدخل رقم الهاتف'); return; }
-  clrErr('err-phone');
-  const btn = document.querySelector('.mbtn-ok');
-  setBtnLoad(btn, true);
-  api('/profile/' + _user.id, { method: 'PUT', body: JSON.stringify({ phone: phone }) }).then(res => {
-    setBtnLoad(btn, false);
-    if (!res.ok) { setErr('err-phone', apiErr(res.body, 'تعذّر حفظ رقم الهاتف')); return; }
-    closeModal(); showToast('تم حفظ رقم الهاتف ✓');
-    loadAccount();
-  }).catch(() => { setBtnLoad(btn, false); setErr('err-phone', 'تعذّر الاتصال بالخادم، حاول مجدداً'); });
-}
-
-// PUT /auth/password — server checks the current password (bcrypt) + the register rule.
-const _PW_FIELD_ERR = { current_password: 'err-old', new_password: 'err-new' };
-function savePassword() {
-  const oldP = document.getElementById('m-old')?.value;
-  const newP = document.getElementById('m-new')?.value;
-  const conf = document.getElementById('m-conf')?.value;
-  let ok = true;
-  if (!oldP) { setErr('err-old', 'أدخل كلمة المرور الحالية'); ok = false; } else clrErr('err-old');
-  if (!newP) { setErr('err-new', 'أدخل كلمة المرور الجديدة'); ok = false; } else clrErr('err-new');
-  if (newP !== conf) { setErr('err-conf', 'كلمتا المرور لا تتطابقان'); ok = false; } else clrErr('err-conf');
-  if (!ok) return;
-
-  const btn = document.querySelector('.mbtn-ok');
-  setBtnLoad(btn, true);
-  api('/auth/password', {
-    method: 'PUT',
-    body: JSON.stringify({ current_password: oldP, new_password: newP })
-  }).then(res => {
-    setBtnLoad(btn, false);
-    if (res.ok) {
-      // Server invalidated every older session (PR 1.8) and sent a fresh JWT for this device.
-      if (!res.body.token || !window.TwAuthSync || !TwAuthSync.renewToken(res.body.token)) {
-        closeModal(); showToast('تم تغيير كلمة المرور ✓ — سجّل الدخول من جديد');
-        setTimeout(() => window.TwAuthSync && TwAuthSync.invalidateSession('password_changed'), 1500);
-        return;
-      }
-      closeModal(); showToast('تم تغيير كلمة المرور ✓ — تم تسجيل الخروج من باقي الأجهزة'); return;
-    }
-    const f = normalizeErrorResponse(res.body).fieldErrors[0];
-    if (f && _PW_FIELD_ERR[f.field]) { setErr(_PW_FIELD_ERR[f.field], f.message); return; }
-    showToast(apiErr(res.body, 'تعذّر تغيير كلمة المرور'), 'error');
-  }).catch(() => { setBtnLoad(btn, false); showToast('تعذّر الاتصال بالخادم، لم تتغيّر كلمة المرور', 'error'); });
-}
-
-// ── Toast ──
-function toast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast ' + type + ' show';
-  clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), 2800);
-}
-
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-
-// ══ KYC System ══
-var _kycStep=1,_kycIdB64='',_kycSelfieB64='';
-
-function _kycJwt(){ return localStorage.getItem('tw_jwt')||''; }
-function _kycAuthHdr(){ return {'Authorization':'Bearer '+_kycJwt(),'Content-Type':'application/json'}; }
-
-function openKYC(){
-  if(!_user||!_user.id) return;
-  document.getElementById('kycOverlay').style.display='flex';
-  fetch('/kyc/status/'+_user.id,{headers:{'Authorization':'Bearer '+_kycJwt()}}).then(function(r){return r.json();}).then(function(data){
-    var kyc=data.kyc||{};
-    var step=kyc.step||'none';
-    if(step==='none'||step==='email'){ showKYCStep(1); if(_user.email) document.getElementById('kyc-email').value=_user.email; }
-    else if(step==='phone') showKYCStep(2);
-    else if(step==='id_upload') showKYCStep(3);
-    else if(step==='review') showKYCStep(4);
-    else if(kyc.status==='approved') showKYCApproved();
-    else if(kyc.status==='rejected') showKYCRejected(kyc.admin_note);
-  }).catch(function(){ showKYCStep(1); if(_user.email) document.getElementById('kyc-email').value=_user.email||''; });
-}
-
-function closeKYC(){ document.getElementById('kycOverlay').style.display='none'; }
-
-function showKYCStep(n){
-  _kycStep=n;
-  ['kycStep1','kycStep2','kycStep3','kycStep4','kycApproved','kycRejected'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.style.display='none';
-  });
-  var el=document.getElementById('kycStep'+n); if(el) el.style.display='block';
-  for(var i=1;i<=4;i++){
-    var d=document.getElementById('dot'+i); if(!d) continue;
-    d.classList.remove('active','done');
-    if(i<n) d.classList.add('done'); else if(i===n) d.classList.add('active');
-  }
-}
-
-function showKYCApproved(){
-  ['kycStep1','kycStep2','kycStep3','kycStep4','kycRejected'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
-  document.getElementById('kycApproved').style.display='block';
-  document.getElementById('kycBadge').style.display='inline-block';
-  document.getElementById('kycStatus').textContent='✅ موثق';
-  document.getElementById('kycArrow').textContent='';
-}
-
-function showKYCRejected(note){
-  ['kycStep1','kycStep2','kycStep3','kycStep4','kycApproved'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
-  document.getElementById('kycRejected').style.display='block';
-  if(note) document.getElementById('kycRejectNote').textContent=note;
-}
-
-function resetKYC(){
-  _kycIdB64=''; _kycSelfieB64='';
-  fetch('/kyc/start',{method:'POST',headers:_kycAuthHdr()}).then(function(){showKYCStep(1);}).catch(function(){showKYCStep(1);});
-}
-
-// Shared OTP send error handler — covers 503 (no provider), 401 (session), and generic errors.
-// detail may be a string or {code, message} object (both shapes from server.py HTTPException).
-function _kycHandleOtpSendErr(status, data, btn){
-  setBtnLoad(btn, false);
-  if(status === 401){showToast('انتهت جلستك، يرجى تسجيل الدخول مجدداً','error');return;}
-  var detail = data && data.detail;
-  var code = detail && (typeof detail === 'object' ? detail.code : detail);
-  if(status === 503 || code === 'otp_delivery_unavailable'){
-    showToast('خدمة إرسال رمز التحقق غير متاحة حالياً، وسيتم توفيرها قريباً.','error');
-    return;
-  }
-  var msg = (detail && (typeof detail === 'object' ? detail.message : detail)) || 'حدث خطأ، حاول مجدداً';
-  showToast(msg,'error');
-}
-
-function kycSendEmail(btn){
-  var email=document.getElementById('kyc-email').value.trim();
-  if(!email){showToast('أدخل البريد الإلكتروني','error');return;}
-  setBtnLoad(btn,true);
-  fetch('/kyc/email/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({email:email})})
-  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
-  .then(function(o){
-    if(o.s===200&&o.d.status==='success'){
-      setBtnLoad(btn,false);
-      document.getElementById('kyc-email-code-wrap').style.display='block';
-      showToast('تم إرسال الرمز ✅');
-    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
-}
-
-function kycVerifyEmail(btn){
-  var code=document.getElementById('kyc-email-code').value.trim();
-  if(code.length!==6){showToast('الرمز 6 أرقام','error');return;}
-  setBtnLoad(btn,true);
-  fetch('/kyc/email/verify',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({code:code})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){showToast('✅ تم تأكيد البريد');setTimeout(function(){showKYCStep(2);},700);}
-    else showToast('رمز خاطئ','error');
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
-}
-
-function kycSendPhone(btn){
-  var phone=document.getElementById('kyc-phone').value.trim();
-  if(!phone){showToast('أدخل رقم الهاتف','error');return;}
-  setBtnLoad(btn,true);
-  fetch('/kyc/phone/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({phone:phone})})
-  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
-  .then(function(o){
-    if(o.s===200&&o.d.status==='success'){
-      setBtnLoad(btn,false);
-      document.getElementById('kyc-phone-code-wrap').style.display='block';
-      showToast('تم إرسال الرمز ✅');
-    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
-}
-
-function kycVerifyPhone(btn){
-  var code=document.getElementById('kyc-phone-code').value.trim();
-  if(!code){showToast('أدخل الرمز','error');return;}
-  setBtnLoad(btn,true);
-  fetch('/kyc/phone/verify',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({code:code})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){showToast('✅ تم تأكيد الهاتف');setTimeout(function(){showKYCStep(3);},700);}
-    else showToast('رمز خاطئ','error');
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
-}
-
-function kycPreviewID(input){
-  if(!input.files||!input.files[0]) return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    _kycIdB64=e.target.result;
-    document.getElementById('kyc-id-preview').innerHTML='<img src="'+e.target.result+'" style="width:80px;height:60px;object-fit:cover;border-radius:8px">';
-  };
-  reader.readAsDataURL(input.files[0]);
-}
-
-function kycPreviewSelfie(input){
-  if(!input.files||!input.files[0]) return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    _kycSelfieB64=e.target.result;
-    document.getElementById('kyc-selfie-preview').innerHTML='<img src="'+e.target.result+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%">';
-  };
-  reader.readAsDataURL(input.files[0]);
-}
-
-function kycSubmitDocs(btn){
-  if(!_kycIdB64){showToast('ارفع صورة الهوية أولاً','error');return;}
-  setBtnLoad(btn,true);
-  showToast('جاري رفع المستندات...','info',5000);
-  // Upload ID to storage first (PR-7a: shared client + kind; never save the data URL)
-  Promise.all([
-    TW.uploadImage({kind:'kyc-id-front',dataUrl:_kycIdB64,jwt:_kycJwt()}),
-    _kycSelfieB64 ? TW.uploadImage({kind:'kyc-selfie',dataUrl:_kycSelfieB64,jwt:_kycJwt()}) : Promise.resolve(null)
-  ]).then(function(results){
-    // kyc-docs is private → the server returns the object path (data.path), never a public URL
-    var bad=results.filter(function(r){return r&&(!r.ok||!r.data||!r.data.path);})[0];
-    if(bad){
-      throw TW.uploadError(bad,'تعذّر رفع المستندات، حاول مرة أخرى','upload_failed');
-    }
-    var idUrl=results[0].data.path;
-    var selfieUrl=results[1]?results[1].data.path:null;
-    return fetch('/kyc/docs',{method:'POST',headers:_kycAuthHdr(),
-      body:JSON.stringify({id_front_url:idUrl,selfie_url:selfieUrl})
-    }).then(TW.uploadResult).then(function(r){
-      if(!r.ok) throw TW.uploadError(r,'تعذّر حفظ المستندات، حاول مرة أخرى','save_failed');
-      return r.data;
-    });
-  }).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){
-      showToast('✅ تم إرسال طلب التوثيق');
-      document.getElementById('kycStatus').textContent='⏳ قيد المراجعة';
-      setTimeout(function(){showKYCStep(4);},700);
-    }
-  }).catch(function(e){
-    setBtnLoad(btn,false);
-    showToast(TW.uploadFailureMessage(e,'خطأ في الإرسال'),'error');
-  });
-}
-
-(function(){
-  if(!_user||!_user.id) return;
-  fetch('/kyc/status/'+_user.id,{headers:{'Authorization':'Bearer '+_kycJwt()}}).then(function(r){return r.json();}).then(function(data){
-    var kyc=data.kyc||{};
-    if(kyc.status==='approved'){
-      document.getElementById('kycBadge').style.display='inline-block';
-      document.getElementById('kycStatus').textContent='✅ موثق';
-      document.getElementById('kycArrow').textContent='';
-    } else if(kyc.step==='review'){
-      document.getElementById('kycStatus').textContent='⏳ قيد المراجعة';
-    } else if(kyc.step&&kyc.step!=='none'){
-      document.getElementById('kycStatus').textContent='أكمل التوثيق ◀';
-    }
-  }).catch(function(){});
-})();
-
-
-</script>
-
-<!-- ══ KYC Modal ══ -->
-<div class="overlay" id="kycOverlay" onclick="if(event.target===this)closeKYC()" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
-  <div style="background:#0d1a2e;border-radius:20px;width:100%;max-width:420px;padding:24px;max-height:90vh;overflow-y:auto;border:1px solid rgba(255,255,255,.08)">
-
-    <!-- Steps indicator -->
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px">
-      <div class="kyc-step-dot active" id="dot1">1</div>
-      <div class="kyc-step-line"></div>
-      <div class="kyc-step-dot" id="dot2">2</div>
-      <div class="kyc-step-line"></div>
-      <div class="kyc-step-dot" id="dot3">3</div>
-      <div class="kyc-step-line"></div>
-      <div class="kyc-step-dot" id="dot4">4</div>
-    </div>
-
-    <!-- Step 1: Email ✉️ -->
-    <div id="kycStep1">
-      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">✉️ تأكيد البريد الإلكتروني</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">سنرسل رمز تحقق على بريدك</div>
-      <input id="kyc-email" type="email" placeholder="بريدك الإلكتروني" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.85rem;margin-bottom:10px">
-      <button onclick="kycSendEmail(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال الرمز</button>
-      <div id="kyc-email-code-wrap" style="display:none;margin-top:10px">
-        <input id="kyc-email-code" placeholder="أدخل الرمز (6 أرقام)" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(0,200,150,.3);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;text-align:center;font-size:1.2rem;letter-spacing:6px;margin-bottom:10px">
-        <button onclick="kycVerifyEmail(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:rgba(0,200,150,.2);color:#00c896;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">تأكيد الرمز</button>
-      </div>
-    </div>
-
-    <!-- Step 2: Phone 📱 -->
-    <div id="kycStep2" style="display:none">
-      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">📱 تأكيد رقم الهاتف</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">سنرسل رمز SMS على هاتفك</div>
-      <input id="kyc-phone" type="tel" placeholder="+962791234567" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.85rem;margin-bottom:10px;direction:ltr;text-align:left">
-      <button onclick="kycSendPhone(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال الرمز</button>
-      <div id="kyc-phone-code-wrap" style="display:none;margin-top:10px">
-        <input id="kyc-phone-code" placeholder="أدخل الرمز" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(0,200,150,.3);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;text-align:center;font-size:1.2rem;letter-spacing:6px;margin-bottom:10px">
-        <button onclick="kycVerifyPhone(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:rgba(0,200,150,.2);color:#00c896;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">تأكيد الرمز</button>
-      </div>
-    </div>
-
-    <!-- Step 3: ID Upload 🪪 -->
-    <div id="kycStep3" style="display:none">
-      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">🪪 صورة الهوية والسيلفي</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">ارفع صورة واضحة من هويتك الوطنية</div>
-      <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:10px;cursor:pointer" onclick="document.getElementById('kyc-id-file').click()">
-        <div id="kyc-id-preview" style="font-size:2rem;margin-bottom:8px">🪪</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.4)">صورة الهوية الوطنية</div>
-        <input id="kyc-id-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="kycPreviewID(this)">
-      </div>
-      <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:14px;cursor:pointer" onclick="document.getElementById('kyc-selfie-file').click()">
-        <div id="kyc-selfie-preview" style="font-size:2rem;margin-bottom:8px">🤳</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.4)">سيلفي مع الهوية (اختياري)</div>
-        <input id="kyc-selfie-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="kycPreviewSelfie(this)">
-      </div>
-      <button onclick="kycSubmitDocs(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال للمراجعة</button>
-    </div>
-
-    <!-- Step 4: Review ⏳ -->
-    <div id="kycStep4" style="display:none;text-align:center;padding:20px 0">
-      <div style="font-size:3rem;margin-bottom:12px">⏳</div>
-      <div style="font-weight:800;font-size:1rem;margin-bottom:8px">طلبك قيد المراجعة</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4);line-height:1.7">سيتم مراجعة هويتك خلال 24-48 ساعة<br>وستصلك إشعار بالنتيجة</div>
-    </div>
-
-    <!-- Approved -->
-    <div id="kycApproved" style="display:none;text-align:center;padding:20px 0">
-      <div style="font-size:3rem;margin-bottom:12px">✅</div>
-      <div style="font-weight:800;font-size:1rem;margin-bottom:8px;color:#00c896">تم توثيق هويتك</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4)">حسابك موثق ومعتمد على تواصلنا</div>
-    </div>
-
-    <!-- Rejected -->
-    <div id="kycRejected" style="display:none;text-align:center;padding:20px 0">
-      <div style="font-size:3rem;margin-bottom:12px">❌</div>
-      <div style="font-weight:800;font-size:1rem;margin-bottom:8px;color:#f87171">تم رفض الطلب</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:14px" id="kycRejectNote">يرجى المحاولة مرة أخرى</div>
-      <button onclick="resetKYC()" style="padding:10px 24px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;cursor:pointer">إعادة المحاولة</button>
-    </div>
-
-    <button onclick="closeKYC()" style="width:100%;margin-top:14px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:transparent;color:rgba(255,255,255,.4);font-family:Cairo,sans-serif;cursor:pointer;font-size:.8rem">إغلاق</button>
-  </div>
-</div>
-
+<script src="/static/settings/settings.js"></script>
 </body>
 </html>

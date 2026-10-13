@@ -57,7 +57,7 @@ check("A08 hash is 10 hex chars",
       re.search(r"tw_shared\.css\?v=[0-9a-f]{10}\"", out) is not None)
 
 print("\nB — page without markers is unchanged")
-for name in ("settings.html", "admin.html", "profile-showcase.html"):
+for name in ("admin.html", "profile-showcase.html"):   # index.html (PR 4.8) + settings.html (PR 4.7) joined the shell
     raw = read(name)
     check(f"B01 {name} byte-identical", apply_shell(raw, name) == raw)
 

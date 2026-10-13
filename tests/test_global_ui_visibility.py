@@ -615,7 +615,7 @@ check("M09 — no setInterval badge/unread polling in any static/**/*.js file",
 # ═══════════════════════════════════════════════════════
 print("\nL — edu-profile.html")
 
-ep = read("edu-profile.html")
+ep = read_page("edu-profile.html")   # Page Shell page (PR 4.7) — checked as served
 
 check("L01 — tw_shared.js loaded in edu-profile.html",
       "/tw_shared.js" in ep)
@@ -641,9 +641,10 @@ check("L11 — static logout button removed from nav",
       'onclick="doLogout()"' not in ep)
 check("L12 — no emoji header buttons (🔔 💬 ☰)",
       '🔔' not in ep and '>💬<' not in ep and '☰' not in ep)
-check("L15 — owner actions still present (VM-01 separation)",
+check("L15 — owner actions still present (VM-01 separation) — edit button from twAction (BTN-19)",
       'id="ownerActions"' in ep
-      and 'onclick="openEditModal()"' in ep)
+      and re.search(r"twAction\('edit_profile',\s*\{[^}]*onClick:\s*openEditModal", ep) is not None
+      and "function openEditModal(" in ep)
 
 
 # ═══════════════════════════════════════════════════════

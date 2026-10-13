@@ -11,7 +11,7 @@ These rules are permanent and apply to all future AI sessions.
 
 2. **`TW.uploadImage(opts)` is the single entry point.** Signature (PR-7a): `TW.uploadImage({ kind, dataUrl, jwt })`. Returns `Promise<{ ok: boolean, data: object }>`. All callers must handle the `{ok, data}` shape — never assume a direct `res.url`. On `!ok` show `TW.uploadErrorText(res, fallback)` in the page toast and stop — never save the data URL.
 
-3. **Load order is mandatory.** `tw-upload.js` must appear in the HTML `<script>` list before any module that calls `TW.uploadImage`. Current pages: `profile-showcase.html` (before `profile-v2.api.js`) · `company-profile.html` (before `company.main.js`) · `settings.html` (KYC).
+3. **Load order is mandatory.** `tw-upload.js` must appear in the HTML `<script>` list before any module that calls `TW.uploadImage`. Current pages: `profile-showcase.html` (before `profile-v2.api.js`) · `company-profile.html` (before `company.main.js`) · `settings.html` (KYC — before `static/settings/settings.js`).
 
 4. **Each page keeps its own UX.** File picking, validation, canvas crop, loading state, and saving the returned URL to the DB are each page's responsibility. `tw-upload.js` only does the HTTP upload — nothing else.
 
