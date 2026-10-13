@@ -146,8 +146,10 @@ button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outl
         </span>
         <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
       </button>
-      <!-- KYC (SYSTEMS_INDEX §23) — the entry point of the identity-verification flow -->
-      <div class="st-row" id="kycRow">
+      <!-- KYC (SYSTEMS_INDEX §23) — the entry point of the identity-verification flow. Hidden until
+           settings.js confirms the verify_identity action is on (off by default until plan 5.1) —
+           when off the row is removed: no button, no text, no /kyc request. -->
+      <div class="st-row" id="kycRow" hidden>
         <span class="st-ico is-brand"><i data-tw-icon="shield-check"></i></span>
         <span class="st-body">
           <span class="st-name" data-tw-t="settings.kyc.title"></span>

@@ -786,7 +786,7 @@ Before → Click → Loading → Result → Back → Refresh
 3. **مين بيكبس:** `auth: true` + ضيف → الزر ظاهر وكبسته → `twLoginHref` مع رجعة لنفس الصفحة · `enabledWhen` / `ctx.disabled` → **Disabled** (حالة، مش صلاحية).
 4. **النوع → ستايل موحّد** `.tw-act .tw-act-{type}` (BTN-02/03: شفاف، border + نص + أيقونة من عائلة وحدة، توكنز بس). `ctx.className` بيحل محله بس لمكان إله شكل خاص (FAB، أزرار صفحة لسّا ما اتحوّلت).
 5. **الخطورة:** إجراء بـ `confirm` بالسجل → `twConfirm` (DS-OVL) قبل التنفيذ؛ `danger:true` → زر خطر + focus على «إلغاء» (BTN-13). بدون `tw-overlay.js` بالصفحة → ما بينفّذ.
-6. **الأدمن (قاعدة التحكم الكامل):** `PUT /admin/actions` → `{id: {enabled:false}}` بيخفيه عن الكل · `{id: {visibleTo:[…]}}` بيغيّر الجمهور. id أو حقل أو جمهور مش معروف → 422.
+6. **الأدمن (قاعدة التحكم الكامل):** `PUT /admin/actions` → `{id: {enabled:false}}` بيخفيه عن الكل · إجراء مطفّى افتراضياً بالسجل (`"enabled": false` — PR 4.7) بيشتغل بـ `{id: {enabled:true}}` · `{id: {visibleTo:[…]}}` بيغيّر الجمهور. id أو حقل أو جمهور مش معروف → 422.
 7. **الظهور UX بس (VM-07):** الـ endpoint بيتحقق من JWT / الملكية / النوع دايماً.
 
 ### جدول الإجراءات
@@ -799,7 +799,7 @@ Before → Click → Loading → Result → Back → Refresh
 | `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · أي هدف (§20 — أي حساب بيتابع أي حساب، مش نفسه) | مسجّل (ضيف → دخول) | — | المرحلة 4 |
 | `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
 | `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
-| `verify_identity` — توثيق الهوية | primary | `emp` · `co` · `edu` (صاحب الحساب بصفحة `/settings`) | الحساب نفسه (§23 — `/kyc/*` بـ JWT) | — | `static/settings/settings.js` (PR 4.7) |
+| `verify_identity` — توثيق الهوية | primary | `emp` · `co` · `edu` (صاحب الحساب بصفحة `/settings`) — **مطفّى افتراضياً** (`"enabled": false`) لحد 5.1؛ الأدمن بيشغّله `{"enabled": true}` | الحساب نفسه (§23 — `/kyc/*` بـ JWT) | — | `static/settings/settings.js` (PR 4.7) — مطفّى → صف التوثيق ما بينرسم |
 | `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | المرحلة 4 |
 | `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | المرحلة 4 |
 | `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` بس (§15 · غيره 403) — ضيف → دخول | — | المرحلة 4 |

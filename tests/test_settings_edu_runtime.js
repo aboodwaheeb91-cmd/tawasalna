@@ -11,12 +11,21 @@
  *   F  phone / password — twModal stays open on error · field errors · fresh token renewed
  *   G  edu — public load via twApi · owner → edit_profile · visitor → message · invalid website blocked
  *   H  strings — every twT key used exists in tw_strings.json (+ the verify_identity action)
+ *   K  verify_identity off by default (until plan 5.1) → no KYC row, no /kyc request · admin
+ *      override enabled:true → row back (action states from the REAL tw_actions.py merged registry)
  *
  * Run: node tests/test_settings_edu_runtime.js
  */
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
+const { execFileSync } = require('child_process');
+const PY = (() => { for (const p of ['python3', 'python']) { try { execFileSync(p, ['-V']); return p; } catch (e) {} } })();
+// the registry exactly as pages receive it (tw_actions.merged — registry defaults + admin overrides)
+const mergedActions = ov => JSON.parse(execFileSync(PY, ['-c',
+  'import json, sys, tw_actions; print(json.dumps(tw_actions.merged(json.loads(sys.argv[1]))))', JSON.stringify(ov || {})],
+  { encoding: 'utf8' }));
+const KYC_ON = { verify_identity: { enabled: true } };   // admin turned it on (after plan 5.1)
 
 let passed = 0, failed = 0;
 function check(name, cond, detail) {
@@ -91,6 +100,7 @@ function makeDocument(ids, extra) {
 // recorded shared stubs — api: { 'METHOD path': response | fn(opts) → response }
 function sharedStubs(rec, opts) {
   const api = opts.api || {};
+  const merged = mergedActions(opts.overrides === undefined ? KYC_ON : opts.overrides);
   return {
     twT: (k, vars) => { if (!(k in STRINGS)) rec.missingKeys.add(k); return vars ? k + JSON.stringify(vars) : k; },
     twTApply() {}, twIcon: { hydrate() {} },
@@ -108,9 +118,13 @@ function sharedStubs(rec, opts) {
       return (f && f.message) || (e && e.generalError && e.generalError.code !== 'unknown' && e.generalError.message) || fb;
     },
     twModal: m => { const ctl = { close() { ctl.closed = true; }, m }; rec.modals.push(ctl); return ctl; },
+    twActionState: id => {
+      const d = merged[id];
+      return d && !d.off && (d.visibleTo || []).indexOf(opts.userType || 'edu') >= 0 ? 'enabled' : 'hidden';
+    },
     twAction: (id, ctx) => {
       rec.actions.push({ id, ctx });
-      if (!(id in ACTIONS)) return null;
+      if (!(id in ACTIONS) || merged[id].off) return null;
       if (id === 'message' && opts.viewerIsOwnerOf) return null;
       const b = new El('button'); b.setAttribute('data-tw-action', id);
       b.addEventListener('click', () => ctx.onClick && ctx.onClick(ctx, b));
@@ -150,7 +164,9 @@ async function runSettings(opts) {
   opts = opts || {};
   const rec = newRec();
   const rows = ['phone', 'password'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
-  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'kycState', 'kycAction'], rows);
+  const kycRow = new El('div'); kycRow.id = 'kycRow'; kycRow.hidden = true;
+  ['kycState', 'kycAction'].forEach(id => { const e = new El('span'); e.id = id; kycRow.appendChild(e); });
+  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID'], rows.concat([kycRow]));
   const ctx = baseCtx(rec, opts, document);
   ctx.twRequireAuth = () => (opts.guest ? null : { isAuthenticated: true, userId: 7, userType: 'edu' });
   ctx.TwAuthSync = { getToken: () => 'JWT', renewToken: t => { rec.renewed = t; return true; }, invalidateSession: r => { rec.invalidated = r; } };
@@ -158,7 +174,7 @@ async function runSettings(opts) {
   await flush();
   return { rec, ctx, document, rows, $: id => document.getElementById(id) };
 }
-const kycBtn = p => p.$('kycAction').find(e => e.getAttribute('data-tw-action') === 'verify_identity')[0];
+const kycBtn = p => p.$('kycAction') && p.$('kycAction').find(e => e.getAttribute('data-tw-action') === 'verify_identity')[0];
 const lastModal = p => p.rec.modals[p.rec.modals.length - 1];
 const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text === key)[0];
 
@@ -368,6 +384,20 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     const r = await m.m.actions[1].onClick();
     check('G9 save → PUT /profile + PUT name, success', r !== false && o.rec.api.some(a => a.key === 'PUT /profile/7' && a.body.website === 'https://new.edu')
           && o.rec.api.some(a => a.key === 'PUT /auth/user/7/name') && o.rec.toasts.some(t => t.type === 'success'));
+  }
+
+  // ── K — verify_identity off by default ──
+  console.log('\nK — verify_identity off by default (until plan 5.1)');
+  {
+    check('K1 registry default: verify_identity is off', mergedActions({}).verify_identity.off === true);
+    const off = await runSettings({ overrides: {}, api: { 'GET /profile/7/full': PROFILE, 'GET /kyc/status/7': OK({ status: 'success', kyc: null }) } });
+    check('K2 action off → KYC row removed from the page', off.$('kycRow') === null);
+    check('K3 action off → no button and no KYC text', !kycBtn(off) && off.$('kycState') === null
+          && !off.rec.actions.some(a => a.id === 'verify_identity'));
+    check('K4 action off → no /kyc request', !off.rec.api.some(a => a.key.indexOf('/kyc/') >= 0), off.rec.api.map(a => a.key));
+    check('K5 rest of the page still works', off.$('dispName')._text === 'جامعة');
+    const on = await runSettings({ overrides: KYC_ON, api: { 'GET /profile/7/full': PROFILE, 'GET /kyc/status/7': OK({ status: 'success', kyc: null }) } });
+    check('K6 admin override enabled:true → row shown with the button', !!on.$('kycRow') && on.$('kycRow').hidden === false && !!kycBtn(on));
   }
 
   // ── H — strings ──

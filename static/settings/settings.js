@@ -4,6 +4,7 @@
 //   - dialogs: twModal (DS-OVL) · toasts: showToast (DS-FEEDBACK) · text: twT · icons: twIcon
 //   - account data from GET /profile/{uid}/full (owner-only)
 //   - KYC (SYSTEMS_INDEX §23): row «توثيق الهوية» → twAction('verify_identity') → steps
+//     (only while the action is on — off by default until plan 5.1; off → the row is removed)
 //     email OTP → phone OTP → ID (+ selfie) upload (TW.uploadImage) → admin review
 //   - email change hidden until plan 5.1 · account delete hidden until plan 5.5 (soft delete — F27)
 (function () {
@@ -360,13 +361,20 @@
     });
   }
 
+  // verify_identity off (registry default until plan 5.1 — the OTP provider) or not for this
+  // account → the KYC row never appears: no button, no text, no /kyc request.
+  var kycOn = twActionState('verify_identity') !== 'hidden';
+  var kycRow = $('kycRow');
+  if (kycOn) kycRow.hidden = false;
+  else kycRow.remove();
+
   // ── wire up ──
   var OPEN = { phone: openPhone, password: openPassword };
   document.querySelectorAll('[data-st-open]').forEach(function (b) {
     b.addEventListener('click', function () { OPEN[b.getAttribute('data-st-open')](); });
   });
   renderAccount();
-  renderKycRow();
+  if (kycOn) renderKycRow();
   loadAccount();
-  loadKyc();
+  if (kycOn) loadKyc();
 }());

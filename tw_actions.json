@@ -27,7 +27,7 @@
     },
     "verify_identity": {
       "labelKey": "settings.kyc.start", "icon": "shield-check", "type": "primary",
-      "visibleTo": ["emp", "co", "edu"], "auth": true
+      "visibleTo": ["emp", "co", "edu"], "auth": true, "enabled": false
     },
     "report": {
       "labelKey": "action.report", "icon": "report", "type": "ghost",

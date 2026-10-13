@@ -2,7 +2,8 @@
 
 One definition per UI action (follow, message, schedule, …):
   tw_actions.json        → the registry: labelKey (twT) · icon (DS-ICON) · type · visibleTo ·
-                           targets · auth · enabledWhen · confirm (DS-OVL)
+                           targets · auth · enabledWhen · confirm (DS-OVL) · enabled (default true;
+                           false = off until an admin override {"enabled": true} — PR 4.7)
   site_settings          → admin override (key `actions_override`, JSON {id: {enabled, visibleTo}})
   page_block(overrides)  → `<script>window.TW_ACTIONS=…</script>`, appended to the Strings block at
                            <!--tw:strings--> (same delivery, same moment: before tw_shared.js), so
@@ -72,7 +73,9 @@ def load_registry(path: str = os.path.join(_ROOT, "tw_actions.json")) -> dict:
             if (not isinstance(c, dict) or not isinstance(c.get("danger"), bool)
                     or any(c.get(k) not in strings for k in ("titleKey", "messageKey", "confirmKey"))):
                 raise bad("confirm needs titleKey / messageKey / confirmKey (twT keys) + danger")
-        extra = set(a) - {"labelKey", "icon", "type", "visibleTo", "targets", "auth", "enabledWhen", "confirm"}
+        if "enabled" in a and not isinstance(a["enabled"], bool):
+            raise bad("enabled must be true / false (default true — false = off until an admin turns it on)")
+        extra = set(a) - {"labelKey", "icon", "type", "visibleTo", "targets", "auth", "enabledWhen", "confirm", "enabled"}
         if extra:
             raise bad(f"unknown fields {sorted(extra)}")
     return actions
@@ -106,8 +109,9 @@ def validate_overrides(raw, registry: dict = None) -> dict:
         if "enabled" in ov:
             if not isinstance(ov["enabled"], bool):
                 raise ActionsError("invalid_value", "enabled لازم يكون true / false", aid)
-            if ov["enabled"] is False:
-                out["enabled"] = False
+            # kept only when it differs from the registry default (default-off actions — PR 4.7)
+            if ov["enabled"] is not registry[aid].get("enabled", True):
+                out["enabled"] = ov["enabled"]
         if "visibleTo" in ov:
             if not _subset(ov["visibleTo"], AUDIENCES, empty_ok=True):
                 raise ActionsError("invalid_value",
@@ -138,13 +142,14 @@ def parse_stored(value: str) -> dict:
 
 
 def merged(overrides: dict, registry: dict = None) -> dict:
-    """Registry with the admin overrides applied: enabled:false → "off": true · visibleTo replaced."""
+    """Registry with the admin overrides applied: effective enabled (override, else the registry's
+    "enabled", default true) false → "off": true · visibleTo replaced."""
     registry = REGISTRY if registry is None else registry
     out = {}
     for aid, a in registry.items():
         d = dict(a)
         ov = (overrides or {}).get(aid) or {}
-        if ov.get("enabled") is False:
+        if not ov.get("enabled", a.get("enabled", True)):
             d["off"] = True
         if "visibleTo" in ov:
             d["visibleTo"] = list(ov["visibleTo"])
