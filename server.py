@@ -2148,9 +2148,14 @@ class ConnectionManager:
         self.active: Dict[int, list] = {}
         self.active_conversations: Dict[int, int] = {}
         self._conv_ws_owner: Dict[int, object] = {}
+        self._loop = None   # the event loop the sockets live on (set by register)
 
     def register(self, user_id: int, ws: WebSocket) -> bool:
         """Register a WebSocket AFTER JWT auth succeeds. Returns False if limit exceeded."""
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass   # called outside the loop (sync caller) — keep the last known loop
         conns = self.active.get(user_id)
         if conns is None:
             self.active[user_id] = [ws]
@@ -2171,6 +2176,20 @@ class ConnectionManager:
                 self.active_conversations.pop(user_id, None)
                 self._conv_ws_owner.pop(user_id, None)
 
+    async def close_user(self, user_id: int, code: int) -> int:
+        """Session revoked → close every socket of user_id. Detached first, so nothing
+        reaches them after this call. Returns how many sockets were closed."""
+        conns = self.active.pop(user_id, None) or []
+        self.active_conversations.pop(user_id, None)
+        self._conv_ws_owner.pop(user_id, None)
+        _ws_cleanup_typing_log(user_id)
+        for ws in conns:
+            try:
+                await ws.close(code=code)
+            except Exception as e:
+                print(f"[WS] close_user uid={user_id} close failed: {type(e).__name__}")
+        return len(conns)
+
     async def send_to_user(self, user_id: int, data: dict) -> bool:
         if user_id not in self.active or not self.active[user_id]:
             return False
@@ -2189,6 +2208,37 @@ class ConnectionManager:
 
 
 ws_manager = ConnectionManager()
+
+# ── WS Session Revocation (PR 4.0) ──
+# Whatever ends a user's sessions (password change · admin password reset · account
+# deleted) also closes that user's open /ws/{uid} sockets at once with 4008. 4008 is
+# NOT in the 4001–4007 no-reconnect range: the client reconnects and re-authenticates —
+# the device that holds the fresh JWT gets back in, older JWTs get 4001 and stop.
+_WS_CLOSE_SESSION_REVOKED = 4008
+
+def _ws_revoke_user(user_id: int, reason: str) -> int:
+    """Close every open WS of user_id (this process — Procfile runs one worker).
+    Callable from sync endpoints (threadpool) and from the event loop itself."""
+    uid = int(user_id)
+    loop = ws_manager._loop
+    if loop is None or uid not in ws_manager.active:
+        return 0
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is loop:   # already on the loop — cannot block on it
+        loop.create_task(ws_manager.close_user(uid, _WS_CLOSE_SESSION_REVOKED))
+        print(f"[WS] REVOKE uid={uid} reason={reason} (scheduled)")
+        return 0
+    try:
+        n = asyncio.run_coroutine_threadsafe(
+            ws_manager.close_user(uid, _WS_CLOSE_SESSION_REVOKED), loop).result(timeout=5)
+    except Exception as e:
+        print(f"[WS] REVOKE uid={uid} reason={reason} failed: {type(e).__name__}: {e}")
+        return 0
+    print(f"[WS] REVOKE uid={uid} reason={reason} closed={n}")
+    return n
 
 
 @app.websocket("/ws/{user_id}")
@@ -3515,6 +3565,7 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
                                     "كلمة المرور الحالية غير صحيحة")
         changed_epoch = set_user_password(uid, data.new_password)
         _password_changed_cache_set(uid, changed_epoch)
+        _ws_revoke_user(uid, "password_changed")
         # Fresh token for THIS device — its iat is ≥ password_changed_at, so it survives
         # the invalidation; every older JWT of this user is rejected from now on.
         new_token = _jwt_encode({"user_id": uid, "user_type": token.get("user_type"),
@@ -5613,6 +5664,7 @@ def delete_own_account(user_id: int, data: AccountDeleteInput, token=Depends(ver
     finally:
         release_conn(conn)
     _cache_del('profile:' + str(user_id))
+    _ws_revoke_user(user_id, "account_deleted")
     print(f"[DELETE account] deleted user={user_id}")
     return {"ok": True, "success": True}
 
@@ -5625,6 +5677,7 @@ def delete_user(user_id: int, request: Request):
         if not rows:
             raise HTTPException(404, "المستخدم غير موجود")
         conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
+        _ws_revoke_user(user_id, "admin_deleted")
         return {"success": True, "message": "تم حذف الحساب"}
     except HTTPException:
         raise
@@ -5674,6 +5727,7 @@ def admin_reset_password(user_id: int, request: Request, data: dict = Body(...))
     try:
         # Same helper as PUT /auth/password → bumps password_changed_at (user's sessions end).
         _password_changed_cache_set(user_id, set_user_password(user_id, pw))
+        _ws_revoke_user(user_id, "admin_password_reset")
         return {"success": True}
     except Exception as e:
         raise _server_error("admin_reset_password", e)
@@ -5936,6 +5990,7 @@ class AppointmentCreateInput(BaseModel):
 class AppointmentSendInput(BaseModel):
     scheduled_at: str          # ISO 8601
     deadline_hours: Optional[int] = 48
+    mode: Optional[str] = None     # 'online' | 'onsite' — None keeps the draft's mode
     online_url: Optional[str] = None
     location_text: Optional[str] = None
     notes: Optional[str] = None
@@ -6113,6 +6168,7 @@ def api_send_appointment(appointment_id: int, body: AppointmentSendInput,
             location_text=body.location_text,
             notes=body.notes,
             representative_name=body.representative_name,
+            mode=body.mode,
         )
         return {"ok": True, "data": appt}
     except PermissionError as e:

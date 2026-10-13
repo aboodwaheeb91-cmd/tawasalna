@@ -154,6 +154,7 @@ window.normalizeErrorResponse = normalizeErrorResponse;
 //   opts: method ('GET') · body (object/array → JSON; string / FormData / Blob sent as is)
 //         headers (merged last) · auth (default true → getAuthHeaders) · timeout (ms) · signal
 //   ok     true only for HTTP 2xx and a body without ok:false / success:false
+//          2xx with a non-JSON body → ok:false, code bad_response · empty body (204) → ok:true, data null
 //   data   body.data when the body has it (API Contract {ok, data}), else the whole body (legacy shapes)
 //   error  null on success, else normalizeErrorResponse(...) → {fieldErrors[], generalError}
 //   raw    the parsed body as sent (extra fields: total / page / count …)
@@ -208,12 +209,18 @@ function twApi(path, opts) {
     fetch(path, init).then(function (r) {
       return r.text().then(function (txt) {
         clearTimeout(timer);
-        var parsed = null;
-        if (txt) { try { parsed = JSON.parse(txt); } catch (e) { parsed = null; } }
+        var parsed = null, badBody = false;
+        if (txt && txt.trim()) { try { parsed = JSON.parse(txt); } catch (e) { badBody = true; } }
         if (r.status === 401 && sentJwt && sentJwt !== _twApi401Jwt && _twApiJwt() === sentJwt
             && window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
           _twApi401Jwt = sentJwt;
           try { TwAuthSync.invalidateSession('api_401'); } catch (e) { console.warn('[twApi] invalidateSession failed:', e); }
+        }
+        // 2xx whose body is not JSON (an HTML page from a proxy / SPA fallback …) is not a
+        // success the page can read. An empty body (204 / no content) stays ok:true, data null.
+        if (r.ok && badBody) {
+          resolve(_twApiFail(r.status, 'bad_response', twT('api.bad_response')));
+          return;
         }
         var isObj = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
         var ok = r.ok && !(isObj && (parsed.ok === false || parsed.success === false));

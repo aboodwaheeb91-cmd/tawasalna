@@ -78,6 +78,7 @@ PY_SCRIPT=(
   test_talent_bank_v3.py
   test_ws_behavioral.py
   test_ws_security.py
+  test_ws_session_revoke.py
   test_modal_a11y.py
 )
 

@@ -7525,11 +7525,15 @@ def create_appointment(company_user_id: int,
 def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
                      deadline_hours: int = 48, online_url: str = None,
                      location_text: str = None, notes: str = None,
-                     representative_name: str = None) -> dict:
-    """Send invitation: draft → pending_response. Company only."""
+                     representative_name: str = None, mode: str = None) -> dict:
+    """Send invitation: draft → pending_response. Company only.
+    mode (optional) → the draft's mode is updated on send (the dialog may change it);
+    the other mode's field is cleared (online → no location_text, onsite → no online_url)."""
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
     if deadline_hours not in _APPT_DEADLINE_HOURS_ALLOWED:
         raise ValueError("مهلة الرد: 24 أو 48 أو 72 أو 168 ساعة فقط")
+    if mode is not None and mode not in _APPT_VALID_MODES:
+        raise ValueError(f"وضع الموعد غير صالح: {mode}")
     if online_url:
         if not online_url.startswith("https://"):
             raise ValueError("رابط المقابلة يجب أن يبدأ بـ https://")
@@ -7555,11 +7559,12 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             raise ValueError(f"لا يمكن إرسال موعد بحالة '{appt['status']}'")
 
         # mode-required field validation — backend is source of truth (F6/F21)
-        effective_url = online_url or appt.get('online_url')
-        effective_loc = location_text or appt.get('location_text')
-        if appt['mode'] == 'online' and not effective_url:
+        effective_mode = mode or appt['mode']
+        effective_url = online_url or (appt.get('online_url') if effective_mode == appt['mode'] else None)
+        effective_loc = location_text or (appt.get('location_text') if effective_mode == appt['mode'] else None)
+        if effective_mode == 'online' and not effective_url:
             raise ValueError("رابط المقابلة مطلوب للمواعيد الأونلاين")
-        if appt['mode'] == 'onsite' and not effective_loc:
+        if effective_mode == 'onsite' and not effective_loc:
             raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
@@ -7586,20 +7591,24 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             """UPDATE appointments
                SET status='pending_response', scheduled_at=:sched,
                    response_deadline_at=:deadline,
-                   online_url=COALESCE(:url, online_url),
-                   location_text=COALESCE(:loc, location_text),
+                   mode=:mode, online_url=:url, location_text=:loc,
                    notes=COALESCE(:notes, notes),
                    representative_name=COALESCE(:rep, representative_name),
                    updated_at=NOW()
                WHERE id=:id""",
             sched=scheduled_dt.isoformat(), deadline=deadline_dt.isoformat(),
-            url=online_url, loc=location_text, notes=notes,
-            rep=representative_name, id=appointment_id
+            mode=effective_mode,
+            url=effective_url if effective_mode == 'online' else None,
+            loc=effective_loc if effective_mode == 'onsite' else None,
+            notes=notes, rep=representative_name, id=appointment_id
         )
+        _sent_payload = {"scheduled_at": scheduled_dt.isoformat(), "deadline_hours": deadline_hours}
+        if effective_mode != appt['mode']:
+            _sent_payload["mode"] = {"from": appt['mode'], "to": effective_mode}
         _insert_appointment_event(
             conn, appointment_id, user_id, 'appointment_sent',
             old_status='draft', new_status='pending_response',
-            payload={"scheduled_at": scheduled_dt.isoformat(), "deadline_hours": deadline_hours}
+            payload=_sent_payload
         )
 
         applicant_id = appt['applicant_id']
@@ -7807,11 +7816,12 @@ def reschedule_appointment(appointment_id: int, user_id: int,
             raise ValueError(f"لا يمكن اقتراح موعد بحالة '{appt['status']}'")
 
         # mode-required field validation — backend is source of truth (F6/F21)
-        effective_url = online_url or appt.get('online_url')
-        effective_loc = location_text or appt.get('location_text')
-        if appt['mode'] == 'online' and not effective_url:
+        effective_mode = mode or appt['mode']
+        effective_url = online_url or (appt.get('online_url') if effective_mode == appt['mode'] else None)
+        effective_loc = location_text or (appt.get('location_text') if effective_mode == appt['mode'] else None)
+        if effective_mode == 'online' and not effective_url:
             raise ValueError("رابط المقابلة مطلوب للمواعيد الأونلاين")
-        if appt['mode'] == 'onsite' and not effective_loc:
+        if effective_mode == 'onsite' and not effective_loc:
             raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
@@ -8045,7 +8055,8 @@ def list_jobs_for_scheduling(company_id: int) -> list:
 
 
 def get_open_appointments(company_id: int, candidate_ids: list, job_id: int = None) -> dict:
-    """{candidate_id: {id, status, job_id, job_title, scheduled_at} | None} — the newest
+    """{candidate_id: {id, status, job_id, job_title, scheduled_at, mode, online_url,
+    location_text} | None} — the newest
     appointment of this company with each person that still blocks a new one (not
     cancelled / expired / missed / closed). job_id → that job only. Max 50 ids."""
     ids = sorted({int(i) for i in candidate_ids if int(i) > 0})[:50]
@@ -8062,7 +8073,8 @@ def get_open_appointments(company_id: int, candidate_ids: list, job_id: int = No
         ph.append(":u%d" % n)
     with db_conn() as conn:
         rows = conn.run(
-            "SELECT a.applicant_id, a.id, a.status, a.job_id, j.title, a.scheduled_at "
+            "SELECT a.applicant_id, a.id, a.status, a.job_id, j.title, a.scheduled_at, "
+            "a.mode, a.online_url, a.location_text "
             "FROM appointments a LEFT JOIN jobs j ON j.id = a.job_id "
             "WHERE a.company_id = :cid AND a.applicant_id IN (" + ", ".join(ph) + ") "
             "AND a.status NOT IN ('cancelled','expired','missed','closed')" + where_job +
@@ -8073,7 +8085,8 @@ def get_open_appointments(company_id: int, candidate_ids: list, job_id: int = No
         if out.get(uid) is None:
             out[uid] = _serialize({"id": int(r[1]), "status": r[2],
                                    "job_id": int(r[3]) if r[3] is not None else None,
-                                   "job_title": r[4], "scheduled_at": r[5]})
+                                   "job_title": r[4], "scheduled_at": r[5],
+                                   "mode": r[6], "online_url": r[7], "location_text": r[8]})
     return out
 
 

@@ -10,6 +10,8 @@ test_schedule_interview.py — PR 3.10 Schedule Interview System (focused).
     3. Another company's job → 403.
     4. Non-emp person → 400.
     5. Inactive (paused) job for a new link → 409 job_not_active.
+    6. Draft mode (PR 4.0): GET /api/schedule/open returns the draft's mode + place;
+       /send with another mode updates it (other mode's field cleared); unknown mode → 400.
   Frontend (node vm — real tw-schedule.js): test_schedule_interview_runtime.js.
 
 Run: python -m pytest tests/test_schedule_interview.py -q
@@ -140,3 +142,28 @@ def test_other_company_job_and_non_emp_and_inactive(db):
     with auth.db_conn() as conn:
         assert conn.run("SELECT COUNT(*) FROM job_pipeline_entries WHERE job_id IN (:a, :b, :c)",
                         a=j_other, b=j_own, c=j_paused)[0][0] == 0
+
+
+def test_send_updates_draft_mode(db):
+    from datetime import datetime, timedelta, timezone
+    with auth.db_conn() as conn:
+        co, emp = _user(conn, "co"), _user(conn)
+        j = _job(conn, co)
+    r = client.post("/api/appointments", headers=_h(co),
+                    json={"candidate_id": emp, "job_id": j, "appointment_type": "interview",
+                          "mode": "onsite", "location_text": "مكتب عمّان"})
+    assert r.status_code == 200, r.text
+    aid = r.json()["data"]["id"]
+    draft = client.get(f"/api/schedule/open?candidate_ids={emp}", headers=_h(co)).json()["data"][str(emp)]
+    assert draft["status"] == "draft" and draft["mode"] == "onsite" and draft["location_text"] == "مكتب عمّان"
+    when = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()
+    bad = client.post(f"/api/appointments/{aid}/send", headers=_h(co),
+                      json={"scheduled_at": when, "deadline_hours": 48, "mode": "phone"})
+    assert bad.status_code == 400
+    r = client.post(f"/api/appointments/{aid}/send", headers=_h(co),
+                    json={"scheduled_at": when, "deadline_hours": 48, "mode": "online",
+                          "online_url": "https://meet.test/new"})
+    assert r.status_code == 200, r.text
+    with auth.db_conn() as conn:
+        row = conn.run("SELECT status, mode, online_url, location_text FROM appointments WHERE id=:a", a=aid)[0]
+    assert row == ["pending_response", "online", "https://meet.test/new", None]

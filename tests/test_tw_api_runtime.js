@@ -4,6 +4,7 @@
  *   B — errors: {ok:false, error:{code,message,field?}} · {error:"..."} · {detail:{message}} · {ok:false, code, message}
  *   C — 401 with the user's JWT → TwAuthSync.invalidateSession('api_401') once; auth:false → never
  *   D — timeout · network down · never rejects
+ *   G — 2xx non-JSON body (HTML page) → ok:false bad_response · empty body / 204 → ok:true (PR 4.0)
  *   E — appointments.html uses twApi (no direct fetch)
  *   F — report only: direct fetch( count per frontend file (never fails)
  * Run: node tests/test_tw_api_runtime.js
@@ -40,6 +41,7 @@ const sb = {
   },
 };
 sb.window = sb;
+sb.TW_STRINGS = { dict: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tw_strings.json'), 'utf8')).ar };
 vm.createContext(sb);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'tw_shared.js'), 'utf8'), sb);
 
@@ -122,6 +124,21 @@ function respond(status, body) {
   try { r = await sb.twApi('/api/x'); } catch (e) { threw = true; }
   check('D2 network down → resolves ok:false code network (Arabic), no exception',
     !threw && !r.ok && r.status === 0 && r.error.generalError.code === 'network' && /الاتصال/.test(sb.twApiMessage(r)));
+
+  console.log('\nG — 2xx body that is not JSON (PR 4.0)');
+  respond(200, '<!doctype html><html><body>login</body></html>');
+  r = await sb.twApi('/api/x');
+  check('G1 200 + HTML page → ok:false, code bad_response, status kept, data null',
+    !r.ok && r.status === 200 && r.data === null && r.error.generalError.code === 'bad_response', r);
+  const g1msg = sb.twApiMessage(r, 'fallback');
+  check('G2 message is the strings key text (not the key, not HTML)',
+    g1msg === sb.twT('api.bad_response') && g1msg !== 'api.bad_response' && !/</.test(g1msg), g1msg);
+  respond(204, '');
+  r = await sb.twApi('/api/x', { method: 'DELETE' });
+  check('G3 204 empty body → ok:true, data null', r.ok && r.status === 204 && r.data === null && r.error === null, r);
+  respond(200, '');
+  r = await sb.twApi('/api/x');
+  check('G4 200 empty body → ok:true, data null', r.ok && r.status === 200 && r.data === null, r);
 
   console.log('\nE — appointments.html (reference page)');
   const html = fs.readFileSync(path.join(__dirname, '..', 'appointments.html'), 'utf8');
