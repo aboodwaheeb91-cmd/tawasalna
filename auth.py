@@ -7816,12 +7816,11 @@ def reschedule_appointment(appointment_id: int, user_id: int,
             raise ValueError(f"لا يمكن اقتراح موعد بحالة '{appt['status']}'")
 
         # mode-required field validation — backend is source of truth (F6/F21)
-        effective_mode = mode or appt['mode']
-        effective_url = online_url or (appt.get('online_url') if effective_mode == appt['mode'] else None)
-        effective_loc = location_text or (appt.get('location_text') if effective_mode == appt['mode'] else None)
-        if effective_mode == 'online' and not effective_url:
+        effective_url = online_url or appt.get('online_url')
+        effective_loc = location_text or appt.get('location_text')
+        if appt['mode'] == 'online' and not effective_url:
             raise ValueError("رابط المقابلة مطلوب للمواعيد الأونلاين")
-        if effective_mode == 'onsite' and not effective_loc:
+        if appt['mode'] == 'onsite' and not effective_loc:
             raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
