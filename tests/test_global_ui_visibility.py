@@ -249,22 +249,17 @@ check("D07 — inline logout handler removed",
 # ═══════════════════════════════════════════════════════
 print("\nE — profile-showcase.html")
 
-sc = read("profile-showcase.html")
+# PR 4.2a: the page header moved to the unified app header (HEADER-NAV.md) — bell /
+# messages / menu visibility is the header's VM-10 contract (test_header_nav.py), not a page copy.
+sc = read_page("profile-showcase.html")   # Page Shell page — read_html output
 
-check("E01 — scMsgBtn has data-tw-session=authenticated",
-      'id="scMsgBtn"' in sc
-      and 'data-tw-session="authenticated"' in sc)
-check("E02 — scBellBtn has data-tw-session=authenticated",
-      'id="scBellBtn"' in sc
-      and 'data-tw-session="authenticated"' in sc)
-check("E03 — both icons start hidden",
-      sc.count('data-tw-session="authenticated" hidden') >= 2)
-check("E04 — auth-sync.js loaded",
+check("E01 — one unified header placeholder, no page header buttons",
+      sc.count("data-tw-header") == 1
+      and not any(i in sc for i in ('id="scBellBtn"', 'id="scMsgBtn"', 'id="scMenuBtn"')))
+check("E02 — auth-sync.js loaded (Page Shell)",
       "auth-sync.js" in sc)
-check("E05 — scMenuDynamic container preserved",
-      'id="scMenuDynamic"' in sc)
-check("E06 — eye preview static section preserved",
-      'id="scEyeWrap"' in sc)
+check("E03 — eye preview static section preserved (page control under the header)",
+      'id="scEyeWrap"' in sc and 'id="scPreviewBar"' in sc)
 
 
 # ═══════════════════════════════════════════════════════

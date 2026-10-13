@@ -1,6 +1,6 @@
 /* profile-v2.apps.js — "My Applications" tab (owner-only)
  * Re-fetches on every tab activation so company status changes appear immediately.
- * Auth: Authorization: Bearer tw_jwt only — no X-User-Id.
+ * Auth: twApi (JWT from the session — no X-User-Id, no direct tw_jwt read · PR 4.2a).
  * Load order: after profile-v2.utils.js (scTab must be defined).
  */
 (function () {
@@ -33,42 +33,23 @@
     _loading = true;
     pane.innerHTML = '<div class="sc-app-loading">جارٍ تحميل طلباتك…</div>';
 
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!jwt) {
-      pane.innerHTML = '<div class="sc-app-empty">انتهت الجلسة، يرجى تسجيل الدخول مجدداً</div>';
+    twApi('/my/applications').then(function (r) {
       _loading = false;
-      return;
-    }
-
-    fetch('/my/applications', { headers: { 'Authorization': 'Bearer ' + jwt } })
-      .then(function (r) {
-        if (r.status === 401 || r.status === 403) {
-          var err = new Error('auth'); err.auth = true; throw err;
-        }
-        if (!r.ok) { throw new Error('server'); }
-        return r.json();
-      })
-      .then(function (data) {
-        _loading = false;
-        var apps = (data && Array.isArray(data.applications)) ? data.applications : [];
-        if (!apps.length) {
-          pane.innerHTML = '<div class="sc-app-empty">لم تقدم على أي وظيفة بعد</div>';
-          return;
-        }
-        pane.innerHTML = _buildList(apps);
-      })
-      .catch(function (err) {
-        _loading = false;
-        var msg = (err && err.auth)
+      if (!r.ok) {
+        var msg = (r.status === 401 || r.status === 403)
           ? 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً'
           : 'تعذّر تحميل طلباتك، حاول مجدداً';
         pane.innerHTML = '<div class="sc-app-empty">' + msg + '</div>';
-      });
-  }
-
-  function _esc(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return;
+      }
+      var data = r.raw;
+      var apps = (data && Array.isArray(data.applications)) ? data.applications : [];
+      if (!apps.length) {
+        pane.innerHTML = '<div class="sc-app-empty">لم تقدم على أي وظيفة بعد</div>';
+        return;
+      }
+      pane.innerHTML = _buildList(apps);
+    });
   }
 
   function _fmtDate(iso) {
@@ -89,18 +70,18 @@
       html += '<div class="sc-app-card">'
         + '<div class="sc-app-top">'
         +   '<div class="sc-app-info">'
-        +     '<div class="sc-app-title">' + _esc(app.title || '—') + '</div>'
-        +     '<div class="sc-app-company">' + _esc(app.company_name || '') + '</div>'
-        +     (app.location ? '<div class="sc-app-loc">' + _esc(app.location) + '</div>' : '')
+        +     '<div class="sc-app-title">' + twEscHtml(app.title || '—') + '</div>'
+        +     '<div class="sc-app-company">' + twEscHtml(app.company_name || '') + '</div>'
+        +     (app.location ? '<div class="sc-app-loc">' + twEscHtml(app.location) + '</div>' : '')
         +   '</div>'
-        +   '<span class="sc-app-status sc-app-status--' + _esc(statusKey) + '">'
-        +     _esc(_statusLabel(statusKey))
+        +   '<span class="sc-app-status sc-app-status--' + twEscHtml(statusKey) + '">'
+        +     twEscHtml(_statusLabel(statusKey))
         +   '</span>'
         + '</div>'
-        + '<div class="sc-app-meta">تاريخ التقديم: ' + _esc(_fmtDate(app.applied_at)) + '</div>'
+        + '<div class="sc-app-meta">تاريخ التقديم: ' + twEscHtml(_fmtDate(app.applied_at)) + '</div>'
         + '<div class="sc-app-actions">'
         +   '<a class="sc-app-btn" href="/job-detail?id=' + parseInt(app.job_id || 0, 10) + '">عرض الوظيفة</a>'
-        +   (app.company_tw_id ? '<a class="sc-app-btn" href="/u/' + _esc(app.company_tw_id) + '" target="_blank" rel="noopener">ملف الشركة</a>' : '')
+        +   (app.company_tw_id ? '<a class="sc-app-btn" href="/u/' + twEscHtml(app.company_tw_id) + '" target="_blank" rel="noopener">ملف الشركة</a>' : '')
         + '</div>'
         + '</div>';
     });

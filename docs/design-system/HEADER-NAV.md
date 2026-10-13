@@ -104,7 +104,7 @@
 - **مسجّل بس** (الزائر: `hidden`) · **موبايل/تابلت بس** (`< 1020px`) · `body.tw-has-bnav` بيعطي مسافة تحت المحتوى — الصفحة ما بتحط `padding-bottom` خاص فيه.
 - بيترسم من جديد بس لما يتغيّر `نوع|id|tw_id` (تسجيل واحد على `TwAuthSync.onSessionChange`).
 - **النصوص (PR 3.6):** كل نص بالهيدر والشريط وقائمة الهيدر (تسميات · `aria-label` / `title` · alt اللوغو) مفتاح `twT` (`labelKey` بالـ registries · `_twLbl(key)` للأيقونات) — Strings System SYSTEMS_INDEX §59. ❌ نص عربي ثابت بـ `_twHeaderHtml` / `_TW_BOTTOM_NAV` / `_TW_HEADER_MENU_POLICY`.
-- الصفحات اللي فيها الشريط: `home-v2` · `notifications` · `appointments` · `edu-profile`. بدونه: `messages` (شريط الكتابة تحت) · `job-detail` (شريط «تقدّم» الثابت) · `settings` · `appointment-room` (صفحات فرعية).
+- الصفحات اللي فيها الشريط: `home-v2` · `notifications` · `appointments` · `edu-profile` · `profile-showcase` (PR 4.2a). بدونه: `messages` (شريط الكتابة تحت) · `job-detail` (شريط «تقدّم» الثابت) · `settings` · `appointment-room` (صفحات فرعية).
 
 ---
 
@@ -113,7 +113,7 @@
 | الصفحة | الحالة |
 |--------|--------|
 | `home-v2` · `notifications` · `messages` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail` | ✅ PR 3.2 |
-| `profile-showcase.html` | 🔜 المرحلة 4 — الهيدر فيه قسم «معاينة كزائر» ثابت داخل القائمة (`scEyeWrap` + `scMenuDynamic`) وأزرار مالك، و `profile-v2.css` فيه نسخة مجمّدة من `.sc-header` (SIZE-08)، ونفس الملفات فيها منطق المتابعة اللي ممنوع نلمسه هلّق. |
+| `profile-showcase.html` | ✅ PR 4.2a — الهيدر الموحّد + الشريط السفلي؛ «المعاينة» طلعت من قائمة الهيدر لزر بالصفحة تحت الهيدر (`.sc-owner-bar` → `#scEyeWrap`) + شريط «وضع المعاينة» (`#scPreviewBar`) فيه «إنهاء المعاينة»؛ نسخة `.sc-header` / `.sc-menu-*` بـ `profile-v2.css` انحذفت؛ لوغو بطاقة QR = `TW_LOGO_SRC`. |
 | `company-profile.html` | 🔜 المرحلة 4 — `.co-hdr` فيه أزرار مالك + `coMenuDynamic`، و `company.main.js` بيعتمد عليه، ونفس الصفحة فيها منطق المتابعة. |
 | `landing.html` | ✅ PR 4.1 — هيدر الزائر الموحّد (لوغو · تسجيل الدخول · إنشاء حساب) بدون شريط سفلي؛ روابط الأقسام الداخلية (`#who` …) انشالت من الهيدر (الهيدر تنقّل بس). |
 | `index.html` (login) · الأدمن | خارج النطاق — صفحة دخول / أدمن إلها هيدرها الخاص. |

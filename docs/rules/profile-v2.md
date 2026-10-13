@@ -41,7 +41,9 @@ These rules are permanent and apply to all future AI sessions:
 
 These rules are permanent and apply to all future AI sessions.
 
-The three action buttons inside `.sc-actions` in `profile-showcase.html` — `#scFollowBtn`, `#scContactBtn`, `#scFullBtn` — have frozen dimensions defined in `profile-v2.css` lines 248–262. These values were inspected on 2026-06-29 and must not change without a dedicated, explicitly-scoped PR.
+The three action buttons inside `.sc-actions` in `profile-showcase.html` — `#scFollowBtn`, `#scContactBtn`, `#scFullBtn` — have frozen dimensions defined in `profile-v2.css` (`.sc-actions` / `.sc-btn*`). These values were inspected on 2026-06-29 and must not change without a dedicated, explicitly-scoped PR.
+
+**PR 4.2a — built by the Actions Registry:** `#scFollowBtn` = `twAction('follow')`, `#scContactBtn` = `twAction('message')` (label «مراسلة»), both with `className: 'sc-btn sc-btn-…'` so the frozen geometry stays; the HTML holds empty slots only. Visibility comes from `tw_actions.json` (guest → login button · owner → none); the owner gets the visitor copy (`mode: 'registered'`) that CSS shows only in preview. The icon is DS-ICON (`svg.tw-ico`) held at the frozen 14×14 / stroke 1.8 by `.sc-btn .tw-ico`. Other profile actions: edit = `twAction('edit_profile')` (`#scEditProfileBtn`), report = `twAction('report')` → `twReportDialog` (`#scReportRow`), share (QR modal) = `twAction('share')`, schedule = `twScheduleButton` (company viewer). ❌ A hand-written `<button>` or a visibility `if` for any of these.
 
 ### Frozen values (source: `profile-v2.css`)
 

@@ -800,6 +800,68 @@ function twAction(id, ctx) {
 }
 window.twAction = twAction;
 
+// ══ Report dialog — twReportDialog (Reports System SYSTEMS_INDEX §24 · PR 4.2a) ══
+// The ONE report form for every page: twAction('report', { onClick: function () {
+//   twReportDialog({ reportedId: id, reportedType: 'user' | 'job' | 'company' }); } }).
+// DS-OVL twModal (tw-overlay.js must be on the page — fail closed without it) + the single
+// endpoint POST /reports/submit through twApi. Reason types = TW_REPORT_TYPES (twT 'report.type.*').
+var TW_REPORT_TYPES = ['fraud', 'spam', 'misleading', 'harassment', 'other'];
+
+function twReportDialog(opts) {
+  opts = opts || {};
+  if (typeof window.twModal !== 'function') {
+    console.error('[twReportDialog] needs tw-overlay.js (DS-OVL) on this page');
+    return null;
+  }
+  var form = document.createElement('div');
+  form.className = 'tw-report-form';
+  var types = document.createElement('div');
+  types.className = 'tw-report-types';
+  types.setAttribute('role', 'radiogroup');
+  types.setAttribute('aria-label', twT('report.type_label'));
+  TW_REPORT_TYPES.forEach(function (t, i) {
+    var lbl = document.createElement('label');
+    lbl.className = 'tw-report-type';
+    var r = document.createElement('input');
+    r.type = 'radio'; r.name = 'twReportType'; r.value = t; r.checked = (i === 0);
+    var txt = document.createElement('span');
+    txt.textContent = twT('report.type.' + t);
+    lbl.appendChild(r); lbl.appendChild(txt);
+    types.appendChild(lbl);
+  });
+  var ta = document.createElement('textarea');
+  ta.className = 'tw-report-reason';
+  ta.rows = 3; ta.maxLength = 1000;
+  ta.placeholder = twT('report.reason_ph');
+  ta.setAttribute('aria-label', twT('report.reason_label'));
+  var err = document.createElement('div');
+  err.className = 'tw-report-err';
+  err.setAttribute('role', 'alert');
+  form.appendChild(types); form.appendChild(ta); form.appendChild(err);
+
+  return twModal({
+    title: twT('report.title'),
+    content: form,
+    actions: [
+      { text: twT('report.submit'), variant: 'danger', onClick: function () {
+        var reason = ta.value.trim();
+        if (!reason) { err.textContent = twT('report.reason_required'); ta.focus(); return false; }
+        var picked = form.querySelector('input[name="twReportType"]:checked');
+        err.textContent = '';
+        return twApi('/reports/submit', { method: 'POST', body: {
+          reported_id: Number(opts.reportedId), reported_type: String(opts.reportedType || 'user'),
+          report_type: picked ? picked.value : 'other', reason: reason, target_url: location.href
+        } }).then(function (res) {
+          if (!res.ok) { err.textContent = twApiMessage(res, twT('report.failed')); return false; }
+          if (typeof showToast === 'function') showToast(twT('report.sent'), 'success');
+        });
+      } },
+      { text: twT('common.cancel'), variant: 'secondary' }
+    ]
+  });
+}
+window.twReportDialog = twReportDialog;
+
 // ══ Protected Page Guard — twRequireAuth (PAGE-SHELL.md SHELL-09 · Auth Gateway rule 14) ══
 // The ONE guard for pages that need a session (<meta name="tw-page" content="auth">).
 // Called once, first thing in the page script:  var snap = twRequireAuth(); if (!snap) return;

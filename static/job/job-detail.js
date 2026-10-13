@@ -3,7 +3,7 @@
  *   session  → TwAuthSync.getSessionSnapshot() (public page; guest actions → twLoginHref(this job))
  *   API      → twApi (tw_shared.js — never fetch; JWT added by twApi itself)
  *   actions  → twAction('apply_job' | 'share' | 'report') — Actions Registry decides who sees what
- *   overlays → twModal (DS-OVL) for «تقديم» and «إبلاغ» · selects → DS-SEL (.ep-select + scSelectInit)
+ *   overlays → twModal (DS-OVL) for «تقديم» · «إبلاغ» = twReportDialog (shared report form, §24)
  *   text     → twT (tw_strings.json) · dates → twFormatDate (Gregorian, one format site-wide)
  *   icons    → twIcon.hydrate (static) / twIconEl (dynamic) — DS-ICON · logos → twAvatarHtml — DS-IMAGE
  *   feedback → showToast (DS-FEEDBACK — F34)
@@ -625,53 +625,10 @@
     }
   }
 
-  // ── Report (twModal — DS-OVL · select = DS-SEL) ──────────────
-  var _REPORT_TYPES = ['fraud', 'spam', 'misleading', 'harassment', 'other'];
-
+  // ── Report — the ONE site report form: twReportDialog (tw_shared.js · SYSTEMS_INDEX §24, F29) ──
   function openReport() {
     if (!_authed) { _toLogin(); return; }   // /reports/submit requires a JWT
-    var form = document.createElement('div');
-
-    var f1 = document.createElement('div'); f1.className = 'tw-field';
-    var l1 = document.createElement('label'); l1.htmlFor = 'jdReportType'; l1.textContent = twT('job.report.type');
-    var sel = document.createElement('select'); sel.id = 'jdReportType'; sel.className = 'tw-select ep-select';
-    _REPORT_TYPES.forEach(function (t) {
-      var o = document.createElement('option'); o.value = t; o.textContent = twT('job.report.' + t);
-      sel.appendChild(o);
-    });
-    f1.appendChild(l1); f1.appendChild(sel);
-
-    var f2 = document.createElement('div'); f2.className = 'tw-field';
-    var l2 = document.createElement('label'); l2.htmlFor = 'jdReportReason'; l2.textContent = twT('job.report.details');
-    var ta = document.createElement('textarea'); ta.id = 'jdReportReason'; ta.className = 'tw-textarea';
-    ta.rows = 3; ta.placeholder = twT('job.report.details_ph');
-    f2.appendChild(l2); f2.appendChild(ta);
-
-    form.appendChild(f1); form.appendChild(f2);
-
-    twModal({
-      title: twT('job.report.title'),
-      content: form,
-      actions: [
-        { text: twT('common.cancel'), variant: 'secondary' },
-        { text: twT('job.report.send'), variant: 'danger', onClick: function () {
-            return submitReport(sel.value || 'other', ta.value.trim());
-          } },
-      ],
-    });
-    if (window.scSelectInit) scSelectInit();   // DS-SEL engine for the report type
-  }
-
-  function submitReport(type, reason) {
-    if (!reason) { showToast(twT('job.report.need_reason'), 'error'); return false; }
-    return twApi('/reports/submit', { method: 'POST', body: {
-      reported_id: _jobId, reported_type: 'job', report_type: type,
-      reason: reason, target_url: location.href,
-    } }).then(function (res) {
-      if (!res.ok) { showToast(twApiMessage(res, twT('job.report.err')), 'error'); return false; }
-      showToast(twT('job.report.ok'));
-      return true;
-    });
+    twReportDialog({ reportedId: _jobId, reportedType: 'job' });
   }
 
   // ── Init ─────────────────────────────────────────────────────

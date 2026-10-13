@@ -96,9 +96,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 7. Profile Completion Card
 **Purpose:** Owner-only strip showing profile completion % with checklist + Growth Mode suggestions at 100%.
-**Source of Truth:** `window._scProfile` (loaded from `/profile/{id}/full`) · `profile-v2.completion.js`
-**Details:** `docs/rules/profile-completion.md` · `ARCHITECTURE.md Profile Completion Strip`
-**Do not recreate:** Do not create a separate completion API endpoint. Weights must always sum to 100. Do not show to visitors.
+**Source of Truth:** score + checklist = `GET /profile/{id}/score` → `_calc_profile_score` / `PROFILE_SCORE_ITEMS` in `server.py` (PR 4.2a · F29 — one definition for Home, the stats tile and this card) · `profile-v2.completion.js` maps id → twT label + action · growth suggestions read `window._scProfile`
+**Details:** `docs/rules/profile-completion.md` · `ARCHITECTURE.md Profile Completion Strip` + `§55 Score System` · test `python tests/test_profile_v2_structure.py`
+**Privacy:** `score` + `level` public (shown on the page) · `items` + `tips` owner / admin only (`_score_detail_allowed` — PROFILE-DATA-VISIBILITY V1.3).
+**Do not recreate:** Do not compute a completion % in the browser. Do not create a second completion endpoint or checklist. Points must always sum to 100 (server). Do not show to visitors.
 
 ---
 
@@ -438,7 +439,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Users report inappropriate jobs, profiles, or content. Admin reviews in the admin panel → البلاغات tab (`GET /admin/reports`, pending badge). No user notification on submit (PR 1.5 — user id 1 is not an admin; never notify a user id as "the admin").
 **Source of Truth:** `reports` table (reported_id, reported_type, reason, status)
 **Details:** `ARCHITECTURE.md §58`
-**Do not recreate:** `POST /reports/submit` is the single submission endpoint. Do not create per-entity report endpoints.
+**Frontend (PR 4.2a):** `twReportDialog({reportedId, reportedType})` in `tw_shared.js` — the ONE report form (DS-OVL `twModal` + reason chips `TW_REPORT_TYPES` → `report.type.*` twT keys + details textarea, required) → `twApi('POST /reports/submit')`; opened from `twAction('report', {onClick})`. Needs `tw-overlay.js` on the page (fail closed). Consumers: `profile-showcase.html` (`#scReportRow`, `reportedType:'user'`) · `job-detail.html` (`reportedType:'job'` — its own form removed with the `job.report.*` keys). One report form site-wide (F29).
+**Do not recreate:** `POST /reports/submit` is the single submission endpoint. Do not create per-entity report endpoints. Do not build a page-local report form — `twReportDialog`.
 
 ---
 
@@ -1156,7 +1158,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **مطفّى افتراضياً (PR 4.7):** حقل اختياري `"enabled": false` بالسجل = الإجراء `off` لكل الناس لحد ما الأدمن يبعت override `{"enabled": true}` (الـ override بينحفظ بس إذا بيختلف عن الافتراضي — `validate_overrides`؛ `merged` بيحسب `off` من الـ override وإلا من السجل). المستهلك الأول: `verify_identity` (مطفّى لحد 5.1 — مزوّد الإيميل).
 - **التسليم:** `tw_actions.page_block()` → `<script>window.TW_ACTIONS=…</script>` بينضاف لكتلة النصوص بنفس الـ marker `<!--tw:strings-->` (قبل `tw_shared.js`) — السجل + override الأدمن مدموجين بالسيرفر، ما في DB call وقت تقديم صفحة.
 - **Admin (بدون واجهة هلق):** `GET /admin/actions` ← `{actions, overrides, audiences, types}` · `PUT /admin/actions` body `{"overrides": {id: {"enabled": false | true, "visibleTo": [...]}}}` (`true` = تشغيل إجراء مطفّى افتراضياً) ← بيستبدل الـ map كلها (all-or-nothing). خطأ ← 422 `{ok:false, error:{code, message, field}}`: `unknown_action` · `unknown_field` (المسموح `enabled` · `visibleTo`) · `invalid_value` · `invalid_body`. `check_admin` (admin JWT) + كل حفظ بالـ log. قيمة مخزّنة قديمة/خربانة بتنشال (log) — ما بتوقف الصفحات.
-- **المستهلكين (PR 3.7):** `tw-schedule.js` (`twScheduleButton` → `twActionState('schedule')` + `twAction('schedule')`؛ بدون نسخة محلية للقاعدة — بدون `tw_shared.js` ما في زر، PR 3.9b) · `appointments.html` (FAB `schedule_new` + «فتح غرفة الموعد» `open_room`) · `job-detail` (PR 4.8 — `apply_job` بالكرت والشريط الثابت · `share` · `report`) · `edu-profile` (PR 4.7 — `edit_profile` · `message`) · `settings` (PR 4.7 — `verify_identity`، مطفّى افتراضياً لحد 5.1). الباقي (follow / message / edit_profile / report / share / apply_job / close_room) معرّف بالسجل — صفحاته بتتحوّل بالمرحلة 4. قيم الظهور متطابقة مع §15 / §18 / §20 / §23 / §23b / §24 والـ endpoints (follow أي حساب → أي حساب · close_room شركة بس · open_room emp + co).
+- **المستهلكين (PR 3.7):** `tw-schedule.js` (`twScheduleButton` → `twActionState('schedule')` + `twAction('schedule')`؛ بدون نسخة محلية للقاعدة — بدون `tw_shared.js` ما في زر، PR 3.9b) · `appointments.html` (FAB `schedule_new` + «فتح غرفة الموعد» `open_room`) · `job-detail` (PR 4.8 — `apply_job` بالكرت والشريط الثابت · `share` · `report` → `twReportDialog` §24) · `edu-profile` (PR 4.7 — `edit_profile` · `message`) · `settings` (PR 4.7 — `verify_identity`، مطفّى افتراضياً لحد 5.1) · `profile-showcase.html` (PR 4.2a): `follow` · `message` · `edit_profile` · `report` (→ `twReportDialog` §24) · `share` (QR modal) + `schedule` عبر `twScheduleButton`؛ للمالك نسخة الزائر بـ `mode:'registered'` بتبين بوضع المعاينة بس (CSS). الباقي (close_room + صفحة الشركة) بيتحوّل بالمرحلة 4. قيم الظهور متطابقة مع §15 / §18 / §20 / §23 / §23b / §24 والـ endpoints (follow أي حساب → أي حساب · close_room شركة بس · open_room emp + co).
 **Do not recreate:** ❌ شرط ظهور زر إجراء بصفحة (`if (IS_CO)` / `userType === …` / `isOwner`) بدل `twAction` · ❌ سجل أو جدول صلاحيات أزرار تاني · ❌ override بمكان غير `site_settings` · ❌ زر إجراء خطر بدون `confirm` بالسجل · ❌ اعتبار الظهور حماية (VM-07 — الـ backend بيتحقق دايماً).
 **Cross-references:** §59 Strings (labelKey + نفس آلية override) · DS-ICON F37 · DS-OVL §48 (`twConfirm`) · VIEWER-MODES VM-01/02/07 · BUTTONS.md BTN-17 / BTN-19 · NAV-07 (`twLoginHref`).
 **Test:** `node tests/test_actions_registry_runtime.js`

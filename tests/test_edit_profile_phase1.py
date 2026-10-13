@@ -2095,9 +2095,10 @@ def test_AO_bio_label_resize_color_role():
     ok(label) if 'profile-v2.css?v=compl-v6' not in html_src \
         else fail(label, 'CSS link still has old ?v=compl-v6 — cache bust not applied')
 
-    label = 'AO13c: CSS version query is ep-bio-v1'
-    ok(label) if 'profile-v2.css?v=ep-bio-v1' in html_src \
-        else fail(label, 'CSS link does not have ?v=ep-bio-v1 in profile-showcase.html')
+    # PR 4.2a: structure, not one literal version — the stylesheet is loaded with a cache-bust query
+    label = 'AO13c: profile-v2.css is loaded with a ?v= cache-bust query'
+    ok(label) if re.search(r'href="/static/profile-v2\.css\?v=[\w.-]+"', html_src) \
+        else fail(label, 'profile-v2.css link has no ?v= query in profile-showcase.html')
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────

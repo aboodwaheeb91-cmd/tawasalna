@@ -2352,8 +2352,8 @@ check(
     "_scViewerType !== 'owner'" in _apps132
 )
 check(
-    "132k. profile-v2.apps.js: uses Authorization Bearer JWT for /my/applications",
-    "'Authorization': 'Bearer ' + jwt" in _apps132
+    "132k. profile-v2.apps.js: /my/applications through twApi (JWT added by the API client — PR 4.2a)",
+    "twApi('/my/applications')" in _apps132 and "localStorage" not in _apps132
 )
 check(
     "132l. profile-v2.css: #scTabApps hidden by default and revealed only for body.view-owner",
@@ -2503,7 +2503,8 @@ check(
 )
 
 # ── 136: iOS PWA meta tags for public profile pages ───────────────────────
-_psh136  = open('profile-showcase.html',  encoding='utf-8').read()
+from page_shell import apply_shell as _apply_shell136   # Page Shell page (PR 4.2a) — served HTML
+_psh136  = _apply_shell136(open('profile-showcase.html', encoding='utf-8').read(), 'profile-showcase.html')
 _cph136  = open('company-profile.html',   encoding='utf-8').read()
 # edu-profile.html is a Page Shell page (PR 4.7) — the iOS tags come from the shell, checked as served
 from page_shell import apply_shell as _apply_shell136
@@ -2519,8 +2520,8 @@ check(
     'apple-mobile-web-app-status-bar-style' in _psh136
 )
 check(
-    "136c. profile-showcase.html has apple-touch-icon (icon-192.png consistent with manifest)",
-    'apple-touch-icon' in _psh136 and 'icon-192.png' in _psh136
+    "136c. profile-showcase.html has apple-touch-icon (from the Page Shell — PR 4.2a)",
+    'apple-touch-icon' in _psh136
 )
 check(
     "136d. company-profile.html has apple-mobile-web-app-capable",
@@ -3306,10 +3307,8 @@ check(
     'app-header.js' not in _co_html
 )
 check(
-    "154i. profile-showcase.html bell has data-ah-notif-badge (not old data-badge=notif)",
-    'data-ah-notif-badge' in _sc_html and
-    'data-badge="notif"' not in _sc_html[_sc_html.find('scBellBtn'):_sc_html.find('scBellBtn') + 200]
-    if 'scBellBtn' in _sc_html else 'data-ah-notif-badge' in _sc_html
+    "154i. profile-showcase.html bell = the unified header's (no page bell — PR 4.2a, HEADER-NAV.md)",
+    '<header data-tw-header></header>' in _sc_html and 'scBellBtn' not in _sc_html
 )
 check(
     "154j. profile-showcase.html no longer loads the deleted app-header.js (PR 3.9)",
@@ -7957,16 +7956,17 @@ check("482-01. _applyVa shows إدارة المرشح when candidate_save.is_act
       and 'candidate_save' in _applyva482)
 
 # 482-02: navigation uses /u/ prefix + tw_user.tw_id — not /company-profile
-check("482-02. intBtn navigate-when-active uses /u/ route and tw_user.tw_id (not /company-profile)",
-      '/u/' in _cs_onclick482
-      and 'tw_user' in _cs_onclick482
-      and '/company-profile' not in _cs_onclick482)
+# PR 4.2a: the destination comes from the shared twTalentBankHref (no tw_user read in the page)
+check("482-02. intBtn navigate-when-active uses the Talent Bank deep link (_scTalentBankHref → twTalentBankHref)",
+      '_scTalentBankHref(' in _cs_onclick482
+      and 'tw_user' not in _cs_onclick482
+      and 'twTalentBankHref()' in _render482)
 
 # 482-03: "إضافة ملاحظة" adds notes=1 to the URL
 check("482-03. _scNoteBtn onclick appends notes=1 to deep-link URL",
       'notes=1' in _hint482
-      and '/u/' in _hint482
-      and 'tw_user' in _hint482)
+      and '_scTalentBankHref(' in _hint482
+      and 'tw_user' not in _hint482)
 
 # 482-04: ?cand= sets _pendingManageOpen and triggers _urlDeepLinkPending
 check("482-04. URL ?cand= param sets _pendingManageOpen and _urlDeepLinkPending = true",

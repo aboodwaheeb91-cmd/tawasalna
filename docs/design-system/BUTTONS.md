@@ -796,12 +796,12 @@ Before → Click → Loading → Result → Back → Refresh
 | `schedule` — تحديد موعد | primary | `co` · هدف `emp` (مش نفسه) | شركة مسجّلة | — | `tw-schedule.js` (`twScheduleButton`) |
 | `schedule_new` — دعوة مقابلة جديدة | primary | `co` | شركة مسجّلة | — | `appointments.html` (FAB) |
 | `open_room` — فتح غرفة الموعد | secondary | `emp` · `co` (§23 — المواعيد بين الشركة والشخص) | طرفا الموعد (السيرفر بيرجّع مواعيده بس) | — | `appointments.html` |
-| `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · أي هدف (§20 — أي حساب بيتابع أي حساب، مش نفسه) | مسجّل (ضيف → دخول) | — | المرحلة 4 |
-| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
-| `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | `edu-profile.html` (PR 4.7) · باقي المرحلة 4 |
+| `follow` — متابعة | primary | `guest` · `emp` · `co` · `edu` · أي هدف (§20 — أي حساب بيتابع أي حساب، مش نفسه) | مسجّل (ضيف → دخول) | — | `profile-showcase.html` (PR 4.2a — `#scFollowBtn`) · company 🔜 |
+| `message` — مراسلة | secondary | `guest` · `emp` · `co` · `edu` | مسجّل، مش نفسه (§18 · `POST /messages/send`) — ضيف → دخول | — | `edu-profile.html` (PR 4.7) · `profile-showcase.html` (PR 4.2a — `#scContactBtn`) · company 🔜 |
+| `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | `edu-profile.html` (PR 4.7) · `profile-showcase.html` (PR 4.2a — `#scEditProfileBtn`, icon only) · company 🔜 |
 | `verify_identity` — توثيق الهوية | primary | `emp` · `co` · `edu` (صاحب الحساب بصفحة `/settings`) — **مطفّى افتراضياً** (`"enabled": false`) لحد 5.1؛ الأدمن بيشغّله `{"enabled": true}` | الحساب نفسه (§23 — `/kyc/*` بـ JWT) | — | `static/settings/settings.js` (PR 4.7) — مطفّى → صف التوثيق ما بينرسم |
-| `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | المرحلة 4 |
-| `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | المرحلة 4 |
+| `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | `profile-showcase.html` (PR 4.2a — `#scReportRow`) · `job-detail` (PR 4.8) — both → `twReportDialog` · company 🔜 |
+| `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | `profile-showcase.html` (PR 4.2a — QR modal `#scQrShareBtn`) · `job-detail` (PR 4.8) · company 🔜 |
 | `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` بس (§15 · غيره 403) — ضيف → دخول | — | المرحلة 4 |
 | `close_room` — إغلاق الغرفة | danger | `co` | الشركة صاحبة الموعد بس (`auth.close_appointment`) | `twConfirm` danger | المرحلة 4 (`appointment-room.html`) |
 

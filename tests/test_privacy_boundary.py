@@ -724,11 +724,11 @@ def _test_group_j():
 
     def j11_owner_hydration_failure_shows_toast():
         src = _read("profile-v2.edit.js")
-        # Both hydration failure paths must call window.toast
+        # Both hydration failure paths must call the shared toast (DS-FEEDBACK showToast — PR 4.2a)
         # Path 1: _scOwnerProfile is null after promise resolves
         # Path 2: _scOwnerProfile is null at open time
-        assert src.count("window.toast") >= 3, \
-            "profile-v2.edit.js: owner hydration failure paths must call window.toast"
+        assert src.count("showToast(") >= 3, \
+            "profile-v2.edit.js: owner hydration failure paths must call showToast"
 
     _test("J1  — server.py has otp availability helpers", j1_server_has_otp_availability_helpers)
     _test("J2  — helpers return False by default", j2_helpers_return_false_by_default)

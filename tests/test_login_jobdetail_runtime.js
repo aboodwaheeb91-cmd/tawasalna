@@ -239,7 +239,7 @@ function gateway(opts) {
     };
     const JOB = { id: 5, title: 'مطوّر', company_id: 77, company_tw_id: 'C962xyz', company_name: 'شركة', status: 'active',
                   created_at: '2026-10-08T09:00:00Z', skills: ['Python'], job_type: 'full_time' };
-    const apiCalls = [], actions = [], modals = [], toasts = [];
+    const apiCalls = [], actions = [], modals = [], toasts = [], reports = [];
     const api = {
       '/jobs/5': { ok: true, status: 200, data: { job: JOB } },
       '/my/applications': { ok: true, status: 200, data: { applications: [] } },
@@ -258,6 +258,7 @@ function gateway(opts) {
       twApiMessage: (r, f) => f,
       twAction: (id, c) => { actions.push([id, c]); const b = new El('button'); b.disabled = !!c.disabled; return b; },
       twModal: o => { modals.push(o); return { close: noop }; },
+      twReportDialog: o => { reports.push(o); return { close: noop }; },
       twIconEl: () => new El('svg'), twIcon: { hydrate: noop }, twAvatarHtml: () => '',
       twFormatDate: v => 'G:' + v, twLoginHref: p => '/login?next=' + p, twAccountHref: () => '/u/U1',
       twNavBack: noop, twHomeHref: () => '/home', showToast: (m, t) => toasts.push([m, t]),
@@ -275,6 +276,11 @@ function gateway(opts) {
       applies.length >= 2 && applies.every(a => a[1].ownerId === 77 && typeof a[1].onClick === 'function')
       && slots.apply.every(s => s.children.length === 1));
     check('D3 share + report via twAction too', ['share', 'report'].every(id => actions.some(a => a[0] === id)));
+    const rep = actions.find(a => a[0] === 'report');
+    rep[1].onClick();
+    check('D3b report → the shared twReportDialog({reportedId: job, reportedType: job}) — no page form (F29, PR 4.2a)',
+      reports.length === 1 && reports[0].reportedId === 5 && reports[0].reportedType === 'job' && !modals.length,
+      reports);
     check('D4 publish date = twFormatDate (Gregorian helper), not toLocaleDateString',
       byId('jdSiDate').textContent === 'G:' + JOB.created_at, byId('jdSiDate').textContent);
     check('D5 company name = real link to /u/{tw_id}', byId('jdCoName').href === '/u/C962xyz'
@@ -323,7 +329,6 @@ function gateway(opts) {
     [1, 2, 3, 4, 5].forEach(n => keys.add('register.strength.' + n));
     ['full_time', 'part_time', 'contract', 'freelance', 'internship', 'remote'].forEach(t => keys.add('job.type.' + t));
     ['high', 'good', 'partial'].forEach(l => { keys.add('job.match.' + l); keys.add('job.match.title_' + l); });
-    ['fraud', 'spam', 'misleading', 'harassment', 'other'].forEach(t => keys.add('job.report.' + t));
     const missing = [...keys].filter(k => typeof STRINGS[k] !== 'string');
     check('E8 every twT / data-tw-t key exists in tw_strings.json (' + keys.size + ' keys)', !missing.length, missing);
   }
