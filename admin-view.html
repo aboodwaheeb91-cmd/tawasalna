@@ -110,10 +110,6 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 @keyframes spin{to{transform:rotate(360deg);}}
 
 /* ── TOAST ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s,opacity .3s;pointer-events:none;opacity:0;white-space:nowrap;}
-.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
-.toast.s{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
-.toast.e{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
 
 /* ── MODAL ── */
 .overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -135,11 +131,6 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
 .tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
 .tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
 .tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
@@ -324,11 +315,11 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
   <div class="modal" id="modal"></div>
 </div>
 
-<div class="toast" id="toast"></div>
 
 <!--tw:strings-->
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
 <script>
 'use strict';
 
@@ -431,7 +422,7 @@ function renderProfile(){
           <div class="item-date">${twEscHtml(e.start_date||'')} ${e.end_date?'← '+twEscHtml(e.end_date):''}</div>
           ${e.description?`<div style="font-size:.72rem;color:rgba(255,255,255,.35);margin-top:4px">${twEscHtml(e.description)}</div>`:''}
         </div>
-        <button class="item-del" onclick="deleteExp(${e.id})">🗑️ حذف</button>
+        <button class="item-del" onclick="deleteExp(${Number(e.id)})">🗑️ حذف</button>
       </div>
     </div>`).join('') : '<div class="empty"><span class="empty-ico">📋</span>لا توجد خبرات</div>';
 
@@ -446,7 +437,7 @@ function renderProfile(){
           <div class="item-sub">${twEscHtml(e.institution)||'—'}</div>
           <div class="item-date">${twEscHtml(e.end_year||'')}</div>
         </div>
-        <button class="item-del" onclick="deleteEdu(${e.id})">🗑️ حذف</button>
+        <button class="item-del" onclick="deleteEdu(${Number(e.id)})">🗑️ حذف</button>
       </div>
     </div>`).join('') : '<div class="empty"><span class="empty-ico">📚</span>لا توجد شهادات</div>';
 
@@ -461,7 +452,7 @@ function renderProfile(){
           <div class="item-sub">${twEscHtml(c.provider||'')}</div>
           <div class="item-date">${twEscHtml(c.completion_date||'')}</div>
         </div>
-        <button class="item-del" onclick="deleteCourse(${c.id})">🗑️ حذف</button>
+        <button class="item-del" onclick="deleteCourse(${Number(c.id)})">🗑️ حذف</button>
       </div>
     </div>`).join('') : '<div class="empty"><span class="empty-ico">🏆</span>لا توجد دورات</div>';
 }
@@ -521,16 +512,16 @@ async function saveField(field){
     closeModal();
     await loadProfile();
 initScrollProg();
-    toast('تم الحفظ ✓');
+    showToast('تم الحفظ ✓');
   }catch(e){
-    toast('خطأ: '+e.message, 'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
 // ── Change Type ──
 async function saveType(){
   const newType = document.getElementById('typeSelector').value;
-  if(newType === _profile?.user_type){ toast('النوع لم يتغير'); return; }
+  if(newType === _profile?.user_type){ showToast('النوع لم يتغير'); return; }
   try{
     const r = await TwAdminSession.fetch('/admin/user/'+_userId+'/type', {
       method:'PUT', headers: adminHeaders(),
@@ -539,9 +530,9 @@ async function saveType(){
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
 initScrollProg();
-    toast('تم تغيير نوع الحساب ✓');
+    showToast('تم تغيير نوع الحساب ✓');
   }catch(e){
-    toast('خطأ: '+e.message,'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
@@ -556,9 +547,9 @@ async function toggleVerify(){
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
 initScrollProg();
-    toast(newStatus ? 'تم توثيق الحساب ✓' : 'تم إلغاء التوثيق');
+    showToast(newStatus ? 'تم توثيق الحساب ✓' : 'تم إلغاء التوثيق');
   }catch(e){
-    toast('خطأ: '+e.message,'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
@@ -578,16 +569,16 @@ function openResetPassword(){
 
 async function saveResetPassword(){
   const pw = document.getElementById('m-pw')?.value;
-  if(!pw||pw.length<6){ toast('كلمة المرور يجب 6 أحرف على الأقل','e'); return; }
+  if(!pw||pw.length<6){ showToast('كلمة المرور يجب 6 أحرف على الأقل','error'); return; }
   try{
     const r = await TwAdminSession.fetch('/admin/user/'+_userId+'/password', {
       method:'PUT', headers: adminHeaders(),
       body: JSON.stringify({password: pw})
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
-    closeModal(); toast('تم إعادة تعيين كلمة المرور ✓');
+    closeModal(); showToast('تم إعادة تعيين كلمة المرور ✓');
   }catch(e){
-    toast('خطأ: '+e.message,'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
@@ -617,68 +608,65 @@ function openSendMsg(){
 async function sendMsg(){
   const msg = document.getElementById('m-msg')?.value.trim();
   const sub = document.getElementById('m-sub')?.value;
-  if(!msg){ toast('أدخل الرسالة','e'); return; }
+  if(!msg){ showToast('أدخل الرسالة','error'); return; }
   try{
     const r = await TwAdminSession.fetch('/admin/message', {
       method:'POST', headers: adminHeaders(),
       body: JSON.stringify({user_id: parseInt(_userId), subject: sub, message: msg})
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
-    closeModal(); toast('تم إرسال الرسالة ✓');
+    closeModal(); showToast('تم إرسال الرسالة ✓');
   }catch(e){
-    toast('خطأ: '+e.message,'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
 // ── Delete User ──
-function confirmDelete(){
-  document.getElementById('modal').innerHTML = `
-    <div class="modal-title" style="color:#f87171">⚠️ حذف الحساب نهائياً</div>
-    <p style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:16px;line-height:1.7">سيتم حذف جميع بيانات هذا المستخدم بشكل دائم لا يمكن التراجع عنه.</p>
-    <div class="mact">
-      <button class="mbtn mbtn-danger" onclick="deleteUser()">حذف نهائي</button>
-      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
-    </div>`;
-  document.getElementById('overlay').classList.add('show');
+// Permanent account delete (DS-OVL danger confirm — says exactly what happens).
+function _confirmDeleteUser(){
+  return twConfirm({title:twT('admin.delete_user.title'),message:twT('admin.delete_user.message'),confirmText:twT('admin.delete.confirm'),danger:true});
+}
+async function confirmDelete(){
+  if(await _confirmDeleteUser()) deleteUser();
 }
 
 async function deleteUser(){
   try{
     const r = await TwAdminSession.fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    toast('تم حذف الحساب ✓');
+    showToast('تم حذف الحساب ✓');
     setTimeout(goBack, 1500);
   }catch(e){
-    toast('خطأ: '+e.message,'e');
+    showToast('خطأ: '+e.message,'error');
   }
 }
 
 // ── Delete Items ──
 async function deleteExp(id){
-  if(!confirm('حذف هذه الخبرة؟')) return;
+  if(!await twConfirm({title:twT('admin.delete_exp.title'),message:twT('admin.delete_exp.message'),confirmText:twT('admin.delete.confirm'),danger:true})) return;
   try{
     await TwAdminSession.fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
-initScrollProg(); toast('تم الحذف ✓');
-  }catch(e){ toast('خطأ','e'); }
+initScrollProg(); showToast('تم الحذف ✓');
+  }catch(e){ showToast('خطأ','error'); }
 }
 
 async function deleteEdu(id){
-  if(!confirm('حذف هذه الشهادة؟')) return;
+  if(!await twConfirm({title:twT('admin.delete_edu.title'),message:twT('admin.delete_edu.message'),confirmText:twT('admin.delete.confirm'),danger:true})) return;
   try{
     await TwAdminSession.fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
-initScrollProg(); toast('تم الحذف ✓');
-  }catch(e){ toast('خطأ','e'); }
+initScrollProg(); showToast('تم الحذف ✓');
+  }catch(e){ showToast('خطأ','error'); }
 }
 
 async function deleteCourse(id){
-  if(!confirm('حذف هذه الدورة؟')) return;
+  if(!await twConfirm({title:twT('admin.delete_course.title'),message:twT('admin.delete_course.message'),confirmText:twT('admin.delete.confirm'),danger:true})) return;
   try{
     await TwAdminSession.fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
     await loadProfile();
-initScrollProg(); toast('تم الحذف ✓');
-  }catch(e){ toast('خطأ','e'); }
+initScrollProg(); showToast('تم الحذف ✓');
+  }catch(e){ showToast('خطأ','error'); }
 }
 
 // ── Utils ──
@@ -687,48 +675,12 @@ function goBack(){
   if(window.history.length > 1){ window.history.back(); return; }
   _adminStop('افتح لوحة الإدارة للرجوع.');
 }
-function toast(msg, type='s'){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast '+type+' show';
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2800);
-}
 
 // ── Init ──
 if(_adminBlocked){ _adminStop(!_adminToken ? 'افتح لوحة الإدارة وسجّل الدخول أولاً.' : 'افتح لوحة الإدارة واختر مستخدماً.'); }
 else { loadProfile(); }
 initScrollProg();
 
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
 
 
 // Show quick actions when profile loaded
@@ -740,7 +692,7 @@ function showQuickActions(){
 
 // ── Quick Action Functions ──
 async function adminVerifyUser(){
-  if(!_userId||!confirm('توثيق هذا الحساب؟')) return;
+  if(!_userId||!await twConfirm({title:twT('admin.verify.title'),message:twT('admin.verify.message'),confirmText:twT('admin.verify.confirm')})) return;
   try{
     const r=await TwAdminSession.fetch('/admin/user/'+_userId+'/verify',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({verified:true})});
     if(!r.ok) throw new Error();
@@ -749,29 +701,12 @@ async function adminVerifyUser(){
   }catch(e){showToast('خطأ في التوثيق','error');}
 }
 
-async function adminSendMsg(){
-  var msg=prompt('نص الرسالة:','');
-  if(!msg||!_userId) return;
-  try{
-    const r=await TwAdminSession.fetch('/admin/message',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(_userId),subject:'رسالة من الأدمن',message:msg})});
-    if(!r.ok) throw new Error();
-    showToast('تم إرسال الرسالة ✅');
-  }catch(e){showToast('خطأ في الإرسال','error');}
-}
-
-async function adminResetPass(){
-  var newPass=prompt('كلمة المرور الجديدة (6 أحرف على الأقل):','');
-  if(!newPass||newPass.length<6){showToast('كلمة مرور قصيرة','error');return;}
-  if(!_userId) return;
-  try{
-    const r=await TwAdminSession.fetch('/admin/user/'+_userId+'/password',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
-    if(!r.ok) throw new Error();
-    showToast('تم تغيير كلمة المرور ✅');
-  }catch(e){showToast('خطأ','error');}
-}
+// Quick actions reuse the page's message / password forms (DS-OVL — no native dialogs).
+function adminSendMsg(){ if(_userId) openSendMsg(); }
+function adminResetPass(){ if(_userId) openResetPassword(); }
 
 async function adminDeleteUser(){
-  if(!_userId||!confirm('حذف هذا المستخدم نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!')) return;
+  if(!_userId||!await _confirmDeleteUser()) return;
   try{
     const r=await TwAdminSession.fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
     if(!r.ok) throw new Error();
@@ -780,10 +715,6 @@ async function adminDeleteUser(){
   }catch(e){showToast('خطأ في الحذف','error');}
 }
 
-function showQuickActions(){
-  var qa=document.getElementById('qaRow');
-  if(qa) qa.style.display='flex';
-}
 </script>
 </body>
 </html>

@@ -479,6 +479,24 @@
     "profile.compl.item.courses": "الدورات",
     "profile.compl.item.langs": "اللغات",
     "profile.compl.item.links": "روابط التواصل",
-    "profile.compl.item.verified": "توثيق الهوية"
+    "profile.compl.item.verified": "توثيق الهوية",
+
+    "admin.delete.confirm": "حذف نهائي",
+    "admin.delete_user.title": "حذف الحساب نهائياً",
+    "admin.delete_user.message": "سيتم حذف هذا الحساب نهائياً من قاعدة البيانات وتسجيل خروجه من كل الأجهزة فوراً. لا يمكن التراجع عن هذا الإجراء.",
+    "admin.delete_job.title": "حذف الوظيفة",
+    "admin.delete_job.message": "سيتم حذف هذه الوظيفة نهائياً من قاعدة البيانات وإزالتها من قائمة الوظائف. لا يمكن التراجع عن هذا الإجراء.",
+    "admin.delete_exp.title": "حذف الخبرة",
+    "admin.delete_exp.message": "سيتم حذف هذه الخبرة من ملف المستخدم نهائياً. لا يمكن التراجع عن هذا الإجراء.",
+    "admin.delete_edu.title": "حذف الشهادة",
+    "admin.delete_edu.message": "سيتم حذف هذه الشهادة من ملف المستخدم نهائياً. لا يمكن التراجع عن هذا الإجراء.",
+    "admin.delete_course.title": "حذف الدورة",
+    "admin.delete_course.message": "سيتم حذف هذه الدورة من ملف المستخدم نهائياً. لا يمكن التراجع عن هذا الإجراء.",
+    "admin.verify.title": "توثيق الحساب",
+    "admin.verify.message": "سيظهر هذا الحساب كحساب موثّق لكل المستخدمين.",
+    "admin.verify.confirm": "توثيق",
+    "admin.migrate.title": "ترحيل الصور إلى التخزين",
+    "admin.migrate.message": "سيتم رفع صور data: المخزّنة داخل قاعدة البيانات إلى التخزين واستبدالها بروابط. القيم غير الصالحة تبقى كما هي.",
+    "admin.migrate.confirm": "ترحيل"
   }
 }
