@@ -278,9 +278,6 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 /* ── DS-INP: Email field direction override (INP-09) ── */
 #lEmail{direction:ltr;text-align:left;}
 
-/* Scoped [hidden] rule — covers field-error spans and the l-form-error banner inside loginSection only. */
-#loginSection [hidden]{display:none!important;}
-
 /* ── DS-INP INP-11: Autofill visual contract (Login only) ──
    Prevents Chrome/Android/password-manager autofill from imposing a yellow/white background
    that breaks the dark design. box-shadow trick requires --auth-autofill-surface (opaque)
@@ -309,11 +306,9 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 /* ── DS-VAL: Field error state (scoped to #loginSection) ── */
 #loginSection .field.has-error input{border-color:rgb(var(--color-status-danger-rgb));}
 #loginSection .field-error{display:block;font-size:.65rem;color:rgb(var(--color-status-danger-rgb));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
-#loginSection .field-error[hidden]{display:none;}
 
 /* ── DS-VAL: Form-level auth error banner (VAL-09) ── */
 .l-form-error{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:var(--auth-error-banner-bg);border:1px solid var(--auth-error-banner-border);margin-bottom:12px;}
-.l-form-error[hidden]{display:none;}
 .l-form-error-text{font-size:.75rem;color:rgb(var(--color-status-danger-rgb));font-family:'Cairo',sans-serif;font-weight:600;line-height:1.4;}
 
 /* ── DS-INP: Register email direction (INP-09) ── */
@@ -321,9 +316,6 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── DS-INP: Register password field eye-button padding (INP-11) ── */
 #wrapper-rPass .l-input-wrap input{padding-inline-end:44px;}
-
-/* Scoped [hidden] rule for register panel — same SVGElement rationale as #loginSection */
-#registerPanel [hidden]{display:none!important;}
 
 /* ── DS-INP INP-11: Autofill visual contract (Register panel only) ── */
 #registerPanel input:-webkit-autofill,

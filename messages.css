@@ -11,7 +11,6 @@
   --shadow-btn:0 4px 20px rgba(var(--ms-ac-rgb),.28);
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-[hidden]{display:none !important;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
 /* ── Header = the unified app header (app-header.css · HEADER-NAV.md). body does not scroll,
