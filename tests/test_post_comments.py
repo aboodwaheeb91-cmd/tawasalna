@@ -2505,7 +2505,9 @@ check(
 # ── 136: iOS PWA meta tags for public profile pages ───────────────────────
 _psh136  = open('profile-showcase.html',  encoding='utf-8').read()
 _cph136  = open('company-profile.html',   encoding='utf-8').read()
-_edu136  = open('edu-profile.html',       encoding='utf-8').read()
+# edu-profile.html is a Page Shell page (PR 4.7) — the iOS tags come from the shell, checked as served
+from page_shell import apply_shell as _apply_shell136
+_edu136  = _apply_shell136(open('edu-profile.html', encoding='utf-8').read(), 'edu-profile.html')
 _srv136  = open('server.py',              encoding='utf-8').read()
 
 check(
@@ -9094,7 +9096,7 @@ check(
 _fe_files_sec2 = [
     "index.html", "index.auth.js", "home-v2.html",
     "profile-showcase.html", "company-profile.html", "messages.html",
-    "notifications.html", "settings.html",
+    "notifications.html", "settings.html", "static/settings/settings.js",
 ]
 def _has_active_fetch_sec2(filename):
     if not _os_sec2.path.exists(filename):

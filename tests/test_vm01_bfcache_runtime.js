@@ -114,6 +114,17 @@ function mkP2Context(opts) {
   return ctx;
 }
 
+// Shared tw_shared.js / tw-icons.js helpers the edu page script calls (PR 4.7 — unified checklist).
+// twAction → null: the buttons themselves are BTN-19's; these scenarios check the VM-01 mode only.
+function eduSharedStubs() {
+  return {
+    twT: function(k){ return k; }, twTApply: function(){}, twIcon: { hydrate: function(){} },
+    twApi: function(){ return Promise.resolve({ ok:true, status:200, data:{ profile:{} }, error:null }); },
+    twApiMessage: function(r, f){ return f; }, twAction: function(){ return null; },
+    twSafeLinkUrl: function(){ return ''; }, twModal: function(){ return { close: function(){} }; }
+  };
+}
+
 // ── Build a vm context for edu-profile auth-sync tests ───────────────────────
 function mkEduContext(opts) {
   opts = opts || {};
@@ -155,6 +166,7 @@ function mkEduContext(opts) {
     showToast: function(){},
     updateDisplay: function(){}
   });
+  Object.assign(ctx, eduSharedStubs());
   ctx.window  = ctx;
   ctx._urlId  = opts.urlId  !== undefined ? opts.urlId  : '7';
   ctx._isOwner = opts.startAsOwner !== false;
@@ -386,6 +398,7 @@ console.log('\nScenario 9: Edu profile — _isCurrentEduOwner is fail-closed wit
     showToast: function(){},
     updateDisplay: function(){}
   });
+  Object.assign(ctx, eduSharedStubs());
   ctx.window  = ctx;
   ctx._urlId  = '7';
   ctx._isOwner = false;

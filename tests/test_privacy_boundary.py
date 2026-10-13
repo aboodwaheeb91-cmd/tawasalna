@@ -401,13 +401,19 @@ def _test_group_g():
                 assert False, f"edu-profile.html still calls /full: ...{segment}..."
             idx = src.find("/profile/", idx + 1)
 
+    def _settings_runtime_ok():
+        # PR 4.7: settings KYC behaviour (twApi + JWT, 503 / 401 / success-only-on-200) is checked by
+        # running the real static/settings/settings.js — node tests/test_settings_edu_runtime.js
+        import subprocess
+        r = subprocess.run(["node", "tests/test_settings_edu_runtime.js"], capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout[-800:]
+
     def g3_settings_html_kyc_jwt():
-        src = _read("settings.html")
-        assert "_kycJwt" in src or "tw_jwt" in src, "settings.html missing JWT helper for KYC"
-        assert "Authorization" in src, "settings.html missing Authorization header for KYC calls"
+        _settings_runtime_ok()
+        assert "fetch(" not in _read("static/settings/settings.js"), "settings.js: raw fetch (twApi carries the JWT)"
 
     def g4_settings_html_no_dev_code():
-        src = _read("settings.html")
+        src = _read("settings.html") + _read("static/settings/settings.js")
         assert "dev_code" not in src, "settings.html still references dev_code"
 
     def g5_messages_render_tw_id_propagated():
@@ -680,43 +686,17 @@ def _test_group_j():
         assert "503" in src and "otp_delivery_unavailable" in src, \
             "server.py: 503 + otp_delivery_unavailable contract not found"
 
-    def j6_settings_html_handles_otp_delivery_unavailable():
-        src = _read("settings.html")
-        assert "otp_delivery_unavailable" in src, \
-            "settings.html: otp_delivery_unavailable code not handled"
-        assert "قريباً" in src or "غير متاحة" in src, \
-            "settings.html: user-facing unavailable message missing"
+    # J6–J9 (PR 4.7): 503 otp_delivery_unavailable · success only on 2xx + "success" · 401 → no toast —
+    # behaviour of the real static/settings/settings.js (node tests/test_settings_edu_runtime.js, section D)
+    def _settings_kyc_runtime():
+        import subprocess
+        r = subprocess.run(["node", "tests/test_settings_edu_runtime.js"], capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout[-800:]
 
-    def j7_settings_html_checks_response_status():
-        src = _read("settings.html")
-        # Both kycSendEmail and kycSendPhone must read the HTTP status before parsing JSON
-        email_idx = src.find("function kycSendEmail")
-        phone_idx = src.find("function kycSendPhone")
-        assert email_idx != -1 and phone_idx != -1, \
-            "settings.html: kycSendEmail or kycSendPhone not found"
-        email_body = src[email_idx: email_idx + 600]
-        phone_body = src[phone_idx: phone_idx + 600]
-        assert "r.status" in email_body or "status" in email_body, \
-            "settings.html: kycSendEmail does not check HTTP status"
-        assert "r.status" in phone_body or "status" in phone_body, \
-            "settings.html: kycSendPhone does not check HTTP status"
-
-    def j8_settings_html_no_success_toast_without_status_check():
-        src = _read("settings.html")
-        # Must NOT show success toast without checking o.s===200
-        # i.e. the success toast must be inside a conditional block checking status
-        # Check that 'تم إرسال الرمز' only appears after a status=200 check
-        email_idx = src.find("function kycSendEmail")
-        phone_idx = src.find("function kycSendPhone")
-        if email_idx != -1:
-            email_body = src[email_idx: email_idx + 600]
-            assert "s===200" in email_body or "status===200" in email_body or "s == 200" in email_body, \
-                "settings.html: kycSendEmail shows success without HTTP 200 check"
-
-    def j9_settings_html_handles_401():
-        src = _read("settings.html")
-        # Must handle 401 (session expired) in OTP send flow
-        assert "401" in src, "settings.html: 401 not handled in OTP send flow"
+    j6_settings_html_handles_otp_delivery_unavailable = _settings_kyc_runtime
+    j7_settings_html_checks_response_status = _settings_kyc_runtime
+    j8_settings_html_no_success_toast_without_status_check = _settings_kyc_runtime
+    j9_settings_html_handles_401 = _settings_kyc_runtime
 
     def j10_no_otp_print_in_server():
         src = _read("server.py")

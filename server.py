@@ -3313,7 +3313,8 @@ def admin_get_actions(request: Request):
 
 @app.put("/admin/actions")
 def admin_put_actions(request: Request, data: dict = Body(...)):
-    """Replace the whole override map: {"overrides": {id: {"enabled": false, "visibleTo": [...]}}}.
+    """Replace the whole override map: {"overrides": {id: {"enabled": false|true, "visibleTo": [...]}}}
+    (true turns on a registry default-off action — tw_actions.json "enabled": false).
     Known ids + known fields + known audiences only (all-or-nothing). {} = registry defaults."""
     claims = check_admin(request)
     try:

@@ -1,257 +1,142 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - ملف الجهة التعليمية</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<!--tw:shell-head-->
+<!-- Unified app header + bottom nav (HEADER-NAV.md) -->
+<link rel="stylesheet" href="/static/app-header.css">
+<title></title>
 <style>
-:root{--ac:#8b5cf6;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--bdr:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+/* Edu profile — «قريباً» state until plan 5.2 (DS-COLOR --color-* tokens only — sizes stay raw until DS-SIZE phase 2 approval) */
+:root {
+  --ep-accent:     var(--color-categorical-purple);
+  --ep-accent-rgb: var(--color-categorical-purple-rgb);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--color-surface-page);
+  color: var(--color-text-body);
+  font-family: 'Cairo', sans-serif;
+  min-height: 100vh;
+}
+.skip-link {
+  position: absolute; top: -40px; right: 0;
+  background: var(--ep-accent); color: var(--color-text-on-fill);
+  padding: 8px 16px; border-radius: 0 0 10px 0;
+  font-size: .78rem; font-weight: 700; text-decoration: none; transition: top .2s; z-index: 10000;
+}
+.skip-link:focus { top: 0; }
 
-/* Header + bottom nav = unified app chrome (app-header.css · HEADER-NAV.md) */
-.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;white-space:nowrap;}
-.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--bdr);}
-.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
-.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(139,92,246,.35);}
-.nb-danger{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.18);}
-.nb-follow{background:rgba(139,92,246,.12);color:#c4b5fd;border:1px solid rgba(139,92,246,.25);}
-.nb-follow.following{background:rgba(0,200,150,.12);color:#00c896;border-color:rgba(0,200,150,.25);}
-
-/* ══ HERO ══ */
-.hero{position:relative;height:190px;background:linear-gradient(135deg,#0d0a1a,#1a1040);overflow:hidden;}
-.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(37,99,255,.08));}
-.hero-orb{position:absolute;border-radius:50%;filter:blur(60px);}
-.ho1{width:280px;height:280px;background:#8b5cf6;opacity:.1;top:-100px;right:-80px;}
-.ho2{width:200px;height:200px;background:#2563ff;opacity:.08;bottom:-60px;left:-40px;}
-#coverImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s;}
-.cover-upload-btn{position:absolute;bottom:12px;left:12px;padding:6px 13px;border-radius:10px;background:rgba(0,0,0,.55);color:#fff;font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);transition:all .2s;z-index:5;display:none;}
-.cover-upload-btn:hover{background:rgba(0,0,0,.75);}
-
-/* ══ PROFILE HEADER ══ */
-.profile-header{max-width:900px;margin:0 auto;padding:0 16px;position:relative;margin-top:-50px;z-index:10;}
-.ph-card{background:#0d1526;border:1px solid var(--bdr);border-radius:20px;padding:22px;display:flex;gap:18px;align-items:flex-start;}
-.edu-logo{width:86px;height:86px;border-radius:18px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:2.4rem;flex-shrink:0;border:3px solid rgba(139,92,246,.3);box-shadow:0 8px 24px rgba(139,92,246,.25);}
-.ph-info{flex:1;min-width:0;}
-.ph-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-.edu-name{font-size:1.35rem;font-weight:900;margin-bottom:3px;}
-.edu-type-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;background:rgba(139,92,246,.12);color:#c4b5fd;border:1px solid rgba(139,92,246,.2);margin-bottom:8px;}
-.edu-desc{font-size:.79rem;color:var(--t2);line-height:1.6;margin-bottom:10px;}
-.edu-meta{display:flex;gap:12px;flex-wrap:wrap;}
-.edu-meta-item{display:flex;align-items:center;gap:5px;font-size:.71rem;color:var(--t3);}
-.ph-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;}
-
-/* ══ STATS BAR ══ */
-.stats-bar{max-width:900px;margin:14px auto;padding:0 16px;}
-.stats-inner{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px 20px;display:flex;justify-content:space-around;}
-.sbi{text-align:center;flex:1;border-left:1px solid var(--bdr);}
-.sbi:last-child{border-left:none;}
-.sbi-n{font-size:1.2rem;font-weight:900;color:var(--ac);margin-bottom:2px;}
-.sbi-l{font-size:.64rem;color:var(--t3);}
-
-/* ══ TABS ══ */
-.tabs-wrap{max-width:900px;margin:0 auto;padding:0 16px;margin-bottom:14px;}
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bdr);}
-.tab{padding:10px 14px;font-size:.77rem;font-weight:700;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;}
-.tab:hover{color:var(--t);}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac);}
-
-/* ══ CONTENT ══ */
-.content{max-width:900px;margin:0 auto;padding:0 16px 40px;}
-.grid-2{display:grid;grid-template-columns:1fr 300px;gap:16px;}
-
-/* Course card (public view) */
-.course-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;transition:all .2s;cursor:pointer;margin-bottom:10px;}
-.course-card:hover{border-color:rgba(139,92,246,.25);transform:translateY(-1px);}
-.cc-inner{display:flex;gap:0;align-items:stretch;}
-.cc-thumb{width:90px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:2rem;}
-.cc-body{flex:1;padding:12px 14px;}
-.cc-title{font-size:.84rem;font-weight:800;margin-bottom:3px;}
-.cc-meta{display:flex;gap:8px;font-size:.65rem;color:var(--t3);margin-bottom:6px;}
-.cc-price{font-size:.72rem;font-weight:800;color:var(--ac);}
-.cc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
-.cc-tag{padding:2px 7px;border-radius:20px;font-size:.62rem;font-weight:700;background:rgba(139,92,246,.1);color:#c4b5fd;}
-.enroll-btn{padding:7px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:800;cursor:pointer;transition:all .2s;align-self:center;margin-left:10px;flex-shrink:0;}
-.enroll-btn:hover{transform:translateY(-1px);}
-.free-badge{padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:800;background:rgba(0,200,150,.1);color:#00c896;border:1px solid rgba(0,200,150,.2);}
-.paid-badge{padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:800;background:rgba(139,92,246,.1);color:#c4b5fd;border:1px solid rgba(139,92,246,.2);}
-
-/* Sidebar widgets */
-.side-card{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:16px;margin-bottom:14px;}
-.sc-title{font-size:.76rem;font-weight:800;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bdr);}
-.sc-item{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);}
-.sc-item:last-child{border-bottom:none;}
-.sc-ico{font-size:.95rem;width:18px;flex-shrink:0;margin-top:1px;}
-.sc-key{font-size:.65rem;color:var(--t3);margin-bottom:1px;}
-.sc-val{font-size:.74rem;font-weight:700;}
-.sc-val a{color:var(--ac);text-decoration:none;}
-
-/* Rating */
-.stars{display:flex;gap:2px;font-size:1.05rem;margin-bottom:5px;}
-.rating-n{font-size:1.5rem;font-weight:900;color:var(--ac);}
-.rating-sub{font-size:.63rem;color:var(--t3);}
-.bar-row{display:flex;align-items:center;gap:7px;margin-bottom:3px;}
-.bar-lbl{font-size:.63rem;color:var(--t3);width:28px;}
-.bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--ac),var(--ac2));}
-
-/* Posts */
-.post-card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px 16px;margin-bottom:10px;}
-.post-head{display:flex;align-items:center;gap:9px;margin-bottom:10px;}
-.post-ava{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;}
-.post-nm{font-size:.77rem;font-weight:800;}
-.post-date{font-size:.62rem;color:var(--t3);}
-.post-body{font-size:.77rem;color:var(--t2);line-height:1.6;margin-bottom:8px;}
-.post-acts{display:flex;gap:12px;}
-.pa{font-size:.69rem;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;}
-.pa:hover{color:var(--ac);}
-
-/* Modal */
-.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
-.overlay.show .modal{transform:translateY(0);}
-.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
-.mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
-.mf input:focus,.mf textarea:focus{border-color:var(--ac);}
-.mf textarea{resize:vertical;min-height:72px;}
-.mf select option{background:#0a0f1e;}
-.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.mact{display:flex;gap:7px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
-.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
-
-@media(max-width:700px){
-  .grid-2{grid-template-columns:1fr;}
-  .ph-card{flex-direction:column;align-items:center;text-align:center;}
-  .ph-top{justify-content:center;}
-  .edu-meta{justify-content:center;}
-  .ph-actions{justify-content:center;}
-  .stats-inner{flex-wrap:wrap;gap:8px;}
-  .sbi{border-left:none;border-top:1px solid var(--bdr);padding-top:8px;}
-  .sbi:first-child{border-top:none;}
-  .cc-inner{flex-direction:column;}
-  .cc-thumb{width:100%;height:80px;}
+/* ── Hero (decorative) ── */
+.ep-hero {
+  height: 170px;
+  background: linear-gradient(135deg, rgba(var(--ep-accent-rgb), .18), rgba(var(--color-brand-secondary-rgb), .1));
 }
 
+/* ── Profile card ── */
+.ep-head { max-width: 900px; margin: -50px auto 0; padding: 0 16px; position: relative; }
+.ep-card {
+  display: flex; gap: 18px; align-items: flex-start;
+  background: var(--color-surface-card-solid); border: 1px solid var(--color-border-subtle);
+  border-radius: 20px; padding: 24px;
+}
+.ep-logo {
+  width: 86px; height: 86px; flex-shrink: 0; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(var(--ep-accent-rgb), .14); color: var(--ep-accent);
+  border: 2px solid rgba(var(--ep-accent-rgb), .3);
+}
+.ep-logo svg { width: 40px; height: 40px; }
+.ep-info { flex: 1; min-width: 0; }
+.ep-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ep-name { font-size: 1.2rem; font-weight: 900; margin-bottom: 4px; }
+.ep-badge {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px;
+  padding: 2px 10px; border-radius: 999px; font-size: .65rem; font-weight: 800;
+  background: rgba(var(--ep-accent-rgb), .12); color: var(--ep-accent); border: 1px solid rgba(var(--ep-accent-rgb), .25);
+}
+.ep-desc { font-size: .78rem; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 10px; }
+.ep-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+.ep-meta-item { display: flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--color-text-muted); }
+.ep-meta-item a { color: var(--ep-accent); text-decoration: none; }
+.ep-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+/* ── «قريباً» card ── */
+.ep-content { max-width: 900px; margin: 16px auto 0; padding: 0 16px 40px; }
+.ep-soon {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  padding: 48px 20px;
+  background: var(--color-surface-card); border: 1px solid var(--color-border-subtle); border-radius: 16px;
+}
+.ep-soon-ico { color: var(--ep-accent); }
+.ep-soon-ico svg { width: 40px; height: 40px; }
+.ep-soon-title { font-size: .95rem; font-weight: 800; color: var(--color-text-primary); }
+.ep-soon-sub { font-size: .78rem; color: var(--color-text-muted); line-height: 1.7; max-width: 420px; }
 
+/* ── Edit form (inside twModal — DS-OVL) ── */
+.ep-form { display: flex; flex-direction: column; gap: 12px; }
+.ep-field label { display: block; font-size: .72rem; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px; }
+.ep-field textarea.tw-input { resize: vertical; min-height: 72px; }
+
+@media (max-width: 700px) {
+  .ep-card { flex-direction: column; align-items: center; text-align: center; }
+  .ep-top, .ep-meta, .ep-actions { justify-content: center; }
+}
 </style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/app-header.css">
 </head>
 <body>
+<a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
 
 <!-- ══ UNIFIED APP HEADER (HEADER-NAV.md — rendered by twMountAppChrome) ══ -->
 <header data-tw-header></header>
 
-<!-- ══ HERO ══ -->
-<div class="hero" id="heroSection">
-  <div class="hero-bg" id="heroBg"></div>
-  <div class="hero-orb ho1"></div>
-  <div class="hero-orb ho2"></div>
-</div>
+<div class="ep-hero" aria-hidden="true"></div>
 
-<!-- ══ PROFILE HEADER ══ -->
-<!-- PR 1.7: only API-backed fields (name · avatar · bio · location · website). -->
-<div class="profile-header">
-  <div class="ph-card">
-    <div class="edu-logo" id="profileLogo">🎓</div>
-    <div class="ph-info">
-      <div class="ph-top">
+<!-- ══ PROFILE CARD — only API-backed fields (name · avatar · bio · location · website) — PR 1.7 ══ -->
+<div class="ep-head">
+  <div class="ep-card">
+    <div class="ep-logo" id="profileLogo"><i data-tw-icon="graduation-cap"></i></div>
+    <div class="ep-info">
+      <div class="ep-top">
         <div>
-          <div class="edu-name" id="profileName">اسم الجهة التعليمية</div>
-          <div class="edu-type-badge">🎓 جهة تعليمية</div>
-          <div class="edu-desc" id="profileDesc">لا يوجد وصف بعد.</div>
-          <div class="edu-meta">
-            <div class="edu-meta-item" id="profileLoc">📍 —</div>
-            <div class="edu-meta-item">🌐 <a href="#" id="aboutWeb">—</a></div>
+          <h1 class="ep-name" id="profileName"></h1>
+          <div class="ep-badge"><i data-tw-icon="graduation-cap" data-tw-size="xs"></i><span data-tw-t="account.type.edu"></span></div>
+          <p class="ep-desc" id="profileDesc"></p>
+          <div class="ep-meta">
+            <span class="ep-meta-item"><i data-tw-icon="map-pin" data-tw-size="xs"></i><span id="profileLoc">—</span></span>
+            <span class="ep-meta-item"><i data-tw-icon="globe" data-tw-size="xs"></i><a id="aboutWeb">—</a></span>
           </div>
         </div>
-        <!-- Owner actions (VM-01) — moved out of the header (HNAV-01: the header carries navigation only) -->
-        <div class="ph-actions" id="ownerActions" style="display:none">
-          <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
-        </div>
-        <div class="ph-actions" id="visitorActions">
-          <button class="nb nb-ghost" id="contactBtn" onclick="openContact()" hidden>💬 تواصل</button>
-        </div>
+        <!-- Owner / visitor actions (VM-01) — buttons from twAction (BTN-19) -->
+        <div class="ep-actions" id="ownerActions" style="display:none"></div>
+        <div class="ep-actions" id="visitorActions"></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══ CONTENT ══ -->
-<!-- PR 1.7: courses / ratings / students / posts / verification badge removed (were hardcoded) — rebuilt in plan 5.2 (docs/FUTURE_ROADMAP.md). -->
-<div class="content" id="main-content">
-  <div class="side-card tw-empty">
-    <span class="tw-empty-ico">🛠️</span>
-    <div class="tw-empty-title">صفحات الجهات التعليمية قيد التطوير — قريباً</div>
+<!-- ══ CONTENT — courses / ratings / students / posts rebuilt in plan 5.2 (docs/FUTURE_ROADMAP.md) ══ -->
+<main class="ep-content" id="main-content">
+  <div class="ep-soon" id="eduSoon">
+    <span class="ep-soon-ico"><i data-tw-icon="graduation-cap"></i></span>
+    <h2 class="ep-soon-title" data-tw-t="edu.soon.title"></h2>
+    <p class="ep-soon-sub" data-tw-t="edu.soon.sub"></p>
   </div>
-</div>
-
-<!-- EDIT MODAL -->
-<div class="overlay" id="editOverlay" onclick="if(event.target===this)document.getElementById('editOverlay').classList.remove('show')">
-  <div class="modal">
-    <div class="modal-title">✏️ تعديل ملف الجهة</div>
-    <div class="mf"><label>اسم الجهة</label><input id="e-name"></div>
-    <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تقدم جهتك؟"></textarea></div>
-    <div class="mf"><label>الموقع</label><input id="e-loc" placeholder="عمان، الأردن"></div>
-    <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
-    <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="saveEdit()">حفظ</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('editOverlay').classList.remove('show')">إلغاء</button>
-    </div>
-  </div>
-</div>
+</main>
 
 <!-- ══ UNIFIED BOTTOM NAV (HNAV-06) ══ -->
 <nav data-tw-bottom-nav></nav>
 
-<!--tw:strings-->
-<script src="/tw_shared.js?v=hnav-v1"></script>
-<script src="/static/shared/auth-sync.js"></script>
-<script src="/static/shared/tw-icons.js"></script>
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <script>
 let _isOwner=false;
 let _data={name:'',desc:'',loc:'',web:'',avatar:'',twId:''};
+let _editDlg=null;
+
+document.title = twT('page.title', { page: twT('edu.title') });
+twTApply(document.body);
+twIcon.hydrate(document.body);
 
 // Resolve profile id: 1) injected by Smart Router (/u/T…), 2) ?id= query param
 var _urlId = (window._eduProfileIdFromRoute != null)
@@ -272,23 +157,38 @@ function _isCurrentEduOwner() {
   return !_urlId || String(_snap.userId) === String(_urlId);
 }
 
+// Owner «تعديل الملف» / visitor «مراسلة» — visibility + guest → login are twAction's (BTN-19)
+function _renderEduActions() {
+  var ownerEl   = document.getElementById('ownerActions');
+  var visitorEl = document.getElementById('visitorActions');
+  ownerEl.textContent = '';
+  visitorEl.textContent = '';
+  if (_isOwner) {
+    var edit = twAction('edit_profile', { mode: 'owner', onClick: openEditModal });
+    if (edit) ownerEl.appendChild(edit);
+  } else if (_data.twId) {
+    var msg = twAction('message', { ownerId: _urlId, onClick: openContact });
+    if (msg) visitorEl.appendChild(msg);
+  }
+}
+
 // Unified owner/guest mode controller — single function for all owner UI transitions.
 function _applyEduOwnerMode(isOwner) {
   var ownerEl   = document.getElementById('ownerActions');
   var visitorEl = document.getElementById('visitorActions');
-  var editOv    = document.getElementById('editOverlay');
   _isOwner = !!isOwner;
   if (ownerEl)   ownerEl.style.display   = _isOwner ? 'flex' : 'none';
   if (visitorEl) visitorEl.style.display = _isOwner ? 'none' : 'flex';
-  if (!_isOwner && editOv) editOv.classList.remove('show');
+  if (!_isOwner && _editDlg) { _editDlg.close(); _editDlg = null; }
+  _renderEduActions();
 }
 
 _applyEduOwnerMode(_isCurrentEduOwner());
 
 function updateDisplay(){
-  document.getElementById('profileName').textContent=_data.name||'اسم الجهة';
-  document.getElementById('profileDesc').textContent=_data.desc||'لا يوجد وصف بعد.';
-  document.getElementById('profileLoc').textContent='📍 '+(_data.loc||'—');
+  document.getElementById('profileName').textContent=_data.name||twT('edu.name_empty');
+  document.getElementById('profileDesc').textContent=_data.desc||twT('edu.desc_empty');
+  document.getElementById('profileLoc').textContent=_data.loc||'—';
   var a=document.getElementById('aboutWeb');
   if(a){
     // §54 rule 4b — only a safe http(s) URL becomes a link; otherwise plain text (no href)
@@ -301,8 +201,7 @@ function updateDisplay(){
   if(logo && _data.avatar && window.twAvatarEl && logo.replaceChildren){
     logo.replaceChildren(twAvatarEl({full_name:_data.name, avatar_url:_data.avatar, user_type:'edu'}, 'xl', {eager:true}));
   }
-  var cBtn=document.getElementById('contactBtn');
-  if(cBtn) cBtn.hidden=!_data.twId;
+  _renderEduActions();
 }
 
 // Applies the public profile payload (GET /profile/{id}) — the only data source of this page.
@@ -318,106 +217,81 @@ function _applyEduProfile(data){
 }
 function _loadEduProfile(uid){
   if(!uid) return;
-  fetch('/profile/'+uid).then(function(r){return r.json();}).then(_applyEduProfile)
-    .catch(function(e){ console.error('[edu-profile] load failed', e); });
+  twApi('/profile/'+encodeURIComponent(uid), { auth: false }).then(function(res){
+    if (res.ok) _applyEduProfile(res.data);
+    else console.error('[edu-profile] load failed', res.status);
+  });
+}
+
+function _eduField(labelKey, value, multiline, attrs){
+  var wrap=document.createElement('div');
+  wrap.className='ep-field';
+  var input=document.createElement(multiline ? 'textarea' : 'input');
+  input.className='tw-input';
+  input.id='ep-f-'+labelKey.split('.').pop();
+  input.value=value||'';
+  Object.keys(attrs||{}).forEach(function(k){ input.setAttribute(k, attrs[k]); });
+  var label=document.createElement('label');
+  label.setAttribute('for', input.id);
+  label.textContent=twT(labelKey);
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  return { wrap: wrap, input: input };
 }
 
 function openEditModal(){
   if (!_isCurrentEduOwner()) return;
-  document.getElementById('e-name').value=_data.name;
-  document.getElementById('e-desc').value=_data.desc;
-  document.getElementById('e-loc').value=_data.loc;
-  document.getElementById('e-web').value=_data.web;
-  document.getElementById('editOverlay').classList.add('show');
+  var f={
+    name: _eduField('edu.edit.name', _data.name),
+    desc: _eduField('edu.edit.desc', _data.desc, true, { placeholder: twT('edu.edit.desc_ph') }),
+    loc:  _eduField('edu.edit.loc',  _data.loc,  false, { placeholder: twT('edu.edit.loc_ph') }),
+    web:  _eduField('edu.edit.web',  _data.web,  false, { placeholder: 'https://', dir: 'ltr', type: 'url' }),
+  };
+  var form=document.createElement('div');
+  form.className='ep-form';
+  [f.name, f.desc, f.loc, f.web].forEach(function(x){ form.appendChild(x.wrap); });
+  _editDlg = twModal({ title: twT('edu.edit.title'), content: form,
+    onClose: function(){ _editDlg = null; },
+    actions: [
+      { text: twT('common.cancel') },
+      { text: twT('common.save'), variant: 'primary', onClick: function(){ return saveEdit(f); } },
+    ] });
 }
 
-function saveEdit(){
-  if (!_isCurrentEduOwner()) return;
+// false keeps the dialog open (twModal) — success only when every request is ok
+function saveEdit(f){
+  if (!_isCurrentEduOwner()) return false;
   // Use live snapshot userId — never a cached user object.
-  var _snapNow = TwAuthSync.getSessionSnapshot();
-  var _liveUserId = String(_snapNow.userId);
-  var _webIn=(document.getElementById('e-web')?.value||'').trim();
-  if(_webIn && !twSafeLinkUrl(_webIn)){ showToast('الموقع الإلكتروني غير صالح — يجب أن يبدأ بـ https:// أو http://','error'); return; }   // §54 rule 4b
-  var _name=document.getElementById('e-name').value.trim()||_data.name;
-  var _desc=document.getElementById('e-desc').value.trim();
-  var _loc=(document.getElementById('e-loc')?.value||'').trim()||_data.loc;
+  var _liveUserId = String(TwAuthSync.getSessionSnapshot().userId);
+  var _webIn=f.web.input.value.trim();
+  if(_webIn && !twSafeLinkUrl(_webIn)){ showToast(twT('edu.edit.web_invalid'),'error'); return false; }   // §54 rule 4b
+  var _name=f.name.input.value.trim()||_data.name;
+  var _desc=f.desc.input.value.trim();
+  var _loc=f.loc.input.value.trim()||_data.loc;
   var _web=_webIn||_data.web;
-  var _nameChanged=_name!==_data.name;
-  var _jwt = localStorage.getItem('tw_jwt') || '';
-  var _hdr = {'Content-Type':'application/json','Authorization':'Bearer '+_jwt};
-  var reqs=[fetch('/profile/'+_liveUserId, {
-    method:'PUT', headers:_hdr,
-    body:JSON.stringify({full_name:_name, bio:_desc, location:_loc, website:_web})
-  })];
-  if (_nameChanged) reqs.push(fetch('/auth/user/'+_liveUserId+'/name', {
-    method:'PUT', headers:_hdr, body:JSON.stringify({full_name:_name})
-  }));
-  Promise.all(reqs).then(function(rs){
-    if (!rs.every(function(r){ return r.ok; })) throw new Error('save failed');
+  var reqs=[twApi('/profile/'+_liveUserId, { method:'PUT', body:{full_name:_name, bio:_desc, location:_loc, website:_web} })];
+  if (_name!==_data.name) reqs.push(twApi('/auth/user/'+_liveUserId+'/name', { method:'PUT', body:{full_name:_name} }));
+  return Promise.all(reqs).then(function(rs){
+    var bad=rs.filter(function(r){ return !r.ok; })[0];
+    if (bad) { showToast(twApiMessage(bad, twT('edu.edit.error')),'error'); return false; }
     _data.name=_name; _data.desc=_desc; _data.loc=_loc; _data.web=_web;
     updateDisplay();
-    document.getElementById('editOverlay').classList.remove('show');
-    showToast('تم الحفظ ✓');
-  }).catch(function(e){
-    console.error('[edu-profile] save failed', e);
-    showToast('تعذر الحفظ — حاول مرة أخرى','error');
+    showToast(twT('edu.edit.saved'),'success');
   });
 }
 
-// Contact → the shared messenger deep-link (same as emp / co). Guests go to login first (NAV-07).
+// Message → the shared messenger deep-link (same as emp / co). Guests: twAction sends them to login (NAV-07).
 function openContact(){
   if(!_data.twId) return;
-  var dest='/messages?with='+encodeURIComponent(_data.twId);
-  var snap=window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null;
-  window.location.href=(snap && snap.isAuthenticated) ? dest : twLoginHref(dest);
+  window.location.href='/messages?with='+encodeURIComponent(_data.twId);
 }
 
 // ── Load profile from API ──
 (function(){
   var snap = window.TwAuthSync && TwAuthSync.getSessionSnapshot ? TwAuthSync.getSessionSnapshot() : null;
+  updateDisplay();
   _loadEduProfile(_urlId || (_isOwner && snap ? String(snap.userId) : null));
 })();
-
-
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-
-// ── Pull to Refresh ──
-var _ptrE=0,_ptrEA=false;
-document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e.touches[0].clientY;},{passive:true});
-document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;if(window.showToast)showToast('جاري التحديث...','info',1200);location.reload();}},{passive:true});
-document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>120&&!_ptrEA){_ptrEA=true;}}},{passive:true});
 
 // ── Auth-sync: VM-01 bfcache session revalidation (edu-profile) ──
 // @vm-extract-begin: edu-authsync

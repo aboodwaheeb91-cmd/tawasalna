@@ -108,6 +108,7 @@ NODE_TESTS=(
   test_home_landing_runtime.js
   test_pr2c_session_sockets_runtime.js
   test_schedule_interview_runtime.js
+  test_settings_edu_runtime.js
   test_stale_session_entry_runtime.js
   test_sw_cache_allowlist_runtime.js
   test_tw_api_runtime.js

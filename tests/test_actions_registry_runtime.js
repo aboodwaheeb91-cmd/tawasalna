@@ -4,7 +4,8 @@
  * tw_actions.py builds (registry + admin overrides); override validation via tw_actions.py.
  *   A  visibility — an action never renders for a viewer outside visibleTo / targets
  *   B  guest + auth action → login with a way back (twLoginHref(path + query))
- *   C  admin override — enabled:false hides it · visibleTo replaced · unknown id / field refused
+ *   C  admin override — enabled:false hides it · default-off action (registry enabled:false) shown only
+ *      after {enabled:true} · visibleTo replaced · unknown id / field refused
  *   D  danger action asks twConfirm first · verified condition → disabled
  *   E  reference consumers — appointments.html + tw-schedule.js go through the registry
  *
@@ -115,6 +116,13 @@ check('C4 unknown field refused', err('{"follow": {"labelKey": "x"}}') === 'unkn
 check('C5 unknown audience refused', err('{"follow": {"visibleTo": ["admin"]}}') === 'invalid_value');
 check('C6 non-bool enabled refused', err('{"follow": {"enabled": "no"}}') === 'invalid_value');
 check('C7 valid override accepted', err('{"follow": {"enabled": False, "visibleTo": ["emp"]}}') === 'ok');
+// PR 4.7 — registry "enabled": false = off by default; the admin override {"enabled": true} turns it on
+const keptOv = py('print(json.dumps(tw_actions.validate_overrides({"verify_identity": {"enabled": True}, "follow": {"enabled": True}})))');
+check('C10 default-off action: off for everyone until the admin enables it, then shown',
+  ctxFor(EDU).twAction('verify_identity', {}) === null
+  && !!ctxFor(EDU, { verify_identity: { enabled: true } }).twAction('verify_identity', {}));
+check('C11 override enabled:true kept only where it differs from the default (default-off action)',
+  JSON.stringify(keptOv) === JSON.stringify({ verify_identity: { enabled: true } }), JSON.stringify(keptOv));
 check('C8 page block is script-safe', !/<\/script>.*<\/script>/.test(pageBlock({})) && pageBlock({}).startsWith('<script>window.TW_ACTIONS='));
 const SRV = read('server.py');
 const getA = SRV.split('@app.get("/admin/actions")')[1].split('\n@app.')[0];

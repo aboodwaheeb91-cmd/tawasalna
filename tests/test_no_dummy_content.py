@@ -3,6 +3,7 @@
 Static checks only (company-profile + edu-profile).
 Run: python -m pytest tests/test_no_dummy_content.py -q
 """
+import json
 import re
 
 EDU = open("edu-profile.html", encoding="utf-8").read()
@@ -25,7 +26,12 @@ def test_edu_has_no_hardcoded_dummy_content():
                  "جهة موثقة", "statRating", "statStudents", "enroll-btn\"", "toggleFollow",
                  "followBtn", "سنة التأسيس", "مركز تدريب"):
         assert fake not in EDU, f"dummy content still in edu-profile.html: {fake}"
-    assert "صفحات الجهات التعليمية قيد التطوير — قريباً" in EDU
+    # PR 4.7: the «قريباً» card is the only content block — its text comes from a twT key that exists
+    soon = re.search(r'id="eduSoon"[^>]*>(.*?)</div>', EDU, re.S)
+    assert soon, "«قريباً» card missing"
+    keys = re.findall(r'data-tw-t="([\w.]+)"', soon.group(1))
+    strings = json.load(open("tw_strings.json", encoding="utf-8"))["ar"]
+    assert keys and all(k in strings for k in keys), keys
 
 
 def test_edu_contact_and_session_sources():
