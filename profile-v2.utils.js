@@ -1,4 +1,5 @@
-// profile-v2.utils.js — helpers: esc, setText, toast, renderIcons, fitName, toggleBio, scTab, hasEmoji
+// profile-v2.utils.js — helpers: setText, renderIcons, fitName, toggleBio, scTab, hasEmoji
+// Escaping = twEscHtml / twEscAttr · toast = showToast (DS-FEEDBACK) — tw_shared.js (PR 4.2a: no local copies)
 
 // Emoji guard — blocks pictographic symbols in professional text fields.
 // Shared by all V2 edit panels. Backend enforces the same rule via validate_no_emoji().
@@ -7,8 +8,6 @@ window.hasEmoji = (function(){
   return function(str){ return str != null && _re.test(String(str)); };
 })();
 
-// esc = alias of twEscHtml (tw_shared.js §54 — escapes & < > " '; safe in attributes). One implementation only.
-function esc(s){ return twEscHtml(s); }
 function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
 
 function formatCompactCount(value){
@@ -25,13 +24,6 @@ function renderIcons(){
   return false;
 }
 window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
-
-function toast(msg){
-  var t=document.getElementById('scToast'); if(!t) return;
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); },2200);
-}
-window.toast = toast;
 
 // Auto-fit name to one line — shrink font before resorting to ellipsis.
 function fitName(){

@@ -26,11 +26,11 @@
     fileInput.value = '';
     if(!file) return;
     if(!/^image\/(jpeg|png|webp)$/.test(file.type)){
-      toast('يُقبل فقط: JPEG، PNG، WebP');
+      showToast('يُقبل فقط: JPEG، PNG، WebP', 'error');
       return;
     }
     if(file.size > MAX_BYTES){
-      toast('حجم الصورة يتجاوز 5 ميغابايت');
+      showToast('حجم الصورة يتجاوز 5 ميغابايت', 'error');
       return;
     }
     var reader = new FileReader();
@@ -91,7 +91,7 @@
   // ── Save ──
   saveBtn.addEventListener('click', function(){
     var uid = window._scUserId;
-    if(!uid){ toast('خطأ: لم يتم التعرف على المستخدم'); return; }
+    if(!uid){ showToast('خطأ: لم يتم التعرف على المستخدم', 'error'); return; }
 
     var dataUrl = _cropper.export();
     saveBtn.disabled = true;
@@ -117,7 +117,7 @@
         if(coverEl && coverCss) coverEl.style.backgroundImage = coverCss;
         if(window._scProfile) window._scProfile.cover_url = coverUrl;
         closeCrop();
-        toast('تم تحديث الكفر');
+        showToast('تم تحديث الكفر', 'success');
         // Background re-fetch
         if(window._scProfileKey){
           getProfile(_scProfileKey)
@@ -128,7 +128,7 @@
         }
       })
       .catch(function(e){
-        toast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الكفر'));
+        showToast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الكفر'), 'error');
       })
       .finally(function(){
         saveBtn.disabled = false;

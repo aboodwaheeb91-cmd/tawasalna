@@ -3231,35 +3231,73 @@ def admin_errors(request: Request):
 def verify_token_endpoint(token=Depends(verify_token)):
     return {"valid": True, "user_id": token["user_id"], "user_type": token["user_type"]}
 
+# Profile completion checklist (PR 4.2a · F29) — the ONE definition of "profile completion".
+# Home (home.nav.js), the profile stats tile and the owner completion card (profile-v2.completion.js)
+# all read it through GET /profile/{id}/score; the browser never recomputes it.
+# (id, points, tip) — points sum to 100. Labels / UI actions per id live in the frontend (twT keys).
+PROFILE_SCORE_ITEMS = (
+    ("avatar",     10, "أضف صورة شخصية"),
+    ("profession", 10, "أضف مسماك الوظيفي"),
+    ("bio",        10, "أضف نبذة عنك"),
+    ("short_bio",   5, "أضف نبذة قصيرة"),
+    ("location",    5, "أضف موقعك"),
+    ("avail",       5, "حدّد حالة التوظيف"),
+    ("exp",        15, "أضف خبرة عملية"),
+    ("edu",        10, "أضف شهاداتك"),
+    ("skills",     10, "أضف 3 مهارات على الأقل"),
+    ("courses",     5, "أضف دورة تدريبية"),
+    ("langs",       5, "أضف لغة"),
+    ("links",       5, "أضف رابط LinkedIn أو GitHub"),
+    ("verified",    5, "وثّق هويتك"),
+)
+
+
 def _calc_profile_score(uid: int, conn) -> dict:
     """Shared scoring helper — used by /score and /metrics (no duplication).
-    Returns dict with score, tips, level, and the DB counts used for scoring."""
+    Returns dict with score, tips, level, items (per-checklist-item done flags)
+    and the DB counts used for scoring."""
     rows = conn.run(
-        "SELECT headline, bio, avatar_url, location, title, is_verified "
+        "SELECT headline, title, bio, short_bio, avatar_url, location, city, country, "
+        "avail, profession_id, is_verified "
         "FROM profiles WHERE user_id=:uid", uid=uid)
-    if not rows:
-        return {"score": 0, "tips": [], "level": "يحتاج تحسين",
-                "exp_count": 0, "edu_count": 0, "skill_count": 0, "link_count": 0}
-    cols = [c["name"] if isinstance(c, dict) else c[0] for c in conn.columns]
-    prof = dict(zip(cols, rows[0]))
-    exp_count   = (conn.run("SELECT COUNT(*) FROM experience  WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
-    edu_count   = (conn.run("SELECT COUNT(*) FROM education   WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
-    skill_count = (conn.run("SELECT COUNT(*) FROM user_skills WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
-    link_count  = (conn.run("SELECT COUNT(*) FROM user_links  WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+    prof = {}
+    if rows:
+        cols = [c["name"] if isinstance(c, dict) else c[0] for c in conn.columns]
+        prof = dict(zip(cols, rows[0]))
+
+    def _count(table):
+        return (conn.run(f"SELECT COUNT(*) FROM {table} WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+
+    def _txt(*keys):
+        return any(str(prof.get(k) or "").strip() for k in keys)
+
+    exp_count    = _count("experience")
+    edu_count    = _count("education")
+    skill_count  = _count("user_skills")
+    link_count   = _count("user_links")
+    course_count = _count("courses")
+    lang_count   = _count("user_langs")
+    done = {
+        "avatar":     _txt("avatar_url"),
+        "profession": bool(prof.get("profession_id")) or _txt("headline", "title"),
+        "bio":        _txt("bio"),
+        "short_bio":  _txt("short_bio"),
+        "location":   _txt("city", "country", "location"),
+        "avail":      _txt("avail"),
+        "exp":        exp_count > 0,
+        "edu":        edu_count > 0,
+        "skills":     skill_count >= 3,
+        "courses":    course_count > 0,
+        "langs":      lang_count > 0,
+        "links":      link_count > 0,
+        "verified":   bool(prof.get("is_verified")),
+    }
     score = 0
     tips  = []
-    checks = [
-        (bool(prof.get("avatar_url")),                    10, "أضف صورة شخصية"),
-        (bool(prof.get("headline") or prof.get("title")), 10, "أضف مسماك الوظيفي"),
-        (bool(prof.get("bio")),                           10, "أضف نبذة عنك"),
-        (bool(prof.get("location")),                       5, "أضف موقعك"),
-        (exp_count > 0,                                   20, "أضف خبرة عملية"),
-        (edu_count > 0,                                   15, "أضف شهاداتك"),
-        (skill_count >= 3,                                15, "أضف 3 مهارات على الأقل"),
-        (link_count > 0,                                   5, "أضف رابط LinkedIn أو GitHub"),
-        (bool(prof.get("is_verified")),                    5, "وثّق هويتك"),
-    ]
-    for ok, pts, tip in checks:
+    items = []
+    for item_id, pts, tip in PROFILE_SCORE_ITEMS:
+        ok = bool(rows) and done[item_id]
+        items.append({"id": item_id, "done": ok, "points": pts})
         if ok: score += pts
         else:  tips.append({"tip": tip, "points": pts})
     tips.sort(key=lambda x: -x["points"])
@@ -3267,6 +3305,7 @@ def _calc_profile_score(uid: int, conn) -> dict:
         "score":       score,
         "tips":        tips[:3],
         "level":       "ممتاز" if score >= 90 else "جيد" if score >= 70 else "متوسط" if score >= 50 else "يحتاج تحسين",
+        "items":       items,
         "exp_count":   exp_count,
         "edu_count":   edu_count,
         "skill_count": skill_count,
@@ -3283,7 +3322,8 @@ def profile_score(user_id: int):
             data = _calc_profile_score(user_id, conn)
         finally:
             release_conn(conn)
-        return {"score": data["score"], "tips": data["tips"], "level": data["level"]}
+        return {"score": data["score"], "tips": data["tips"], "level": data["level"],
+                "items": data["items"]}
     except HTTPException: raise
     except Exception as e: raise _server_error("profile_score", e)
 

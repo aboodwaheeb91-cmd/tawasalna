@@ -1,82 +1,17 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>تواصلنا — البطاقة التعريفية</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/app-header.css">
-  <link rel="stylesheet" href="/static/shared/tw-skeleton.css">
-  <link rel="stylesheet" href="/static/shared/tw-select.css">
-  <link rel="stylesheet" href="/static/tw_shared.css">
-  <link rel="stylesheet" href="/static/profile-v2.css?v=ep-bio-v1">
-  <script src="/static/vendor/lucide/lucide.min.js"></script>
+<!--tw:shell-head-->
+<title>تواصلنا — البطاقة التعريفية</title>
+<link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/shared/tw-skeleton.css">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<link rel="stylesheet" href="/static/profile-v2.css?v=p42a-v1">
+<script src="/static/vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
-  <!-- Header -->
-  <div class="sc-header">
-    <button class="sc-hicon sc-home-btn" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
-    <div class="sc-logo">
-      <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg"
-           alt="تواصلنا"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-      <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
-    </div>
-    <div class="sc-head-icons">
-      <button class="sc-hicon sc-hicon-bare sc-notif-wrap" id="scBellBtn" title="الإشعارات" data-tw-session="authenticated" hidden>
-        <i data-lucide="bell" class="ico"></i>
-        <span data-ah-notif-badge></span>
-      </button>
-      <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل" style="position:relative" data-tw-session="authenticated" hidden>
-        <i data-lucide="message-circle-more" class="ico"></i>
-        <span data-badge="msgs" style="display:none;position:absolute;top:-3px;left:-3px;background:#2563ff;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
-      </button>
-      <div class="sc-menu-wrap" id="scMenuWrap">
-        <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
-        <button class="sc-hicon sc-preview-back" id="scPreviewBackBtn" type="button" title="الخروج من المعاينة" aria-label="الخروج من المعاينة" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico" aria-hidden="true"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
-        </button>
-        <div class="sc-menu-dropdown" id="scMenuDropdown">
-          <!-- Eye preview — owner only (hidden via CSS until body.view-owner).
-               Static child so its IIFE event-listeners survive menu re-renders. -->
-          <div class="sc-eye-wrap" id="scEyeWrap">
-            <button class="sc-menu-item sc-eye-btn" id="scEyeBtn" type="button" title="معاينة البروفايل">
-              <span class="sc-eye-ico-wrap" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </span>
-              المعاينة
-            </button>
-            <div class="sc-eye-menu" id="scEyeMenu">
-              <button class="sc-eye-item" id="scPreviewPublic" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-                معاينة كمستخدم مسجل
-              </button>
-              <button class="sc-eye-item" id="scPreviewGuest" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg>
-                معاينة كزائر
-              </button>
-              <div class="sc-eye-sep"></div>
-              <button class="sc-eye-item sc-eye-end" id="scPreviewEnd" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                إنهاء المعاينة
-              </button>
-            </div>
-          </div>
-          <div class="sc-menu-sep" style="display:none" id="scMenuEyeSep"></div>
-          <!-- Dynamic secondary-tools items rendered by initGlobalHeaderMenu() -->
-          <div id="scMenuDynamic"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Unified app header (HEADER-NAV.md — rendered by twMountAppChrome) -->
+<header data-tw-header></header>
 
   <div class="sc-wrap">
     <div id="scLoading" class="sc-loading" role="status" aria-label="جارٍ التحميل">
@@ -111,14 +46,34 @@
       </div>
     </div>
 
-    <div id="scErrorState" class="sc-error-state" style="display:none" role="alert" aria-live="polite">
-      <svg class="sc-err-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
-      <div class="sc-err-title">تعذر تحميل الصفحة</div>
-      <div class="sc-err-sub">تحقق من الاتصال وحاول مرة أخرى</div>
-      <button id="scRetryBtn" class="sc-err-btn">إعادة المحاولة</button>
+    <!-- Load error (PR 4.2a): visibility = the [hidden] attribute only (never style.display) -->
+    <div id="scErrorState" class="sc-error-state" role="alert" aria-live="polite" hidden>
+      <span class="sc-err-ico"><i data-tw-icon="wifi-off" data-tw-size="2xl"></i></span>
+      <div class="sc-err-title" id="scErrTitle" data-tw-t="profile.error.title"></div>
+      <div class="sc-err-sub" id="scErrSub" data-tw-t="common.check_connection"></div>
+      <button type="button" id="scRetryBtn" class="sc-err-btn"><i data-tw-icon="refresh" data-tw-size="sm"></i><span data-tw-t="common.retry"></span></button>
     </div>
 
     <div id="scContent" style="display:none">
+      <!-- Owner preview (Doctrine §24) — page control under the unified header (HNAV-01 / HNAV-08) -->
+      <div class="sc-owner-bar">
+        <div class="sc-eye-wrap" id="scEyeWrap">
+          <button class="sc-eye-btn" id="scEyeBtn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="sc-eye-ico-wrap" aria-hidden="true"><i data-tw-icon="eye" data-tw-size="xs"></i></span>
+            <span data-tw-t="profile.preview.menu"></span>
+          </button>
+          <div class="sc-eye-menu" id="scEyeMenu">
+            <button class="sc-eye-item" id="scPreviewPublic" type="button"><i data-tw-icon="user" data-tw-size="sm"></i><span data-tw-t="profile.preview.as_user"></span></button>
+            <button class="sc-eye-item" id="scPreviewGuest" type="button"><i data-tw-icon="eye-off" data-tw-size="sm"></i><span data-tw-t="profile.preview.as_guest"></span></button>
+            <div class="sc-eye-sep"></div>
+            <button class="sc-eye-item sc-eye-end" id="scPreviewEnd" type="button"><i data-tw-icon="close" data-tw-size="sm"></i><span data-tw-t="profile.preview.end"></span></button>
+          </div>
+        </div>
+      </div>
+      <div class="sc-preview-bar" id="scPreviewBar" hidden>
+        <span class="sc-preview-bar-txt" data-tw-t="profile.preview.active"></span>
+        <button class="sc-preview-back" id="scPreviewBackBtn" type="button"><i data-tw-icon="close" data-tw-size="sm"></i><span data-tw-t="profile.preview.end"></span></button>
+      </div>
       <div class="sc-main-card">
         <!-- Cover -->
         <div class="sc-cover" id="scCover">
@@ -130,9 +85,8 @@
 
         <!-- Zero-height anchor: positions edit button just below the cover edge, not inside it -->
         <div class="sc-edit-anchor">
-          <button class="sc-prof-edit-btn owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
-            <i data-lucide="pencil" class="ico-sm"></i>
-          </button>
+          <!-- slot → twAction('edit_profile') (profile-v2.render.js) -->
+          <span id="scEditProfileBtn" hidden></span>
         </div>
 
         <!-- Profile row: avatar+QR (right) | info (left) -->
@@ -152,7 +106,7 @@
                   <span class="sc-avail-opt-dot" style="background:#22c55e"></span>متاح للعمل
                 </button>
                 <button class="sc-avail-opt" data-val="open_to_offers" type="button" role="menuitem">
-                  <span class="sc-avail-opt-dot" style="background:#22d3ee"></span>منفتح على فرص
+                  <span class="sc-avail-opt-dot" style="background:#22d3ee"></span>منفتح على وظائف
                 </button>
                 <button class="sc-avail-opt" data-val="busy" type="button" role="menuitem">
                   <span class="sc-avail-opt-dot" style="background:#f59e0b"></span>مشغول حالياً
@@ -191,8 +145,9 @@
 
         <!-- Actions -->
         <div class="sc-actions">
-          <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> متابعة</button>
-          <button class="sc-btn sc-btn-ghost" id="scContactBtn"><i data-lucide="message-circle" class="ico-sm"></i> تواصل معي</button>
+          <!-- slots → twAction('follow') / twAction('message') (profile-v2.render.js) -->
+          <span id="scFollowBtn" hidden></span>
+          <span id="scContactBtn" hidden></span>
           <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف</button>
         </div>
 
@@ -290,11 +245,12 @@
           <div class="sc-pane" id="pane-apps"><div id="scAppsPane"></div></div>
         </div>
       </div>
+      <!-- Report (twAction('report') → twReportDialog — visitors only) -->
+      <div class="sc-report-row" id="scReportRow"></div>
 
     </div>
   </div>
 
-  <div class="sc-toast" id="scToast"></div>
 
   <!-- QR Modal -->
   <div class="sc-qr-modal" id="scQrModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="scQrModalName"
@@ -307,7 +263,7 @@
         <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg"
              alt="تواصلنا" class="sc-qr-brand-logo"
              onerror="this.style.display='none'">
-        <span class="sc-qr-tagline">تواصلنا — منصة تربط المواهب بالفرص</span>
+        <span class="sc-qr-tagline">تواصلنا — منصة تربط المواهب بالوظائف</span>
       </div>
       <div class="sc-qr-img-wrap">
         <img id="scQrModalImg" src="" alt="رمز QR" class="sc-qr-big-img">
@@ -318,9 +274,7 @@
         <button class="sc-qr-act" onclick="window._qrCopyLink(document.getElementById('scQrModalLink').textContent)">
           <i data-lucide="copy" style="width:14px;height:14px"></i> نسخ
         </button>
-        <button class="sc-qr-act" id="scQrShareBtn">
-          <i data-lucide="share-2" style="width:14px;height:14px"></i> مشاركة
-        </button>
+        <span id="scQrShareBtn" hidden></span><!-- slot → twAction('share') (profile-v2.qr.js) -->
         <button class="sc-qr-act" id="scQrDownloadBtn">
           <i data-lucide="download" style="width:14px;height:14px"></i> تحميل
         </button>
@@ -452,7 +406,7 @@
           <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
             <option value="">— اختر —</option>
             <option value="available">متاح للعمل</option>
-            <option value="open_to_offers">منفتح على فرص</option>
+            <option value="open_to_offers">منفتح على وظائف</option>
             <option value="busy">مشغول حالياً</option>
             <option value="not_available">غير متاح حالياً</option>
           </select>
@@ -805,11 +759,12 @@
     </div>
   </div>
 
-  <!--tw:strings-->
-  <script src="/tw_shared.js?v=api-v2"></script>
-  <script src="/static/shared/auth-sync.js"></script>
-  <script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
-  <script src="/static/shared/tw-schedule.js?v=sched-v2"></script>
+  <nav data-tw-bottom-nav></nav>
+
+  <!--tw:shell-scripts-->
+  <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+  <script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+  <script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
   <script src="/static/profile-v2.state.js?v=modular-v1"></script>
   <script src="/static/profile-v2.utils.js?v=safe-link-v1"></script>
   <script src="/static/shared/tw-upload.js"></script>
@@ -823,7 +778,7 @@
   <script src="/static/shared/tw-image-cropper.js"></script>
   <script src="/static/profile-v2.cover.js?v=ds-image-v1"></script>
   <script src="/static/profile-v2.avatar.js?v=compl-v1"></script>
-  <script src="/static/shared/tw-select.js"></script>
+  <script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
   <script src="/static/shared/tw-skills.js?v=taxonomy-v1"></script>
   <script src="/static/profile-v2.edu.js?v=modal-a11y-v1"></script>
   <script src="/static/profile-v2.courses.js?v=safe-link-v1"></script>

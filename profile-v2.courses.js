@@ -60,14 +60,14 @@
 
   if(saveBtn) saveBtn.onclick = function(){
     var title = fv('courseTitle');
-    if(!title){ toast('اسم الدورة مطلوب'); return; }
+    if(!title){ showToast('اسم الدورة مطلوب', 'error'); return; }
     var _checkFields = [title, fv('courseProv'), fv('courseDesc')];
     for(var _i=0; _i<_checkFields.length; _i++){
       var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_checkFields[_i]);
-      if(_pcErr){ toast(_pcErr); return; }
+      if(_pcErr){ showToast(_pcErr, 'error'); return; }
     }
     var _curl = fv('courseCurl');
-    if(_curl && !twSafeLinkUrl(_curl)){ toast('رابط الشهادة غير صالح — يجب أن يبدأ بـ https:// أو http://'); return; }   // §54 rule 4b
+    if(_curl && !twSafeLinkUrl(_curl)){ showToast('رابط الشهادة غير صالح — يجب أن يبدأ بـ https:// أو http://', 'error'); return; }   // §54 rule 4b
     var payload = {
       title:            title,
       provider:         fv('courseProv')  || null,
@@ -87,7 +87,7 @@
       if(!res.ok){
         var _det = res.data && res.data.detail;
         var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
-        toast(_msg);
+        showToast(_msg, 'error');
         return;
       }
       var entry = res.data.course;
@@ -100,12 +100,12 @@
         }
       }
       closeModal();
-      toast(isEdit ? 'تم التحديث' : 'تمت الإضافة');
+      showToast(isEdit ? 'تم التحديث' : 'تمت الإضافة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderCourses();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
-      toast('خطأ في الاتصال بالخادم');
+      showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
       saveBtn.disabled    = false;
       saveBtn.textContent = 'حفظ';
@@ -122,11 +122,11 @@
     if(!courses || !courses.length) return addBtn + '<div class="sc-empty">لا توجد دورات بعد</div>';
 
     var rows = '<div class="sc-exp-list">' + courses.map(function(c){
-      var title  = esc(c.title    || '');
-      var prov   = c.provider         ? esc(c.provider)         : '';
-      var cd     = c.completion_date  ? esc(c.completion_date)  : '';
+      var title  = twEscHtml(c.title    || '');
+      var prov   = c.provider         ? twEscHtml(c.provider)         : '';
+      var cd     = c.completion_date  ? twEscHtml(c.completion_date)  : '';
       var curl   = twSafeLinkUrl(c.certificate_url || '');   // §54 rule 4b — unsafe stored URL → no link
-      var desc   = c.description      ? esc(c.description)      : '';
+      var desc   = c.description      ? twEscHtml(c.description)      : '';
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
           +'<button class="sc-exp-menu-btn" onclick="window._expMenuToggle(this)" title="خيارات">'
@@ -152,7 +152,7 @@
         + (cd   ? '<div class="sc-exp-period">' + cd + '</div>' : '')
         + (desc ? '<div class="sc-exp-desc">'   + desc + '</div>' : '')
         + (curl ? '<a href="' + twEscAttr(curl) + '" target="_blank" rel="noopener noreferrer" class="sc-cert-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> عرض الشهادة</a>'
-               : (c.certificate_url ? '<span class="sc-cert-link">' + esc(c.certificate_url) + '</span>' : ''))
+               : (c.certificate_url ? '<span class="sc-cert-link">' + twEscHtml(c.certificate_url) + '</span>' : ''))
         + '</div>'
         + actions
         + '</div>'
@@ -181,21 +181,21 @@
     for(var i = 0; i < list.length; i++){
       if(list[i].id === id){ entry = list[i]; break; }
     }
-    if(!entry){ toast('لم يتم العثور على الدورة'); return; }
+    if(!entry){ showToast('لم يتم العثور على الدورة', 'error'); return; }
     openEdit(entry);
   };
   window._courseConfirmDelete = function(id){
     id = parseInt(id);
     scConfirm('هل أنت متأكد من حذف هذه الدورة؟', function(){
       deleteCourse(id).then(function(res){
-        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        if(!res.ok){ showToast('حدث خطأ أثناء الحذف', 'error'); return; }
         var cache = window._scProfile;
         if(cache) cache.courses = (cache.courses||[]).filter(function(c){ return c.id!==id; });
         _reRenderCourses();
-        toast('تم حذف الدورة');
+        showToast('تم حذف الدورة', 'success');
         if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
-      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+      }).catch(function(){ showToast('خطأ في الاتصال بالخادم', 'error'); });
     });
   };
 

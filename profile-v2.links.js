@@ -37,8 +37,8 @@
 
   if(saveBtn) saveBtn.onclick = function(){
     var url = fv('linkUrl');
-    if(!url){ toast('الرابط مطلوب'); return; }
-    if(!twSafeLinkUrl(url)){ toast('الرابط غير صالح — يجب أن يبدأ بـ https:// أو http://'); return; }   // §54 rule 4b
+    if(!url){ showToast('الرابط مطلوب', 'error'); return; }
+    if(!twSafeLinkUrl(url)){ showToast('الرابط غير صالح — يجب أن يبدأ بـ https:// أو http://', 'error'); return; }   // §54 rule 4b
     var payload = { link_type: fv('linkType') || 'other', url: url };
     saveBtn.disabled    = true;
     saveBtn.textContent = 'جاري الحفظ…';
@@ -46,7 +46,7 @@
       if(!res.ok){
         var _det = res.data && res.data.detail;
         var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
-        toast(_msg);
+        showToast(_msg, 'error');
         return;
       }
       var entry = res.data.link;
@@ -60,12 +60,12 @@
         }
       }
       closeModal();
-      toast('تمت الإضافة');
+      showToast('تمت الإضافة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderLinks();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
-      toast('خطأ في الاتصال بالخادم');
+      showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
       saveBtn.disabled    = false;
       saveBtn.textContent = 'حفظ';
@@ -83,9 +83,9 @@
 
     var rows = '<div class="sc-links-list">' + links.map(function(l){
       var ltype   = l.link_type || 'other';
-      var label   = esc(LINK_LABELS[ltype] || ltype);
+      var label   = twEscHtml(LINK_LABELS[ltype] || ltype);
       var icon    = LINK_ICONS[ltype] || 'link';
-      var urlText = esc(l.url || '');
+      var urlText = twEscHtml(l.url || '');
       var safeUrl = twSafeLinkUrl(l.url || '');   // §54 rule 4b — unsafe stored URL → plain text, no <a>
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
@@ -131,14 +131,14 @@
     id = parseInt(id);
     scConfirm('هل أنت متأكد من حذف هذا الرابط؟', function(){
       deleteLink(id).then(function(res){
-        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        if(!res.ok){ showToast('حدث خطأ أثناء الحذف', 'error'); return; }
         var cache = window._scProfile;
         if(cache) cache.links = (cache.links||[]).filter(function(l){ return l.id!==id; });
         _reRenderLinks();
-        toast('تم حذف الرابط');
+        showToast('تم حذف الرابط', 'success');
         if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
-      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+      }).catch(function(){ showToast('خطأ في الاتصال بالخادم', 'error'); });
     });
   };
 

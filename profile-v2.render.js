@@ -1,26 +1,33 @@
 // profile-v2.render.js — renderProfile, header wiring, initial fetch, Eye Button
 // Depends on: profile-v2.state.js, profile-v2.utils.js, profile-v2.api.js, profile-v2.qr.js
 
-// ── Header button wiring (once at load) ──
+// Header: the unified app header (<header data-tw-header> · twMountAppChrome — HEADER-NAV.md)
+// renders home / bell / messages / menu + badges. No page header wiring here (PR 4.2a).
+
+// DS-ICON placeholders in the static markup (error state, preview controls)
+if(window.twIcon && typeof twIcon.hydrate === 'function') twIcon.hydrate(document.body);
+
+// ── Edit button — Actions Registry (twAction('edit_profile') · BTN-19). Built at load, before
+//    profile-v2.edit.js binds #scEditProfileBtn; owner = TwAuthSync snapshot vs the route id.
+//    renderProfile still shows it only when the server says viewer_type = owner. ──
 (function(){
-  var homeBtn=document.getElementById('scHomeBtn');
-  if(homeBtn) homeBtn.onclick=function(){ window.location.href=typeof twHomeHref==='function' ? twHomeHref() : '/home'; };
-  var bellBtn=document.getElementById('scBellBtn');
-  if(bellBtn) bellBtn.onclick=function(){ window.location.href='/notifications'; };
-  var msgBtn=document.getElementById('scMsgBtn');
-  if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
-
-  // Global Header Menu (shared, tw_shared.js) — secondary tools only.
-  // Eye-preview rows live as static HTML in #scMenuDropdown; dynamic items
-  // (settings/contact/suggest/logout) are rendered into #scMenuDynamic so
-  // the eye section's event-listeners survive re-renders.
-  if (typeof initGlobalHeaderMenu === 'function') {
-    initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'scMenuDynamic');
-  }
-
-  // Load unread counts into data-badge spans (guest-safe — loadGlobalBadges checks jwt)
-  if(typeof loadGlobalBadges === 'function') loadGlobalBadges();
+  var ph = document.getElementById('scEditProfileBtn');
+  if(!ph) return;
+  var btn = (typeof twAction === 'function' && _scProfileId) ? twAction('edit_profile', {
+    ownerId: _scProfileId, iconOnly: true, className: 'sc-prof-edit-btn owner-only'
+  }) : null;
+  if(!btn){ ph.parentNode.removeChild(ph); return; }
+  btn.id = 'scEditProfileBtn';
+  btn.style.display = 'none';
+  ph.parentNode.replaceChild(btn, ph);
 })();
+
+// Talent Bank deep link for the signed-in company (twTalentBankHref — tw_shared.js: the one
+// destination, no tw_user read here) → /u/{own tw_id}?cand={candidate}{extra}.
+function _scTalentBankHref(candId, extra){
+  var base = twTalentBankHref();
+  return /\?cand=$/.test(base) ? base + encodeURIComponent(candId) + (extra || '') : base;
+}
 
 // ── About tab: navigate to another tab by name ──
 window._aboutGoTab = function(tab){
@@ -111,7 +118,7 @@ window._aboutBioSave = function(){
     if(_hint) _hint.style.display = 'none';
     window._aboutBioCancel();
     requestAnimationFrame(function(){ _aboutBioCheckMore(); });
-    if(window.toast) toast('تم حفظ النبذة');
+    if(window.showToast) showToast('تم حفظ النبذة', 'success');
   })
   .catch(function(){
     if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
@@ -146,13 +153,13 @@ function _buildAboutPane(p, isOwner){
     + '</div>'
     // View mode
     + '<div id="scAboutBioView">'
-    + '<div class="sc-bio-text" id="scAboutText">' + esc(bio || (isOwner ? '' : 'لا توجد نبذة بعد')) + '</div>'
+    + '<div class="sc-bio-text" id="scAboutText">' + twEscHtml(bio || (isOwner ? '' : 'لا توجد نبذة بعد')) + '</div>'
     + '<button class="sc-ab-biomore" id="scAboutBioMore" onclick="window._aboutBioToggle()" style="display:none">عرض المزيد ▾</button>'
     + '</div>'
     // Inline editor (owner only)
     + (isOwner
       ? '<div id="scAboutBioEditor" style="display:none">'
-        + '<textarea class="sc-ab-bio-ta" id="scAboutBioTa" maxlength="1200" placeholder="اكتب نبذة تعريفية عن نفسك…">' + esc(bio) + '</textarea>'
+        + '<textarea class="sc-ab-bio-ta" id="scAboutBioTa" maxlength="1200" placeholder="اكتب نبذة تعريفية عن نفسك…">' + twEscHtml(bio) + '</textarea>'
         + '<div class="sc-ab-bio-err" id="scAboutBioErr" style="display:none"></div>'
         + '<div class="sc-ab-bio-actions">'
         + '<button class="sc-ab-bio-save" id="scAboutBioSaveBtn" onclick="window._aboutBioSave()">حفظ</button>'
@@ -177,7 +184,7 @@ function _buildAboutPane(p, isOwner){
         var _ico = (window._getSkillIcon && window._getSkillIcon(_s.skill||'')) || 'code';
         skInner += '<span class="sc-ab-chip" style="border-color:'+_c+'44;color:'+_c+'">'
           + '<i data-lucide="'+_ico+'" class="sc-ab-chip-ico"></i>'
-          + '<span style="unicode-bidi:isolate">'+esc(_s.skill||'')+'</span>'
+          + '<span style="unicode-bidi:isolate">'+twEscHtml(_s.skill||'')+'</span>'
           + '</span>';
       }
       skInner += '</div>';
@@ -199,10 +206,10 @@ function _buildAboutPane(p, isOwner){
       expInner = '<div class="sc-ab-rows">';
       for(var _ei=0;_ei<Math.min(exp.length,3);_ei++){
         var _e=exp[_ei];
-        var _et  = esc(_e.title||'');
-        var _eco = _e.company ? esc(_e.company) : '';
+        var _et  = twEscHtml(_e.title||'');
+        var _eco = _e.company ? twEscHtml(_e.company) : '';
         var _ep  = _e.start_date
-          ? esc(_e.start_date)+(_e.is_current?' – الآن':(_e.end_date?' – '+esc(_e.end_date):''))
+          ? twEscHtml(_e.start_date)+(_e.is_current?' – الآن':(_e.end_date?' – '+twEscHtml(_e.end_date):''))
           : '';
         var _emeta = [_eco,_ep].filter(Boolean).join(' · ');
         expInner += '<div class="sc-ab-row">'
@@ -229,9 +236,9 @@ function _buildAboutPane(p, isOwner){
       crsInner = '<div class="sc-ab-rows">';
       for(var _ci=0;_ci<Math.min(courses.length,3);_ci++){
         var _cr=courses[_ci];
-        var _ct = esc(_cr.title||'');
-        var _cp = _cr.provider ? esc(_cr.provider) : '';
-        var _cd = _cr.completion_date ? esc(String(_cr.completion_date).split('-')[0]) : '';
+        var _ct = twEscHtml(_cr.title||'');
+        var _cp = _cr.provider ? twEscHtml(_cr.provider) : '';
+        var _cd = _cr.completion_date ? twEscHtml(String(_cr.completion_date).split('-')[0]) : '';
         var _cmeta = [_cp,_cd].filter(Boolean).join(' · ');
         crsInner += '<div class="sc-ab-row">'
           + '<div class="sc-ab-row-t"><i data-lucide="book-open" class="sc-ab-row-ico"></i><span dir="auto">'+_ct+'</span></div>'
@@ -257,10 +264,10 @@ function _buildAboutPane(p, isOwner){
       eduInner = '<div class="sc-ab-rows">';
       for(var _di=0;_di<Math.min(edu.length,3);_di++){
         var _d=edu[_di];
-        var _deg    = _d.degree ? esc(_d.degree) : '';
-        var _fld    = _d.field  ? esc(_d.field)  : '';
+        var _deg    = _d.degree ? twEscHtml(_d.degree) : '';
+        var _fld    = _d.field  ? twEscHtml(_d.field)  : '';
         var _dtitle = _deg ? (_deg+(_fld?' – '+_fld:'')) : (_fld||'شهادة');
-        var _inst   = _d.institution ? esc(_d.institution) : '';
+        var _inst   = _d.institution ? twEscHtml(_d.institution) : '';
         var _dper   = _d.start_year
           ? (String(_d.start_year)+(_d.is_current?' – قيد الدراسة':(_d.end_year?' – '+String(_d.end_year):'')))
           : '';
@@ -290,10 +297,10 @@ function _buildAboutPane(p, isOwner){
       langInner = '<div class="sc-ab-chips">';
       for(var _li=0;_li<langs3.length;_li++){
         var _l=langs3[_li];
-        var _lv = _l.level ? '<span class="sc-ab-chip-sub">'+esc(_l.level)+'</span>' : '';
+        var _lv = _l.level ? '<span class="sc-ab-chip-sub">'+twEscHtml(_l.level)+'</span>' : '';
         langInner += '<span class="sc-ab-chip sc-ab-chip--lang">'
           + '<i data-lucide="globe" class="sc-ab-chip-ico"></i>'
-          + '<span dir="auto">'+esc(_l.language||'')+'</span>'
+          + '<span dir="auto">'+twEscHtml(_l.language||'')+'</span>'
           + _lv + '</span>';
       }
       langInner += '</div>';
@@ -330,13 +337,13 @@ window._buildExpHTML = function(exp, isOwner){
   var icoPin = '<svg class="sc-exp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
   var icoCal = '<svg class="sc-exp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
   return addBtn + '<div class="sc-exp-list">' + exp.map(function(e, i){
-    var t    = esc(e.title   || '');
-    var c    = esc(e.company || '');
-    var loc  = e.location ? esc(e.location) : '';
+    var t    = twEscHtml(e.title   || '');
+    var c    = twEscHtml(e.company || '');
+    var loc  = e.location ? twEscHtml(e.location) : '';
     var dateStr = e.start_date
-      ? esc(e.start_date) + (!e.is_current && e.end_date ? ' — ' + esc(e.end_date) : '')
+      ? twEscHtml(e.start_date) + (!e.is_current && e.end_date ? ' — ' + twEscHtml(e.end_date) : '')
       : '';
-    var desc = e.description ? esc(e.description) : '';
+    var desc = e.description ? twEscHtml(e.description) : '';
     var meta = '';
     if(loc || dateStr || e.is_current){
       meta = '<div class="sc-exp-meta">';
@@ -470,7 +477,7 @@ window.renderProfile = function renderProfile(res){
       ? p.profession.name_ar
       : (p.headline || p.title || '');
     if(titleText){
-      titleEl.innerHTML = '<i data-lucide="' + profIcon + '" class="ico-sm"></i> ' + esc(titleText);
+      titleEl.innerHTML = '<i data-lucide="' + profIcon + '" class="ico-sm"></i> ' + twEscHtml(titleText);
     } else {
       titleEl.textContent = '';
     }
@@ -556,9 +563,9 @@ window.renderProfile = function renderProfile(res){
       linkCopy.onclick = function(){
         if(navigator.clipboard && navigator.clipboard.writeText){
           navigator.clipboard.writeText(_profileUrl)
-            .then(function(){ toast('تم نسخ رابط البروفايل'); })
-            .catch(function(){ toast('تعذّر نسخ الرابط'); });
-        } else { toast('تعذّر نسخ الرابط'); }
+            .then(function(){ showToast('تم نسخ رابط البروفايل', 'success'); })
+            .catch(function(){ showToast('تعذّر نسخ الرابط', 'error'); });
+        } else { showToast('تعذّر نسخ الرابط', 'error'); }
       };
     }
   }
@@ -576,7 +583,7 @@ window.renderProfile = function renderProfile(res){
     if(!_qrId){
       // Guard: no tw_id — render placeholder and block modal
       qrEl.innerHTML = '<div class="sc-qr-inner" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:8px;">تعذّر إنشاء<br>رابط المشاركة</div>';
-      qrEl.onclick = function(){ if(window.toast) toast('تعذّر إنشاء رابط المشاركة — يرجى تسجيل الخروج والدخول مجدداً'); };
+      qrEl.onclick = function(){ if(window.showToast) showToast('تعذّر إنشاء رابط المشاركة — يرجى تسجيل الخروج والدخول مجدداً', 'error'); };
     } else {
       renderQR(qrEl, _qrUrl);
       qrEl.setAttribute('role', 'button');
@@ -623,7 +630,7 @@ window.renderProfile = function renderProfile(res){
       skEl.innerHTML = skills.length
         ? skills.map(function(s){
             var label=(s&&typeof s==='object')?(s.skill||''):s;
-            return '<span class="sc-skill">'+esc(label)+'</span>';
+            return '<span class="sc-skill">'+twEscHtml(label)+'</span>';
           }).join('')
         : '<div class="sc-empty">لا توجد مهارات بعد</div>';
     }
@@ -642,8 +649,8 @@ window.renderProfile = function renderProfile(res){
     } else {
       eduEl.innerHTML = edu.length
         ? edu.map(function(d){
-            var inst=esc(d.institution||''); var deg=esc(d.degree||'');
-            var fld=d.field?(' · '+esc(d.field)):'';
+            var inst=twEscHtml(d.institution||''); var deg=twEscHtml(d.degree||'');
+            var fld=d.field?(' · '+twEscHtml(d.field)):'';
             return '<div class="sc-item"><div class="sc-item-t">'+inst+'</div>'+
               ((deg||fld)?'<div class="sc-item-s">'+deg+fld+'</div>':'')+'</div>';
           }).join('')
@@ -691,80 +698,84 @@ window.renderProfile = function renderProfile(res){
   setText('scStatViews', formatCompactCount(_viewsCount));
   window._scProfile.views_count = _viewsCount;
 
+  // ── Visitor actions — Actions Registry (twAction · BTN-19 · tw_actions.json). The registry
+  //    decides visibility (guest → login button · owner → none); the page never writes rules.
+  //    Owner gets the visitor copy (mode 'registered') that only preview mode shows
+  //    (body.view-owner hides it — profile-v2.css) so "معاينة" shows what visitors see. ──
+  var _actMode = (_vt === 'owner') ? 'registered' : _vt;
+  function _isPreview(){
+    return document.body.classList.contains('preview-public-user')
+        || document.body.classList.contains('preview-guest');
+  }
+  function _scActionBtn(id, actId, ctx){
+    var cur = document.getElementById(id);
+    if(!cur) return null;
+    var btn = (typeof twAction === 'function') ? twAction(actId, ctx) : null;
+    if(!btn){ cur.style.display = 'none'; return null; }   // stays as the slot for a re-render
+    btn.id = id;
+    cur.parentNode.replaceChild(btn, cur);
+    return btn;
+  }
+
+  // Follow (Follow System §20 · PR 3.5)
   (function(){
-    var followBtn = document.getElementById('scFollowBtn');
+    var followBtn = _scActionBtn('scFollowBtn', 'follow', {
+      ownerId: p.id, mode: _actMode, className: 'sc-btn sc-btn-primary', onClick: _onFollow
+    });
     if(!followBtn) return;
 
-    // Reset any previous inline display — CSS handles owner hide/preview show
-    followBtn.style.display = '';
-
     function _setBtn(following, newCount){
-      if(following){
-        followBtn.className = 'sc-btn sc-btn--following';
-        followBtn.innerHTML = '<i data-lucide="user-check" class="ico-sm"></i> متابَع';
-      } else {
-        followBtn.className = 'sc-btn sc-btn-primary';
-        followBtn.innerHTML = '<i data-lucide="user-plus" class="ico-sm"></i> متابعة';
-      }
+      followBtn.className = following ? 'sc-btn sc-btn--following' : 'sc-btn sc-btn-primary';
+      var lbl = followBtn.querySelector('.tw-act-lbl');
+      if(lbl) lbl.textContent = twT(following ? 'action.following' : 'action.follow');
+      var ico = followBtn.querySelector('svg');
+      if(ico && window.twIconEl) followBtn.replaceChild(twIconEl(following ? 'user-check' : 'user-plus', { size: 'sm' }), ico);
       if(newCount != null) setText('scStatFollowers', formatCompactCount(newCount));
-      if(window.lucide && lucide.createIcons) lucide.createIcons();
     }
 
     _setBtn(_isFollowing, null);
 
-    followBtn.onclick = function(){
-      // Preview mode: visual only, no API
-      var _isPreview = document.body.classList.contains('preview-public-user')
-                    || document.body.classList.contains('preview-guest');
-      if(_isPreview){
-        if(window.toast) toast('هذه معاينة فقط');
-        return;
-      }
-
-      // Guest → login, then back here (Follow System PR 3.5). Owner (can_follow=false) → no-op.
-      if(_vt === 'guest'){
-        location.href = twLoginHref(location.pathname + location.search);
-        return;
-      }
-      if(!_canFollow) return;
-
+    function _onFollow(){
+      if(_isPreview()){ showToast(twT('profile.preview.only'), 'info'); return; }   // visual only
+      if(!_canFollow) return;   // owner (server can_follow=false) → no-op
       if(followBtn.disabled) return;
       followBtn.disabled = true;
-
-      var _req = _isFollowing
-        ? window.unfollowProfile(p.id)
-        : window.followProfile(p.id);
-
+      var _req = _isFollowing ? window.unfollowProfile(p.id) : window.followProfile(p.id);
       _req.then(function(r){
         followBtn.disabled = false;
         if(r.ok){
           _isFollowing = !!r.data.is_following;
           _setBtn(_isFollowing, r.data.followers_count);
-        } else if(window.toast){
-          toast(twApiMessage(r, 'حدث خطأ، حاول مرة أخرى'));
+        } else {
+          showToast(twApiMessage(r, twT('common.error_retry')), 'error');
         }
       });
-    };
+    }
   })();
 
-  // Contact button — three-mode: owner hidden / guest toast / logged-in navigate
-  var contactBtn = document.getElementById('scContactBtn');
-  if(contactBtn){
-    if(_vt === 'owner'){
-      contactBtn.style.display = 'none';
-    } else {
-      contactBtn.style.display = '';
-      contactBtn.onclick = function(){
-        if(_vt === 'guest'){
-          if(window.toast) toast('سجّل الدخول للتواصل');
-          return;
-        }
-        var tw = window._scProfile && window._scProfile.tw_id;
-        if(!tw){ if(window.toast) toast('تعذر فتح المحادثة'); return; }
-        window.location.href = '/messages?with=' + encodeURIComponent(tw);
-      };
+  // Message → /messages?with={tw_id}
+  _scActionBtn('scContactBtn', 'message', {
+    ownerId: p.id, mode: _actMode, className: 'sc-btn sc-btn-ghost',
+    onClick: function(){
+      if(_isPreview()){ showToast(twT('profile.preview.only'), 'info'); return; }
+      var tw = window._scProfile && window._scProfile.tw_id;
+      if(!tw){ showToast(twT('profile.message_failed'), 'error'); return; }
+      window.location.href = '/messages?with=' + encodeURIComponent(tw);
     }
-  }
+  });
+
+  // Report (Reports System §24 — POST /reports/submit via twReportDialog). Not for the owner.
+  (function(){
+    var row = document.getElementById('scReportRow');
+    if(!row) return;
+    row.innerHTML = '';
+    var btn = (typeof twAction === 'function') ? twAction('report', {
+      ownerId: p.id, mode: _vt === 'owner' ? 'owner' : _vt, className: 'sc-report-btn',
+      onClick: function(){ twReportDialog({ reportedId: p.id, reportedType: 'user' }); }
+    }) : null;
+    if(btn) row.appendChild(btn);
+  })();
+
   // ── Schedule Interview (PR 3.10 — shared tw-schedule.js): company viewer only. Own row
   //    under .sc-actions so the frozen action buttons keep their layout (profile-v2.md). ──
   (function(){
@@ -806,7 +817,7 @@ window.renderProfile = function renderProfile(res){
 
     function _applyVa(v){
       var displayLabel = (_vaType === 'candidate_save' && v.is_active) ? 'إدارة المرشح' : v.label;
-      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(displayLabel);
+      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + twEscHtml(displayLabel);
       if(v.is_active){
         intBtn.classList.add('sc-btn--interested');
         intBtn.classList.remove('sc-btn-ghost');
@@ -837,10 +848,7 @@ window.renderProfile = function renderProfile(res){
       row.parentNode.insertBefore(hint, row.nextSibling);
       if(window.lucide && lucide.createIcons) lucide.createIcons();
       document.getElementById('_scNoteBtn').onclick = function(){
-        var _coU2 = JSON.parse(localStorage.getItem('tw_user') || '{}');
-        var _coTwId2 = _coU2.tw_id || '';
-        if(!_coTwId2){ if(window.toast) toast('خطأ: لم يتم التعرف على حسابك'); return; }
-        location.href = '/u/' + _coTwId2 + '?cand=' + p.id + '&notes=1';
+        location.href = _scTalentBankHref(p.id, '&notes=1');
       };
       document.getElementById('_scDismissBtn').onclick = function(){ hint.remove(); };
     }
@@ -850,7 +858,7 @@ window.renderProfile = function renderProfile(res){
     // Guest / login_prompt
     if(_vaType === 'login_prompt' || !va.can_interact){
       intBtn.onclick = function(){
-        if(window.toast) toast('سجّل الدخول للتفاعل مع الملفات الشخصية');
+        if(window.showToast) showToast('سجّل الدخول للتفاعل مع الملفات الشخصية', 'error');
       };
       return;
     }
@@ -867,11 +875,8 @@ window.renderProfile = function renderProfile(res){
       var action;
       if(_vaType === 'candidate_save'){
         if(curVa && curVa.is_active){
-          // Already saved — navigate to manage panel via canonical Smart Router URL
-          var _coU = JSON.parse(localStorage.getItem('tw_user') || '{}');
-          var _coTwId = _coU.tw_id || '';
-          if(!_coTwId){ if(window.toast) toast('خطأ: لم يتم التعرف على حسابك'); _busy = false; intBtn.disabled = false; return; }
-          location.href = '/u/' + _coTwId + '?cand=' + targetId;
+          // Already saved — open the Talent Bank on this candidate (twTalentBankHref — shared)
+          location.href = _scTalentBankHref(targetId, '');
           _busy = false; intBtn.disabled = false;
           return;
         }
@@ -883,7 +888,7 @@ window.renderProfile = function renderProfile(res){
       action(targetId)
         .then(function(r){
           if(!r.ok){
-            if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+            if(window.showToast) showToast('حدث خطأ، حاول مرة أخرى', 'error');
             return;
           }
           if(_vaType === 'candidate_save'){
@@ -900,19 +905,19 @@ window.renderProfile = function renderProfile(res){
             } else {
               var _h = document.getElementById('_scCandidateHint');
               if(_h) _h.remove();
-              if(window.toast) toast('تم إلغاء حفظ المرشح');
+              if(window.showToast) showToast('تم إلغاء حفظ المرشح', 'success');
             }
           } else {
             if(r.data && r.data.viewer_action){
               window._scViewerAction = r.data.viewer_action;
               _applyVa(r.data.viewer_action);
-              if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+              if(window.showToast) showToast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل', 'success');
             } else {
-              if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+              if(window.showToast) showToast('حدث خطأ، حاول مرة أخرى', 'error');
             }
           }
         })
-        .catch(function(){ if(window.toast) toast('خطأ في الاتصال'); })
+        .catch(function(){ if(window.showToast) showToast('خطأ في الاتصال', 'error'); })
         .finally(function(){ _busy = false; intBtn.disabled = false; });
     };
   })();
@@ -936,22 +941,18 @@ window.renderProfile = function renderProfile(res){
     _aboutBioCheckMore();
   });
 
-  // Score fetch (parallel, non-blocking)
-  var numId = (p.id != null) ? p.id : _scProfileId;
-  getScore(numId)
-    .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
-    .catch(function(){ /* score stays — */ });
-
   // Completion card — owner-only; explicit show/hide on every render
   var _complCard = document.getElementById('scComplCard');
   var _complList = document.getElementById('scComplList');
   if(_vt === 'owner'){
-    if(_complCard) _complCard.style.display = '';
     if(window._renderCompletion) window._renderCompletion();
   } else {
     if(_complCard){ _complCard.style.display = 'none'; }
     if(_complList){ _complList.innerHTML = ''; }
   }
+  // Canonical score (GET /profile/{id}/score — server.py PROFILE_SCORE_ITEMS, F29) → stats tile
+  // for every viewer + the owner card (profile-v2.completion.js). Parallel, non-blocking.
+  if(window._updateCompletion) window._updateCompletion();
 }; // end renderProfile
 
 // ── Owner hydration generation counter (VM-01-BFCACHE) ──
@@ -962,18 +963,37 @@ window.renderProfile = function renderProfile(res){
 window._scOwnerHydrationGeneration = 0;
 
 // ── Initial load ──
+// Load error state (PR 4.2a): skeleton hidden + #scErrorState shown via the [hidden] attribute
+// (never style.display — the old inline '' fell back to the CSS display:none → blank page).
+// 404 → "not found" (no retry) · network / server → "check connection" + retry.
+function _scShowLoadError(kind){
+  var ld  = document.getElementById('scLoading');
+  var ct  = document.getElementById('scContent');
+  var err = document.getElementById('scErrorState');
+  if(ld) ld.style.display = 'none';
+  if(ct) ct.style.display = 'none';
+  if(!err) return;
+  var title = document.getElementById('scErrTitle');
+  var sub   = document.getElementById('scErrSub');
+  var retry = document.getElementById('scRetryBtn');
+  var keys  = kind === 'not_found' ? ['profile.error.not_found', 'profile.error.not_found_sub']
+            : kind === 'no_id'     ? ['profile.error.no_id', 'profile.error.not_found_sub']
+            :                        ['profile.error.title', 'common.check_connection'];
+  if(title) title.textContent = twT(keys[0]);
+  if(sub)   sub.textContent   = twT(keys[1]);
+  if(retry) retry.hidden = (kind === 'not_found' || kind === 'no_id');
+  err.hidden = false;
+}
+window._scShowLoadError = _scShowLoadError;
+
 (function(){
-  if(!_scProfileId){
-    var ld=document.getElementById('scLoading');
-    if(ld) ld.textContent='لا يوجد معرّف ملف';
-    return;
-  }
+  if(!_scProfileId){ _scShowLoadError('no_id'); return; }
 
   function _loadProfile(){
     var ld=document.getElementById('scLoading');
     var errEl=document.getElementById('scErrorState');
     if(ld){ ld.style.display=''; }
-    if(errEl){ errEl.style.display='none'; }
+    if(errEl){ errEl.hidden = true; }
     getProfile(_scProfileId)
       .then(function(res){
         window.renderProfile(res);
@@ -1011,9 +1031,10 @@ window._scOwnerHydrationGeneration = 0;
         }
         // @vm-extract-end: p2-hydration
       })
-      .catch(function(){
-        if(ld){ ld.style.display='none'; }
-        if(errEl){ errEl.style.display=''; }
+      .catch(function(e){
+        if(e && e.status) console.warn('[profile] load failed: HTTP ' + e.status);
+        else console.error('[profile] load/render failed:', e);
+        _scShowLoadError(e && (e.status === 404 || e.status === 422) ? 'not_found' : 'load');
       });
   }
 
@@ -1079,12 +1100,14 @@ window._scOwnerHydrationGeneration = 0;
   setInterval(window.refreshProfileMetrics, 30000);
 })();
 
-// ── Preview Eye Button + Preview Mode Header (Doctrine §24) ──
+// ── Preview Eye Button + Preview bar (Doctrine §24) ──
+// Page controls under the unified header (HNAV-01): #scEyeWrap (owner bar) opens the menu;
+// while previewing, #scPreviewBar (with #scPreviewBackBtn) replaces it.
 (function(){
   var eyeWrap = document.getElementById('scEyeWrap');
   var eyeBtn  = document.getElementById('scEyeBtn');
   var eyeMenu = document.getElementById('scEyeMenu');
-  var menuBtn = document.getElementById('scMenuBtn');
+  var bar     = document.getElementById('scPreviewBar');
   var backBtn = document.getElementById('scPreviewBackBtn');
   if(!eyeBtn || !eyeMenu) return;
 
@@ -1093,29 +1116,27 @@ window._scOwnerHydrationGeneration = 0;
         || document.body.classList.contains('preview-guest');
   }
 
-  function closeAllMenus() {
+  function closeEyeMenu() {
     eyeMenu.classList.remove('open');
-    var dd = document.getElementById('scMenuDropdown');
-    if (dd) dd.classList.remove('open');
+    eyeBtn.setAttribute('aria-expanded', 'false');
   }
 
-  function updatePreviewHeader(inPreview) {
-    if (menuBtn) menuBtn.style.display = inPreview ? 'none' : '';
-    if (backBtn) backBtn.style.display = inPreview ? '' : 'none';
+  function updatePreviewBar(inPreview) {
+    if (bar) bar.hidden = !inPreview;
   }
 
   function exitPreview() {
     document.body.classList.remove('preview-public-user', 'preview-guest');
-    closeAllMenus();
-    updatePreviewHeader(false);
+    closeEyeMenu();
+    updatePreviewBar(false);
   }
 
   function enterPreviewMode(type) {
     var wasInPreview = _inPreview();
     document.body.classList.remove('preview-public-user', 'preview-guest');
     document.body.classList.add(type);
-    closeAllMenus();
-    updatePreviewHeader(true);
+    closeEyeMenu();
+    updatePreviewBar(true);
     // Push a history entry so browser-back exits preview instead of leaving the page.
     // Only push once — switching between preview modes reuses the same entry.
     if (!wasInPreview) history.pushState({ twPreview: true }, '');
@@ -1123,7 +1144,8 @@ window._scOwnerHydrationGeneration = 0;
 
   eyeBtn.addEventListener('click', function(e){
     e.stopPropagation();
-    eyeMenu.classList.toggle('open');
+    var open = eyeMenu.classList.toggle('open');
+    eyeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
 
   document.getElementById('scPreviewPublic').addEventListener('click', function(){
@@ -1134,19 +1156,13 @@ window._scOwnerHydrationGeneration = 0;
     enterPreviewMode('preview-guest');
   });
 
-  document.getElementById('scPreviewEnd').addEventListener('click', function(){
+  function _endPreview(){
     exitPreview();
     // Remove the preview history entry so next browser-back leaves the page normally
     if (history.state && history.state.twPreview) history.back();
-  });
-
-  // Header back button — same as "إنهاء المعاينة" but always visible during preview
-  if (backBtn) {
-    backBtn.addEventListener('click', function(){
-      exitPreview();
-      if (history.state && history.state.twPreview) history.back();
-    });
   }
+  document.getElementById('scPreviewEnd').addEventListener('click', _endPreview);
+  if (backBtn) backBtn.addEventListener('click', _endPreview);
 
   // Browser back while in preview exits preview instead of leaving the page.
   // history.pushState inserted an extra entry when entering preview, so the first
@@ -1156,7 +1172,7 @@ window._scOwnerHydrationGeneration = 0;
   });
 
   document.addEventListener('click', function(e){
-    if(eyeWrap && !eyeWrap.contains(e.target)) eyeMenu.classList.remove('open');
+    if(eyeWrap && !eyeWrap.contains(e.target)) closeEyeMenu();
   });
 })();
 
@@ -1175,11 +1191,13 @@ window._scOwnerHydrationGeneration = 0;
   var _limit   = 20;
   var _loading = false;
 
-  var _TYPE_LABELS = { all: 'الكل', emp: 'موظفون', co: 'شركات', edu: 'مراكز تعليم' };
+  // GLOSSARY: «حساب شخصي / حساب شركة / حساب جهة تعليمية» (twT keys — Strings System §59)
+  var _TYPE_LABELS = { all: twT('common.all'), emp: twT('profile.fl.filter.emp'),
+                       co: twT('profile.fl.filter.co'), edu: twT('profile.fl.filter.edu') };
   var _TYPE_BADGE  = {
-    emp: { label: 'موظف',        cls: 'sc-fl-type-badge--emp' },
-    co:  { label: 'شركة',        cls: 'sc-fl-type-badge--co'  },
-    edu: { label: 'مركز تعليم',  cls: 'sc-fl-type-badge--edu' },
+    emp: { label: twT('account.type.emp'), cls: 'sc-fl-type-badge--emp' },
+    co:  { label: twT('account.type.co'),  cls: 'sc-fl-type-badge--co'  },
+    edu: { label: twT('account.type.edu'), cls: 'sc-fl-type-badge--edu' },
   };
 
   function _open(mode){
@@ -1236,7 +1254,7 @@ window._scOwnerHydrationGeneration = 0;
       btn.className = 'sc-fl-chip' + (t === _filter ? ' active' : '');
       btn.dataset.ftype = t;
       if(cnt === 0 && t !== 'all') btn.disabled = true;
-      btn.innerHTML = esc(_TYPE_LABELS[t]) + ' <span class="sc-fl-chip-count">' + formatCompactCount(cnt) + '</span>';
+      btn.innerHTML = twEscHtml(_TYPE_LABELS[t]) + ' <span class="sc-fl-chip-count">' + formatCompactCount(cnt) + '</span>';
       _filtersEl.appendChild(btn);
     });
   }
@@ -1255,7 +1273,7 @@ window._scOwnerHydrationGeneration = 0;
   function _typeBadge(user_type){
     var m = _TYPE_BADGE[user_type];
     if(!m) return '';
-    return '<span class="sc-fl-type-badge ' + m.cls + '">' + m.label + '</span>';
+    return '<span class="sc-fl-type-badge ' + m.cls + '">' + twEscHtml(m.label) + '</span>';
   }
 
   function _renderItems(items){
@@ -1265,7 +1283,7 @@ window._scOwnerHydrationGeneration = 0;
     }
     items.forEach(function(item){
       var profHtml = item.profession && item.profession.name_ar
-        ? '<span class="sc-fl-prof">' + esc(item.profession.name_ar) + '</span>' : '';
+        ? '<span class="sc-fl-prof">' + twEscHtml(item.profession.name_ar) + '</span>' : '';
       var flAvatarSrc = twSafeImageUrl(item.avatar_url);  // §54: validated + attribute-escaped
       var avatarHtml = flAvatarSrc
         ? '<img class="sc-fl-avatar" src="' + twEscAttr(flAvatarSrc) + '" alt="">'
@@ -1279,7 +1297,7 @@ window._scOwnerHydrationGeneration = 0;
         '<a class="sc-fl-info" href="/u/' + twEscAttr(item.tw_id) + '">'
         + avatarHtml
         + '<div class="sc-fl-meta">'
-        + '<span class="sc-fl-name">' + esc(item.display_name || '') + '</span>'
+        + '<span class="sc-fl-name">' + twEscHtml(item.display_name || '') + '</span>'
         + '<div class="sc-fl-sub">' + profHtml + _typeBadge(item.user_type) + '</div>'
         + '</div></a>' + followBtn;
       _list.appendChild(el);
@@ -1300,8 +1318,8 @@ window._scOwnerHydrationGeneration = 0;
       if(res.ok){
         btn.classList.toggle('active', !isActive);
         btn.textContent = !isActive ? 'متابَع' : 'تابع';
-      } else if(window.toast){
-        toast(twApiMessage(res, 'حدث خطأ، حاول مرة أخرى'));
+      } else if(window.showToast){
+        showToast(twApiMessage(res, 'حدث خطأ، حاول مرة أخرى'), 'error');
       }
     });
   });
@@ -1397,7 +1415,7 @@ window._scOwnerHydrationGeneration = 0;
   var _STATUS_MAP = {
     // Current semantic values (avail field, post-unification)
     'available':      { color:'#22c55e', label:'متاح للعمل' },
-    'open_to_offers': { color:'#22d3ee', label:'منفتح على فرص' },
+    'open_to_offers': { color:'#22d3ee', label:'منفتح على وظائف' },
     'busy':           { color:'#f59e0b', label:'مشغول حالياً' },
     'not_available':  { color:'#94a3b8', label:'غير متاح حالياً' },
     // Legacy avail values — backward compat for existing users' saved data

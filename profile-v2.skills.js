@@ -109,8 +109,8 @@
       var s = results[i];
       html += '<div class="sk-ac-item" data-idx="'+i+'">'
         + _skillIconHtml(s.icon || _CUSTOM_FALLBACK_ICON)
-        + '<span class="sk-ac-en">'+esc(s.en)+'</span>'
-        + (s.ar !== s.en ? '<span class="sk-ac-ar">'+esc(s.ar)+'</span>' : '')
+        + '<span class="sk-ac-en">'+twEscHtml(s.en)+'</span>'
+        + (s.ar !== s.en ? '<span class="sk-ac-ar">'+twEscHtml(s.ar)+'</span>' : '')
         + '</div>';
     }
     drop.innerHTML = html;
@@ -214,13 +214,13 @@
     var note  = rawNote.length > 0 ? rawNote : null;
 
     var err = _validate(skill);
-    if(err){ toast(err); return; }
+    if(err){ showToast(err, 'error'); return; }
 
     var noteErr = _validateNote(note);
-    if(noteErr){ toast(noteErr); return; }
+    if(noteErr){ showToast(noteErr, 'error'); return; }
 
     if(_isDuplicate(skill)){
-      toast('هذه المهارة موجودة مسبقاً في ملفك الشخصي');
+      showToast('هذه المهارة موجودة مسبقاً في ملفك الشخصي', 'success');
       return;
     }
 
@@ -232,7 +232,7 @@
         var _det = res.data && res.data.detail;
         var _msg = (_det && typeof _det==='object' && _det.message) ? _det.message
                  : (typeof _det==='string' ? _det : 'حدث خطأ');
-        toast(_msg);
+        showToast(_msg, 'error');
         return;
       }
       var entry = res.data.skill;
@@ -249,12 +249,12 @@
         else cache.skills = skills;
       }
       closeModal();
-      toast('تمت إضافة المهارة');
+      showToast('تمت إضافة المهارة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderSkills();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
-      toast('خطأ في الاتصال بالخادم');
+      showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
       saveBtn.disabled    = false;
       saveBtn.textContent = 'حفظ';
@@ -295,8 +295,8 @@
     var cards = '<div class="sc-skill-list">';
     for(var i=0; i<sorted.length; i++){
       var s     = sorted[i];
-      var name  = esc(s.skill || '');
-      var level = s.level ? esc(s.level) : '';
+      var name  = twEscHtml(s.skill || '');
+      var level = s.level ? twEscHtml(s.level) : '';
       var note  = (s.note || '').trim();
       var lv    = LEVEL_COLORS[s.level] || {color:'#9ca3af', bg:'rgba(156,163,175,.15)'};
       var lvSlug = LEVEL_CSS[s.level] || '';
@@ -318,7 +318,7 @@
 
       var entry  = _getCatalogEntry(s.skill || '');
       var icon   = (entry && entry.icon) ? entry.icon : _CUSTOM_FALLBACK_ICON;
-      var noteHtml = note ? '<p class="sc-skill-note">'+esc(note)+'</p>' : '';
+      var noteHtml = note ? '<p class="sc-skill-note">'+twEscHtml(note)+'</p>' : '';
       var cardClass = 'sc-skill-card' + (lvSlug ? ' sc-skill-card--'+lvSlug : '');
 
       cards += '<div class="'+cardClass+'">'
@@ -362,14 +362,14 @@
     id = parseInt(id, 10);
     scConfirm('هل أنت متأكد من حذف هذه المهارة؟', function(){
       deleteSkill(id).then(function(res){
-        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        if(!res.ok){ showToast('حدث خطأ أثناء الحذف', 'error'); return; }
         var cache = window._scProfile;
         if(cache) cache.skills = (cache.skills||[]).filter(function(s){ return s.id!==id; });
         _reRenderSkills();
-        toast('تم حذف المهارة');
+        showToast('تم حذف المهارة', 'success');
         if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
-      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+      }).catch(function(){ showToast('خطأ في الاتصال بالخادم', 'error'); });
     });
   };
 

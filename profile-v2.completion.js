@@ -1,6 +1,8 @@
 // profile-v2.completion.js — Compact Completion + Growth Strip (owner-only, Profile V2)
-// Reads exclusively from window._scProfile — no localStorage, no DB field.
-// Weights sum to 100. Call window._updateCompletion() after any profile save.
+// Score + checklist come ONLY from the server — GET /profile/{id}/score (PR 4.2a · F29):
+// one definition (PROFILE_SCORE_ITEMS in server.py) shared with Home and the stats tile.
+// This file maps item ids → label (twT) + UI action; it never recomputes the score.
+// Call window._updateCompletion() after any profile save (re-fetches the score).
 ;(function(){
   'use strict';
 
@@ -8,24 +10,15 @@
   var _dismissed   = false;
   var _growthIdx   = 0;
   var _toastTimer  = null;
+  var _server      = null;   // last {score, items:[{id, done, points}]} from /score
+  var _scoreGen    = 0;      // drops stale /score responses
 
-  var _ITEMS = [
-    { id:'avatar',    label:'صورة شخصية',       weight:10, action:'avatar'      },
-    { id:'name',      label:'الاسم الكامل',      weight:8,  action:'edit-modal'  },
-    { id:'profession',label:'التخصص المهني',     weight:8,  action:'edit-modal'  },
-    { id:'avail',     label:'حالة التوظيف',      weight:5,  action:'avail-dot'   },
-    { id:'short_bio', label:'نبذة قصيرة',        weight:7,  action:'edit-modal'  },
-    { id:'bio',       label:'نبذة عني',          weight:8,  action:'edit-modal'  },
-    { id:'location',  label:'المدينة / الدولة',  weight:6,  action:'edit-modal'  },
-    { id:'skills',    label:'المهارات',           weight:9,  action:'tab-skills'  },
-    { id:'exp',       label:'الخبرات',            weight:10, action:'tab-exp'     },
-    { id:'edu',       label:'التعليم',            weight:8,  action:'tab-edu'     },
-    { id:'courses',   label:'الدورات',            weight:5,  action:'tab-courses' },
-    { id:'langs',     label:'اللغات',             weight:5,  action:'tab-langs'   },
-    { id:'links',     label:'روابط التواصل',      weight:5,  action:'tab-links'   },
-    { id:'tw_id',     label:'رابط مشاركة عام',    weight:6,  action:'none'        },
-  ];
-  // Total: 10+8+8+5+7+8+6+9+10+8+5+5+5+6 = 100
+  // id (server) → UI action. Labels: twT('profile.compl.item.<id>').
+  var _ACTIONS = {
+    avatar:'avatar', profession:'edit-modal', bio:'edit-modal', short_bio:'edit-modal',
+    location:'edit-modal', avail:'avail-dot', exp:'tab-exp', edu:'tab-edu', skills:'tab-skills',
+    courses:'tab-courses', langs:'tab-langs', links:'tab-links', verified:'verify'
+  };
 
   // Returns true only when viewing as authenticated owner outside any preview mode
   function _isOwnerActive(){
@@ -36,33 +29,13 @@
     return true;
   }
 
-  function _isDone(id){
-    var p = window._scProfile || {};
-    switch(id){
-      case 'avatar':    return !!(p.avatar_url);
-      case 'name':      return !!(p.first_name || (p.full_name && p.full_name.trim()));
-      case 'profession':return !!(p.profession_id || (p.title && p.title.trim()));
-      case 'avail':     return !!(p.avail);
-      case 'short_bio': return !!(p.short_bio && p.short_bio.trim());
-      case 'bio':       return !!(p.bio && p.bio.trim());
-      case 'location':  return !!(p.city || p.country || p.location);
-      case 'skills':    return Array.isArray(p.skills)     && p.skills.length     > 0;
-      case 'exp':       return Array.isArray(p.experience) && p.experience.length  > 0;
-      case 'edu':       return Array.isArray(p.education)  && p.education.length   > 0;
-      case 'courses':   return Array.isArray(p.courses)    && p.courses.length     > 0;
-      case 'langs':     return Array.isArray(p.langs)      && p.langs.length       > 0;
-      case 'links':     return Array.isArray(p.links)      && p.links.length       > 0;
-      case 'tw_id':     return !!(p.tw_id && p.tw_id.trim());
-      default: return false;
-    }
+  function _items(){
+    return (_server && Array.isArray(_server.items)) ? _server.items : [];
   }
 
   function _score(){
-    var s = 0;
-    for(var i = 0; i < _ITEMS.length; i++){
-      if(_isDone(_ITEMS[i].id)) s += _ITEMS[i].weight;
-    }
-    return Math.min(s, 100);
+    var n = _server ? Number(_server.score) : NaN;
+    return isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
   }
 
   // ── Growth Suggestions (rule-based, no API) ──────────────────────────────
@@ -110,7 +83,7 @@
         toast:   'ابحث عن دورة React.js وبعد ما تنتهي منها أضف المهارة لقسم مهاراتك.',
         // reason + benefit — full explanation shown only in the "تفاصيل" panel
         reason:  'React هي المكتبة الأكثر طلباً في وظائف الفرونت إند حالياً، وخلفيتك في JavaScript تجعلها الخطوة التالية الطبيعية.',
-        benefit: 'إضافتها بعد تعلمها يُظهر للشركات أنك متطوّر ويفتح أمامك فرص الفرونت إند المتقدمة.',
+        benefit: 'إضافتها بعد تعلمها يُظهر للشركات أنك متطوّر ويفتح أمامك وظائف الفرونت إند المتقدمة.',
         action:  'tab-skills',
       },
       {
@@ -181,7 +154,7 @@
         text:    'تعلّم Python ثم أضفه لمهاراتك',
         toast:   'ابحث عن دورة Python وبعد ما تنتهي منها وتطبّق ما تعلمته أضفها لقسم مهاراتك.',
         reason:  'Python هي اللغة الأساسية في علم البيانات والذكاء الاصطناعي، واهتمامك بهذا المجال يجعلها ضرورية.',
-        benefit: 'تعلّمها وتوثيقها يُضاعف فرصك في وظائف تحليل البيانات والـ AI.',
+        benefit: 'تعلّمها وتوثيقها يُقوّي ملفك في وظائف تحليل البيانات والـ AI.',
         action:  'tab-skills',
       },
       {
@@ -269,6 +242,10 @@
       if(eBtn) eBtn.click();
       return;
     }
+    if(action === 'verify'){   // identity verification (KYC) lives in settings
+      location.href = '/settings';
+      return;
+    }
     if(action === 'avail-dot'){
       var dot = document.getElementById('scAvailDot');
       if(dot) dot.click();
@@ -304,7 +281,7 @@
 
     if(!suggs || suggs.length === 0){
       // Empty state
-      if(textEl) textEl.textContent = 'ملفك قوي! سنقترح لك فرص تطوير لاحقاً';
+      if(textEl) textEl.textContent = twT('profile.compl.growth_empty');
       var nextBtn = document.getElementById('scGrowthNext');
       var detBtnEl = document.getElementById('scGrowthDet');
       if(nextBtn) nextBtn.style.display = 'none';
@@ -361,9 +338,9 @@
     // Dismissed this session — stay hidden
     if(_dismissed){ card.style.display = 'none'; return; }
 
-    card.style.display = '';
-
     var pct = _score();
+    if(pct === null){ card.style.display = 'none'; return; }   // no server score yet / failed
+    card.style.display = '';
 
     // ── Growth mode (100%) ──────────────────────────────────────────────
     if(pct >= 100){
@@ -395,11 +372,11 @@
     if(pctEl)  { pctEl.textContent = pct + '%'; pctEl.style.color = color; }
     if(fillEl) { fillEl.style.width = pct + '%'; fillEl.style.background = color; }
 
-    if(labelEl) labelEl.textContent = 'اكتمال الملف';
+    if(labelEl) labelEl.textContent = twT('profile.compl.title');
     if(togBtn){
       togBtn.classList.remove('is-done');
       if(!panelEl || panelEl.style.display === 'none'){
-        togBtn.textContent = 'تفاصيل ▾';
+        togBtn.textContent = twT('profile.compl.details') + ' ▾';
         togBtn.classList.remove('is-open');
       }
     }
@@ -408,25 +385,25 @@
     if(!panelEl || panelEl.style.display === 'none') return;
     if(!listEl) return;
 
-    var missing = [], done = [];
-    for(var i = 0; i < _ITEMS.length; i++){
-      (_isDone(_ITEMS[i].id) ? done : missing).push(_ITEMS[i]);
+    var missing = [], done = [], all = _items();
+    for(var i = 0; i < all.length; i++){
+      if(!Object.prototype.hasOwnProperty.call(_ACTIONS, all[i].id)) continue;   // unknown id → skip
+      (all[i].done ? done : missing).push(all[i]);
     }
 
     var html = '';
     for(var m = 0; m < missing.length; m++){
       var it = missing[m];
-      html += '<button type="button" class="sc-compl-item missing" data-action="' + it.action + '">'
+      html += '<button type="button" class="sc-compl-item missing" data-action="' + twEscAttr(_ACTIONS[it.id]) + '">'
         + '<span class="sc-compl-ico sc-compl-ico-miss"></span>'
-        + '<span class="sc-compl-label-text">' + it.label + '</span>'
-        + (it.action !== 'none' ? '<span class="sc-compl-weight">+' + it.weight + '%</span>' : '')
+        + '<span class="sc-compl-label-text">' + twEscHtml(twT('profile.compl.item.' + it.id)) + '</span>'
+        + '<span class="sc-compl-weight">+' + (Number(it.points) || 0) + '%</span>'
         + '</button>';
     }
     for(var d = 0; d < done.length; d++){
-      var it2 = done[d];
       html += '<button type="button" class="sc-compl-item done" disabled>'
         + '<span class="sc-compl-ico sc-compl-ico-done"></span>'
-        + '<span class="sc-compl-label-text">' + it2.label + '</span>'
+        + '<span class="sc-compl-label-text">' + twEscHtml(twT('profile.compl.item.' + done[d].id)) + '</span>'
         + '</button>';
     }
     listEl.innerHTML = html;
@@ -446,8 +423,26 @@
     }
   }
 
+  // Fetch the canonical score (GET /profile/{id}/score) → stats tile + card. Every caller
+  // (renderProfile + each section save) goes through here; stale responses are dropped.
+  function _refresh(){
+    var uid = window._scUserId;
+    if(uid == null || typeof window.getScore !== 'function') return;
+    var gen = ++_scoreGen;
+    window.getScore(uid).then(function(sc){
+      if(gen !== _scoreGen || String(uid) !== String(window._scUserId)) return;
+      if(sc && typeof sc.score === 'number'){
+        _server = sc;
+        var tile = document.getElementById('scStatScore');
+        if(tile) tile.textContent = String(sc.score);
+        if(window._scProfile) window._scProfile.score = sc.score;
+      }
+      _render();
+    });
+  }
+
   window._renderCompletion = _render;
-  window._updateCompletion = _render;
+  window._updateCompletion = _refresh;
 
   // ── Completion: item click ───────────────────────────────────────────────
   document.addEventListener('click', function(e){
@@ -470,11 +465,11 @@
     var isOpen = panelEl.style.display !== 'none';
     if(isOpen){
       panelEl.style.display = 'none';
-      togBtn.textContent = 'تفاصيل ▾';
+      togBtn.textContent = twT('profile.compl.details') + ' ▾';
       togBtn.classList.remove('is-open');
     } else {
       panelEl.style.display = '';
-      togBtn.textContent = 'إخفاء ▴';
+      togBtn.textContent = twT('profile.compl.hide') + ' ▴';
       togBtn.classList.add('is-open');
       _render();  // build list now that panel is visible
     }

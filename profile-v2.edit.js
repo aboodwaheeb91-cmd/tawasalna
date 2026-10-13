@@ -509,7 +509,7 @@
         editBtn.disabled = false;
         if (!window._scOwnerProfile) {
           var _msg1 = 'انتهت جلستك أو غير مصرح. يرجى تسجيل الدخول مجدداً.';
-          if (window.toast) window.toast(_msg1);
+          if (window.showToast) window.showToast(_msg1, 'error');
           if (errEl){ errEl.textContent = _msg1; errEl.style.display = ''; }
           return;
         }
@@ -519,7 +519,7 @@
     }
     if (!window._scOwnerProfile && window._scViewerType === 'owner') {
       var _msg2 = 'تعذر تحميل بيانات التعديل. يرجى تحديث الصفحة.';
-      if (window.toast) window.toast(_msg2);
+      if (window.showToast) window.showToast(_msg2, 'error');
       if (errEl){ errEl.textContent = _msg2; errEl.style.display = ''; }
       return;
     }
@@ -751,7 +751,7 @@
     } else {
       if(errEl){ errEl.textContent = message; errEl.style.display = 'block'; }
     }
-    if(window.toast) window.toast(message);
+    if(window.showToast) window.showToast(message, 'error');
   }
 
   // ── Save ──
@@ -801,7 +801,7 @@
     if(hasErr){
       var _fe = document.querySelector('#epOverlay .ep-field-err.show');
       if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
-      if(window.toast) window.toast(_lastErrMsg);
+      if(window.showToast) window.showToast(_lastErrMsg, 'error');
       return;
     }
 
@@ -915,7 +915,7 @@
             if(firstErr) firstErr.focus();
           } else {
             var _msg = (_norm.generalError && _norm.generalError.message) || 'حدث خطأ أثناء الحفظ';
-            if(window.toast) window.toast(_msg);
+            if(window.showToast) window.showToast(_msg, 'error');
             if(errEl){ errEl.textContent = _msg; errEl.style.display = 'block'; }
           }
           return;
@@ -924,7 +924,7 @@
         _inFlight = false;
         _unlockControls();
         closeModal();
-        if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
+        if(window.showToast) window.showToast('تم حفظ التغييرات بنجاح', 'success');
         // 2. Canonical update from server response (§6 — no payload contamination; FRM-17)
         // No background re-fetch: applyCanonicalProfile handles all display updates (FRM-18)
         var canonicalProfile = (res.data && res.data.profile) ? res.data.profile : null;
@@ -934,7 +934,7 @@
       })
       .catch(function(){
         var _msg = 'خطأ في الاتصال بالخادم';
-        if(window.toast) window.toast(_msg);
+        if(window.showToast) window.showToast(_msg, 'error');
         if(errEl){ errEl.textContent = _msg; errEl.style.display = 'block'; }
       })
       .finally(function(){

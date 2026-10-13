@@ -1,33 +1,42 @@
-// profile-v2.api.js — fetch wrappers for Profile V2
-// Depends on: profile-v2.state.js (_currentJwt)
+// profile-v2.api.js — API wrappers for Profile V2 — all through twApi (PR 4.2a · API Client Rule)
+// Depends on: tw_shared.js (twApi), profile-v2.state.js (_currentJwt — owner guard only)
 
+// Mutation result shape kept for the section modules: {ok, status, data: <parsed body or {}>}.
+function _scRes(r){ return { ok: r.ok, status: r.status, data: r.raw || {}, error: r.error }; }
+
+// Profile load → parsed body; failure rejects with an Error carrying .status (0 = network /
+// timeout, 404 = no such profile) so the page can show the right error state.
 function getProfile(id){
-  return fetch('/profile/' + encodeURIComponent(id), { headers: { 'Authorization': 'Bearer ' + _currentJwt() } })
-    .then(function(r){ if(!r.ok) throw new Error('profile ' + r.status); return r.json(); });
+  return twApi('/profile/' + encodeURIComponent(id)).then(function(r){
+    if(!r.ok){ var e = new Error('profile ' + r.status); e.status = r.status; throw e; }
+    return r.raw;
+  });
 }
 
 // Owner-only hydration: fetches /full to get phone/dob/email for the edit modal.
 // Never called for visitors — only when window._scViewerType === 'owner'.
 function getOwnerProfile(id){
-  return fetch('/profile/' + encodeURIComponent(id) + '/full', {
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ if(!r.ok) throw new Error('owner_profile ' + r.status); return r.json(); });
+  return twApi('/profile/' + encodeURIComponent(id) + '/full').then(function(r){
+    if(!r.ok) throw new Error('owner_profile ' + r.status);
+    return r.raw;
+  });
 }
 
 function getProfileMetrics(id){
-  return fetch('/profile/' + encodeURIComponent(id) + '/metrics', { headers: { 'Authorization': 'Bearer ' + _currentJwt() } })
-    .then(function(r){ return r.ok ? r.json() : null; });
+  return twApi('/profile/' + encodeURIComponent(id) + '/metrics')
+    .then(function(r){ return r.ok ? r.raw : null; });
 }
 window.getProfileMetrics = getProfileMetrics;
 
+// Canonical completion score (server.py PROFILE_SCORE_ITEMS) → {score, tips, level, items} | null
 function getScore(numId){
-  return fetch('/profile/' + encodeURIComponent(numId) + '/score')
-    .then(function(r){ return r.ok ? r.json() : null; });
+  return twApi('/profile/' + encodeURIComponent(numId) + '/score', { auth: false })
+    .then(function(r){ return (r.ok && r.raw && typeof r.raw.score === 'number') ? r.raw : null; });
 }
 
 function getProfessions(){
-  return fetch('/professions')
-    .then(function(r){ return r.ok ? r.json() : []; });
+  return twApi('/professions', { auth: false })
+    .then(function(r){ return (r.ok && Array.isArray(r.raw)) ? r.raw : []; });
 }
 
 // Guard: rejects immediately if session is gone or viewer is no longer owner
@@ -38,46 +47,27 @@ var _STALE = { ok: false, data: { detail: 'session_invalid' } };
 
 function updateProfile(uid, payload){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/profile/' + uid, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify(payload)
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
+  return twApi('/profile/' + uid, { method: 'PUT', body: payload }).then(_scRes);
 }
 
 function reorderExperience(orderedIds){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/experience/reorder', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify({ ordered_ids: orderedIds })
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return twApi('/experience/reorder', { method: 'PUT', body: { ordered_ids: orderedIds } }).then(_scRes);
 }
 
 function addExperience(userId, payload){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/experience/' + userId, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify(payload)
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return twApi('/experience/' + userId, { method: 'POST', body: payload }).then(_scRes);
 }
 
 function updateExperience(expId, payload){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/experience/' + expId, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify(payload)
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return twApi('/experience/' + expId, { method: 'PUT', body: payload }).then(_scRes);
 }
 
 function deleteExperience(expId){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/experience/' + expId, {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return twApi('/experience/' + expId, { method: 'DELETE' }).then(_scRes);
 }
 
 function uploadCover(userId, dataUrl){
@@ -115,34 +105,22 @@ window.followProfile   = followProfile;
 window.unfollowProfile = unfollowProfile;
 
 function saveProfileInterest(profileId){
-  return fetch('/profile/' + profileId + '/interest', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/profile/' + profileId + '/interest', { method: 'POST' }).then(_scRes);
 }
 
 function removeProfileInterest(profileId){
-  return fetch('/profile/' + profileId + '/interest', {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/profile/' + profileId + '/interest', { method: 'DELETE' }).then(_scRes);
 }
 
 window.saveProfileInterest   = saveProfileInterest;
 window.removeProfileInterest = removeProfileInterest;
 
 function saveCandidateToCompany(profileId){
-  return fetch('/company/saved-candidates/' + profileId, {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/company/saved-candidates/' + profileId, { method: 'POST' }).then(_scRes);
 }
 
 function removeCandidateFromCompany(profileId){
-  return fetch('/company/saved-candidates/' + profileId, {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
-  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+  return twApi('/company/saved-candidates/' + profileId, { method: 'DELETE' }).then(_scRes);
 }
 
 window.saveCandidateToCompany   = saveCandidateToCompany;
@@ -168,10 +146,9 @@ window.getFollowingList = getFollowingList;
 
 function _scApiCall(method, path, body){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  var opts = { method:method, headers:{'Content-Type':'application/json', 'Authorization': 'Bearer ' + _currentJwt()} };
-  if(body != null) opts.body = JSON.stringify(body);
-  return fetch(path, opts)
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); });
+  var opts = { method: method };
+  if(body != null) opts.body = body;
+  return twApi(path, opts).then(_scRes);
 }
 
 function addEdu(userId, payload)    { return _scApiCall('POST',  '/education/'+userId, payload); }

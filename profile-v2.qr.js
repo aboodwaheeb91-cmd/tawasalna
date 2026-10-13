@@ -26,7 +26,13 @@ function openQRModal(profileUrl, profileName){
   if(imgEl)  imgEl.src             = _qrSrc(profileUrl, 260);
   if(nameEl) nameEl.textContent    = profileName || '';
   if(urlEl)  urlEl.textContent     = profileUrl;
-  if(shareB) shareB.onclick = function(){ window._qrShare(profileUrl, profileName); };
+  // Share — Actions Registry (twAction('share') · BTN-19); replaces the slot on every open
+  if(shareB && typeof twAction === 'function'){
+    var act = twAction('share', { className: 'sc-qr-act',
+      onClick: function(){ window._qrShare(profileUrl, profileName); } });
+    if(act){ act.id = 'scQrShareBtn'; shareB.parentNode.replaceChild(act, shareB); }
+    else shareB.hidden = true;
+  }
   if(dlB)    dlB.onclick    = function(){ window._qrDownload(profileUrl, profileName); };
   m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -46,13 +52,13 @@ window._qrCopyLink = function(url){
     var ta = document.createElement('textarea');
     ta.value = url; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
     document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); if(window.toast) toast('تم نسخ الرابط'); }
-    catch(e){ if(window.toast) toast('تعذّر النسخ'); }
+    try{ document.execCommand('copy'); if(window.showToast) showToast('تم نسخ الرابط', 'success'); }
+    catch(e){ if(window.showToast) showToast('تعذّر النسخ', 'error'); }
     document.body.removeChild(ta);
   }
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(url)
-      .then(function(){ if(window.toast) toast('تم نسخ الرابط'); })
+      .then(function(){ if(window.showToast) showToast('تم نسخ الرابط', 'success'); })
       .catch(_fallback);
   } else { _fallback(); }
 };
@@ -86,7 +92,7 @@ window._qrDownload = function(url, name){
     return;
   }
   if(typeof QRCode === 'undefined'){
-    if(window.toast) toast('تعذّر تحميل مكتبة QR');
+    if(window.showToast) showToast('تعذّر تحميل مكتبة QR', 'error');
     return;
   }
 
@@ -95,7 +101,7 @@ window._qrDownload = function(url, name){
   clearTimeout(_qrWatchdog);   // cancel any stale watchdog from previous call
   var dlB = document.getElementById('scQrDownloadBtn');
   if(dlB) dlB.disabled = true;
-  if(window.toast) toast('جاري تجهيز البطاقة...');
+  if(window.showToast) showToast('جاري تجهيز البطاقة...', 'info');
 
   // ── Watchdog: auto-release after 15 s if flow never completes ──
   _qrWatchdog = setTimeout(function(){
@@ -113,7 +119,7 @@ window._qrDownload = function(url, name){
     var hd = document.getElementById(_QR_HIDDEN_ID);
     if(hd) hd.innerHTML = '';
     console.log('[QR Download] release #' + _n + ' | err=' + (errMsg || 'null'));
-    if(errMsg && window.toast) toast(errMsg);
+    if(errMsg && window.showToast) showToast(errMsg, 'error');
   }
 
   // ── Coordinates within the 1800×1800 template (v2 Canva design) ──
@@ -174,7 +180,7 @@ window._qrDownload = function(url, name){
           setTimeout(function(){ if(a.parentNode) a.parentNode.removeChild(a); }, 500);
           setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 10000);
 
-          if(window.toast) toast('جاري التحميل...');
+          if(window.showToast) showToast('جاري التحميل...', 'info');
         } catch(e2){
           console.log('[QR Download] error in blob cb #' + _n + ': ' + e2);
         } finally {

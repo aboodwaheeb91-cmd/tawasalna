@@ -142,7 +142,7 @@
       ? window._scProfile.experience : [];
     var e = null;
     for(var i=0; i<list.length; i++){ if(list[i].id === id){ e = list[i]; break; } }
-    if(!e){ toast('لم يتم العثور على الخبرة'); return; }
+    if(!e){ showToast('لم يتم العثور على الخبرة', 'error'); return; }
 
     _mode = 'edit'; _editId = id;
     if(titleEl) titleEl.textContent = 'تعديل الخبرة';
@@ -178,16 +178,16 @@
   function _doDelete(id){
     deleteExperience(id)
       .then(function(res){
-        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        if(!res.ok){ showToast('حدث خطأ أثناء الحذف', 'error'); return; }
         if(window._scProfile && Array.isArray(window._scProfile.experience)){
           window._scProfile.experience = window._scProfile.experience.filter(function(e){ return e.id !== id; });
         }
-        toast('تم حذف الخبرة');
+        showToast('تم حذف الخبرة', 'success');
         if(window._updateCompletion) window._updateCompletion();
         _reRenderExp();
         _bgRefetch();
       })
-      .catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+      .catch(function(){ showToast('خطأ في الاتصال بالخادم', 'error'); });
   }
 
   // ── Inline field-error helpers ──
@@ -262,7 +262,7 @@
     if(_contentErr){
       var _fe = document.querySelector('#exOverlay .ep-field-err.show');
       if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
-      if(window.toast) window.toast(_lastErrMsg);
+      if(window.showToast) window.showToast(_lastErrMsg, 'error');
       return;
     }
 
@@ -291,7 +291,7 @@
             ? _det.message
             : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
           showErr(_msg);
-          if(window.toast) window.toast(_msg);
+          if(window.showToast) window.showToast(_msg, 'error');
           return;
         }
         var entry = res.data.experience;
@@ -305,7 +305,7 @@
           });
         }
         closeModal();
-        toast(_mode === 'add' ? 'تمت إضافة الخبرة' : 'تم تعديل الخبرة');
+        showToast(_mode === 'add' ? 'تمت إضافة الخبرة' : 'تم تعديل الخبرة', 'success');
         if(window._updateCompletion) window._updateCompletion();
         _reRenderExp();
         _bgRefetch();
@@ -313,7 +313,7 @@
       .catch(function(){
         var _msg = 'خطأ في الاتصال بالخادم';
         showErr(_msg);
-        if(window.toast) window.toast(_msg);
+        if(window.showToast) window.showToast(_msg, 'error');
       })
       .finally(function(){
         saveBtn.disabled    = false;
@@ -357,7 +357,7 @@
         if(!res.ok){
           if(window._scProfile) window._scProfile.experience = oldOrder;
           _reRenderExp();
-          toast('فشل حفظ الترتيب');
+          showToast('فشل حفظ الترتيب', 'error');
           return;
         }
         _bgRefetch();
@@ -365,7 +365,7 @@
       .catch(function(){
         if(window._scProfile) window._scProfile.experience = oldOrder;
         _reRenderExp();
-        toast('خطأ في حفظ الترتيب');
+        showToast('خطأ في حفظ الترتيب', 'error');
       });
   }
 
@@ -441,7 +441,7 @@
     var inner = document.createElement('div');
     inner.style.cssText = 'background:#0f1420;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:24px 22px;max-width:300px;width:88%;text-align:center;font-family:\'Cairo\',sans-serif;direction:rtl';
     inner.innerHTML =
-      '<p style="color:#fff;font-size:.9rem;margin-bottom:18px;line-height:1.6">'+esc(msg)+'</p>'
+      '<p style="color:#fff;font-size:.9rem;margin-bottom:18px;line-height:1.6">'+twEscHtml(msg)+'</p>'
       +'<div style="display:flex;gap:10px;justify-content:center">'
       +'<button id="_scConfNo"  style="flex:1;height:38px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:none;color:#9aa5b4;font-family:inherit;font-size:.85rem;cursor:pointer">إلغاء</button>'
       +'<button id="_scConfYes" style="flex:1;height:38px;border-radius:9px;border:none;background:linear-gradient(135deg,#f87171,#dc2626);color:#fff;font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer">حذف</button>'

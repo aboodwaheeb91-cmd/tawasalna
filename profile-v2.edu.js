@@ -99,12 +99,12 @@
 
   if(saveBtn) saveBtn.onclick = function(){
     var inst = fv('eduInst');
-    if(!inst){ toast('اسم المؤسسة مطلوب'); return; }
+    if(!inst){ showToast('اسم المؤسسة مطلوب', 'error'); return; }
 
     var _checkFields = [inst, fv('eduDeg'), fv('eduField'), fv('eduDesc')];
     for(var _i=0; _i<_checkFields.length; _i++){
       var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_checkFields[_i]);
-      if(_pcErr){ toast(_pcErr); return; }
+      if(_pcErr){ showToast(_pcErr, 'error'); return; }
     }
 
     var isCur   = cbCurrent ? cbCurrent.checked : false;
@@ -113,17 +113,17 @@
 
     // Validation: start year must not be in the future
     if(syVal && syVal > CUR_YEAR){
-      toast('سنة البداية لا يمكن أن تكون في المستقبل');
+      showToast('سنة البداية لا يمكن أن تكون في المستقبل', 'error');
       return;
     }
     // Validation: end year must not precede start year
     if(syVal && eyVal && eyVal < syVal){
-      toast('سنة التخرج لا يمكن أن تكون قبل سنة البداية');
+      showToast('سنة التخرج لا يمكن أن تكون قبل سنة البداية', 'error');
       return;
     }
     // Validation: future end year only allowed if is_current
     if(eyVal && eyVal > CUR_YEAR && !isCur){
-      toast('لا يمكن اختيار سنة تخرج مستقبلية إلا إذا كنت ما زلت تدرس');
+      showToast('لا يمكن اختيار سنة تخرج مستقبلية إلا إذا كنت ما زلت تدرس', 'error');
       return;
     }
 
@@ -149,7 +149,7 @@
       if(!res.ok){
         var _det = res.data && res.data.detail;
         var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
-        toast(_msg);
+        showToast(_msg, 'error');
         return;
       }
       var entry = res.data.education;
@@ -162,12 +162,12 @@
         }
       }
       closeModal();
-      toast(isEdit ? 'تم التحديث' : 'تمت الإضافة');
+      showToast(isEdit ? 'تم التحديث' : 'تمت الإضافة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderEdu();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
-      toast('خطأ في الاتصال بالخادم');
+      showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
       saveBtn.disabled    = false;
       saveBtn.textContent = 'حفظ';
@@ -184,9 +184,9 @@
     if(!education || !education.length) return addBtn + '<div class="sc-empty">لا توجد شهادات بعد</div>';
 
     var rows = '<div class="sc-exp-list">' + education.map(function(e){
-      var inst    = esc(e.institution || '');
-      var deg     = e.degree  ? esc(e.degree)  : '';
-      var field   = e.field   ? esc(e.field)   : '';
+      var inst    = twEscHtml(e.institution || '');
+      var deg     = e.degree  ? twEscHtml(e.degree)  : '';
+      var field   = e.field   ? twEscHtml(e.field)   : '';
       var sy      = e.start_year || '';
       var ey      = e.end_year   || '';
       var isCur   = !!e.is_current;
@@ -214,7 +214,7 @@
         ? '<span class="sc-exp-current">قيد الدراسة</span>'
         : '';
 
-      var desc  = e.description ? esc(e.description) : '';
+      var desc  = e.description ? twEscHtml(e.description) : '';
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
           +'<button class="sc-exp-menu-btn" onclick="window._expMenuToggle(this)" title="خيارات">'
@@ -272,21 +272,21 @@
     for(var i = 0; i < list.length; i++){
       if(list[i].id === id){ entry = list[i]; break; }
     }
-    if(!entry){ toast('لم يتم العثور على الشهادة'); return; }
+    if(!entry){ showToast('لم يتم العثور على الشهادة', 'error'); return; }
     openEdit(entry);
   };
   window._eduConfirmDelete = function(id){
     id = parseInt(id);
     scConfirm('هل أنت متأكد من حذف هذه الشهادة؟', function(){
       deleteEdu(id).then(function(res){
-        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        if(!res.ok){ showToast('حدث خطأ أثناء الحذف', 'error'); return; }
         var cache = window._scProfile;
         if(cache) cache.education = (cache.education||[]).filter(function(e){ return e.id!==id; });
         _reRenderEdu();
-        toast('تم حذف الشهادة');
+        showToast('تم حذف الشهادة', 'success');
         if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
-      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+      }).catch(function(){ showToast('خطأ في الاتصال بالخادم', 'error'); });
     });
   };
 

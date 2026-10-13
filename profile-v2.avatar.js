@@ -31,11 +31,11 @@
     fileInput.value = '';
     if(!file) return;
     if(!/^image\/(jpeg|png|webp)$/.test(file.type)){
-      toast('يُقبل فقط: JPEG، PNG، WebP');
+      showToast('يُقبل فقط: JPEG، PNG، WebP', 'error');
       return;
     }
     if(file.size > MAX_BYTES){
-      toast('حجم الصورة يتجاوز 5 ميغابايت');
+      showToast('حجم الصورة يتجاوز 5 ميغابايت', 'error');
       return;
     }
     var reader = new FileReader();
@@ -72,7 +72,7 @@
   // ── Save ──
   saveBtn.addEventListener('click', function(){
     var uid = window._scUserId;
-    if(!uid){ toast('خطأ: لم يتم التعرف على المستخدم'); return; }
+    if(!uid){ showToast('خطأ: لم يتم التعرف على المستخدم', 'error'); return; }
 
     var dataUrl = _cropper.export();
     saveBtn.disabled = true;
@@ -102,11 +102,11 @@
         }
         if(window._scProfile) window._scProfile.avatar_url = result.url;
         closeCrop();
-        toast('تم تحديث الصورة الشخصية');
+        showToast('تم تحديث الصورة الشخصية', 'success');
         if(window._updateCompletion) window._updateCompletion();
       })
       .catch(function(e){
-        toast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الصورة'));
+        showToast(TW.uploadFailureMessage(e, 'حدث خطأ أثناء رفع الصورة'), 'error');
       })
       .finally(function(){
         saveBtn.disabled = false;

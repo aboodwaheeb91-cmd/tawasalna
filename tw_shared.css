@@ -403,6 +403,26 @@ body {
 .tw-act-ghost     { color: var(--color-text-secondary); }
 .tw-act-ghost:hover:not(:disabled)     { background: var(--color-surface-input); color: var(--color-text-primary); }
 
+/* Report dialog — twReportDialog() (Reports System §24 · PR 4.2a). Inside DS-OVL twModal. */
+.tw-report-form   { display: flex; flex-direction: column; gap: var(--space-5); padding-bottom: var(--space-2); }
+.tw-report-types  { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.tw-report-type   {
+  display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer;
+  padding: var(--space-2) var(--space-5); border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-medium); color: var(--color-text-secondary);
+  font-size: var(--size-font-sm); font-weight: 600;
+}
+.tw-report-type:has(input:checked) { border-color: var(--color-status-danger); color: var(--color-text-primary); }
+.tw-report-type input { accent-color: var(--color-status-danger); margin: 0; }
+.tw-report-reason {
+  width: 100%; resize: vertical; min-height: 80px; padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm); border: 1px solid var(--color-border-medium);
+  background: var(--color-surface-input); color: var(--color-text-primary);
+  font-family: inherit; font-size: var(--size-font-md); line-height: 1.6;
+}
+.tw-report-reason:focus { outline: none; border-color: var(--color-border-focus); }
+.tw-report-err    { min-height: 1em; color: var(--color-status-danger); font-size: var(--size-font-sm); }
+
 /* Small Action Button */
 .tw-ab {
   padding: 5px 10px;
