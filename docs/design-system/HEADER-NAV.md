@@ -123,7 +123,7 @@
 ## HNAV-09 — `hidden` مضمون جوّا الهيدر والشريط (PR 4.10)
 
 - `data-tw-session` (VM-10) بيخفي بالـ attribute `hidden` بس. أي class بالهيدر بيحط `display` (`.tw-hdr-auth` · `.sc-hicon` · `.sc-home-btn` · `.sc-menu-wrap` · `.tw-bnav`) كان بيغلب على قاعدة المتصفح `[hidden]` → المسجّل شاف «تسجيل الدخول / إنشاء حساب»، والزائر شاف الرئيسية / الجرس / الرسائل.
-- قاعدة وحدة بـ `static/app-header.css`: `[data-tw-header] [hidden]` · `[data-tw-bottom-nav][hidden]` · `[data-tw-bottom-nav] [hidden]` → `display: none !important`. عنصر جديد بالهيدر بـ `display` ما بيحتاج `.x[hidden]` خاص فيه.
+- الحل قاعدة الموقع كله `[hidden] { display: none !important; }` بـ `tw_shared.css` (SYSTEMS_INDEX §58a) — مش قاعدة بـ `app-header.css`. عنصر جديد بالهيدر بـ `display` ما بيحتاج `.x[hidden]` خاص فيه.
 - ❌ إخفاء عنصر بالهيدر بـ `style.display` بدل `hidden` · ❌ قاعدة `[hidden]` خاصة بـ class (القاعدة المشتركة بتغطّي الكل).
 - Test: `node tests/test_header_hidden_runtime.js` — الهيدر الحقيقي (`twMountAppChrome`) بـ Chrome headless كمسجّل وكزائر، وبيفحص `getComputedStyle(el).display` مش بس الـ attribute.
 
@@ -141,5 +141,5 @@
 ❌ cap تاني للشارات (9+) — twNotifBadgeLabel بس
 ❌ history.back() مباشر لزر رجوع — twNavBack
 ❌ padding-top / margin-top تعويض للهيدر · padding-bottom للشريط بصفحة محوّلة
-❌ class بالهيدر / الشريط بيغلب على `hidden` — HNAV-09 (`display:none !important` مشترك)
+❌ `X[hidden]` خاص بالهيدر / الشريط — HNAV-09 (القاعدة العامة §58a بـ `tw_shared.css`)
 ```

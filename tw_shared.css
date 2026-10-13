@@ -299,6 +299,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* [hidden] always wins (PR 4.10 · SYSTEMS_INDEX §58a). Any class that sets `display`
+ * beats the browser's own [hidden] rule — login/register showed to signed-in users,
+ * a blank error state on profile-v2 (4.2a). One rule for the whole site:
+ * ❌ per-page / per-class `X[hidden] { display:none }` patches. */
+[hidden] { display: none !important; }
+
 /* ══════════════════════════════════════
    3. Navbar (مشترك بين الصفحات)
    ══════════════════════════════════════ */

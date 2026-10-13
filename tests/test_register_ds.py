@@ -380,27 +380,22 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── L: [hidden] scoped to #registerPanel ──────────────────────────────
-        label = 'L: [hidden] scoped to #registerPanel, not global'
+        # ── L: hidden field errors are really not rendered (global [hidden] rule — PR 4.10) ──
+        label = 'L: hidden field errors computed display = none'
         try:
-            css_text = (ROOT / 'index.css').read_text(encoding='utf-8')
-            has_reg_hidden   = '#registerPanel [hidden]' in css_text
-            has_login_hidden = '#loginSection [hidden]' in css_text
-            # Must NOT have a bare global [hidden] rule that could clobber other pages
-            has_bare_hidden  = '\n[hidden]{' in css_text or '\n[hidden] {' in css_text
-            if not has_reg_hidden:
-                fail(label, '#registerPanel [hidden] rule missing from index.css')
-            elif not has_login_hidden:
-                fail(label, '#loginSection [hidden] rule missing from index.css')
-            elif has_bare_hidden:
-                fail(label, 'bare global [hidden] rule present — should be scoped')
+            await open_register('emp')
+            shown = await page.evaluate(
+                "[...document.querySelectorAll('#registerPanel [hidden], #loginSection [hidden]')]"
+                ".filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className)")
+            if shown:
+                fail(label, 'hidden but rendered: ' + ', '.join(map(str, shown)))
             else:
                 ok(label)
         except Exception as ex:
             fail(label, str(ex))
 
         # ── M: autofill CSS scoped to #registerPanel ──────────────────────────
-        label = 'M: autofill CSS scoped to #registerPanel, [hidden] scoped'
+        label = 'M: autofill CSS scoped to #registerPanel'
         try:
             css_text = (ROOT / 'index.css').read_text(encoding='utf-8')
             reg_autofill    = '#registerPanel input:-webkit-autofill' in css_text

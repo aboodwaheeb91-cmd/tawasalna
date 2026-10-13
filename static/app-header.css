@@ -173,14 +173,6 @@
  * and <nav data-tw-bottom-nav>. Sizes = DS-SIZE tokens · colours = DS-COLOR tokens.
  * Pages never restyle these — one header for the whole site. */
 [data-tw-header] { display: flex; height: var(--ah-h); }   /* reserves the height before mount */
-
-/* HNAV-09 — `hidden` always wins inside the header + bottom nav. data-tw-session
- * (VM-10) hides with the attribute, but any class here that sets `display`
- * (.tw-hdr-auth · .sc-hicon · .sc-menu-wrap · .tw-bnav …) would beat the UA
- * [hidden] rule — a signed-in user saw login / register, a guest the bell. */
-[data-tw-header] [hidden],
-[data-tw-bottom-nav][hidden],
-[data-tw-bottom-nav] [hidden] { display: none !important; }
 .sc-header.tw-hdr {
   position: sticky; top: 0; inset-inline: 0;
   padding: 0 var(--space-8);

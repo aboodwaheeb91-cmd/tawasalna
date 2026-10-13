@@ -1,10 +1,12 @@
 /**
- * test_header_hidden_runtime.js — HNAV-09 (PR 4.10 · docs/design-system/HEADER-NAV.md)
+ * test_header_hidden_runtime.js — global [hidden] rule (PR 4.10 · SYSTEMS_INDEX §58a · HEADER-NAV.md HNAV-09)
  *
  * Mounts the REAL unified header + bottom nav (tw_shared.js → twMountAppChrome,
  * auth-sync.js, static/app-header.css) in headless Chrome, once as a signed-in
  * account and once as a guest, and reads getComputedStyle — not just the `hidden`
  * attribute: every data-tw-session element of the other state must be display:none.
+ * Plus one page element outside the header (a class that sets display + hidden) — the
+ * rule lives in tw_shared.css for the whole site, not in the header.
  *
  * Browser: $CHROME_BIN · /opt/pw-browsers/chromium · google-chrome · chromium (no npm deps).
  * None found → SKIP locally, FAIL under CI (CI=true — ubuntu-latest ships google-chrome).
@@ -45,14 +47,14 @@ function pageHtml(mode) {
   return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">'
     + '<script>window.__errs=[];window.addEventListener("error",function(e){__errs.push(String(e.message))});' + seed + '</script>'
     + '<link rel="stylesheet" href="/static/tw_shared.css"><link rel="stylesheet" href="/static/app-header.css">'
-    + '</head><body><header data-tw-header></header><main>x</main><nav data-tw-bottom-nav></nav>'
+    + '</head><body><header data-tw-header></header><main><a class="tw-hdr-auth" id="twProbe" hidden>x</a></main><nav data-tw-bottom-nav></nav>'
     + '<script src="/static/tw_shared.js"></script><script src="/static/shared/auth-sync.js"></script>'
     + '<script>window.addEventListener("load",function(){setTimeout(function(){'
     + 'var rows=[].map.call(document.querySelectorAll("[data-tw-header] [data-tw-session]"),function(el){'
     + 'return {s:el.getAttribute("data-tw-session"),cls:el.className,hidden:el.hidden,d:getComputedStyle(el).display};});'
     + 'var nav=document.querySelector("[data-tw-bottom-nav]");'
     + 'var o=document.createElement("pre");o.id="twOut";'
-    + 'o.textContent=JSON.stringify({errs:window.__errs,mounted:document.querySelector("[data-tw-header]").hasAttribute("data-tw-mounted"),'
+    + 'o.textContent=JSON.stringify({errs:window.__errs,probe:getComputedStyle(document.getElementById("twProbe")).display,mounted:document.querySelector("[data-tw-header]").hasAttribute("data-tw-mounted"),'
     + 'rows:rows,nav:{hidden:nav.hidden,d:getComputedStyle(nav).display,items:nav.querySelectorAll(".tw-bnav-item").length}});'
     + 'document.body.appendChild(o);},300);});</script></body></html>';
 }
@@ -99,6 +101,7 @@ function assertMode(mode, r) {
     x.hidden === true && x.d === 'none', 'hidden=' + x.hidden + ' display=' + x.d));
   mine.forEach(x => check(mode + ': ' + shown + ' element ".' + x.cls + '" visible',
     x.hidden === false && x.d !== 'none', 'hidden=' + x.hidden + ' display=' + x.d));
+  check(mode + ': page element outside the header (.tw-hdr-auth[hidden]) computed display = none', r.probe === 'none', 'display=' + r.probe);
   if (mode === 'auth') check('auth: bottom nav visible (< 1020px)', !r.nav.hidden && r.nav.d !== 'none' && r.nav.items > 0, JSON.stringify(r.nav));
   else check('guest: bottom nav computed display = none', r.nav.hidden && r.nav.d === 'none', JSON.stringify(r.nav));
 }
