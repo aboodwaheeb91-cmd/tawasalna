@@ -6133,20 +6133,35 @@ Same color values are used in `.co-cand-status--*` badges — unified palette ac
 **Endpoint:** `GET /profile/{user_id}/score`
 **Auth:** None
 
-### Calculation — `_calc_profile_score(uid, conn)`
+### Calculation — `_calc_profile_score(uid, conn)` (PR 4.2a — the ONE completion checklist, F29)
 
-| الشرط | النقاط |
-|-------|--------|
-| avatar_url محدّد | 10 |
-| headline أو title محدّد | 10 |
-| bio محدّدة | 10 |
-| location محدّد | 5 |
-| خبرة واحدة أو أكثر | 20 |
-| تعليم واحد أو أكثر | 15 |
-| 3 مهارات أو أكثر | 15 |
-| رابط واحد أو أكثر | 5 |
-| is_verified = TRUE | 5 |
-| **المجموع** | **95** |
+`PROFILE_SCORE_ITEMS` in `server.py` = the only definition of "profile completion". Home (`home.nav.js`),
+the profile stats tile (`#scStatScore`) and the owner completion card (`profile-v2.completion.js`)
+all read it through this endpoint; the browser never recomputes it.
+
+| id | الشرط | النقاط |
+|----|-------|--------|
+| `avatar` | avatar_url | 10 |
+| `profession` | profession_id أو headline أو title | 10 |
+| `bio` | bio | 10 |
+| `short_bio` | short_bio | 5 |
+| `location` | city أو country أو location | 5 |
+| `avail` | avail (حالة التوظيف) | 5 |
+| `exp` | خبرة واحدة أو أكثر | 15 |
+| `edu` | تعليم واحد أو أكثر | 10 |
+| `skills` | 3 مهارات أو أكثر | 10 |
+| `courses` | دورة واحدة أو أكثر | 5 |
+| `langs` | لغة واحدة أو أكثر | 5 |
+| `links` | رابط واحد أو أكثر | 5 |
+| `verified` | is_verified | 5 |
+| **المجموع** | | **100** |
+
+**ليش هالبنود (توحيد الحسابين — PR 4.2a):** كان في حسابين لنفس المفهوم — السيرفر (9 بنود، مجموعها 95،
+بيقرأ `location` بس وما بيعرف `profession_id`) والمتصفح (14 بند). اخترنا بنود المحتوى اللي بتشوفه
+الشركة وبيقدر صاحب الملف يكمّلها: انضاف من حساب المتصفح `short_bio` / `avail` / `courses` / `langs`،
+و `location` صار `city`/`country` (الحقول اللي بيحفظها نموذج التعديل)، و `profession` بيقبل `profession_id`.
+انشال `name` و `tw_id` (موجودين لكل حساب من التسجيل — 14 نقطة مجانية ما بتقيس شي)، وضل `verified`
+(إشارة ثقة حقيقية، إجراءه بالإعدادات). الأوزان: الخبرة أعلى بند لأنها أكتر شي بتقيّمه الشركة؛ المجموع 100.
 
 ### Score Levels
 
@@ -6161,9 +6176,10 @@ Same color values are used in `.co-cand-status--*` badges — unified palette ac
 
 ```json
 {
-  "score": <0-95>,
+  "score": <0-100>,
   "tips": [{"tip": <str>, "points": <int>}],  // أعلى 3 نقاط ناقصة
-  "level": "ممتاز|جيد|متوسط|يحتاج تحسين"
+  "level": "ممتاز|جيد|متوسط|يحتاج تحسين",
+  "items": [{"id": <PROFILE_SCORE_ITEMS id>, "done": <bool>, "points": <int>}]   // PR 4.2a
 }
 ```
 
@@ -6171,6 +6187,8 @@ Same color values are used in `.co-cand-status--*` badges — unified palette ac
 
 ```
 ✅ _calc_profile_score مشترك بين /score و/metrics
+✅ PROFILE_SCORE_ITEMS = المصدر الوحيد لبنود الاكتمال (PR 4.2a) — الواجهة بتربط id → نص (twT) + إجراء بس
+❌ حساب نسبة اكتمال بالمتصفح (كان بـ profile-v2.completion.js — 14 بند)
 ✅ tips تحتوي الشروط غير المكتملة فقط، مرتبة descending
 ❌ لا caching — يُحسب fresh في كل طلب
 ```
@@ -8431,20 +8449,23 @@ Visitors and preview modes never see this strip.
 - **Button style**: solid fills, no glassmorphism. تفاصيل = teal; ↻ = neutral gray; ✕ = red. Each styled by ID (`#scGrowthDet`, `#scGrowthNext`, `#scGrowthHide`).
 - **Suggestion-text toast** (`#scGrowthToast`): 1-sentence actionable tip ("ابحث عن دورة X، وبعد الحصول عليها أضفها لقسم الدورات"). Auto-dismisses after 4 s. Cleared on ↻ click. Does NOT contain the full explanation — that is reserved for the details panel.
 - **Growth mode panel** (`#scGrowthPanel`): shown only via "تفاصيل" button. Contains the full explanation: `reason` (why it matters) + `benefit` (career impact) + "اذهب إلى القسم" action button. This is the only place the full explanation appears.
-- **Growth empty state**: text "ملفك قوي! سنقترح لك فرص تطوير لاحقاً", التالي/تفاصيل buttons hidden
+- **Growth empty state**: text `profile.compl.growth_empty` (twT), التالي/تفاصيل buttons hidden
 - Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
 - `_growthIdx`: IIFE-level index for cycling through growth suggestions (clamp: `% suggs.length`)
 - `_toastTimer`: IIFE-level setTimeout handle; cleared when a new toast is shown or التالي is clicked
 
 ### Data Source
 
-Reads exclusively from `window._scProfile` (the global flat profile state set by `renderProfile`). No localStorage, no DB calls, no separate API request.
+Score + checklist (PR 4.2a · F29): **`GET /profile/{id}/score` only** (`getScore` → `{score, items}` — server
+`PROFILE_SCORE_ITEMS`, see Score System above). `_updateCompletion()` fetches it (stale responses dropped),
+updates `#scStatScore` and re-renders the card; until a score arrives (or if it fails) the card stays hidden.
+Growth suggestions + topic tags still read `window._scProfile` (content, not the score). No localStorage.
 
 ### Files
 
 | File | Role |
 |------|------|
-| `profile-v2.completion.js` | IIFE: scoring, rendering, toggle, dismiss, rule-based suggestions |
+| `profile-v2.completion.js` | IIFE: server score → rendering, toggle, dismiss, rule-based suggestions (no client scoring) |
 | `profile-v2.css` | `.sc-compl-strip` and all child element styles |
 | `profile-showcase.html` | `#scComplCard` strip markup inside `.sc-main-card`, between `.sc-actions` and `.sc-stats` |
 | `profile-v2.render.js` | Shows strip + calls `_renderCompletion()` at end of `renderProfile` (owner only) |
@@ -8452,28 +8473,13 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 
 ### Scored Items
 
-| id | Label | Weight |
-|----|-------|--------|
-| `avatar` | صورة شخصية | 10 |
-| `name` | الاسم الكامل | 8 |
-| `profession` | التخصص المهني | 8 |
-| `avail` | حالة التوظيف | 5 |
-| `short_bio` | نبذة قصيرة | 7 |
-| `bio` | نبذة عني | 8 |
-| `location` | المدينة / الدولة | 6 |
-| `skills` | المهارات | 9 |
-| `exp` | الخبرات | 10 |
-| `edu` | التعليم | 8 |
-| `courses` | الدورات | 5 |
-| `langs` | اللغات | 5 |
-| `links` | روابط التواصل | 5 |
-| `tw_id` | رابط مشاركة عام | 6 |
-| **Total** | | **100** |
+The server list (`PROFILE_SCORE_ITEMS`). The card maps each `id` → label `twT('profile.compl.item.<id>')`
++ action (`_ACTIONS`); an unknown id is skipped. Points shown (`+N%`) come from the server.
 
 ### Visibility Contract
 
 1. `#scComplCard` starts as `style="display:none"` in HTML.
-2. `renderProfile` in `profile-v2.render.js` shows the card and calls `window._renderCompletion()` **only** when `_vt === 'owner'`.
+2. `renderProfile` in `profile-v2.render.js` calls `window._renderCompletion()` **only** when `_vt === 'owner'` (else hides + clears the card); `_render()` shows the card only for the active owner **and** a server score.
 3. The card also carries the `owner-only` CSS class, which forces `display:none` in `body.preview-public-user` and `body.preview-guest` via the shared owner-only rule in `profile-v2.css`.
 4. Visitors (`body.public-view`, `body.view-guest`) never reach the owner branch, so the card remains `display:none`.
 
@@ -8481,8 +8487,8 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 
 | Function | Exposed on | Description |
 |----------|-----------|-------------|
-| `window._renderCompletion()` | `profile-v2.completion.js` | Full re-render of card content from `_scProfile` |
-| `window._updateCompletion()` | alias of `_renderCompletion` | Called by section saves to refresh card immediately |
+| `window._renderCompletion()` | `profile-v2.completion.js` | Re-render of the card from the last `/score` response |
+| `window._updateCompletion()` | `profile-v2.completion.js` | Re-fetches `GET /profile/{id}/score` → stats tile + card. Called by `renderProfile` and every section save |
 
 ### Action Mapping
 
@@ -8497,7 +8503,7 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 | `tab-courses` | `window._aboutGoTab('courses')` + smooth scroll |
 | `tab-langs` | `window._aboutGoTab('langs')` + smooth scroll |
 | `tab-links` | `window._aboutGoTab('links')` + smooth scroll |
-| `none` | No action (e.g. `tw_id` — set server-side) |
+| `verify` | `location.href = '/settings'` (identity verification — KYC) |
 
 ### Completion Mode Suggestions (rule-based topic tags)
 

@@ -23,6 +23,10 @@ function openQRModal(profileUrl, profileName){
   var urlEl  = document.getElementById('scQrModalLink');
   var shareB = document.getElementById('scQrShareBtn');
   var dlB    = document.getElementById('scQrDownloadBtn');
+  var logoEl = document.getElementById('scQrBrandLogo');
+  if(logoEl && !logoEl.getAttribute('src') && window.TW_LOGO_SRC){   // one logo source (HNAV-04)
+    logoEl.src = TW_LOGO_SRC; logoEl.alt = twT('brand.name');
+  }
   if(imgEl)  imgEl.src             = _qrSrc(profileUrl, 260);
   if(nameEl) nameEl.textContent    = profileName || '';
   if(urlEl)  urlEl.textContent     = profileUrl;

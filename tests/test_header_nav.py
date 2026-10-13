@@ -33,10 +33,11 @@ HDR = TWS.split("function _twHeaderHtml")[1].split("\nfunction ")[0]
 # page → expected data-back (None = no back button)
 PAGES = {
     "home-v2.html": None, "notifications.html": None, "messages.html": None,
-    "edu-profile.html": None, "appointments.html": None,
+    "edu-profile.html": None, "appointments.html": None, "profile-showcase.html": None,
     "settings.html": "account", "appointment-room.html": "/appointments", "job-detail.html": "home",
 }
-WITH_BOTTOM_NAV = {"home-v2.html", "notifications.html", "edu-profile.html", "appointments.html"}
+WITH_BOTTOM_NAV = {"home-v2.html", "notifications.html", "edu-profile.html", "appointments.html",
+                   "profile-showcase.html"}
 OLD_HEADER = [r'class="sc-header', r'class="nav"', r'class="hdr"', r'class="bnav', r'hw-bnav', r'notif-bnav',
               r'nav-logo', r'(sc|nt|ep|hw|co)MenuBtn', r'initGlobalHeaderMenu\(', r'data-lucide="(home|bell|menu)"',
               r'jdBackBtn', r'goMessenger', r'goBack\(']

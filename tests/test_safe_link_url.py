@@ -107,6 +107,9 @@ def test_render_sites_use_helper():
     utils = open(os.path.join(ROOT, "profile-v2.utils.js"), encoding="utf-8").read()
     assert "href=\"' + urlText" not in links and "twSafeLinkUrl(l.url" in links
     assert "href=\"' + curl" not in courses and "twSafeLinkUrl(c.certificate_url" in courses
-    assert "function esc(s){ return twEscHtml(s); }" in utils
-    page = open(os.path.join(ROOT, "profile-showcase.html"), encoding="utf-8").read()
+    # PR 4.2a: the local esc() alias is gone — escaping is twEscHtml (tw_shared.js) only
+    assert not re.search(r"function\s+esc\s*\(", utils)
+    from page_shell import apply_shell   # Page Shell page — check the served HTML (read_html)
+    raw = open(os.path.join(ROOT, "profile-showcase.html"), encoding="utf-8").read()
+    page = apply_shell(raw, "profile-showcase.html")
     assert page.index("/tw_shared.js") < page.index("profile-v2.utils.js")

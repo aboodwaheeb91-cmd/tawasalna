@@ -120,14 +120,14 @@
     "no_shell": 0
   },
   "profile-showcase.html": {
-    "colors": 585,
+    "colors": 540,
     "dialogs": 0,
-    "fetch": 17,
-    "forsa": 7,
-    "helpers": 3,
-    "ls_session": 4,
-    "no_header": 1,
-    "no_shell": 1
+    "fetch": 0,
+    "forsa": 0,
+    "helpers": 1,
+    "ls_session": 0,
+    "no_header": 0,
+    "no_shell": 0
   },
   "settings.html": {
     "colors": 0,
