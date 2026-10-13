@@ -176,7 +176,7 @@ Role alias للأزرار والحقول (BTN-02 "صغير وموحَّد"). ا�
 |-------|--------|---------------------------|
 | `--size-control-icon-xs` | 28px | `.sc-item-btn` · `.sc-exp-menu-btn` · `.job-mgmt-btn` (h) |
 | `--size-control-icon-sm` | 30px | `.ep-close` · `.sc-modal-close` · `.sc-fl-close` · `.modal-head-close` · `.cv-edit-btn` · `.co-ic-btn` |
-| `--size-control-icon-md` | 32px | `.sc-hicon` (app-header و profile-v2) · `.sc-home-btn` (profile-v2 و company) · `.sc-qr-close` · `.co-csc-toggle` |
+| `--size-control-icon-md` | 32px | `.sc-hicon` (app-header) · `.sc-home-btn` (company) — نسخة profile-v2 انحذفت مع الهيدر الموحّد (PR 4.2a) · `.sc-qr-close` · `.co-csc-toggle` |
 | `--size-control-icon-lg` | 40px | `app-header.css .sc-home-btn` |
 
 ### أزرار الهيدر — بدون قرار (قرار 4)
