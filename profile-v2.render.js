@@ -582,7 +582,7 @@ window.renderProfile = function renderProfile(res){
 
     if(!_qrId){
       // Guard: no tw_id — render placeholder and block modal
-      qrEl.innerHTML = '<div class="sc-qr-inner" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:8px;">تعذّر إنشاء<br>رابط المشاركة</div>';
+      qrEl.innerHTML = '<div class="sc-qr-inner" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--color-text-muted);text-align:center;padding:8px;">تعذّر إنشاء<br>رابط المشاركة</div>';
       qrEl.onclick = function(){ if(window.showToast) showToast('تعذّر إنشاء رابط المشاركة — يرجى تسجيل الخروج والدخول مجدداً', 'error'); };
     } else {
       renderQR(qrEl, _qrUrl);
@@ -1414,15 +1414,15 @@ window._scShowLoadError = _scShowLoadError;
 ;(function(){
   var _STATUS_MAP = {
     // Current semantic values (avail field, post-unification)
-    'available':      { color:'#22c55e', label:'متاح للعمل' },
+    'available':      { color:'var(--color-status-success-strong)', label:'متاح للعمل' },
     'open_to_offers': { color:'#22d3ee', label:'منفتح على وظائف' },
-    'busy':           { color:'#f59e0b', label:'مشغول حالياً' },
-    'not_available':  { color:'#94a3b8', label:'غير متاح حالياً' },
+    'busy':           { color:'var(--color-status-warning-strong)', label:'مشغول حالياً' },
+    'not_available':  { color:'var(--color-text-meta)', label:'غير متاح حالياً' },
     // Legacy avail values — backward compat for existing users' saved data
-    'open':      { color:'#22c55e', label:'متاح للعمل' },
-    'employed':  { color:'#94a3b8', label:'غير متاح حالياً' },
+    'open':      { color:'var(--color-status-success-strong)', label:'متاح للعمل' },
+    'employed':  { color:'var(--color-text-meta)', label:'غير متاح حالياً' },
     'freelance': { color:'#22d3ee', label:'فريلانس' },
-    'closed':    { color:'#94a3b8', label:'غير متاح' },
+    'closed':    { color:'var(--color-text-meta)', label:'غير متاح' },
   };
   var _pickerOpen = false;
 

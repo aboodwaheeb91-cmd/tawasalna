@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/shared/tw-skeleton.css">
 <link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
-<link rel="stylesheet" href="/static/profile-v2.css?v=p42a-v1">
+<link rel="stylesheet" href="/static/profile-v2.css?v=p42b-v1">
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
@@ -103,16 +103,16 @@
               <!-- Picker panel — owner-only class hides it in preview mode -->
               <div class="sc-avail-picker owner-only" id="scAvailPicker" style="display:none" role="menu">
                 <button class="sc-avail-opt" data-val="available" type="button" role="menuitem">
-                  <span class="sc-avail-opt-dot" style="background:#22c55e"></span>متاح للعمل
+                  <span class="sc-avail-opt-dot" style="background:var(--color-status-success-strong)"></span>متاح للعمل
                 </button>
                 <button class="sc-avail-opt" data-val="open_to_offers" type="button" role="menuitem">
                   <span class="sc-avail-opt-dot" style="background:#22d3ee"></span>منفتح على وظائف
                 </button>
                 <button class="sc-avail-opt" data-val="busy" type="button" role="menuitem">
-                  <span class="sc-avail-opt-dot" style="background:#f59e0b"></span>مشغول حالياً
+                  <span class="sc-avail-opt-dot" style="background:var(--color-status-warning-strong)"></span>مشغول حالياً
                 </button>
                 <button class="sc-avail-opt" data-val="not_available" type="button" role="menuitem">
-                  <span class="sc-avail-opt-dot" style="background:#94a3b8"></span>غير متاح حالياً
+                  <span class="sc-avail-opt-dot" style="background:var(--color-text-meta)"></span>غير متاح حالياً
                 </button>
                 <hr class="sc-avail-sep">
                 <button class="sc-avail-opt sc-avail-opt-clear" data-val="" type="button" role="menuitem">إزالة الحالة</button>
@@ -122,7 +122,7 @@
           </div>
           <div class="sc-info">
             <div class="sc-name-row">
-              <span class="sc-verified" id="scVerified" style="display:none" data-tooltip="حساب موثق" tabindex="0"><svg class="sc-verified-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" fill="rgba(37,99,255,0.22)" stroke="#00c896" stroke-width="1.8" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" stroke="rgba(255,255,255,0.88)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="sc-verified" id="scVerified" style="display:none" data-tooltip="حساب موثق" tabindex="0"><svg class="sc-verified-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" style="fill:rgba(var(--color-brand-secondary-rgb),.22)" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" style="stroke:rgba(var(--color-ink-rgb),.88)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="sc-name" id="scName">—</span>
             </div>
             <div class="sc-title" id="scTitle"></div>
@@ -188,27 +188,27 @@
         <!-- Stats: 5 cells RTL order: الشهادات ← القوة ← المشاهدات ← المتابعون ← الخبرات -->
         <div class="sc-stats">
           <div class="sc-stat">
-            <i data-lucide="graduation-cap" class="ico sc-stat-i" style="color:#f59e0b"></i>
+            <i data-lucide="graduation-cap" class="ico sc-stat-i" style="color:var(--color-categorical-gold)"></i>
             <div class="sc-stat-n" id="scStatEdu">—</div>
             <div class="sc-stat-l">الشهادات</div>
           </div>
           <div class="sc-stat">
-            <i data-lucide="trending-up" class="ico sc-stat-i" style="color:#00c896"></i>
+            <i data-lucide="trending-up" class="ico sc-stat-i" style="color:var(--color-categorical-teal)"></i>
             <div class="sc-stat-n" id="scStatScore">—</div>
             <div class="sc-stat-l">القوة</div>
           </div>
           <div class="sc-stat">
-            <i data-lucide="eye" class="ico sc-stat-i" style="color:#2563ff"></i>
+            <i data-lucide="eye" class="ico sc-stat-i" style="color:var(--color-categorical-blue)"></i>
             <div class="sc-stat-n" id="scStatViews">—</div>
             <div class="sc-stat-l">المشاهدات</div>
           </div>
           <div class="sc-stat" id="scStatFollowersTile">
-            <i data-lucide="users" class="ico sc-stat-i" style="color:#8b5cf6"></i>
+            <i data-lucide="users" class="ico sc-stat-i" style="color:var(--color-categorical-purple)"></i>
             <div class="sc-stat-n" id="scStatFollowers">—</div>
             <div class="sc-stat-l">المتابعون</div>
           </div>
           <div class="sc-stat">
-            <i data-lucide="briefcase" class="ico sc-stat-i" style="color:#f97316"></i>
+            <i data-lucide="briefcase" class="ico sc-stat-i" style="color:var(--color-categorical-orange)"></i>
             <div class="sc-stat-n" id="scStatExp">—</div>
             <div class="sc-stat-l">الخبرات</div>
           </div>
@@ -285,7 +285,7 @@
   <div class="cv-crop-overlay" id="cvCropOverlay">
     <div class="cv-crop-card">
       <div class="cv-crop-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:5px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-brand-primary);vertical-align:middle;margin-left:5px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         تحديد منطقة الكفر
       </div>
       <canvas id="cvCropCanvas"></canvas>
@@ -304,7 +304,7 @@
   <!-- Avatar Crop Overlay -->
   <div class="av-crop-overlay" id="avCropOverlay">
     <div class="av-crop-card">
-      <div class="av-crop-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:6px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>تحديد الصورة</div>
+      <div class="av-crop-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-brand-primary);vertical-align:middle;margin-left:6px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>تحديد الصورة</div>
       <canvas id="avCropCanvas" width="260" height="260"></canvas>
       <div class="av-zoom-row">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
@@ -351,8 +351,8 @@
           </div>
         </div>
         <div class="ep-field">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2,#9aa5b4);font-size:.83rem">
-            <input type="checkbox" id="exCurrent" style="width:16px;height:16px;accent-color:#00c896">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2);font-size:.83rem">
+            <input type="checkbox" id="exCurrent" style="width:16px;height:16px;accent-color:var(--color-brand-primary)">
             ما زلت أعمل هنا
           </label>
         </div>
@@ -544,8 +544,8 @@
         </div>
       </div>
       <div class="sc-form-group">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2,#9aa5b4);font-size:.83rem">
-          <input type="checkbox" id="eduCurrent" style="width:16px;height:16px;accent-color:#00c896;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2);font-size:.83rem">
+          <input type="checkbox" id="eduCurrent" style="width:16px;height:16px;accent-color:var(--color-brand-primary);cursor:pointer">
           ما زلت أدرس هنا
         </label>
       </div>
@@ -600,7 +600,7 @@
   <div class="sc-modal-overlay" id="skillOverlay" role="dialog" aria-labelledby="skillModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span id="skillModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة مهارة</span>
+        <span id="skillModalTitle" style="font-size:1rem;font-weight:800;color:var(--color-text-primary)">إضافة مهارة</span>
         <button type="button" class="sc-modal-close" id="skillClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
@@ -638,7 +638,7 @@
   <div class="sc-modal-overlay" id="langOverlay" role="dialog" aria-labelledby="langModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span id="langModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة لغة</span>
+        <span id="langModalTitle" style="font-size:1rem;font-weight:800;color:var(--color-text-primary)">إضافة لغة</span>
         <button type="button" class="sc-modal-close" id="langClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
@@ -698,7 +698,7 @@
   <div class="sc-modal-overlay" id="linkOverlay" role="dialog" aria-labelledby="linkModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span id="linkModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة رابط</span>
+        <span id="linkModalTitle" style="font-size:1rem;font-weight:800;color:var(--color-text-primary)">إضافة رابط</span>
         <button type="button" class="sc-modal-close" id="linkClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
@@ -769,11 +769,11 @@
   <script src="/static/shared/tw-upload.js"></script>
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
   <script src="/static/qrcode.min.js"></script>
-  <script src="/static/profile-v2.qr.js?v=qr-card-v1"></script>
-  <script src="/static/profile-v2.render.js?v=sched-v1"></script>
+  <script src="/static/profile-v2.qr.js?v=p42b-v1"></script>
+  <script src="/static/profile-v2.render.js?v=p42b-v1"></script>
   <script src="/static/shared/tw-options-data.js"></script>
   <script src="/static/profile-v2.edit.js?v=derived-age-v1"></script>
-  <script src="/static/profile-v2.exp.js?v=exp-tw-v1"></script>
+  <script src="/static/profile-v2.exp.js?v=p42b-v1"></script>
   <script src="/static/shared/tw-image-cropper.js"></script>
   <script src="/static/profile-v2.cover.js?v=ds-image-v1"></script>
   <script src="/static/profile-v2.avatar.js?v=compl-v1"></script>
@@ -785,7 +785,7 @@
   <script src="/static/profile-v2.langs.js?v=compl-v1"></script>
   <script src="/static/profile-v2.links.js?v=safe-link-v1"></script>
   <script src="/static/profile-v2.history.js?v=audit-v1"></script>
-  <script src="/static/profile-v2.completion.js?v=compl-v6"></script>
+  <script src="/static/profile-v2.completion.js?v=p42b-v1"></script>
   <script src="/static/profile-v2.apps.js?v=apps-v1"></script>
 
 </body>

@@ -157,7 +157,7 @@ window._qrDownload = function(url, name){
       }
       var tw = ctx.measureText(nameText).width;
       ctx.save();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#ffffff'; // tw-color-literal: exported PNG card (image data)
       ctx.fillText(nameText, NAME_LEFT + (availW - tw) / 2, CARD_CY + fontSize * 0.35);
       ctx.restore();
     }
@@ -214,8 +214,8 @@ window._qrDownload = function(url, name){
         text:         url,
         width:        QR_SIZE,
         height:       QR_SIZE,
-        colorDark:    '#111111',
-        colorLight:   '#ffffff',
+        colorDark:    '#111111', // tw-color-literal: QR image modules (image data)
+        colorLight:   '#ffffff', // tw-color-literal: QR image matte (image data)
         correctLevel: QRCode.CorrectLevel.H
       });
     } catch(e){

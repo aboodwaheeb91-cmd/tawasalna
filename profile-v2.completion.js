@@ -78,32 +78,32 @@
         id:      'react',
         // Triggers for front-end profiles (AR+EN); disappears when React is in skills
         cond:    /javascript|frontend|html|css|واجهات|واجهة|فرونت/.test(_all) && !/react/.test(skillStr),
-        text:    'احصل على دورة React.js ثم أضفها لملفك',
+        text:    twT('profile.growth.react.text'),
         // toast — short actionable tip (1 sentence); shown on suggestion-text click
-        toast:   'ابحث عن دورة React.js وبعد ما تنتهي منها أضف المهارة لقسم مهاراتك.',
+        toast:   twT('profile.growth.react.toast'),
         // reason + benefit — full explanation shown only in the "تفاصيل" panel
-        reason:  'React هي المكتبة الأكثر طلباً في وظائف الفرونت إند حالياً، وخلفيتك في JavaScript تجعلها الخطوة التالية الطبيعية.',
-        benefit: 'إضافتها بعد تعلمها يُظهر للشركات أنك متطوّر ويفتح أمامك وظائف الفرونت إند المتقدمة.',
+        reason:  twT('profile.growth.react.reason'),
+        benefit: twT('profile.growth.react.benefit'),
         action:  'tab-skills',
       },
       {
         id:      'git',
         // Triggers for any developer profile (AR+EN); disappears when Git is in skills
         cond:    /developer|frontend|backend|تطوير|مطور|برمجيات|برمجة/.test(_all) && !/git/.test(skillStr),
-        text:    'تعلّم Git ثم وثّقه ضمن مهاراتك',
-        toast:   'ابدأ باستخدام Git في مشاريعك وبعد ما تتقنه وثّقه ضمن مهاراتك.',
-        reason:  'Git هو معيار إدارة الكود في جميع فرق التطوير، وغيابه من ملفك يُثير تساؤلات عند المراجعين.',
-        benefit: 'توثيقه بعد الاستخدام الفعلي يُثبت قدرتك على العمل ضمن فريق بشكل احترافي.',
+        text:    twT('profile.growth.git.text'),
+        toast:   twT('profile.growth.git.toast'),
+        reason:  twT('profile.growth.git.reason'),
+        benefit: twT('profile.growth.git.benefit'),
         action:  'tab-skills',
       },
       {
         id:      'nodejs',
         // Triggers for JS/backend profiles; disappears when Node is in skills
         cond:    /javascript|node|backend|خلفية|باك.?اند/.test(_all) && !/node/.test(skillStr),
-        text:    'تعلّم Node.js ثم أضفه لمهاراتك',
-        toast:   'ابحث عن دورة Node.js وبعد ما تطبّقه في مشروع أضفه لقسم مهاراتك.',
-        reason:  'Node.js يُكمل خلفيتك في JavaScript ويُمكّنك من بناء تطبيقات متكاملة من الفرونت للباك إند.',
-        benefit: 'إضافته بعد التعلم يرفع قيمتك في سوق العمل ويفتح أمامك وظائف Full Stack.',
+        text:    twT('profile.growth.nodejs.text'),
+        toast:   twT('profile.growth.nodejs.toast'),
+        reason:  twT('profile.growth.nodejs.reason'),
+        benefit: twT('profile.growth.nodejs.benefit'),
         action:  'tab-skills',
       },
       {
@@ -112,68 +112,68 @@
         // SQL in skills WITHOUT a course is a stronger reason to suggest the course, not suppress it.
         cond:    (/data|analyst|backend|erp|بيانات|قواعد.?بيانات|تحليل/.test(_all) || /sql/.test(skillStr))
                  && !/sql|database|قواعد/.test(courseStr),
-        text:    'احصل على دورة SQL أو قواعد البيانات ثم أضفها لملفك',
-        toast:   'ابحث عن دورة SQL أو قواعد البيانات وبعد الحصول عليها أضفها لقسم الدورات.',
-        reason:  'لديك مهارة أو خلفية في البيانات، لكن دورة موثقة تُثبتها رسمياً أمام أصحاب العمل.',
-        benefit: 'الدورة تُكمل ما تُظهره مهاراتك وتفتح أمامك وظائف التحليل والـ Backend بشكل أقوى.',
+        text:    twT('profile.growth.sql_course.text'),
+        toast:   twT('profile.growth.sql_course.toast'),
+        reason:  twT('profile.growth.sql_course.reason'),
+        benefit: twT('profile.growth.sql_course.benefit'),
         action:  'tab-courses',
       },
       {
         id:      'github_link',
         // Triggers for developer profiles (AR+EN); disappears when GitHub link is added
         cond:    /developer|frontend|backend|مطور|برمجيات|برمجة/.test(_all) && !/github/.test(linkStr),
-        text:    'أنشئ أو حدّث GitHub ثم أضف رابطه لملفك',
-        toast:   'أنشئ أو حدّث GitHub وبعدها أضف رابطه لقسم روابط التواصل.',
-        reason:  'رابط GitHub يُبرز عملك الفعلي ويُقدّم دليلاً ملموساً على مهاراتك أكثر من أي وصف نصي.',
-        benefit: 'الشركات التقنية تبحث عن رابط GitHub قبل أي شيء آخر في ملف المطوّرين.',
+        text:    twT('profile.growth.github_link.text'),
+        toast:   twT('profile.growth.github_link.toast'),
+        reason:  twT('profile.growth.github_link.reason'),
+        benefit: twT('profile.growth.github_link.benefit'),
         action:  'tab-links',
       },
       {
         id:      'english',
         // Suggests developing and adding English. Disappears once English appears in langs section.
         cond:    !/english|إنجليزي|الإنجليزية/.test(langStr),
-        text:    'طوّر لغتك الإنجليزية ثم أضف مستواك للملف',
-        toast:   'طوّر لغتك الإنجليزية وبعد ما تحسّن مستواك أضفه لقسم اللغات.',
-        reason:  'اللغة الإنجليزية غير موجودة في قسم اللغات، وهي مؤشر مهم للشركات الدولية.',
-        benefit: 'إضافتها بعد تطوير مستواك تفتح أمامك وظائف الشركات الدولية والعمل عن بُعد بأجور أعلى.',
+        text:    twT('profile.growth.english.text'),
+        toast:   twT('profile.growth.english.toast'),
+        reason:  twT('profile.growth.english.reason'),
+        benefit: twT('profile.growth.english.benefit'),
         action:  'tab-langs',
       },
       {
         id:      'more_exp',
         cond:    expCount === 1,
-        text:    'نفّذ مشروعاً عملياً أو وثّق تجربة حقيقية في ملفك',
-        toast:   'نفّذ مشروعاً عملياً أو تطوعياً وبعدها وثّقه في قسم الخبرات.',
-        reason:  'الملف الذي يحتوي خبرة واحدة يبدو في بداية المسيرة، حتى لو كانت التجربة قوية.',
-        benefit: 'إضافة تجربة أو مشروع ثانٍ — حتى لو شخصي — يُظهر النمو المهني والتنوع.',
+        text:    twT('profile.growth.more_exp.text'),
+        toast:   twT('profile.growth.more_exp.toast'),
+        reason:  twT('profile.growth.more_exp.reason'),
+        benefit: twT('profile.growth.more_exp.benefit'),
         action:  'tab-exp',
       },
       {
         id:      'python',
         // Triggers for data/AI profiles (AR+EN); disappears when Python is in skills
         cond:    /data|machine.?learn|ai|analytics|بيانات|تحليل.?بيانات|ذكاء.?اصطناعي/.test(_all) && !/python/.test(skillStr),
-        text:    'تعلّم Python ثم أضفه لمهاراتك',
-        toast:   'ابحث عن دورة Python وبعد ما تنتهي منها وتطبّق ما تعلمته أضفها لقسم مهاراتك.',
-        reason:  'Python هي اللغة الأساسية في علم البيانات والذكاء الاصطناعي، واهتمامك بهذا المجال يجعلها ضرورية.',
-        benefit: 'تعلّمها وتوثيقها يُقوّي ملفك في وظائف تحليل البيانات والـ AI.',
+        text:    twT('profile.growth.python.text'),
+        toast:   twT('profile.growth.python.toast'),
+        reason:  twT('profile.growth.python.reason'),
+        benefit: twT('profile.growth.python.benefit'),
         action:  'tab-skills',
       },
       {
         id:      'php_course',
         // Triggers for PHP/backend profiles; disappears when a Laravel course is added
         cond:    /php|laravel|backend|خلفية|باك.?اند/.test(_all) && !/laravel/.test(courseStr),
-        text:    'احصل على دورة Laravel أو PHP المتقدم ثم أضفها لملفك',
-        toast:   'ابحث عن دورة Laravel أو PHP المتقدم وبعد الحصول عليها أضفها لقسم الدورات.',
-        reason:  'المهارة بدون دورة موثقة تبقى غير رسمية في نظر كثير من أصحاب العمل.',
-        benefit: 'الدورة تُثبت مستواك المتقدم وتُميّزك عن مطوري PHP الذين لم يوثّقوا تدريبهم.',
+        text:    twT('profile.growth.php_course.text'),
+        toast:   twT('profile.growth.php_course.toast'),
+        reason:  twT('profile.growth.php_course.reason'),
+        benefit: twT('profile.growth.php_course.benefit'),
         action:  'tab-courses',
       },
       {
         id:      'first_course',
         cond:    courseCount === 0,
-        text:    'أتمّ دورة تدريبية ثم أضفها لملفك',
-        toast:   'ابحث عن دورة في مجالك وبعد ما تتمّها أضفها لقسم الدورات.',
-        reason:  'قسم الدورات الفارغ يُشير إلى عدم الاستثمار في التعلم الذاتي، حتى لو كنت تتعلم فعلياً.',
-        benefit: 'دورة واحدة مكتملة تُظهر التزامك بالتطوير المهني المستمر وتُثري ملفك.',
+        text:    twT('profile.growth.first_course.text'),
+        toast:   twT('profile.growth.first_course.toast'),
+        reason:  twT('profile.growth.first_course.reason'),
+        benefit: twT('profile.growth.first_course.benefit'),
         action:  'tab-courses',
       },
     ];
@@ -199,14 +199,14 @@
     var all = src + ' ' + skillStr;
 
     var map = [
-      { re:/javascript|react|vue|angular|frontend|html|css|node|typescript/,  label:'تطوير الواجهات الأمامية'          },
-      { re:/python|django|fastapi|backend|laravel|php|api|java|spring/,        label:'تطوير الخلفية والـ API'            },
-      { re:/data|machine.?learn|ai|analytics|power.?bi|tensorflow|pandas/,     label:'تحليل البيانات والذكاء الاصطناعي' },
-      { re:/تسويق|marketing|seo|social.?media|content|google.?ads/,            label:'التسويق الرقمي'                   },
-      { re:/design|ui|ux|figma|photoshop|illustrator|تصميم/,                   label:'تصميم UI/UX'                      },
-      { re:/project|management|agile|scrum|pmp|إدارة.?مشاريع/,                 label:'إدارة المشاريع'                   },
-      { re:/accounting|finance|excel|محاسبة|مالية|erp|sap/,                    label:'المحاسبة والمالية'                 },
-      { re:/sales|مبيعات|crm|negotiation/,                                     label:'المبيعات وخدمة العملاء'            },
+      { re:/javascript|react|vue|angular|frontend|html|css|node|typescript/,  label:twT('profile.growth.topic.frontend') },
+      { re:/python|django|fastapi|backend|laravel|php|api|java|spring/,        label:twT('profile.growth.topic.backend') },
+      { re:/data|machine.?learn|ai|analytics|power.?bi|tensorflow|pandas/,     label:twT('profile.growth.topic.data_ai') },
+      { re:/تسويق|marketing|seo|social.?media|content|google.?ads/,            label:twT('profile.growth.topic.marketing') },
+      { re:/design|ui|ux|figma|photoshop|illustrator|تصميم/,                   label:twT('profile.growth.topic.design') },
+      { re:/project|management|agile|scrum|pmp|إدارة.?مشاريع/,                 label:twT('profile.growth.topic.pm') },
+      { re:/accounting|finance|excel|محاسبة|مالية|erp|sap/,                    label:twT('profile.growth.topic.finance') },
+      { re:/sales|مبيعات|crm|negotiation/,                                     label:twT('profile.growth.topic.sales') },
     ];
 
     var results = [];
@@ -310,7 +310,7 @@
       if(benefEl)  benefEl.textContent  = sg.benefit;
       if(actionEl){
         if(sg.action && sg.action !== 'none'){
-          actionEl.textContent   = 'اذهب إلى القسم';
+          actionEl.textContent   = twT('profile.growth.go_section');
           actionEl.dataset.action = sg.action;
           actionEl.style.display  = '';
         } else {
@@ -360,7 +360,7 @@
     var complRow = document.getElementById('scComplRow');
     if(complRow) complRow.style.display = '';
 
-    var color    = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#f87171';
+    var color    = pct >= 80 ? 'var(--color-status-success-strong)' : pct >= 50 ? 'var(--color-status-warning-strong)' : 'var(--color-status-danger)';
     var labelEl  = document.getElementById('scComplLabel');
     var pctEl    = document.getElementById('scComplPct');
     var fillEl   = document.getElementById('scComplFill');
@@ -412,9 +412,9 @@
     if(suggestEl){
       var compSuggs = _buildCompletionSuggestions();
       if(compSuggs.length){
-        suggestEl.innerHTML = '<div class="sc-compl-suggest-title">اقتراحات تناسب تخصصك</div>'
+        suggestEl.innerHTML = '<div class="sc-compl-suggest-title">' + twEscHtml(twT('profile.growth.suggest_title')) + '</div>'
           + '<div class="sc-compl-suggest-tags">'
-          + compSuggs.map(function(s){ return '<span class="sc-compl-suggest-tag">' + s + '</span>'; }).join('')
+          + compSuggs.map(function(s){ return '<span class="sc-compl-suggest-tag">' + twEscHtml(s) + '</span>'; }).join('')
           + '</div>';
         suggestEl.style.display = '';
       } else {
@@ -498,7 +498,7 @@
     var detBtn    = document.getElementById('scGrowthDet');
     var toastEl   = document.getElementById('scGrowthToast');
     if(panelEl)  panelEl.style.display = 'none';
-    if(detBtn)   { detBtn.textContent = 'تفاصيل'; detBtn.classList.remove('is-open'); }
+    if(detBtn)   { detBtn.textContent = twT('profile.compl.details'); detBtn.classList.remove('is-open'); }
     if(toastEl)  toastEl.style.display = 'none';
     if(_toastTimer){ clearTimeout(_toastTimer); _toastTimer = null; }
     _renderGrowthMode(suggs);
@@ -518,7 +518,7 @@
     var isOpen = panelEl.style.display !== 'none';
     if(isOpen){
       panelEl.style.display = 'none';
-      if(detBtn){ detBtn.textContent = 'تفاصيل'; detBtn.classList.remove('is-open'); }
+      if(detBtn){ detBtn.textContent = twT('profile.compl.details'); detBtn.classList.remove('is-open'); }
     } else {
       var suggs = _buildGrowthSuggestions();
       var sg = suggs.length ? suggs[_growthIdx % suggs.length] : null;
@@ -527,7 +527,7 @@
         if(benefEl)  benefEl.textContent  = sg.benefit;
         if(actionEl){
           if(sg.action && sg.action !== 'none'){
-            actionEl.textContent    = 'اذهب إلى القسم';
+            actionEl.textContent    = twT('profile.growth.go_section');
             actionEl.dataset.action = sg.action;
             actionEl.style.display  = '';
           } else {
@@ -536,7 +536,7 @@
         }
       }
       panelEl.style.display = '';
-      if(detBtn){ detBtn.textContent = 'إخفاء ▴'; detBtn.classList.add('is-open'); }
+      if(detBtn){ detBtn.textContent = twT('profile.compl.hide') + ' ▴'; detBtn.classList.add('is-open'); }
     }
   });
 
