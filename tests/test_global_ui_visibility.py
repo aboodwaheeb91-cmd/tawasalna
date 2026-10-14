@@ -328,8 +328,10 @@ check("F01 — toggleMenu function removed",
       "function toggleMenu" not in main)
 check("F02 — _menuOpen variable removed",
       "var _menuOpen" not in main)
-check("F03 — initGlobalHeaderMenu called",
-      "initGlobalHeaderMenu('coMenuBtn'" in main)
+# PR 4.3c: the page is on the unified header — the menu is wired once by tw_shared.js (K09)
+check("F03 — no page-own header menu wiring (unified header owns the menu)",
+      "coMenuBtn" not in main and "initGlobalHeaderMenu(" not in main
+      and "data-tw-header" in read("company-profile.html"))
 check("F04 — coLogoutBtn binding removed",
       "coLogoutBtn" not in main)
 check("F05 — _branchesLoaded preserved",

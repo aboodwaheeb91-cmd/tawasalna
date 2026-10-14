@@ -976,7 +976,7 @@ function saveEdit() {
 - **About tab (`renderAbout()` in `company.render.js`):** type (`industry` / `company_type`) · location (country، city، district — rule 9) · founded · size · website · contact email (`company_profiles.contact_email`) · phone (owner only — the server strips it for visitors) · description. A row whose value is missing stays `hidden`; nothing at all → «لم تُضف الشركة معلومات بعد». Website = `<a rel="noopener noreferrer">` only when `twSafeLinkUrl` accepts it, else plain text. Verification card `#coAboutVerifiedRow` shown only when `is_verified`.
 - **Public link:** the meta-row link and «نسخ الرابط» = `location.origin + '/u/' + tw_id` (F7) — never `location.href`. Logo / cover / post avatars through `twSafeImageUrl`.
 - **Visitor actions (`renderVisitorActions()`):** `twAction('follow' | 'message' | 'share' | 'report')` in `#visitorActions` — mode from `viewer_type` (`owner` / `public-user` → registered / `guest`). Follow keeps id `followBtn` and calls `toggleFollow()`; message → `/messages?with={tw_id}`; report → `twReportDialog({reportedId, reportedType:'company'})` (the old page report sheet + contact modal were removed). Post delete → `twConfirm({danger:true})`.
-- Icons in the static HTML = `<i data-tw-icon>` + `twIcon.hydrate(document)` once (`company.render.js`); `lucide` stays loaded only for the `data-lucide` markup `company.main.js` / `company.jobs.js` still build.
+- Icons in the static HTML = `<i data-tw-icon>` + `twIcon.hydrate(document)` once (`company.render.js`); `lucide` is no longer loaded on this page (PR 4.3c — `company.main.js` / `company.jobs.js` build icons with `twIcon`; no `data-lucide` left).
 - Test: `node tests/test_company_profile_page_runtime.js`.
 
 ## [P1] Controlled Exception 06 — Rating eligibility (Phase 2)
@@ -3464,7 +3464,7 @@ window._scCheckProfessional(text)
 ### الحالة الحالية (قبل DS-ICON المرحلة C)
 
 - **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) **v0.460.0** — مصدرين للتحميل اليوم (تناقض موروث، يُزال بالمرحلة C):
-  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `home-v2.html` · `company-profile.html` · `notifications.html`.
+  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `home-v2.html` · `notifications.html` (`company-profile.html` شالها — PR 4.3c).
   - unpkg CDN `https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js`: `profile-showcase.html` · `index.html` (مخالف لقاعدة Vendor Assets — مسجّل بـ FUTURE_ROADMAP → DS-ICON Phase C).
 - **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM.
 - **الحقل في الكتالوج:** `skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG[].icon` (fallback) — اسم Lucide بصيغة kebab-case.
@@ -9624,7 +9624,7 @@ Replaces the old free-text category dropdown (`j-cat` / `TW.JOB_CATEGORIES`) and
 ### Script Load Order (Company Profile)
 
 ```
-lucide → tw_shared.js → tw-options-data.js → tw-select.js → tw-skills.js → company.state.js → ...
+Page Shell scripts → tw-icons.js → tw-overlay.js → tw-options-data.js → tw-select.js → tw-skills.js → company.state.js → ...   (no lucide — PR 4.3c)
 ```
 
 `tw-skills.js` must come before `company.state.js` (and all other company modules) so `TW.searchSkills` etc. are available when `company.jobs.js` runs.

@@ -1,4 +1,4 @@
-// company.main.js — bootstrap, navigation, modals, follow, cover, report
+// company.main.js — bootstrap, navigation, modals, follow, cover
 // Load order: 7th (last — depends on all other modules)
 (function () {
   'use strict';
@@ -26,8 +26,6 @@
     }
   }
 
-  // ── Dropdown menu ──────────────────────────────────────────────
-  // Menu toggle is handled by initGlobalHeaderMenu() in tw_shared.js (VM-10).
   var _branchesLoaded = false; // true only after GET /company/branches succeeds
 
   // ── Shared: resolve numeric company id (works on /u/C0... and ?id= routes) ─
@@ -81,61 +79,6 @@
       }
       if (window.renderFollowBtn) renderFollowBtn();
       if (window.renderStats)     renderStats();
-    });
-  }
-
-  // ── Contact modal ──────────────────────────────────────────────
-  function openContact() {
-    var el = document.getElementById('contactOverlay');
-    if (el) el.classList.add('show');
-    if (window.history && !_contactHistoryPushed) {
-      history.pushState({ modal: 'contact' }, '', location.href);
-      _contactHistoryPushed = true;
-    }
-  }
-  function closeContact(e) {
-    var el = document.getElementById('contactOverlay');
-    if (!e || e.target === el) {
-      if (el) el.classList.remove('show');
-      if (_contactHistoryPushed) {
-        _contactHistoryPushed = false;
-        if (window.history) history.back();
-      }
-    }
-  }
-  var isSendingMsg = false;
-  function sendMsg() {
-    var subjectEl = document.getElementById('msg-subject');
-    var bodyEl    = document.getElementById('msg-body');
-    var subject   = (subjectEl ? subjectEl.value : '').trim();
-    var body      = (bodyEl    ? bodyEl.value    : '').trim();
-    if (!body) { if (window.showToast) showToast('أدخل الرسالة', 'error'); return; }
-
-    if (!TwCompanyPage.signedIn()) { TwCompanyPage.toLogin(); return; }
-
-    var coId = _resolveCoId();
-    if (!coId) { if (window.showToast) showToast('تعذّر تحديد الشركة', 'error'); return; }
-
-    if (isSendingMsg) return;
-    isSendingMsg = true;
-    var sendBtn = document.getElementById('contactSendBtn');
-    if (sendBtn) sendBtn.disabled = true;
-
-    var content = subject ? (subject + '\n' + body) : body;
-
-    twApi('/messages/send', {
-      method: 'POST', body: { receiver_id: coId, content: content },
-    }).then(function (res) {
-      isSendingMsg = false;
-      if (sendBtn) sendBtn.disabled = false;
-      if (!res.ok) {
-        if (window.showToast) showToast(twApiMessage(res, 'تعذّر إرسال الرسالة، حاول مجدداً'), 'error');
-        return;
-      }
-      if (subjectEl) subjectEl.value = '';
-      if (bodyEl)    bodyEl.value    = '';
-      closeContact();
-      if (window.showToast) showToast('تم إرسال رسالتك ✓');
     });
   }
 
@@ -372,7 +315,6 @@
     // Partial re-render — profile header + branches only
     if (window.renderProfile)  renderProfile();
     if (window.renderBranches && branchesArr) renderBranches(companyState.branches);
-    if (window.lucide)         lucide.createIcons();
   }
 
   function saveEdit() {
@@ -697,49 +639,10 @@
     });
   }
 
-  // ── Report modal ───────────────────────────────────────────────
-  var _reportTargetId = null, _reportTargetType = 'company', _reportTargetUrl = '';
-  function openReportModal(targetId, targetType, targetUrl) {
-    _reportTargetId   = targetId;
-    _reportTargetType = targetType || 'company';
-    _reportTargetUrl  = targetUrl  || location.href;
-    var el = document.getElementById('reportModal');
-    if (el) el.style.display = 'flex';
-    var reason = document.getElementById('reportReason');
-    if (reason) reason.value = '';
-  }
-  function closeReportModal() {
-    var el = document.getElementById('reportModal');
-    if (el) el.style.display = 'none';
-  }
-  function submitReport() {
-    var type   = (document.getElementById('reportType')    || {}).value || '';
-    var reason = ((document.getElementById('reportReason') || {}).value || '').trim();
-    if (!reason) { if (window.showToast) showToast('اكتب سبب البلاغ', 'error'); return; }
-    if (!_reportTargetId) { if (window.showToast) showToast('خطأ في البلاغ', 'error'); return; }
-    var btn = document.getElementById('reportSubmitBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'جاري الإرسال...'; }
-    twApi('/reports/submit', {
-      method: 'POST',
-      body: {
-        reported_id:   _reportTargetId,
-        reported_type: _reportTargetType,
-        report_type:   type,
-        reason:        reason,
-        target_url:    _reportTargetUrl,
-      },
-    }).then(function (res) {
-      if (btn) { btn.disabled = false; btn.textContent = '🚨 إرسال البلاغ'; }
-      if (res.ok) { if (window.showToast) showToast('تم إرسال البلاغ ✓'); closeReportModal(); }
-      else if (window.showToast) showToast(twApiMessage(res, 'خطأ في إرسال البلاغ'), 'error');
-    });
-  }
-
   // ── Applicants Modal — owner-only, per-job ────────────────────
   var _appJobId               = null;
   var _appLoading             = false;
   var _appModalHistoryPushed  = false; // true after pushState for applicants modal
-  var _contactHistoryPushed   = false; // true after pushState for contact modal
   var _editHistoryPushed      = false; // true after pushState for edit modal
   var _astFloat               = null;   // singleton classify dropdown (body-level)
   var _astFloatTrigger        = null;   // classify btn that opened it
@@ -1532,13 +1435,6 @@
       closeEdit();
       return;
     }
-    // contact modal
-    var contactEl = document.getElementById('contactOverlay');
-    if (contactEl && contactEl.classList.contains('show')) {
-      _contactHistoryPushed = false;
-      closeContact();
-      return;
-    }
     // postJob / editJob modal (handled by company.jobs.js via _closePostJobOverlay)
     var postJobEl = document.getElementById('postJobOverlay');
     if (postJobEl && postJobEl.classList.contains('show')) {
@@ -1572,11 +1468,7 @@
   // ── Expose ─────────────────────────────────────────────────────
   window.switchTab                = switchTab;
   window.doLogout                 = doLogout;
-  // toggleMenu removed — menu lifecycle handled by initGlobalHeaderMenu (VM-10)
   window.toggleFollow             = toggleFollow;
-  window.openContact              = openContact;
-  window.closeContact             = closeContact;
-  window.sendMsg                  = sendMsg;
   window.openEditModal            = openEditModal;
   window.closeEdit                = closeEdit;
   window.saveEdit                 = saveEdit;
@@ -1588,9 +1480,6 @@
   window.uploadLogo               = uploadLogo;
   window.openLogoCrop             = openLogoCrop;
   window.closeLogoCrop            = closeLogoCrop;
-  window.openReportModal          = openReportModal;
-  window.closeReportModal         = closeReportModal;
-  window.submitReport             = submitReport;
   window.openApplicantsModal      = openApplicantsModal;
   window.closeApplicantsModal     = closeApplicantsModal;
   window._onSaveApplicant         = _onSaveApplicant;
@@ -1612,8 +1501,6 @@
     var editInfoBtn   = q('editInfoBtn');   if (editInfoBtn)   editInfoBtn.addEventListener('click', openEditModal);
     var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
-    // Shared header — session-aware menu via initGlobalHeaderMenu (VM-10)
-    if (window.initGlobalHeaderMenu) initGlobalHeaderMenu('coMenuBtn', 'coMenuDropdown', 'coMenuDynamic');
 
     // Cover photo upload → crop overlay → upload
     var coverFileInput = q('coverFileInput');
@@ -1657,9 +1544,8 @@
       if (e.target === coLogoCropOverlay) closeLogoCrop();
     });
 
-    // Follow + Contact
+    // Follow
     var followBtn  = q('followBtn');  if (followBtn)  followBtn.addEventListener('click', toggleFollow);
-    var contactBtn = q('contactBtn'); if (contactBtn) contactBtn.addEventListener('click', openContact);
 
     // Tabs
     document.querySelectorAll('.sc-tab[data-tab]').forEach(function (tab) {
@@ -1679,16 +1565,6 @@
     // Add branch row
     var addBranchBtn = q('addBranchBtn');
     if (addBranchBtn) addBranchBtn.addEventListener('click', function () { _addBranchRow({}); });
-
-    // Contact modal
-    var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);
-    var contactSendBtn   = q('contactSendBtn');   if (contactSendBtn)   contactSendBtn.addEventListener('click', sendMsg);
-    var contactCancelBtn = q('contactCancelBtn');
-    if (contactCancelBtn) contactCancelBtn.addEventListener('click', function () { closeContact(); });
-
-    // Report modal
-    var reportSubmitBtn = q('reportSubmitBtn'); if (reportSubmitBtn) reportSubmitBtn.addEventListener('click', submitReport);
-    var reportCancelBtn = q('reportCancelBtn'); if (reportCancelBtn) reportCancelBtn.addEventListener('click', closeReportModal);
 
     // Inline handlers migrated from HTML (refactor/company-profile-remove-inline-handlers)
     // Edit modal X button — calls closeEdit() without args; !e path closes unconditionally
@@ -1763,7 +1639,6 @@
 
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    if (window.lucide) lucide.createIcons();
     if (window.initScrollProg)      initScrollProg();
     if (window.initCompanyProfile)  initCompanyProfile();
     _bindMainEvents();
@@ -1922,7 +1797,6 @@
         _offset += d.items.length;
         _hasMore = d.pagination && d.pagination.has_more;
         _loadWrap.style.display = _hasMore ? '' : 'none';
-        if (window.lucide && lucide.createIcons) lucide.createIcons();
       })
       .catch(function () {
         if (seq !== _reqSeq) return;
