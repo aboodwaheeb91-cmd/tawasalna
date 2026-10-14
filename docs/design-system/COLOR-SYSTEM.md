@@ -1237,6 +1237,12 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 - انحذف `@media (prefers-color-scheme: light)` تبع `.co-ic-float` — ما في وضع نهاري (CLR-23).
 - النتيجة: ألوان `page_audit` لـ `profile-showcase.html` 41 → 0 و `company-profile.html` 27 → 0. الفحص: `python -m pytest tests/test_ds_color_gap_tokens.py -q` (معرّف + القيمة القديمة + بقائمة الأدمن) · `tests/test_company_colors.py` (صفر لون ثابت).
 
+### PR 4.13 — `landing.html` (30 → 5)
+
+- كل لون له توكن صار توكن (صفر فرق): أبيض بشفافية → `rgba(var(--color-ink-rgb), a)` بنفس الألفا (`--lp-text*` · شبكة الخلفية · خلفية الأقسام · hover) أو التوكن من جدول الدمج (`.18` → `--color-border-strong` · `.1` → `--color-border-default` · `.07` → `--color-border-subtle` · `.04` → `--color-surface-raised`) · ظل أسود → `rgba(var(--color-overlay-rgb), a)` · بنفسجي → `--color-brand-accent-rgb` · `rgba(100,160,255,.9)` → `--color-brand-secondary-text-rgb` (فرق ≤ 5 درجات) · `.fi-orange` / `.fi-pink` → `--color-categorical-gold` / `--color-categorical-pink`.
+- `.skip-link` نص على teal: `#000` → `--color-text-on-brand` (`#070b18` — نفس الدور تبع كل زر teal).
+- **F30 — بدون توكن (ضلّوا ثابتين، 5):** `.badge-verified` بطاقة فاتحة بالـ mock (خلفية بيضاء .92 + نص `#111` + `.bv-sub` `#555`) — ما في سطح فاتح / نص غامق على سطح فاتح بـ DS-COLOR · `.fi-yellow` (`#eab308` + tint) — `--color-categorical-gold` مستعمل لـ `.fi-orange` و `--color-categorical-amber` (`#fbbf24`) فرقه مرئي، و `--color-status-warning-strong` ممنوع للتصنيف (القاعدة 6). القرار للمالك: توكن جديد (CLR-26) أو دمج.
+
 ### الفحص الثابت
 
 - `scripts/ds_color_audit.py` — يعدّ الألوان الثابتة (hex · `rgb()` · `hsl()` بأرقام) لكل ملف — **تقرير** (`python scripts/ds_color_audit.py`). وقت PR 3.8: 2339 لون بـ 31 ملف (أكبرها `company.css` 886 · `profile-v2.css` 518).

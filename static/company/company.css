@@ -413,8 +413,6 @@ svg.ico-sm,
 i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
 .ac-icon svg,
 .ac-icon i { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; display:block; }
-.fw-ava svg,
-.fw-ava i { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
 .post-ava svg,
 .post-ava i { width:18px; height:18px; stroke:rgba(var(--color-ink-rgb), .9); fill:none; stroke-width:1.8; }
 .co-logo svg,
@@ -697,13 +695,6 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   background:var(--color-surface-card); border:1px solid var(--color-border-subtle);
   border-radius:14px; padding:16px 20px; margin-bottom:14px;
 }
-.fw-avatars { display:flex; margin-bottom:8px; }
-.fw-ava {
-  width:30px; height:30px; border-radius:50%;
-  background:linear-gradient(135deg,var(--color-brand-secondary),var(--color-brand-primary));
-  border:2px solid var(--color-surface-elevated); margin-left:-8px;
-  display:flex; align-items:center; justify-content:center;
-}
 .fw-count { font-size:.76rem; color:var(--color-text-meta); font-weight:700; }
 .rating-card {
   background:var(--color-surface-card); border:1px solid var(--color-border-subtle);
@@ -716,6 +707,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .rate-interactive { margin-top:14px; border-top:1px solid var(--color-border-subtle); padding-top:14px; }
 #ratePrompt { font-size:.72rem; color:var(--color-text-meta); margin-bottom:6px; }
 #rateStars  { display:flex; gap:4px; font-size:1.6rem; cursor:pointer; direction:ltr; }
+/* Rating stars = DS-ICON star (PR 4.13): filled = on, outline = off — _coStarsHtml (company.render.js) */
+.co-star--on { color:var(--color-categorical-gold); }
 
 /* ══ POST CARDS ══════════════════════════════════════════════════ */
 .post-card {
@@ -1728,6 +1721,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 }
 .co-rat-dist-lbl {
   font-size:.72rem; color:var(--color-status-warning-strong); width:22px; text-align:end; flex-shrink:0;
+  display:inline-flex; align-items:center; justify-content:flex-end; gap:2px;
 }
 .co-rat-dist-bar {
   flex:1; height:6px; border-radius:4px;

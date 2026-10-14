@@ -9,6 +9,8 @@
  *   D  visitor actions through twAction · report → twReportDialog({reportedType:'company'})
  *   E  post delete asks twConfirm (danger) first · cancel → no request · error toast type
  *   F  session from TwAuthSync only — TwCompanyPage.signedIn() follows the snapshot (_jwt() removed — PR 4.3c)
+ *   G  PR 4.13 — rating stars = DS-ICON star SVGs (real tw-icons.js) · modal markup keys exist in tw_strings.json
+ *      · no Arabic text left inside the modals · fake follower avatars (fw-ava) gone
  *
  * Run: node tests/test_company_profile_page_runtime.js
  */
@@ -62,7 +64,7 @@ function makeDom() {
   const ids = ['coErrTitle', 'coErrSub', 'coRetryBtn', 'coName', 'coDesc', 'coLogo', 'coVerifiedBadge',
     'coLogoBadge', 'coAboutVerifiedRow', 'coTypeBadge', 'coWebsite', 'coWebsiteLink', 'coWebsiteCopyBtn',
     'coHqRow', 'coHqText', 'aboutDesc', 'aboutEmpty', 'visitorActions', 'jobsList', 'coBranchesRow',
-    'coBranchesText', 'postsList', 'postsEmpty'];
+    'coBranchesText', 'postsList', 'postsEmpty', 'ratingStarsDisplay', 'ratingSub'];
   ['Type', 'Loc', 'Founded', 'Size', 'Web', 'Email', 'Phone'].forEach(k => { ids.push('about' + k + 'Row', 'about' + k); });
   ids.forEach(i => el('div', i));
   const body = el('body');
@@ -108,6 +110,7 @@ function boot(opts) {
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(HELPERS + '\nwindow.twEscAttr=twEscAttr;window.twEscHtml=twEscHtml;window.twSafeImageUrl=twSafeImageUrl;window.twSafeLinkUrl=twSafeLinkUrl;', ctx);
+  if (opts.icons) vm.runInContext(read('static/shared/tw-icons.js'), ctx, { filename: 'tw-icons.js' });
   ['state', 'permissions', 'api', 'render', 'posts'].forEach(m =>
     vm.runInContext(read('static/company/company.' + m + '.js'), ctx, { filename: 'company.' + m + '.js' }));
   ctx._companyProfileIdFromRoute = 123;
@@ -217,6 +220,39 @@ const PROFILE_OK = {
     b.ctx.location.search = '';
     b.ctx.loadData(); await tick();
     check('F2 no id → session owner id from TwAuthSync', b.calls.api[0] && b.calls.api[0][0] === '/company/profile/123');
+  }
+
+  console.log('\nG — PR 4.13: rating stars (DS-ICON) + modal strings');
+  {
+    const b = boot({ icons: true });
+    const star = on => b.ctx.twIcon('star', { size: 'lg', filled: on, className: on ? 'co-star co-star--on' : 'co-star' });
+    b.ctx.companyState.stats = { rating_avg: 3.6, rating_count: 4 };
+    b.ctx.renderRating();
+    const html = b.dom.byId.ratingStarsDisplay.innerHTML;
+    check('G1 avg 3.6 → 4 filled + 1 outline star SVGs (twIcon), no glyph',
+      html === star(true).repeat(4) + star(false) && !/[★☆⭐]/.test(html), html.slice(0, 80));
+    check('G2 summary line through twT (count < 10 → few form)',
+      b.dom.byId.ratingSub.textContent === 'T:company.rating.summary_few{"count":4}', b.dom.byId.ratingSub.textContent);
+    b.ctx.companyState.stats = { rating_avg: null, rating_count: 0 };
+    b.ctx.renderRating();
+    check('G3 no rating → 5 outline stars + «none» key', b.dom.byId.ratingStarsDisplay.innerHTML === star(false).repeat(5)
+      && b.dom.byId.ratingSub.textContent === 'T:company.rating.none');
+    check('G4 the page JS has no star glyph left', ['render', 'main', 'jobs'].every(m =>
+      !/[★☆⭐]/.test(read('static/company/company.' + m + '.js'))));
+
+    const page = read('company-profile.html');
+    const STR = JSON.parse(read('tw_strings.json')).ar;
+    const keys = [...page.matchAll(/data-tw-t(?:-label|-placeholder)?="([^"]+)"/g)].map(m => m[1]);
+    const missing = keys.filter(k => !(k in STR));
+    check('G5 every data-tw-t key on the page exists in tw_strings.json', keys.length > 50 && !missing.length, missing.join());
+    // modal markup = everything after the edit overlay; text nodes only (attributes / comments excluded)
+    const modals = page.slice(page.indexOf('id="editOverlay"')).replace(/<!--[\s\S]*?-->/g, '');
+    const arText = [...modals.matchAll(/>([^<]*)</g)].map(m => m[1]).filter(t => /[\u0600-\u06FF]/.test(t));
+    const arAttr = [...modals.matchAll(/(?:placeholder|aria-label|title)="([^"]*[\u0600-\u06FF][^"]*)"/g)].map(m => m[1]);
+    check('G6 no hard-coded Arabic text / placeholder / aria-label inside the modals', !arText.length && !arAttr.length,
+      arText.concat(arAttr).join(' | '));
+    check('G7 fake follower avatars removed (no fw-ava markup or CSS)',
+      !page.includes('fw-ava') && !read('static/company/company.css').includes('fw-ava'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

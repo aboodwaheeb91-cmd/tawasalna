@@ -332,7 +332,7 @@
     // Prevent double submit
     var saveBtn = document.getElementById('editSaveBtn');
     if (saveBtn && saveBtn.disabled) return;
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ…'; }
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = twT('common.saving'); }
 
     var coId = parseInt((companyState.profile || {}).id, 10);
 
@@ -376,7 +376,7 @@
     var saved = {};
 
     function _finish(failedStep, res) {
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = twT('common.save'); }
       var anySaved = saved.company || saved.profile || saved.branches;
       if (anySaved) {
         _applyCompanyLocalUpdate(saved.profile ? profilePayload : null,
@@ -488,7 +488,7 @@
     isUploadingCover = true;
     var saveBtn   = document.getElementById('coCoverCropSaveBtn');
     var uploadBtn = document.getElementById('coverUploadBtn');
-    if (saveBtn)   { saveBtn.disabled = true; saveBtn.textContent = 'جاري الرفع…'; }
+    if (saveBtn)   { saveBtn.disabled = true; saveBtn.textContent = twT('common.uploading'); }
     if (uploadBtn) uploadBtn.style.pointerEvents = 'none';
 
     var dataUrl = cropper.export();
@@ -519,7 +519,7 @@
     })
     .finally(function () {
       isUploadingCover = false;
-      if (saveBtn)   { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الغلاف'; }
+      if (saveBtn)   { saveBtn.disabled = false; saveBtn.textContent = twT('company.cover_crop.save'); }
       if (uploadBtn) uploadBtn.style.pointerEvents = '';
     });
   }
@@ -603,7 +603,7 @@
 
     var dataUrl = cropper.export();
 
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الرفع…'; }
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = twT('common.uploading'); }
     if (camBtn)  camBtn.disabled = true;
     if (logoEl)  logoEl.style.opacity = '0.5';
 
@@ -633,7 +633,7 @@
       if (window.showToast) showToast(TW.uploadFailureMessage(e, 'تعذر رفع الصورة، حاول مرة أخرى'), 'error');
     })
     .finally(function () {
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الشعار'; }
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = twT('company.logo_crop.save'); }
       if (camBtn)  camBtn.disabled = false;
       if (logoEl)  logoEl.style.opacity = '';
     });
@@ -675,7 +675,7 @@
     var job = window.companyState && companyState.jobs
       ? companyState.jobs.find(function (j) { return j.id == jobId; })
       : null;
-    if (title) title.textContent = 'المتقدمون' + (job ? ' — ' + job.title : '');
+    if (title) title.textContent = twT('people.applicants') + (job ? ' — ' + job.title : '');
     if (window.history && !_appModalHistoryPushed) {
       history.pushState({ modal: 'applicants' }, '', location.href);
       _appModalHistoryPushed = true;
@@ -1082,12 +1082,12 @@
     }
     _notesInFlight = true;
     var submitBtn = document.getElementById('coNotesSubmit');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الحفظ…'; }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = twT('common.saving'); }
     twApi('/company/pipeline/' + parseInt(entryId, 10) + '/notes', {
       method: 'POST', body: { body: body },
     }).then(function (res) {
       _notesInFlight = false;
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إضافة'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = twT('common.add'); }
       if (!res.ok) {
         if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ الملاحظة'), 'error');
         return;
@@ -1841,21 +1841,17 @@
   }
 
 
-  function _stars(n) {
-    var s = '';
-    for (var i = 1; i <= 5; i++) s += (i <= n ? '★' : '☆');
-    return s;
-  }
+  function _stars(n, size) { return window._coStarsHtml(n, size || 'md'); }
 
   function _fetch() {
     if (!_body) return;
-    _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    _body.innerHTML = '<div class="co-fl-spin">' + twEscHtml(twT('common.loading')) + '</div>';
     var coId = (window._companyProfileIdFromRoute != null)
       ? String(window._companyProfileIdFromRoute)
       : new URLSearchParams(window.location.search).get('id');
     if (!coId && window.companyState && companyState.profile)
       coId = String(companyState.profile.id);
-    if (!coId) { _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل التقييمات.</div>'; return; }
+    if (!coId) { _body.innerHTML = '<div class="co-fl-empty">' + twEscHtml(twT('company.rating.load_failed')) + '</div>'; return; }
 
     window.getCompanyRatingsDetail(coId, 5)
       .then(function (res) {
@@ -1863,7 +1859,7 @@
         _render(res.data);
       })
       .catch(function () {
-        if (_body) _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل التقييمات.</div>';
+        if (_body) _body.innerHTML = '<div class="co-fl-empty">' + twEscHtml(twT('company.rating.load_failed')) + '</div>';
       });
   }
 
@@ -1873,7 +1869,7 @@
 
     // ── Summary ──
     if (!d.rating_count || d.rating_count === 0) {
-      html += '<div class="co-fl-empty">لا توجد تقييمات بعد.</div>';
+      html += '<div class="co-fl-empty">' + twEscHtml(twT('company.rating.empty')) + '</div>';
       html += _rateSection(d);
       _body.innerHTML = html;
       _wireRateBtn(d);
@@ -1884,7 +1880,7 @@
     html += '<div class="co-rat-summary">';
     html += '<div class="co-rat-avg">' + twEscHtml(avg) + '</div>';
     html += '<div class="co-rat-stars">' + _stars(Math.round(d.rating_avg || 0)) + '</div>';
-    html += '<div class="co-rat-count">من ' + twEscHtml(d.rating_count) + ' تقييم</div>';
+    html += '<div class="co-rat-count">' + twEscHtml(twT('company.rating.count', { count: d.rating_count })) + '</div>';
     html += '</div>';
 
     // ── Distribution ──
@@ -1895,7 +1891,7 @@
         var cnt = d.distribution[String(s)] || 0;
         var pct = Math.round((cnt / total) * 100);
         html += '<div class="co-rat-dist-row">';
-        html += '<span class="co-rat-dist-lbl">' + s + '★</span>';
+        html += '<span class="co-rat-dist-lbl">' + s + twIcon('star', { size: 'xs', filled: true }) + '</span>';
         html += '<div class="co-rat-dist-bar"><div class="co-rat-dist-fill" style="width:' + pct + '%"></div></div>';
         html += '<span class="co-rat-dist-pct">' + pct + '%</span>';
         html += '</div>';
@@ -1905,11 +1901,11 @@
 
     // ── Recent comments ──
     if (d.recent_comments && d.recent_comments.length) {
-      html += '<div class="co-rat-comments-head">أحدث التعليقات</div>';
+      html += '<div class="co-rat-comments-head">' + twEscHtml(twT('company.rating.recent')) + '</div>';
       html += '<div class="co-rat-comments">';
       d.recent_comments.forEach(function (c) {
         html += '<div class="co-rat-comment">';
-        html += '<span class="co-rat-comment-stars">' + _stars(c.score) + '</span>';
+        html += '<span class="co-rat-comment-stars">' + _stars(c.score, 'xs') + '</span>';
         html += '<p class="co-rat-comment-text">' + twEscHtml(c.comment) + '</p>';
         html += '</div>';
       });
@@ -1927,14 +1923,14 @@
     if (!s || !s.permissions || !s.permissions.can_rate) return '';
     var html = '<div class="co-rat-my" id="coRatMySection">';
     if (d.my_rating) {
-      html += '<div class="co-rat-my-label">تقييمك الحالي: <span class="co-rat-my-stars">' + _stars(d.my_rating) + '</span></div>';
-      html += '<button class="co-rat-my-btn" id="coRatEditBtn">تعديل التقييم</button>';
+      html += '<div class="co-rat-my-label">' + twEscHtml(twT('company.rating.mine')) + ' <span class="co-rat-my-stars">' + _stars(d.my_rating, 'sm') + '</span></div>';
+      html += '<button class="co-rat-my-btn" id="coRatEditBtn">' + twEscHtml(twT('company.rating.edit')) + '</button>';
     } else {
-      html += '<button class="co-rat-my-btn" id="coRatEditBtn">قيّم الشركة</button>';
+      html += '<button class="co-rat-my-btn" id="coRatEditBtn">' + twEscHtml(twT('company.rating.rate')) + '</button>';
     }
     html += '<div class="co-rat-picker" id="coRatPicker" style="display:none">';
     for (var i = 1; i <= 5; i++) {
-      html += '<span class="co-rat-star" data-score="' + i + '">★</span>';
+      html += '<span class="co-rat-star" data-score="' + i + '">' + twIcon('star', { size: '2xl', filled: true }) + '</span>';
     }
     html += '</div>';
     html += '</div>';
@@ -2343,12 +2339,12 @@
       {value:'low',    label:'منخفضة'}
     ];
     var ratingOpts = [
-      {value:'',  label:'كل التقييمات'},
-      {value:'5', label:'★★★★★ فقط'},
-      {value:'4', label:'★★★★ فأعلى'},
-      {value:'3', label:'★★★ فأعلى'},
-      {value:'2', label:'★★ فأعلى'},
-      {value:'1', label:'★ فأعلى'}
+      {value:'',  label:twT('company.cand.rating_filter.all')},
+      {value:'5', label:twT('company.cand.rating_filter.5')},
+      {value:'4', label:twT('company.cand.rating_filter.4')},
+      {value:'3', label:twT('company.cand.rating_filter.3')},
+      {value:'2', label:twT('company.cand.rating_filter.2')},
+      {value:'1', label:twT('company.cand.rating_filter.1')}
     ];
     var sourceOpts = [
       {value:'',               label:'كل المصادر'},
@@ -2615,7 +2611,7 @@
     if (!rating) return '';
     var s = '';
     for (var i = 1; i <= 5; i++) {
-      s += '<span class="co-cand-star' + (i <= rating ? ' co-cand-star--on' : '') + '">★</span>';
+      s += '<span class="co-cand-star' + (i <= rating ? ' co-cand-star--on' : '') + '">' + twIcon('star', { size: 'xs', filled: true }) + '</span>';
     }
     return '<span class="co-cand-stars">' + s + '</span>';
   }
@@ -2856,7 +2852,7 @@
     html += '<div class="co-panel-stars" data-rating="' + (rating || 0) + '">';
     for (var si = 1; si <= 5; si++) {
       html += '<button type="button" class="co-panel-star' + (rating && si <= rating ? ' on' : '') + '"'
-            + ' data-val="' + si + '">' + '★' + '</button>';
+            + ' data-val="' + si + '">' + twIcon('star', { size: 'lg', filled: true }) + '</button>';
     }
     html += '<button type="button" class="co-panel-star-clear" title="مسح التقييم">✕</button>';
     html += '</div>';

@@ -195,8 +195,8 @@
     var lblEl    = document.getElementById('createPostBtnLabel');
     var noComEl  = document.getElementById('p-no-comments');
     var bodyEl   = document.getElementById('p-body');
-    if (titleEl)  titleEl.textContent  = 'نشر منشور جديد';
-    if (lblEl)    lblEl.textContent    = 'نشر';
+    if (titleEl)  titleEl.textContent  = twT('company.new_post');
+    if (lblEl)    lblEl.textContent    = twT('company.post_form.publish');
     if (noComEl)  noComEl.checked      = false;
     if (bodyEl)   bodyEl.value         = '';
     _resetTagPicker();
@@ -208,8 +208,8 @@
     var lblEl    = document.getElementById('createPostBtnLabel');
     var noComEl  = document.getElementById('p-no-comments');
     var bodyEl   = document.getElementById('p-body');
-    if (titleEl)  titleEl.textContent  = 'تعديل المنشور';
-    if (lblEl)    lblEl.textContent    = 'حفظ التعديل';
+    if (titleEl)  titleEl.textContent  = twT('company.post_form.edit_title');
+    if (lblEl)    lblEl.textContent    = twT('company.post_form.save_edit');
     if (bodyEl)   bodyEl.value         = post.body || '';
     if (noComEl)  noComEl.checked      = (post.comments_enabled === false);
 
