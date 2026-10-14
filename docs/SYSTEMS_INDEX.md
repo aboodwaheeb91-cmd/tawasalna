@@ -110,6 +110,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Do not recreate:** All Company Profile JS goes in `static/company/` — never inline in HTML. Load order is mandatory. Use `companyState` as the single source of truth.
 **Page namespace (PR 2C):** `window.TwCompanyPage` (created in `company.state.js`) is the only bridge for an internal function one `company.*.js` IIFE needs from another (`openNotesPanel` · `openApptModal`). ❌ `typeof _fn === 'function'` across IIFEs (always false) · ❌ a new ad-hoc `window._coX` for this. Suggestion save buttons: one delegated `_body` listener (`_onSuggSaveClick`). Job edit restores `j-loc-mode` via `_detectJobLocMode()` (`company.jobs.js`). Test: `node tests/test_pr2c_session_sockets_runtime.js`.
 **Structure & display (PR 4.3a):** Page Shell + unified header / bottom nav (no page header — owner buttons in `#ownerActions`) · every request in `company.api.js` / `company.posts.js` via `twApi` (legacy result shape for `company.main.js` callers = `_bodyShape`) · session from `TwAuthSync` only (`_jwt()` = `TwAuthSync.getToken()`) · `loadData` failure → error state (404 «الشركة غير موجودة» / else retry) · About rows from API, missing → hidden (`renderAbout`) · public link + copy = `/u/{tw_id}` · visitor buttons `twAction('follow'|'message'|'share'|'report')` (`renderVisitorActions`) + `twReportDialog` · post delete via `twConfirm`. Spec: `ARCHITECTURE.md §21 → PR 4.3a` · `docs/rules/company-profile.md` rule 18 · test `node tests/test_company_profile_page_runtime.js`.
+**Owner dashboard + jobs (PR 4.3c):** every API call in `company.main.js` / `company.jobs.js` goes through `twApi` (no `_jwt()`; raw token only for `TW.uploadImage` via `TwAuthSync.getToken()`). Session check = `TwCompanyPage.signedIn()` / guest → `TwCompanyPage.toLogin()` (`twLoginHref`, both in `company.jobs.js`). Destructive actions (delete job · close job · remove from Talent Bank) → `twConfirm({danger})` with `company.*` strings. «تعديل الملف» save = 3 sequential PUTs (ARCHITECTURE → Confirmed Immediate Update). List loaders where a newer request replaces the list (applicants per job · followers filter · Talent Bank list) — **last request wins** (sequence counter; an older reply is dropped). One rating submit: `submitRating(score)` (`company.jobs.js`, returns `Promise<boolean>`, double-click guarded) — the ratings modal calls it. `#rateBox` shown by `permissions.can_rate` (guest still sees it → login). Avatars `twAvatarHtml`/`twAvatarEl` · icons `twIcon` (the page must load `tw-icons.js` — PR 4.3a puts it on the Page Shell) · dates `twFormatDate`. Test: `node tests/test_company_admin_runtime.js`.
 **Talent Bank deep-link (PR-4):** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it with no candidate selected (`company.main.js`). Links to the bank (header menu "بنك المواهب", Home V2 co sidebar) come only from `twTalentBankHref(u)` in `tw_shared.js` — do not build the URL by hand or re-add a separate candidate-search page.
 
 ---
@@ -240,7 +241,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `server.py` — `GET /profile/{company_id}/followers?limit=&offset=&type=` (the `/company/{id}/followers` alias was deleted in PR 3.9)
 - `company-profile.html` — `#coStatFollowersTile` (clickable tile) + `#coFollowListModal` (modal HTML)
 - `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
-- `static/company/company.main.js` — Company Followers Modal IIFE + Soft Refresh IIFE
+- `static/company/company.main.js` — Company Followers Modal IIFE (filter = last request wins; the 30s Soft Refresh IIFE was removed in PR 4.3c — its silent `loadData` never repainted)
 - `static/company/company.css` — `.co-fl-*` modal styles + `.co-stat-clickable`
 **Details:** `ARCHITECTURE.md §53a`
 **Architecture note:** Unified in PR 3.5 — company followers are `profile_follows` rows. Companies can follow accounts now, but the modal shows followers only ("يتابع" tab = separate UI decision).
@@ -256,7 +257,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `server.py` — `GET /company/{company_id}/ratings?limit=`
 - `company-profile.html` — `#coStatRatingTile` (clickable tile) + `#coRatingModal` (modal HTML)
 - `static/company/company.api.js` — `getCompanyRatingsDetail(companyId, limit)`
-- `static/company/company.main.js` — Rating Modal IIFE (open/close/fetch/render/star-picker/submit)
+- `static/company/company.main.js` — Rating Modal IIFE (open/close/fetch/render/star-picker); submit = the one `submitRating()` in `company.jobs.js` (PR 4.3c)
 - `static/company/company.css` — `.co-rat-*` styles (shell reuses `.co-fl-overlay/.co-fl-panel`)
 **Details:** `ARCHITECTURE.md §53b`
 **Privacy rule:** `recent_comments` never includes rater name or user_id — only score, comment text, and date.

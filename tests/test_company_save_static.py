@@ -41,8 +41,7 @@ def check(name, cond, detail=''):
 save  = fn_body(MAIN, 'saveEdit')
 local = fn_body(MAIN, '_applyCompanyLocalUpdate')
 load  = fn_body(API, 'loadData')
-then_ = save[save.find('Promise.all(['):save.find('.catch(')]
-catch_ = save[save.find('.catch('):]
+_code = lambda src: re.sub(r'//[^\n]*', '', src)   # comments mention «no renderAll»
 
 print('\n[R] Route — the page opens at /u/{tw_id} (F7), /company-profile?id= is a 302')
 check('Smart Router injects _companyProfileIdFromRoute into company-profile.html',
@@ -59,36 +58,20 @@ check('saveEdit defined + exported on window', bool(save) and 'window.saveEdit' 
 check('_applyCompanyLocalUpdate defined + exported on window',
       bool(local) and 'window._applyCompanyLocalUpdate' in MAIN)
 
-print('\n[T02] Success: modal closes only after API success')
-check('three PUTs (profile / company / branches) joined by Promise.all',
-      all(u in save for u in ("'/profile/'", "'/company/profile/'", "'/company/branches/'"))
-      and 'Promise.all([p1, p2, p3])' in save)
-check('editOverlay "show" removed inside the success handler only',
-      "classList.remove('show')" in then_ and "classList.remove('show')" not in catch_
-      and save.count("classList.remove('show')") == 1)
-
-print('\n[T03] Success: name and bio update immediately')
-check('success handler calls _applyCompanyLocalUpdate with the captured payloads',
-      '_applyCompanyLocalUpdate(profilePayload, coPayload, branchesArr)' in then_)
+print('\n[T02–T08] Save flow — behaviour checked at runtime (PR 4.3c)')
+# The order (3 PUTs one after the other), success → closeEdit + button reset, failure →
+# modal stays open + part named + button reset + only confirmed parts applied, and the
+# double-submit guard run against the real code in tests/test_company_admin_runtime.js.
+check('runtime twin exists and extracts saveEdit', 'co-save-edit' in read('tests/test_company_admin_runtime.js')
+      and '@vm-extract-begin: co-save-edit' in MAIN)
 check('_applyCompanyLocalUpdate writes full_name + bio and re-renders the profile',
       'p.full_name = profilePayload.full_name' in local and 'p.bio' in local
       and 'renderProfile()' in local)
-
-print('\n[T04–T06] Failure of any PUT → modal stays open')
-check('each PUT goes through _parseOk (non-2xx rejects Promise.all)',
-      save.count('.then(_parseOk)') == 3)
-check('catch handler does not close the modal', 'editOverlay' not in catch_)
-
-print('\n[T07] Failure: save button re-enabled + text reset')
-check('catch re-enables the button and resets its text to «حفظ»',
-      'saveBtn.disabled = false' in catch_ and "saveBtn.textContent = 'حفظ'" in catch_)
-
-print('\n[T08] Double submit prevention')
+check('save goes through twApi (API Client Rule), never fetch directly',
+      'twApi(' in save and 'fetch(' not in _code(save))
+check('success path closes via closeEdit() (overlay + its history entry)', 'closeEdit()' in _code(save))
 check('returns early when the save button is already disabled',
       'if (saveBtn && saveBtn.disabled) return;' in save)
-check('disables the button before the first fetch',
-      save.find('saveBtn.disabled = true') != -1
-      and save.find('saveBtn.disabled = true') < save.find('fetch('))
 
 print('\n[T09] companyState.profile.full_name updated locally')
 check('_applyCompanyLocalUpdate writes into companyState.profile',
@@ -106,14 +89,13 @@ print('\n[T12] TW.countryFlagEl available (shared tw-options-data.js)')
 check('TW.countryFlagEl defined in tw-options-data.js', 'TW.countryFlagEl = function' in OPTS)
 
 print('\n[T13] No full reload during save')
-_code = lambda src: re.sub(r'//[^\n]*', '', src)   # comments mention «no renderAll»
 check('save path never calls renderAll / location.reload',
       'renderAll' not in _code(save) and 'location.reload' not in _code(save)
       and 'renderAll' not in _code(local))
 
 print('\n[T14] loadData({silent:true}) skips renderAll')
-check('success handler syncs with loadData({ silent: true })',
-      'loadData({ silent: true })' in then_)
+check('success path syncs with loadData({ silent: true })',
+      'loadData({ silent: true })' in save)
 check('loadData calls renderAll only inside `if (!silent)`',
       re.search(r'if \(!silent\) \{[^}]*window\.renderAll\(\)', load) is not None)
 

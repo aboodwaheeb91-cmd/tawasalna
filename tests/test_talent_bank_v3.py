@@ -60,9 +60,12 @@ class TestCompactCardStructure(unittest.TestCase):
             "Compact header .co-csc-header must exist")
 
     def test_avatar_class(self):
+        # PR 4.3c: the header avatar comes from DS-IMAGE (twAvatarHtml) through _candAvatarHTML
         body = self._card_fn()
-        self.assertIn('co-csc-ava', body,
-            "Avatar element .co-csc-ava must exist in header")
+        self.assertIn('_candAvatarHTML(item)', body,
+            "Card header must render the avatar through the shared helper")
+        self.assertRegex(JS_SRC,
+            r"function _candAvatarHTML\(item\) \{\s*return twAvatarHtml\(")
 
     def test_name_and_profession_in_header(self):
         body = self._card_fn()

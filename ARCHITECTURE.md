@@ -865,7 +865,7 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 | 4 | `static/company/company.render.js` | `renderProfile/Stats/Jobs/All` + `renderFollowBtn/Rating/Posts` + DOM helpers |
 | 5 | `static/company/company.jobs.js` | `_applyJob` + `applyJob` + `bindEvents` + `bindRateStars` + `submitRating` + `openPostJob` + `publishJob` |
 | 6 | `static/company/company.posts.js` | `openPostModal` + `createPost` + `deletePost` |
-| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report + pull-to-refresh |
+| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report (pull-to-refresh + 30s poll removed — PR 4.3c) |
 | CSS | `static/company/company.css` | كل styles الصفحة (منقولة من `<style>` blocks داخل HTML) |
 
 ### قواعد إلزامية
@@ -9082,7 +9082,7 @@ INDEX idx_company_branches_company ON company_branches(company_id)
 - `PUT /company/branches/{company_id}` — owner only, JWT Bearer, max 10 branches
 
 **Save pattern (snapshot replace):**
-`saveEdit()` sends `Promise.all([p1_profile, p2_company_profiles, p3_branches])`.
+`saveEdit()` sends the 3 PUTs **one after the other** via `twApi` (PR 4.3c): `company_profiles` → `profiles` → branches. A failure stops the chain (see Confirmed Immediate Update below).
 `save_company_branches()` runs `BEGIN → DELETE → INSERT → COMMIT` atomically.
 Empty `country` rows are silently skipped.
 
@@ -9379,15 +9379,18 @@ tw-select.js          ← scSelectInit + scSelectClose
    ↓
 2. validation + disable زر الحفظ + نص "جاري الحفظ…"
    ↓
-3. Promise.all([PUT profile, PUT company, PUT branches])
+3. twApi PUT company → PUT profile → PUT branches (متتالي — PR 4.3c؛ ما في endpoint واحد)
    ↓
    ├── فشل أي PUT:
+   │     السلسلة بتوقف (الباقي ما بينبعت)
    │     re-enable زر الحفظ + نص "حفظ"
-   │     toast خطأ
-   │     المودال يبقى مفتوحاً (المستخدم يصحّح ويعيد)
+   │     toast خطأ بيسمّي الجزء + سبب السيرفر (company.edit.part_failed)
+   │     الأجزاء اللي انحفظت قبله بتنطبق محلياً + «اضغط حفظ لإكمال الباقي»
+   │     المودال يبقى مفتوحاً (المستخدم يصحّح ويعيد — كل PUT استبدال كامل)
    │
    └── نجاح كل PUTs:
-         إغلاق المودال
+         re-enable زر الحفظ + نص "حفظ"
+         closeEdit() — بتسكّر المودال وبترجّع الـ history entry
          toast نجاح
          _applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr)
            ├── تحديث companyState.profile
