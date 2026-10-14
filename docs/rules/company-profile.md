@@ -60,4 +60,6 @@ These rules are permanent and apply to all future AI sessions:
     - The page's public link and «نسخ الرابط» = `/u/{tw_id}`. ❌ `location.href`.
     - Visitor buttons only via `twAction` (`renderVisitorActions`); report only via `twReportDialog` (`reportedType: 'company'`). ❌ a page report / contact form.
     - Images via `twSafeImageUrl`; escaping via `twEscHtml` / `twEscAttr` (no local `_esc` copy).
+    - Rating stars (PR 4.13) = DS-ICON `star` only — `_coStarsHtml(score, size)` / `_coStarIcon(on, size)` in `company.render.js` (filled + `.co-star--on` = on, outline = off); the candidate / picker stars use `twIcon('star', {filled:true})` with their own on/off class. ❌ ★ / ☆ / ⭐ glyphs.
+    - Modal text (PR 4.13) = `data-tw-t` / `data-tw-t-label` / `data-tw-t-placeholder` keys; JS that resets a modal label uses the same key via `twT`. ❌ Arabic text in the modal markup. ❌ decorative placeholder avatars without data (the old `fw-ava` row is deleted).
     - Test: `node tests/test_company_profile_page_runtime.js`.

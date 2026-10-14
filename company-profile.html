@@ -234,26 +234,21 @@
         </div>
 
         <div class="followers-wrap">
-          <div class="ac-title">المتابعون</div>
-          <div class="fw-avatars">
-            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
-            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
-            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
-          </div>
-          <div class="fw-count"><span id="followersCount2">0</span> متابع</div>
+          <div class="ac-title" data-tw-t="company.stat.followers"></div>
+          <div class="fw-count"><span id="followersCount2">0</span> <span data-tw-t="company.followers_unit"></span></div>
         </div>
 
         <div class="rating-card">
-          <div class="ac-title">تقييم الموظفين</div>
-          <div class="stars" id="ratingStarsDisplay">☆☆☆☆☆</div>
+          <div class="ac-title" data-tw-t="company.rating.card_title"></div>
+          <div class="stars" id="ratingStarsDisplay"></div>
           <div class="rating-nums">
             <div class="rating-n" id="ratingNum">—</div>
-            <div class="rating-sub" id="ratingSub">لا تقييمات بعد</div>
+            <div class="rating-sub" id="ratingSub" data-tw-t="company.rating.none"></div>
           </div>
           <div class="rate-interactive visitor-only" id="rateBox">
-            <div id="ratePrompt">قيّم هذه الشركة:</div>
+            <div id="ratePrompt" data-tw-t="company.rating.prompt"></div>
             <div class="rate-stars" id="rateStars">
-              <span data-score="1">☆</span><span data-score="2">☆</span><span data-score="3">☆</span><span data-score="4">☆</span><span data-score="5">☆</span>
+              <span data-score="1"><i data-tw-icon="star" data-tw-size="2xl"></i></span><span data-score="2"><i data-tw-icon="star" data-tw-size="2xl"></i></span><span data-score="3"><i data-tw-icon="star" data-tw-size="2xl"></i></span><span data-score="4"><i data-tw-icon="star" data-tw-size="2xl"></i></span><span data-score="5"><i data-tw-icon="star" data-tw-size="2xl"></i></span>
             </div>
           </div>
         </div>
@@ -274,60 +269,60 @@
     <div class="modal-head">
       <span class="modal-head-title">
         <span style="color:var(--color-brand-primary);vertical-align:middle;margin-left:6px"><i data-tw-icon="edit" data-tw-size="sm"></i></span>
-        تعديل ملف الشركة
+        <span data-tw-t="company.edit.title"></span>
       </span>
-      <button type="button" class="modal-head-close" aria-label="إغلاق">
+      <button type="button" class="modal-head-close" data-tw-t-label="common.close">
         <i data-tw-icon="close" data-tw-size="sm"></i>
       </button>
     </div>
     <div class="modal-scroll-body">
 
-    <div class="mf-section-title">معلومات أساسية</div>
-    <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
-    <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تعمل شركتك؟"></textarea></div>
+    <div class="mf-section-title" data-tw-t="company.edit.section.basic"></div>
+    <div class="mf"><label data-tw-t="company.edit.name"></label><input id="e-name" data-tw-t-placeholder="company.edit.name_ph"></div>
+    <div class="mf"><label data-tw-t="company.edit.desc"></label><textarea id="e-desc" data-tw-t-placeholder="company.edit.desc_ph"></textarea></div>
     <div class="mrow-3">
-      <div class="mf"><label>تصنيف الجهة <span class="req-star">*</span></label>
+      <div class="mf"><label><span data-tw-t="company.edit.type"></span> <span class="req-star">*</span></label>
         <select id="e-type" class="ep-select" required>
-          <option value="" disabled selected>— اختر تصنيف الجهة —</option>
+          <option value="" disabled selected data-tw-t="company.edit.type_pick"></option>
         </select>
       </div>
-      <div class="mf"><label>سنة التأسيس</label>
+      <div class="mf"><label data-tw-t="company.edit.founded"></label>
         <select id="e-founded" class="ep-select">
-          <option value="">— اختر سنة التأسيس —</option>
+          <option value="" data-tw-t="company.edit.founded_pick"></option>
         </select>
       </div>
-      <div class="mf"><label>حجم الشركة</label>
+      <div class="mf"><label data-tw-t="company.edit.size"></label>
         <select id="e-size" class="ep-select">
-          <option value="">— اختر —</option>
+          <option value="" data-tw-t="common.pick"></option>
         </select>
       </div>
     </div>
 
-    <div class="mf-section-title">الموقع الرئيسي</div>
+    <div class="mf-section-title" data-tw-t="company.edit.section.location"></div>
     <div class="mrow-3">
-      <div class="mf"><label>الدولة</label>
+      <div class="mf"><label data-tw-t="form.country"></label>
         <select id="e-country" class="ep-select">
-          <option value="">— اختر الدولة —</option>
+          <option value="" data-tw-t="form.country_pick"></option>
         </select>
       </div>
-      <div class="mf"><label>المحافظة / المدينة</label>
+      <div class="mf"><label data-tw-t="company.edit.city"></label>
         <select id="e-city-sel" class="ep-select">
-          <option value="">— اختر المدينة —</option>
+          <option value="" data-tw-t="form.city_pick"></option>
         </select>
       </div>
       <div class="mf">
-        <label>المنطقة / الحي / الشارع</label>
-        <input id="e-district" placeholder="مثال: شارع الملك عبدالله...">
+        <label data-tw-t="company.edit.district"></label>
+        <input id="e-district" data-tw-t-placeholder="company.edit.district_ph">
       </div>
     </div>
 
-    <div class="mf-section-title">الفروع</div>
+    <div class="mf-section-title" data-tw-t="company.edit.section.branches"></div>
     <div id="branchesList"></div>
-    <button type="button" id="addBranchBtn" class="mbtn-add-branch">+ إضافة فرع</button>
+    <button type="button" id="addBranchBtn" class="mbtn-add-branch" data-tw-t="company.edit.add_branch"></button>
     </div><!-- /modal-scroll-body -->
     <div class="modal-foot">
-      <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ التعديلات</button>
-      <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
+      <button id="editSaveBtn" class="mbtn mbtn-ok" data-tw-t="common.save_changes"></button>
+      <button id="editCancelBtn" class="mbtn mbtn-no" data-tw-t="common.cancel"></button>
     </div>
   </div>
 </div>
@@ -338,18 +333,18 @@
     <div class="co-hub-head">
       <span class="co-hub-title">
         <span style="color:var(--color-brand-secondary);vertical-align:middle;margin-left:6px"><i data-tw-icon="messages-square" data-tw-size="sm"></i></span>
-        التواصل والمواعيد
+        <span data-tw-t="company.hub"></span>
       </span>
-      <button class="modal-head-close" id="coHubCloseBtn" aria-label="إغلاق">
+      <button class="modal-head-close" id="coHubCloseBtn" data-tw-t-label="common.close">
         <i data-tw-icon="close" data-tw-size="sm"></i>
       </button>
     </div>
     <div class="co-hub-tabs">
       <button class="co-hub-tab active" data-hub-tab="messages">
-        <i data-tw-icon="message-circle" data-tw-size="sm"></i> المحادثات
+        <i data-tw-icon="message-circle" data-tw-size="sm"></i> <span data-tw-t="company.hub_tab.messages"></span>
       </button>
       <button class="co-hub-tab" data-hub-tab="appointments">
-        <i data-tw-icon="calendar" data-tw-size="sm"></i> المواعيد والمقابلات
+        <i data-tw-icon="calendar" data-tw-size="sm"></i> <span data-tw-t="company.hub_tab.appointments"></span>
       </button>
     </div>
     <div class="co-hub-body">
@@ -357,16 +352,16 @@
         <a href="/messages" class="co-hub-nav-card">
           <div class="co-hub-nav-ico"><i data-tw-icon="messages" data-tw-size="lg"></i></div>
           <div class="co-hub-nav-info">
-            <div class="co-hub-nav-title">صندوق الرسائل</div>
-            <div class="co-hub-nav-sub">تابع محادثاتك مع المرشحين والشركاء</div>
+            <div class="co-hub-nav-title" data-tw-t="company.hub_inbox"></div>
+            <div class="co-hub-nav-sub" data-tw-t="company.hub_inbox_sub"></div>
           </div>
           <span class="co-hub-go-ico"><i data-tw-icon="forward" data-tw-size="sm"></i></span>
         </a>
       </div>
       <div class="co-hub-panel" id="coHubApptPanel" style="display:none">
-        <div id="coHubApptList"><div class="co-hub-appt-loading">جارٍ التحميل…</div></div>
+        <div id="coHubApptList"><div class="co-hub-appt-loading" data-tw-t="common.loading"></div></div>
         <div class="co-hub-appt-footer">
-          <a href="/appointments" class="nb nb-outline" style="width:100%;justify-content:center">إدارة كل المواعيد</a>
+          <a href="/appointments" class="nb nb-outline" style="width:100%;justify-content:center" data-tw-t="company.hub_appts_all"></a>
         </div>
       </div>
     </div>
@@ -377,74 +372,74 @@
 <div class="overlay edit-overlay" id="postJobOverlay">
   <div class="modal co-edit-sheet">
     <div class="modal-head">
-      <span class="modal-head-title">نشر وظيفة جديدة</span>
-      <button class="modal-head-close" id="postJobCancelBtn" aria-label="إغلاق">✕</button>
+      <span class="modal-head-title" data-tw-t="company.job_form.title"></span>
+      <button class="modal-head-close" id="postJobCancelBtn" data-tw-t-label="common.close">✕</button>
     </div>
     <div class="modal-scroll-body">
-      <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
-      <div class="mf"><label>التخصص الوظيفي *</label><select id="j-prof" class="j-prof-sel ep-select"><option value="">— جاري التحميل… —</option></select></div>
+      <div class="mf"><label data-tw-t="company.job_form.job_title"></label><input id="j-title" data-tw-t-placeholder="company.job_form.job_title_ph"></div>
+      <div class="mf"><label data-tw-t="company.job_form.prof"></label><select id="j-prof" class="j-prof-sel ep-select"><option value="" data-tw-t="company.job_form.prof_loading"></option></select></div>
 
       <div class="mf j-acc-all-wrap">
         <label class="j-toggle-label">
           <input type="checkbox" id="j-acc-all">
           <span class="j-toggle-ico"><i data-tw-icon="users" data-tw-size="sm"></i></span>
-          <span>قبول جميع التخصصات</span>
+          <span data-tw-t="company.job_form.accept_all"></span>
         </label>
       </div>
 
       <div class="mf" id="j-acc-prof-section">
-        <label>التخصصات الإضافية المقبولة (اختياري)</label>
+        <label data-tw-t="company.job_form.extra_profs"></label>
         <div class="j-skill-box-wrap">
           <div class="j-skill-box" id="j-acc-prof-box">
             <div class="j-skill-chips" id="j-acc-prof-chips"></div>
-            <input id="j-acc-prof-inp" class="j-skill-inp" placeholder="ابحث عن تخصص…" autocomplete="off" maxlength="60">
+            <input id="j-acc-prof-inp" class="j-skill-inp" data-tw-t-placeholder="company.job_form.extra_profs_ph" autocomplete="off" maxlength="60">
           </div>
           <div class="j-skill-drop" id="j-acc-prof-drop" style="display:none"></div>
         </div>
       </div>
 
       <div class="mrow">
-        <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
-        <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select"></select></div>
+        <div class="mf"><label data-tw-t="company.job_form.type"></label><select id="j-type" class="ep-select"></select></div>
+        <div class="mf"><label data-tw-t="company.job_form.wmode"></label><select id="j-wmode" class="ep-select"></select></div>
       </div>
-      <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
+      <div class="mf"><label data-tw-t="company.job_form.exp"></label><select id="j-exp" class="ep-select"></select></div>
 
-      <div class="mf"><label>مدة استقبال الطلبات</label>
+      <div class="mf"><label data-tw-t="company.job_form.duration"></label>
         <select id="j-dur" class="ep-select">
-          <option value="3">3 أيام</option>
-          <option value="7" selected>7 أيام</option>
-          <option value="14">14 يوم</option>
-          <option value="30">30 يوم</option>
+          <option value="3" data-tw-t="company.job_form.dur.3"></option>
+          <option value="7" selected data-tw-t="company.job_form.dur.7"></option>
+          <option value="14" data-tw-t="company.job_form.dur.14"></option>
+          <option value="30" data-tw-t="company.job_form.dur.30"></option>
         </select>
       </div>
 
       <div class="mf">
-        <label>موقع الوظيفة</label>
+        <label data-tw-t="company.job_form.location"></label>
         <select id="j-loc-mode" class="ep-select">
-          <option value="hq">المقر الرئيسي للشركة</option>
-          <option value="remote">عن بُعد</option>
-          <option value="branch">أحد الفروع</option>
-          <option value="custom">موقع مخصص</option>
+          <option value="hq" data-tw-t="company.job_form.loc.hq"></option>
+          <option value="remote" data-tw-t="company.job_form.loc.remote"></option>
+          <option value="branch" data-tw-t="company.job_form.loc.branch"></option>
+          <option value="custom" data-tw-t="company.job_form.loc.custom"></option>
         </select>
       </div>
-      <div class="mf" id="j-branch-wrap" style="display:none"><label>الفرع</label><select id="j-branch-sel" class="ep-select"></select></div>
+      <div class="mf" id="j-branch-wrap" style="display:none"><label data-tw-t="company.job_form.branch"></label><select id="j-branch-sel" class="ep-select"></select></div>
       <div id="j-custom-wrap" style="display:none">
-        <div class="mf"><label>الدولة</label><select id="j-loc-country" class="ep-select"><option value="">— اختر الدولة —</option></select></div>
-        <div class="mf"><label>المدينة</label><select id="j-loc-city" class="ep-select"><option value="">— اختر المدينة —</option></select></div>
+        <div class="mf"><label data-tw-t="form.country"></label><select id="j-loc-country" class="ep-select"><option value="" data-tw-t="form.country_pick"></option></select></div>
+        <div class="mf"><label data-tw-t="form.city"></label><select id="j-loc-city" class="ep-select"><option value="" data-tw-t="form.city_pick"></option></select></div>
       </div>
 
       <div class="mf j-sal-toggle-wrap">
         <label class="j-toggle-label">
           <input type="checkbox" id="j-sal-show">
-          <span>الإعلان عن الراتب المتوقع</span>
+          <span data-tw-t="company.job_form.show_salary"></span>
         </label>
       </div>
       <div id="j-sal-row" style="display:none">
         <div class="mrow">
-          <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
-          <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
+          <div class="mf"><label data-tw-t="company.job_form.salary_from"></label><input id="j-sal1" type="number" placeholder="800"></div>
+          <div class="mf"><label data-tw-t="company.job_form.salary_to"></label><input id="j-sal2" type="number" placeholder="1200"></div>
         </div>
-        <div class="mf"><label>العملة</label>
+        <div class="mf"><label data-tw-t="company.job_form.currency"></label>
           <select id="j-cur" class="ep-select">
             <option value="USD">USD</option><option value="JOD">JOD</option>
             <option value="SAR">SAR</option><option value="AED">AED</option>
@@ -454,21 +449,21 @@
       </div>
 
       <div class="mf">
-        <label>المهارات المطلوبة</label>
+        <label data-tw-t="job.skills_required"></label>
         <div class="j-skill-box-wrap">
           <div class="j-skill-box" id="j-skill-box">
             <div class="j-skill-chips" id="j-skill-chips"></div>
-            <input id="j-skill-inp" class="j-skill-inp" placeholder="ابحث عن مهارة أو اكتبها…" autocomplete="off" maxlength="60">
+            <input id="j-skill-inp" class="j-skill-inp" data-tw-t-placeholder="company.job_form.skills_ph" autocomplete="off" maxlength="60">
           </div>
           <div class="j-skill-drop" id="j-skill-drop" style="display:none"></div>
         </div>
       </div>
 
-      <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" rows="4" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
+      <div class="mf"><label data-tw-t="company.job_form.desc"></label><textarea id="j-desc" rows="4" data-tw-t-placeholder="company.job_form.desc_ph"></textarea></div>
     </div>
     <div class="modal-foot">
-      <button id="postJobCancelFootBtn" class="mbtn mbtn-no">إلغاء</button>
-      <button id="publishJobBtn" class="mbtn mbtn-ok">نشر الوظيفة</button>
+      <button id="postJobCancelFootBtn" class="mbtn mbtn-no" data-tw-t="common.cancel"></button>
+      <button id="publishJobBtn" class="mbtn mbtn-ok" data-tw-t="company.job_form.publish"></button>
     </div>
   </div>
 </div>
@@ -476,29 +471,29 @@
 <!-- ██ CREATE POST MODAL ██ -->
 <div class="overlay" id="postOverlay">
   <div class="modal modal-lg">
-    <div class="modal-title" id="postModalTitle">نشر منشور جديد</div>
-    <div class="mf"><label>المحتوى *</label>
-      <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..."></textarea>
+    <div class="modal-title" id="postModalTitle" data-tw-t="company.new_post"></div>
+    <div class="mf"><label data-tw-t="company.post_form.body"></label>
+      <textarea id="p-body" rows="4" data-tw-t-placeholder="company.post_form.body_ph"></textarea>
     </div>
     <div class="mf ptc-wrapper" id="p-tags-wrap">
-      <label>الوسوم <span class="ptc-count" id="p-tags-count">0/5</span></label>
+      <label><span data-tw-t="company.post_form.tags"></span> <span class="ptc-count" id="p-tags-count">0/5</span></label>
       <div class="ptc-chips-row" id="p-tags-chips"></div>
-      <input id="p-tags-search" type="text" placeholder="اكتب للبحث في الوسوم..." autocomplete="off" spellcheck="false">
+      <input id="p-tags-search" type="text" data-tw-t-placeholder="company.post_form.tags_ph" autocomplete="off" spellcheck="false">
       <div class="ptc-dropdown" id="p-tags-dropdown"></div>
     </div>
     <div class="mf">
-      <label>لون المنشور</label>
+      <label data-tw-t="company.post_form.color"></label>
       <div class="pcc-row" id="p-color-row"></div>
     </div>
     <div class="mf">
       <label class="p-no-cmt-label">
         <input type="checkbox" id="p-no-comments">
-        منع التعليقات على هذا المنشور
+        <span data-tw-t="company.post_form.no_comments"></span>
       </label>
     </div>
     <div class="modal-btns">
-      <button id="createPostBtn" class="mbtn mbtn-yes"><span id="createPostBtnLabel">نشر</span></button>
-      <button id="postCancelBtn" class="mbtn mbtn-no">إلغاء</button>
+      <button id="createPostBtn" class="mbtn mbtn-yes"><span id="createPostBtnLabel" data-tw-t="company.post_form.publish"></span></button>
+      <button id="postCancelBtn" class="mbtn mbtn-no" data-tw-t="common.cancel"></button>
     </div>
   </div>
 </div>
@@ -507,8 +502,8 @@
 <div class="co-branches-sheet-overlay" id="allBranchesOverlay">
   <div class="co-branches-sheet" role="dialog" aria-modal="true" aria-labelledby="allBranchesTitle">
     <div class="co-branches-sheet-hdr">
-      <span class="co-branches-sheet-title" id="allBranchesTitle">كل الفروع</span>
-      <button class="co-branches-sheet-close" type="button" aria-label="إغلاق">✕</button>
+      <span class="co-branches-sheet-title" id="allBranchesTitle" data-tw-t="company.branches_all"></span>
+      <button class="co-branches-sheet-close" type="button" data-tw-t-label="common.close">✕</button>
     </div>
     <div id="allBranchesList"></div>
   </div>
@@ -518,13 +513,13 @@
 <div class="co-fl-overlay" id="coFollowListModal" style="display:none">
   <div class="co-fl-panel">
     <div class="co-fl-head">
-      <div class="co-fl-title">المتابعون</div>
-      <button class="co-fl-close" id="coFlClose" aria-label="إغلاق">×</button>
+      <div class="co-fl-title" data-tw-t="company.stat.followers"></div>
+      <button class="co-fl-close" id="coFlClose" data-tw-t-label="common.close">×</button>
     </div>
     <div class="co-fl-filters" id="coFlFilters"></div>
     <div class="co-fl-list" id="coFlList"></div>
     <div class="co-fl-load" id="coFlLoad" style="display:none">
-      <button class="co-fl-load-btn" id="coFlLoadMore">تحميل المزيد</button>
+      <button class="co-fl-load-btn" id="coFlLoadMore" data-tw-t="common.load_more"></button>
     </div>
   </div>
 </div>
@@ -534,13 +529,13 @@
   <div class="co-fl-panel co-cand-panel">
     <div class="co-fl-head co-cand-head">
       <div class="co-cand-tabs" id="coCandTabs">
-        <button class="co-cand-tab active" data-tab="saved">المحفوظون</button>
-        <button class="co-cand-tab" data-tab="suggestions">اقتراحات مناسبة</button>
+        <button class="co-cand-tab active" data-tab="saved" data-tw-t="company.cand.tab.saved"></button>
+        <button class="co-cand-tab" data-tab="suggestions" data-tw-t="company.cand.tab.suggestions"></button>
       </div>
-      <button class="co-fl-close" id="coCandClose" aria-label="إغلاق">×</button>
+      <button class="co-fl-close" id="coCandClose" data-tw-t-label="common.close">×</button>
     </div>
     <div class="co-cand-body" id="coCandBody">
-      <div class="co-fl-spin">جارٍ التحميل…</div>
+      <div class="co-fl-spin" data-tw-t="common.loading"></div>
     </div>
   </div>
 </div>
@@ -549,11 +544,11 @@
 <div class="co-fl-overlay" id="coApplicantsModal" style="display:none">
   <div class="co-fl-panel">
     <div class="co-fl-head">
-      <div class="co-fl-title" id="coAppModalTitle">المتقدمون</div>
-      <button class="co-fl-close" aria-label="إغلاق">×</button>
+      <div class="co-fl-title" id="coAppModalTitle" data-tw-t="people.applicants"></div>
+      <button class="co-fl-close" data-tw-t-label="common.close">×</button>
     </div>
     <div class="co-app-list" id="coAppList">
-      <div class="co-app-spin">جارٍ التحميل…</div>
+      <div class="co-app-spin" data-tw-t="common.loading"></div>
     </div>
   </div>
 </div>
@@ -562,16 +557,16 @@
 <div class="co-fl-overlay" id="coNotesModal" style="display:none">
   <div class="co-fl-panel co-notes-panel">
     <div class="co-fl-head">
-      <div class="co-fl-title">ملاحظات الوظيفة</div>
-      <button class="co-fl-close" id="coNotesClose" aria-label="إغلاق">×</button>
+      <div class="co-fl-title" data-tw-t="company.notes.title"></div>
+      <button class="co-fl-close" id="coNotesClose" data-tw-t-label="common.close">×</button>
     </div>
     <div class="co-notes-body">
       <div id="coNotesList" class="co-notes-list">
-        <div class="co-app-spin">جارٍ التحميل…</div>
+        <div class="co-app-spin" data-tw-t="common.loading"></div>
       </div>
       <div class="co-notes-add-row">
-        <textarea id="coNotesInput" class="co-notes-input" rows="2" placeholder="أضف ملاحظة…" maxlength="1000"></textarea>
-        <button type="button" id="coNotesSubmit" class="co-notes-submit">إضافة</button>
+        <textarea id="coNotesInput" class="co-notes-input" rows="2" data-tw-t-placeholder="company.notes.add_ph" maxlength="1000"></textarea>
+        <button type="button" id="coNotesSubmit" class="co-notes-submit" data-tw-t="common.add"></button>
       </div>
     </div>
   </div>
@@ -581,11 +576,11 @@
 <div class="co-fl-overlay" id="coRatingModal" style="display:none">
   <div class="co-fl-panel co-rat-panel">
     <div class="co-fl-head">
-      <div class="co-fl-title">تقييم الشركة</div>
-      <button class="co-fl-close" id="coRatClose" aria-label="إغلاق">×</button>
+      <div class="co-fl-title" data-tw-t="company.rating.title"></div>
+      <button class="co-fl-close" id="coRatClose" data-tw-t-label="common.close">×</button>
     </div>
     <div class="co-fl-list co-rat-body" id="coRatBody">
-      <div class="co-fl-spin">جارٍ التحميل…</div>
+      <div class="co-fl-spin" data-tw-t="common.loading"></div>
     </div>
   </div>
 </div>
@@ -593,7 +588,7 @@
 <!-- Company Cover Crop Overlay — owner-only, position:fixed, z-index:1100 -->
 <div class="co-cover-crop-overlay" id="coCoverCropOverlay">
   <div class="co-cover-crop-card">
-    <p class="co-cover-crop-title">تعديل صورة الغلاف</p>
+    <p class="co-cover-crop-title" data-tw-t="company.cover_crop.title"></p>
     <canvas id="coCoverCropCanvas"></canvas>
     <div class="co-cover-zoom-row">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
@@ -601,8 +596,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
     </div>
     <div class="co-cover-crop-actions">
-      <button class="co-cover-crop-save" id="coCoverCropSaveBtn" type="button">حفظ الغلاف</button>
-      <button class="co-cover-crop-cancel" id="coCoverCropCancelBtn" type="button">إلغاء</button>
+      <button class="co-cover-crop-save" id="coCoverCropSaveBtn" type="button" data-tw-t="company.cover_crop.save"></button>
+      <button class="co-cover-crop-cancel" id="coCoverCropCancelBtn" type="button" data-tw-t="common.cancel"></button>
     </div>
   </div>
 </div>
@@ -610,7 +605,7 @@
 <!-- Logo Crop Overlay — owner-only, position:fixed, z-index:1100 -->
 <div class="co-logo-crop-overlay" id="coLogoCropOverlay">
   <div class="co-logo-crop-card">
-    <p class="co-logo-crop-title">تعديل شعار الشركة</p>
+    <p class="co-logo-crop-title" data-tw-t="company.logo_crop.title"></p>
     <canvas id="coLogoCropCanvas"></canvas>
     <div class="co-logo-zoom-row">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
@@ -618,8 +613,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
     </div>
     <div class="co-logo-crop-actions">
-      <button class="co-logo-crop-save" id="coLogoCropSaveBtn" type="button">حفظ الشعار</button>
-      <button class="co-logo-crop-cancel" id="coLogoCropCancelBtn" type="button">إلغاء</button>
+      <button class="co-logo-crop-save" id="coLogoCropSaveBtn" type="button" data-tw-t="company.logo_crop.save"></button>
+      <button class="co-logo-crop-cancel" id="coLogoCropCancelBtn" type="button" data-tw-t="common.cancel"></button>
     </div>
   </div>
 </div>

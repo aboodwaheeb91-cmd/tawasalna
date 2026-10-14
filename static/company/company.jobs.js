@@ -740,9 +740,9 @@
     _editJobId     = null;
     _pendingProfId = null;
     var pBtn = document.getElementById('publishJobBtn');
-    if (pBtn) { pBtn.disabled = false; pBtn.textContent = 'نشر الوظيفة'; }
+    if (pBtn) { pBtn.disabled = false; pBtn.textContent = twT('company.job_form.publish'); }
     var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
-    if (modalTitle) modalTitle.textContent = 'نشر وظيفة جديدة';
+    if (modalTitle) modalTitle.textContent = twT('company.job_form.title');
     // Salary toggle: default OFF = hidden
     var salShow = document.getElementById('j-sal-show');
     if (salShow) salShow.checked = false;
@@ -825,7 +825,7 @@
 
     var publishBtn = document.getElementById('publishJobBtn');
     if (publishBtn && publishBtn.disabled) return;
-    if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = 'جاري النشر…'; }
+    if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = twT('company.job_form.publishing'); }
 
     var salShow   = document.getElementById('j-sal-show');
     var isSalShow = salShow && salShow.checked;  // OFF = hidden (default)
@@ -854,7 +854,7 @@
     var isEdit  = !!_editJobId;
     var url     = isEdit ? '/company/jobs/' + _editJobId : '/company/jobs';
     var method  = isEdit ? 'PUT' : 'POST';
-    var btnOrigText = isEdit ? 'حفظ التعديلات' : 'نشر الوظيفة';
+    var btnOrigText = twT(isEdit ? 'common.save_changes' : 'company.job_form.publish');
 
     twApi(url, { method: method, body: payload }).then(function (res) {
       var data = res.raw || {};
@@ -988,9 +988,9 @@
 
     // ── Switch modal to edit mode ────────────────────────────────
     var pBtn = document.getElementById('publishJobBtn');
-    if (pBtn) pBtn.textContent = 'حفظ التعديلات';
+    if (pBtn) pBtn.textContent = twT('common.save_changes');
     var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
-    if (modalTitle) modalTitle.textContent = 'تعديل الوظيفة';
+    if (modalTitle) modalTitle.textContent = twT('company.job_form.edit_title');
     if (window.scSelectInit) scSelectInit();
   }
 

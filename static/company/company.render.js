@@ -124,16 +124,23 @@
     return new Date(iso).toLocaleDateString('ar');
   }
 
-  function _starsString(score, filled, empty) {
+  // Rating star (DS-ICON — PR 4.13): on = filled + .co-star--on, off = outline.
+  function _coStarIcon(on, size) {
+    if (!window.twIcon) return '';
+    return twIcon('star', { size: size, filled: !!on, className: on ? 'co-star co-star--on' : 'co-star' });
+  }
+
+  // 5 stars for a score (rounded) — the one star renderer on the page.
+  function _coStarsHtml(score, size) {
     var n = Math.round(score || 0);
     var s = '';
-    for (var i = 1; i <= 5; i++) s += (i <= n ? filled : empty);
+    for (var i = 1; i <= 5; i++) s += _coStarIcon(i <= n, size);
     return s;
   }
 
   function _paintRateStars(score) {
     document.querySelectorAll('#rateStars span').forEach(function (s) {
-      s.textContent = (parseInt(s.getAttribute('data-score')) <= score) ? '⭐' : '☆';
+      s.innerHTML = _coStarIcon(parseInt(s.getAttribute('data-score'), 10) <= score, '2xl');
     });
   }
 
@@ -546,17 +553,19 @@
     var count = companyState.stats.rating_count || 0;
     var mine  = companyState.permissions ? companyState.permissions.my_rating : null;
 
-    var starsStr = avg ? _starsString(avg, '⭐', '☆') : '☆☆☆☆☆';
-    _setText('ratingStarsDisplay', starsStr);
+    var starsHtml = _coStarsHtml(avg, 'lg');
+    var starsEl = document.getElementById('ratingStarsDisplay');
+    if (starsEl) starsEl.innerHTML = starsHtml;
     _setText('ratingNum',   avg != null ? avg : '—');
 
     var subText = count > 0
-      ? ('من 5 — بناءً على ' + count + ' تقييم' + (count > 10 ? '' : 'ات'))
-      : 'لا تقييمات بعد';
+      ? twT(count > 10 ? 'company.rating.summary_many' : 'company.rating.summary_few', { count: count })
+      : twT('company.rating.none');
     _setText('ratingSub', subText);
 
     // Sync ratings tab panel
-    _setText('ratingsTabStars', starsStr);
+    var tabStarsEl = document.getElementById('ratingsTabStars');
+    if (tabStarsEl) tabStarsEl.innerHTML = starsHtml;
     _setText('ratingsTabAvg',   avg != null ? avg : '—');
     _setText('ratingsTabCount', subText);
 
@@ -899,7 +908,8 @@
   // ── Expose ────────────────────────────────────────────────────
   window._setText        = _setText;
   window._relativeTime   = _relativeTime;
-  window._starsString    = _starsString;
+  window._coStarsHtml    = _coStarsHtml;
+  window._coStarIcon     = _coStarIcon;
   window._paintRateStars = _paintRateStars;
   window.renderProfile   = renderProfile;
   window.renderAbout     = renderAbout;
