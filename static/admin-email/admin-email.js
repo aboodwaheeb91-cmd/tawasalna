@@ -1,4 +1,4 @@
-// static/admin-email/admin-email.js — /tw-ctrl-{ADMIN_URL_TOKEN}/email (task 5.1c)
+// static/admin-email/admin-email.js — admin email page (route: server.py → admin_email_page · task 5.1c)
 //   - admin session = TwAdminSession (admin JWT, same tab as the panel login) — never the user JWT
 //   - GET /admin/email → provider status · usage (email_send_log: today / month, security vs
 //     notification, blocked by the cap) · notification types on/off · caps · message rules
