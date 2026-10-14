@@ -216,8 +216,12 @@ class F_JobSections(unittest.TestCase):
         self.assertIn(".co-cand-job-chip--applied", CSS)
         block = re.search(r'\.co-cand-job-chip--applied\s*\{[^}]+\}', CSS)
         self.assertIsNotNone(block)
-        # Must differ from default blue chip — check for teal/green color
-        self.assertIn("34d399", block.group())  # green tint for applied
+        # Must differ from the default chip: its text color is the success token (DS-COLOR, PR 4.3b)
+        color = re.search(r'(?<![-\w])color\s*:\s*([^;]+);', block.group())
+        default = re.search(r'\.co-cand-job-chip\s*\{[^}]+\}', CSS)
+        self.assertIsNotNone(color)
+        self.assertEqual(color.group(1).strip(), "var(--color-status-success)")
+        self.assertNotIn(color.group(0), default.group() if default else "")
 
 
 # ══════════════════════════════════════════════════════════════════

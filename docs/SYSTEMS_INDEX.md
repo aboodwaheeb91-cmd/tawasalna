@@ -1038,7 +1038,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Semantic ≠ Categorical** (CLR-13): `--color-status-warning` إشارة UX (خلل/تحذير). `--color-categorical-amber` تمييز بيانات (مستوى مهارة/فئة). مستخدَم مختلف، سياق مختلف — ممنوع الخلط بينهما.
 - **Domain/Feature Mapping Policy** (CLR-14): DS-COLOR يملك القيمة والهوية. Feature/Domain يملك المعنى (Tier 2 alias في feature CSS يُشير إلى DS-COLOR، لا يُعرِّف قيمة hex بنفسه).
 - **Three-Tier Local Token Policy** (CLR-15): T1 = Global DS-COLOR في `tw_shared.css` · T2 = Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)`) · T3 = Local non-color tokens + Local Color Role مسموح بشروط (documented exception). T2 ممنوع أن يُحدِّد قيم hex مستقلة. Shared Meaning هو معيار الترقية — ليس عدد الـ surfaces وحده (CLR-26).
-- **company.css Migration Intent** (CLR-16): `company.css` يُعيد تعريف `--ac` و`--ac2` (دين معماري، ليس visual bug). الحل المخطط: domain alias `--co-accent: var(--color-brand-secondary)`. لا تعديل في Phase 0 أو Phase 1 basic.
+- **company.css** (CLR-16 ✅ PR 4.3b): الـ `:root` الخاص بالصفحة (`--ac` أزرق / `--ac2` أخضر …) انحذف — كل لون بالصفحة Semantic token مباشرة. 27 لون بدون توكن موثّقين (CLR-35 → Company page gaps). Test: `python -m pytest tests/test_company_colors.py -q`.
 - **Alpha Policy** (CLR-19): 6 مستويات موثَّقة كنص (subtle/.06, soft/.12, muted/.20, medium/.28, strong/.35, overlay/.70). لا CSS custom properties للألفا.
 - **Migration ≠ Redesign** (CLR-27): `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية صريحة.
 - **No Token Without Real Consumer in V1** (CLR-28): لا tokens افتراضية. كل token مُضاف يجب أن يملك مستهلكاً حقيقياً في نطاق V1.

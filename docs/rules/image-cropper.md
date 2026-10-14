@@ -18,7 +18,7 @@ These rules are permanent and apply to all future AI sessions.
    - `employee-avatar`: ratio 1/1, shape circle (preview only), output 260×260, quality 0.85, bucket avatars, filename avatar — `profile-v2.avatar.js`
    - `employee-cover`: ratio 6/1, shape rect, output 720×120, quality 0.88, bucket covers, filename cover — `profile-v2.cover.js`
      - ⚠️ **Actual state (documented debt — PR-7b):** `openCrop()` computes the ratio dynamically (`.sc-cover offsetWidth / 80`) and exports `W×240` — not 6:1. **Decision:** employee cover = fixed **4:1** (same as company-cover); display + cropper change in DS-IMAGE phase C (`docs/design-system/IMAGE-SYSTEM.md` IMG-10).
-   - `company-logo`: ratio 1/1, shape circle (preview only), output 300×300, quality 0.85, bucket avatars, filename logo — `company.main.js`
+   - `company-logo`: ratio 1/1, shape rect — rounded square, IMG-03 (PR 4.3b), output 300×300, quality 0.85, bucket avatars, filename logo — `company.main.js`
      - **Decision (PR-7b):** org logos are rounded squares everywhere (DS-IMAGE IMG-03) → the logo cropper preview becomes square in DS-IMAGE phase C.
    - `company-cover`: ratio 4/1, shape rect, output 800×200, quality 0.88, bucket avatars, filename cover — `company.main.js`
 

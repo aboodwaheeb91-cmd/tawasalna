@@ -2068,9 +2068,12 @@ upload_src_126  = open("static/shared/tw-upload.js",        encoding="utf-8").re
 av_src_126  = open("profile-v2.avatar.js",  encoding="utf-8").read()
 cov_src_126 = open("profile-v2.cover.js",   encoding="utf-8").read()
 
+# PR 4.3b — IMG-03: org logo = rounded square → the logo cropper is 'rect' (structure: the
+# _getLogoCropper config, not a text match anywhere in the file)
+_logo_cfg_126 = re.search(r"function _getLogoCropper\(\)\s*\{(.*?)\n  \}", co_main_126, re.S)
 check(
-    "126a. company logo cropper uses shape: circle",
-    "shape:   'circle'" in co_main_126 and "coLogoCropCanvas" in co_main_126
+    "126a. company logo cropper uses shape: rect (IMG-03)",
+    bool(_logo_cfg_126) and re.search(r"shape:\s*'rect'", _logo_cfg_126.group(1)) is not None
 )
 check(
     "126b. company logo cropper ratio still 1/1",
@@ -2084,9 +2087,11 @@ check(
     "126d. company logo quality still 0.85",
     "quality: 0.85" in co_main_126 and "coLogoCropCanvas" in co_main_126
 )
+_logo_canvas_rule_126 = re.search(r"(?m)^#coLogoCropCanvas\s*\{([^}]*)\}", co_css_126)
 check(
-    "126e. #coLogoCropCanvas CSS uses border-radius:50% (circle shape)",
-    "border-radius:50%" in co_css_126 and "coLogoCropCanvas" in co_css_126
+    "126e. #coLogoCropCanvas CSS is a rounded square (px radius, not 50%) — IMG-03",
+    bool(_logo_canvas_rule_126) and
+    re.search(r"border-radius\s*:\s*\d+px\s*;", _logo_canvas_rule_126.group(1)) is not None
 )
 check(
     "126f. #coLogoCropCanvas CSS has overflow:hidden",

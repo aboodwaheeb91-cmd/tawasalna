@@ -492,7 +492,7 @@
 
   // ── Post Save ─────────────────────────────────────────────────────────────
   var _ICO_BOOKMARK_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-  var _ICO_BOOKMARK_CHECK   = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M8.5 10l2.5 2.5 5-5" fill="none" stroke="var(--bg,#070b18)" stroke-width="2"/></svg>';
+  var _ICO_BOOKMARK_CHECK   = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M8.5 10l2.5 2.5 5-5" fill="none" stroke="var(--color-surface-page)" stroke-width="2"/></svg>';
 
   function _renderSaveButton(btn, active) {
     btn.innerHTML = (active ? _ICO_BOOKMARK_CHECK : _ICO_BOOKMARK_OUTLINE) + (active ? 'محفوظ' : 'حفظ');
