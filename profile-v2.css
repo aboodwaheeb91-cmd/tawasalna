@@ -1173,8 +1173,8 @@ body.view-owner .av-cam-btn { display:flex; }
 .sc-fl-pop-item--followers .sc-fl-pop-ico { color:var(--color-brand-accent); }
 .sc-fl-pop-item--followers:hover { background:rgba(var(--color-brand-accent-rgb), .08); }
 .sc-fl-pop-item--following .sc-fl-pop-ico,
-.sc-fl-pop-item--following .sc-fl-pop-count { color:var(--color-status-open-to-work); }
-.sc-fl-pop-item--following:hover { background:rgba(var(--color-status-open-to-work-rgb), .08); }
+.sc-fl-pop-item--following .sc-fl-pop-count { color:var(--color-follow-count); }
+.sc-fl-pop-item--following:hover { background:rgba(var(--color-follow-count-rgb), .08); }
 
 /* ── Follow List Filters ── */
 .sc-fl-filters {

@@ -28,7 +28,9 @@ OLD = {
     "--color-pipeline-contacted": "#38bdf8",
     "--color-pipeline-viewed": "#6366f1",
     "--color-pipeline-viewed-text": "#818cf8",
-    "--color-pipeline-viewed-text-light": "#a5b4fc",
+    "--color-follow-count": "#22d3ee",
+    "--color-talent-bank": "#6366f1",
+    "--color-talent-bank-text": "#a5b4fc",
     "--color-categorical-orange-light": "#fb923c",
     "--color-brand-accent-strong": "#7c3aed",
     "--color-cover-start": "#0f2027", "--color-cover-mid": "#203a43", "--color-cover-end": "#2c5364",
@@ -50,6 +52,17 @@ def test_tokens_defined_with_old_values():
         assert token in DEFS and token + "-rgb" in DEFS, token
         assert _resolve(token) == old, (token, _resolve(token), old)
         assert _resolve(token + "-rgb").replace(" ", "") == _rgb(old), token + "-rgb"
+
+
+def test_each_element_uses_its_own_token():
+    """Same value ≠ same token (CLR-12): an admin edit on one must not move the other."""
+    pv = open(os.path.join(ROOT, "profile-v2.css"), encoding="utf-8").read()
+    follow = re.findall(r"(?m)^\.sc-fl-pop-item--following[^{]*\{([^}]*)\}", pv)
+    assert follow and all("--color-follow-count" in r and "open-to-work" not in r for r in follow)
+    co = open(os.path.join(ROOT, "static", "company", "company.css"), encoding="utf-8").read()
+    bank = re.findall(r"(?m)^\.nb-talent-bank[^{]*\{([^}]*)\}", co)
+    assert len(bank) == 3 and all("--color-talent-bank" in r and "pipeline" not in r for r in bank)
+    assert "--color-pipeline-viewed-text-light" not in DEFS   # no token without a consumer
 
 
 def test_tokens_in_admin_color_list():

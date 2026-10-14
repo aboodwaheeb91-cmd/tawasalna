@@ -214,6 +214,9 @@
   /* Availability «منفتح على وظائف» */
   --color-status-open-to-work:     var(--color-prim-cyan-400);
   --color-status-open-to-work-rgb: var(--color-prim-cyan-400-rgb);
+  /* «يتابع» count in the followers list */
+  --color-follow-count:     var(--color-prim-cyan-400);
+  --color-follow-count-rgb: var(--color-prim-cyan-400-rgb);
   /* Hiring pipeline stages with no brand / status color */
   --color-pipeline-contacted:           var(--color-prim-sky-400);
   --color-pipeline-contacted-rgb:       var(--color-prim-sky-400-rgb);
@@ -221,8 +224,11 @@
   --color-pipeline-viewed-rgb:          var(--color-prim-indigo-500-rgb);
   --color-pipeline-viewed-text:         var(--color-prim-indigo-400);    /* status label text */
   --color-pipeline-viewed-text-rgb:     var(--color-prim-indigo-400-rgb);
-  --color-pipeline-viewed-text-light:   var(--color-prim-indigo-300);    /* lighter text on an indigo tint */
-  --color-pipeline-viewed-text-light-rgb: var(--color-prim-indigo-300-rgb);
+  /* «بنك المواهب» button (+ its count badge) */
+  --color-talent-bank:          var(--color-prim-indigo-500);    /* tint / border / glow (alpha) */
+  --color-talent-bank-rgb:      var(--color-prim-indigo-500-rgb);
+  --color-talent-bank-text:     var(--color-prim-indigo-300);    /* label + badge text */
+  --color-talent-bank-text-rgb: var(--color-prim-indigo-300-rgb);
   /* Default cover gradient (no cover image) */
   --color-cover-start:     var(--color-prim-cover-900);
   --color-cover-start-rgb: var(--color-prim-cover-900-rgb);

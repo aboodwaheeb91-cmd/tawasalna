@@ -382,21 +382,21 @@ body { background:var(--color-surface-page); color:rgba(var(--color-ink-rgb), .8
 
 /* بنك المواهب button — distinct purple/indigo so it doesn't clash with teal owner actions */
 .nb-talent-bank {
-  background:rgba(var(--color-pipeline-viewed-rgb), .08);
-  color:var(--color-pipeline-viewed-text-light);
-  border:1px solid rgba(var(--color-pipeline-viewed-rgb), .38);
-  box-shadow:inset 0 0 12px rgba(var(--color-pipeline-viewed-rgb), .08), 0 0 14px rgba(var(--color-pipeline-viewed-rgb), .12);
+  background:rgba(var(--color-talent-bank-rgb), .08);
+  color:var(--color-talent-bank-text);
+  border:1px solid rgba(var(--color-talent-bank-rgb), .38);
+  box-shadow:inset 0 0 12px rgba(var(--color-talent-bank-rgb), .08), 0 0 14px rgba(var(--color-talent-bank-rgb), .12);
 }
 .nb-talent-bank:hover {
-  background:rgba(var(--color-pipeline-viewed-rgb), .14);
-  border-color:rgba(var(--color-pipeline-viewed-rgb), .65);
-  box-shadow:inset 0 0 16px rgba(var(--color-pipeline-viewed-rgb), .12), 0 0 20px rgba(var(--color-pipeline-viewed-rgb), .2);
+  background:rgba(var(--color-talent-bank-rgb), .14);
+  border-color:rgba(var(--color-talent-bank-rgb), .65);
+  box-shadow:inset 0 0 16px rgba(var(--color-talent-bank-rgb), .12), 0 0 20px rgba(var(--color-talent-bank-rgb), .2);
 }
 /* Badge on بنك المواهب — wider to fit "N / M" format */
 .nb-talent-bank .co-cand-badge {
   min-width:36px;
-  background:rgba(var(--color-pipeline-viewed-rgb), .22);
-  color:var(--color-pipeline-viewed-text-light);
+  background:rgba(var(--color-talent-bank-rgb), .22);
+  color:var(--color-talent-bank-text);
   letter-spacing:.04em;
 }
 
