@@ -437,14 +437,14 @@
     if(old) old.remove();
     var box = document.createElement('div');
     box.id = '_scConfirmBox';
-    box.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(7,11,24,.85);display:flex;align-items:center;justify-content:center';
+    box.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(var(--color-surface-page-rgb),.85);display:flex;align-items:center;justify-content:center';
     var inner = document.createElement('div');
-    inner.style.cssText = 'background:#0f1420;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:24px 22px;max-width:300px;width:88%;text-align:center;font-family:\'Cairo\',sans-serif;direction:rtl';
+    inner.style.cssText = 'background:var(--color-surface-card-solid);border:1px solid var(--color-border-medium);border-radius:16px;padding:24px 22px;max-width:300px;width:88%;text-align:center;font-family:\'Cairo\',sans-serif;direction:rtl';
     inner.innerHTML =
-      '<p style="color:#fff;font-size:.9rem;margin-bottom:18px;line-height:1.6">'+twEscHtml(msg)+'</p>'
+      '<p style="color:var(--color-text-primary);font-size:.9rem;margin-bottom:18px;line-height:1.6">'+twEscHtml(msg)+'</p>'
       +'<div style="display:flex;gap:10px;justify-content:center">'
-      +'<button id="_scConfNo"  style="flex:1;height:38px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:none;color:#9aa5b4;font-family:inherit;font-size:.85rem;cursor:pointer">إلغاء</button>'
-      +'<button id="_scConfYes" style="flex:1;height:38px;border-radius:9px;border:none;background:linear-gradient(135deg,#f87171,#dc2626);color:#fff;font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer">حذف</button>'
+      +'<button id="_scConfNo"  style="flex:1;height:38px;border-radius:9px;border:1px solid var(--color-border-medium);background:none;color:var(--color-text-meta);font-family:inherit;font-size:.85rem;cursor:pointer">إلغاء</button>'
+      +'<button id="_scConfYes" style="flex:1;height:38px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--color-status-danger),var(--color-status-danger-strong));color:var(--color-text-on-fill);font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer">حذف</button>'
       +'</div>';
     box.appendChild(inner);
     document.body.appendChild(box);

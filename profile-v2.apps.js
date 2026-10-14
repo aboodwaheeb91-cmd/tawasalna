@@ -16,7 +16,7 @@
   };
 
   // Re-fetch on every 'apps' tab activation — no _loaded gate — so that
-  // status changes made by companies (via PR #322) are always reflected.
+  // status changes made by companies (via PR 322) are always reflected.
   var _origScTab = window.scTab;
   window.scTab = function (name, el) {
     _origScTab(name, el);

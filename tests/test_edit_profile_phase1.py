@@ -39,6 +39,23 @@ def _read(rel):
     return open(os.path.join(BASE, rel), encoding='utf-8').read()
 
 
+def _resolved_color(css_src, name):
+    """Resolve a custom property in css_src to (r,g,b,a) through the tw_shared.css
+    --color-* tokens — a value check, not a text match (PR 4.2b)."""
+    defs = dict(re.findall(r'(--[\w-]+)\s*:\s*([^;]+);', _read('tw_shared.css')))
+    defs.update(re.findall(r'(--[\w-]+)\s*:\s*([^;]+);', css_src))
+    val = defs[name]
+    for _ in range(10):
+        val = re.sub(r'var\((--[\w-]+)\)', lambda m: defs[m.group(1)].strip(), val)
+    nums = re.findall(r'[\d.]+', val)
+    if val.startswith('#'):
+        h = val.strip()[1:]
+        h = ''.join(c * 2 for c in h) if len(h) == 3 else h
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 1.0)
+    r, g, b = (int(n) for n in nums[:3])
+    return (r, g, b, float(nums[3]) if len(nums) > 3 else 1.0)
+
+
 def ok(label):
     global PASS
     PASS += 1
@@ -878,15 +895,9 @@ def test_Q_dscolor_tokens():
     print('\n\033[1m── Q: DS-COLOR zero visual change tokens (§Corr-I) ──\033[0m')
     src = _read('profile-v2.css')
 
-    label = 'Q1: --ep-input-bg is direct primitive .05 (NOT via --color-surface-input which is .06) (§Corr-11/MC)'
-    import re as _re_q1
-    # Skip comment lines — match only the CSS property assignment (value starts with rgba or var)
-    _bg_match = _re_q1.search(r'--ep-input-bg:\s*(rgba\([^)]+\)|var\([^)]+\))\s*;', src)
-    if _bg_match:
-        _bg_val = _bg_match.group(1).strip()
-        ok(label) if _bg_val == 'rgba(255,255,255,.05)' else fail(label, f'--ep-input-bg = {_bg_val!r} (should be direct rgba .05, not semantic token)')
-    else:
-        fail(label, '--ep-input-bg CSS token assignment not found in profile-v2.css')
+    label = 'Q1: --ep-input-bg resolves to white .05 (NOT --color-surface-input which is .06) (§Corr-11/MC)'
+    _bg = _resolved_color(src, '--ep-input-bg')
+    ok(label) if _bg == (255, 255, 255, 0.05) else fail(label, f'--ep-input-bg resolves to {_bg!r} (should be white .05, not --color-surface-input)')
 
     label = 'Q2: --ep-divider defined (separate from --ep-sheet-border) (§Corr-11)'
     ok(label) if '--ep-divider' in src else fail(label, '--ep-divider not defined in profile-v2.css')
@@ -928,17 +939,10 @@ def test_Q_dscolor_tokens():
     label = 'Q12: .ep-close uses --ep-close-bg (no raw rgba in .ep-close) (§Corr-11)'
     ok(label) if 'var(--ep-close-bg)' in src else fail(label, '.ep-close not using --ep-close-bg token')
 
-    label = 'Q13: --ep-divider fallback is .08 (head/footer) (§Corr-11)'
-    ok(label) if '--ep-divider:' in src and 'rgba(255,255,255,.08)' in src \
-        else fail(label, '--ep-divider fallback .08 not found')
-
-    label = 'Q14: --ep-sheet-border fallback is .10 (sheet + input borders) (§Corr-11)'
-    ok(label) if '--ep-sheet-border:' in src and 'rgba(255,255,255,.10)' in src \
-        else fail(label, '--ep-sheet-border fallback .10 not found')
-
-    label = 'Q15: --ep-cancel-border fallback is .12 (§Corr-11)'
-    ok(label) if '--ep-cancel-border:' in src and 'rgba(255,255,255,.12)' in src \
-        else fail(label, '--ep-cancel-border fallback .12 not found')
+    for _lbl, _tok, _alpha in (('Q13', '--ep-divider', 0.08), ('Q14', '--ep-sheet-border', 0.10), ('Q15', '--ep-cancel-border', 0.12)):
+        label = f'{_lbl}: {_tok} resolves to white {_alpha} (§Corr-11)'
+        _v = _resolved_color(src, _tok)
+        ok(label) if _v == (255, 255, 255, _alpha) else fail(label, f'{_tok} resolves to {_v!r}')
 
     label = 'Q16: .ep-input-err uses --color-status-danger-rgb (no raw rgba(248,...)) (§Corr-MC)'
     ok(label) if 'color-status-danger-rgb' in src and 'ep-input-err' in src \
