@@ -207,7 +207,7 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── Forgot password ── */
 .forgot-wrap{text-align:left;margin-bottom:12px;}
-.forgot-link{font-size:.7rem;color:var(--auth-text-faint);}
+.forgot-link{font-size:.7rem;color:var(--auth-text-faint);text-decoration:none;}
 .forgot-link:hover{color:var(--auth-text-faint-hover);}
 
 /* ── OR divider ── */

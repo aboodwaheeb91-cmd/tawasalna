@@ -114,6 +114,8 @@ from auth import (
     AppointmentRuleError, list_jobs_for_scheduling, get_open_appointments,
     search_schedule_people,
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
+    _migrate_password_reset_tokens, get_user_for_password_reset, password_reset_issue, password_reset_consume,
+    PASSWORD_RESET_TTL_MINUTES,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
@@ -357,9 +359,9 @@ def _dev_otp_log(label: str, uid: int) -> None:
 
 
 def is_email_otp_delivery_available() -> bool:
-    """Returns True only when a real email delivery provider is configured.
-    No email provider is currently implemented. Enable this function body
-    when an actual provider (SendGrid, SES, Resend, etc.) is integrated.
+    """Returns True only when KYC email codes can really be delivered.
+    The email provider exists since 5.1a (email_service.send_email — Resend), but
+    the KYC email step is wired in 5.1b — until then this stays False.
     DEV_OTP_LOG does NOT count as a delivery provider."""
     return False
 
@@ -599,6 +601,7 @@ def _login_email_reset(email: str) -> None:
 
 _RATE_LIMITED_PATHS = frozenset({
     "/auth/login", "/auth/register", "/auth/password", "/tw-ctrl-login",
+    "/auth/password-reset/request", "/auth/password-reset/confirm",
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
 })
 
@@ -748,6 +751,7 @@ def _startup_migrations():
         ("company_candidate_job_refs",        _migrate_company_candidate_job_refs, True),
         ("candidate_status_per_job",          _migrate_candidate_status_per_job,   True),
         ("password_changed_at",               _migrate_password_changed_at,        True),
+        ("password_reset_tokens",             _migrate_password_reset_tokens,      True),
         ("kyc_otp_security",                  _migrate_kyc_otp_security,           True),
         ("jobs_v2",                           _migrate_jobs_v2,                    True),
         ("job_lifecycle",                     _migrate_job_lifecycle,              True),
@@ -805,6 +809,7 @@ async def on_startup():
     _run_startup_migrations()
     await asyncio.to_thread(_strings_load_overrides)
     await asyncio.to_thread(_actions_load_overrides)
+    await asyncio.to_thread(_email_load_settings)
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
@@ -866,6 +871,21 @@ def _strings_load_overrides() -> None:
         _strings_set_overrides(tw_strings.parse_stored(get_site_setting(tw_strings.setting_key())))
     except Exception as e:
         print(f"[strings] override load failed — defaults in use: {type(e).__name__}: {e}")
+
+
+# Unified Email System (task 5.1a · SYSTEMS_INDEX §54j): email_service.send_email is the only
+# sender. Its texts are Strings System keys (email.*) — same merged dict as the pages — and its
+# settings (sender, site URL, per-type on/off) live in site_settings, loaded at startup + on save.
+import email_service
+email_service.set_strings_provider(lambda: tw_strings.merged(_STRINGS_OVERRIDES))
+
+
+def _email_load_settings() -> None:
+    """site_settings → email settings. Failure → defaults stay (logged, F9)."""
+    try:
+        email_service.set_settings(email_service.parse_stored(get_site_setting(email_service.SETTING_KEY)))
+    except Exception as e:
+        print(f"[email] settings load failed — defaults in use: {type(e).__name__}")
 
 
 def read_html(name: str) -> str:
@@ -1553,6 +1573,11 @@ def settings(): return read_html("settings.html")
 
 @app.get("/settings.html", response_class=HTMLResponse)
 def settings_html(): return read_html("settings.html")
+
+# Forgot password (task 5.1a) — request form; with #token=… (fragment: never sent to the
+# server / logs / Referer) the new-password form.
+@app.get("/reset-password", response_class=HTMLResponse)
+def reset_password_page(): return read_html("reset-password.html")
 
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")
@@ -3446,6 +3471,52 @@ def admin_put_actions(request: Request, data: dict = Body(...)):
     return api_ok({"overrides": clean})
 
 
+# ══ Unified Email System — admin (task 5.1a · SYSTEMS_INDEX §54j) ══
+_EMAIL_UNAVAILABLE_MSG = "خدمة البريد الإلكتروني غير متاحة حالياً، حاول لاحقاً"
+
+
+@app.get("/admin/email")
+def admin_get_email(request: Request):
+    """Provider status (configured | missing — never the key) + settings + template string keys."""
+    check_admin(request)
+    return api_ok({"status": email_service.status(), "settings": email_service.get_settings(),
+                   "defaults": email_service.DEFAULTS, "types": list(email_service.TYPES),
+                   "templates": {k: [f"email.{k}.{p}" for p in v["parts"]]
+                                 for k, v in email_service.TEMPLATES.items()}})
+
+
+@app.put("/admin/email")
+def admin_put_email(request: Request, data: dict = Body(...)):
+    """Partial update: {from_address?, from_name?, site_url?, types?: {key: bool}} (all-or-nothing)."""
+    claims = check_admin(request)
+    try:
+        clean = email_service.validate_settings(data, email_service.get_settings())
+    except email_service.EmailSettingsError as e:
+        return api_error(422, e.code, e.message, e.field)
+    ensure_site_settings_table()
+    if not set_site_setting(email_service.SETTING_KEY, json.dumps(clean, ensure_ascii=False, sort_keys=True)):
+        return api_error(500, "save_failed", "تعذّر حفظ إعدادات البريد، حاول مرة أخرى")
+    email_service.set_settings(clean)
+    print(f"[email] settings saved by admin sub={claims.get('sub')!r} types={json.dumps(clean['types'], sort_keys=True)}")
+    return api_ok({"settings": clean})
+
+
+@app.post("/admin/email/test")
+def admin_test_email(request: Request, data: dict = Body(...)):
+    """Send the admin_test template to an address the admin chooses."""
+    claims = check_admin(request)
+    to = (data.get("to") or "").strip() if isinstance(data.get("to"), str) else ""
+    if not email_service.valid_address(to):
+        return api_error(422, "invalid_email", "عنوان البريد غير صحيح", "to")
+    res = email_service.send_email(to, "admin_test", {})
+    print(f"[email] test email requested by admin sub={claims.get('sub')!r} result={res['code']}")
+    if res["ok"]:
+        return api_ok({"sent": True})
+    if res["code"] == "unavailable":
+        return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
+    return api_error(502, "email_failed", "تعذّر إرسال الرسالة، راجع سجل الخادم")
+
+
 @app.post("/admin/logo-sizes")
 async def save_logo_sizes(data: dict, request: Request):
     check_admin(request)
@@ -3504,6 +3575,7 @@ def health():
         "status": status,
         "db": "ok" if db_ok else "error",
         "migrations": migrations,
+        "email": email_service.status(),   # configured | missing — never the key
         "timestamp": datetime.now().isoformat(),
         "version": "2.0",
         "uptime": "running"
@@ -3642,6 +3714,81 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
         raise HTTPException(500, detail="تعذّر تغيير كلمة المرور، حاول لاحقاً")
     print(f"[PUT /auth/password] changed user={uid} — older sessions invalidated")
     return {"ok": True, "status": "success", "token": new_token}
+
+# ── Forgot password (task 5.1a · SYSTEMS_INDEX §1b) ──
+# request: same reply for every address (never says whether it exists); lookup + token +
+# email run AFTER the reply (BackgroundTasks) so the response time does not tell either.
+# Limits on the shared _rate_store: per client IP (get_client_ip) + per email address.
+_PWRESET_IP_LIMIT,    _PWRESET_IP_WINDOW    = 10, 3600.0
+_PWRESET_EMAIL_LIMIT, _PWRESET_EMAIL_WINDOW = 3, 3600.0
+_PWRESET_INVALID_MSG = "رابط إعادة التعيين غير صالح أو انتهت صلاحيته، اطلب رابطاً جديداً"
+_PWRESET_TOKEN_MAX = 200
+
+class PasswordResetRequestInput(BaseModel):
+    email: str = ""
+
+class PasswordResetConfirmInput(BaseModel):
+    token: str = ""
+    new_password: str = ""
+
+def _password_reset_send(email: str) -> None:
+    """Background: existing account → new token (older ones die) + email. Logs never carry
+    the address or the token."""
+    try:
+        user = get_user_for_password_reset(email)
+        if not user:
+            return
+        token = password_reset_issue(user["id"])
+        link = email_service.get_settings()["site_url"] + "/reset-password#token=" + token
+        email_service.send_email(user["email"], "password_reset",
+                                 {"name": user["full_name"], "link": link,
+                                  "minutes": PASSWORD_RESET_TTL_MINUTES})
+    except Exception as e:
+        print(f"[password-reset] request failed: {type(e).__name__}")
+
+@app.post("/auth/password-reset/request")
+def password_reset_request(data: PasswordResetRequestInput, request: Request,
+                           background_tasks: BackgroundTasks):
+    email = (data.email or "").strip().lower()
+    if not email:
+        raise AccountFieldError("email", "required", "أدخل بريدك الإلكتروني")
+    if not email_service.can_send("password_reset"):
+        return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
+    if not _rate_hit("pwreset-ip:" + get_client_ip(request), _PWRESET_IP_LIMIT, _PWRESET_IP_WINDOW):
+        return api_error(429, "rate_limited", "طلبات كثيرة، حاول مرة أخرى لاحقاً")
+    # Per-email limit → silently no email (a 429 here would be the same for any address,
+    # but the identical reply keeps one simple rule).
+    if _rate_hit("pwreset-email:" + email, _PWRESET_EMAIL_LIMIT, _PWRESET_EMAIL_WINDOW) \
+            and email_service.valid_address(email):
+        background_tasks.add_task(_password_reset_send, email)
+    return api_ok({"sent": True})
+
+@app.post("/auth/password-reset/confirm")
+def password_reset_confirm(data: PasswordResetConfirmInput, background_tasks: BackgroundTasks):
+    pw_err = _password_policy_error(data.new_password)
+    if pw_err:
+        raise AccountFieldError("new_password", "weak_password", pw_err)
+    token = (data.token or "").strip()
+    if not token or len(token) > _PWRESET_TOKEN_MAX:
+        return api_error(400, "invalid_token", _PWRESET_INVALID_MSG)
+    try:
+        user = password_reset_consume(token)   # single use — deleted even if expired
+    except Exception as e:
+        raise _server_error("password_reset_confirm", e)
+    if not user:
+        return api_error(400, "invalid_token", _PWRESET_INVALID_MSG)
+    uid = int(user["id"])
+    try:
+        changed_epoch = set_user_password(uid, data.new_password)
+    except Exception as e:
+        raise _server_error("password_reset_confirm", e)
+    _password_changed_cache_set(uid, changed_epoch)   # every older JWT of this user → 401
+    _ws_revoke_user(uid, "password_reset")
+    _login_email_reset(user["email"])
+    background_tasks.add_task(email_service.send_email, user["email"], "password_changed",
+                              {"name": user["full_name"]})
+    print(f"[password-reset] password reset user={uid} — all sessions invalidated")
+    return api_ok({"reset": True})
 
 # Display-name length cap — same 100-char limit as the other name input (/profession-suggestions).
 _FULL_NAME_MAX = 100

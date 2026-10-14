@@ -80,6 +80,7 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `SCHEDULER_SECRET` | Yes (scheduler) | `X-Scheduler-Secret` value for internal scheduler endpoints (503 when unset) |
 | `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage — must be `https://<project>.supabase.co` (cleaned of spaces / hidden chars / quotes; anything else = not configured) |
 | `SUPABASE_SERVICE_KEY` | Yes (uploads) | Storage service key: new `sb_secret_…` (sent as `apikey` only) **or** legacy `service_role` JWT (deprecated by Supabase end of 2026). anon / publishable keys are rejected. Status logged at startup (never the value) — SYSTEMS_INDEX §29a |
+| `RESEND_API_KEY` | Yes (email) | Resend HTTP API key — the only email provider (`email_service.py`, task 5.1a). Missing → emails return "unavailable", `/health` `email: missing`. Never logged / returned |
 | `REDIS_URL` | Optional | Redis cache; in-memory cache fallback when unset |
 | `WS_ALLOWED_ORIGINS` | Optional | Comma-separated WebSocket origin allowlist; unset = production defaults; `*` raises at startup |
 | `APP_ENV` | Optional | Default `production`; `development` adds localhost WS origins |
@@ -514,6 +515,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
 | Actions Registry — كل زر إجراء (متابعة، مراسلة، تحديد موعد…) من `twAction(id, ctx)` + `tw_actions.json` · ممنوع شرط ظهور زر بالصفحة (PR 3.7) | `docs/design-system/BUTTONS.md` BTN-19 · SYSTEMS_INDEX §60 |
 | Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
+| Unified Email System — `email_service.send_email` المرسل الوحيد (Resend) · نسيت كلمة المرور (رد واحد · توكن hash · 30 دقيقة · مرة وحدة) (task 5.1a) | `docs/rules/email.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |
