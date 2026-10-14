@@ -824,18 +824,21 @@ _USER_UNIQUE_INDEXES = (
 )
 
 
-def _ensure_user_unique_index(conn, table: str, col: str, index_name: str) -> int:
-    """Delete duplicate (user_id, col) rows — the oldest (lowest id) stays — then
-    CREATE UNIQUE INDEX IF NOT EXISTS, in one transaction under a write lock so no
-    duplicate can slip in between. Returns the number of rows deleted. Raises on failure."""
+def _ensure_user_unique_index(conn, table: str, col, index_name: str) -> int:
+    """Delete duplicate (user_id, col) rows — or duplicate user_id rows when col is None —
+    the oldest (lowest id) stays — then CREATE UNIQUE INDEX IF NOT EXISTS, in one
+    transaction under a write lock so no duplicate can slip in between.
+    Returns the number of rows deleted. Raises on failure."""
+    same_col = f" AND a.{col} = b.{col}" if col else ""
+    cols = f"user_id, {col}" if col else "user_id"
     conn.run("BEGIN")
     try:
         conn.run(f"LOCK TABLE {table} IN SHARE ROW EXCLUSIVE MODE")
         deleted = conn.run(
             f"DELETE FROM {table} a USING {table} b "
-            f"WHERE a.user_id = b.user_id AND a.{col} = b.{col} AND a.id > b.id "
+            f"WHERE a.user_id = b.user_id{same_col} AND a.id > b.id "
             f"RETURNING a.id")
-        conn.run(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} (user_id, {col})")
+        conn.run(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})")
         conn.run("COMMIT")
     except Exception:
         try:
@@ -863,6 +866,19 @@ def _migrate_user_unique_indexes() -> None:
         raise RuntimeError("unique index migration failed: " + ", ".join(failed))
 
 
+# PR 5.0a — UNIQUE (user_id) on profiles, needed by create_user's
+# INSERT INTO profiles … ON CONFLICT (user_id). A profiles table created before the
+# column carried UNIQUE never got it (CREATE TABLE IF NOT EXISTS does not alter an
+# existing table) → every emp registration failed. Index name = the inline
+# constraint's name, so an existing constraint satisfies IF NOT EXISTS.
+def _migrate_profiles_user_unique() -> None:
+    """Startup migration (critical — registration depends on it). Idempotent."""
+    with db_conn() as conn:
+        n = _ensure_user_unique_index(conn, "profiles", None, "profiles_user_id_key")
+    if n:
+        print(f"[migrate] profiles: removed {n} duplicate user_id rows — kept the oldest")
+
+
 def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
     """يولّد tw_id فريد مع التحقق من عدم التكرار."""
     while True:
@@ -872,6 +888,20 @@ def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
         )
         if not existing:
             return tw_id
+
+
+class EmailTakenError(ValueError):
+    """create_user: the email already belongs to an account (→ 409)."""
+
+
+def _is_email_taken_error(e: BaseException) -> bool:
+    """True only for a unique violation (SQLSTATE 23505) on users.email — read from the
+    PostgreSQL error fields pg8000 puts in args[0] (C = SQLSTATE, n = constraint,
+    D = detail), never from the message text."""
+    f = e.args[0] if getattr(e, "args", None) and isinstance(e.args[0], dict) else {}
+    if f.get("C") != "23505":
+        return False
+    return f.get("n") == "users_email_key" or str(f.get("D", "")).startswith("Key (email)=")
 
 
 # ══ المستخدمون ══
@@ -917,9 +947,11 @@ def create_user(
     except Exception as e:
         if not committed:
             try: conn.run("ROLLBACK")
-            except: pass
-        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-            raise ValueError("البريد الإلكتروني مسجل مسبقاً")
+            except Exception as _rb:
+                print(f"[create_user] rollback failed: {_rb!r}")
+        if _is_email_taken_error(e):
+            raise EmailTakenError("البريد الإلكتروني مسجل مسبقاً") from e
+        print(f"[create_user] {type(e).__name__}: {e}")
         raise
     finally:
         release_conn(conn)

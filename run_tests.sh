@@ -95,6 +95,7 @@ PY_DB=(
   pytest:test_follow_system.py
   pytest:test_otp_rate_limit_security.py
   pytest:test_pr2b_flow_fixes.py
+  pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py
 )
 

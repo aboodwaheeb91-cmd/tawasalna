@@ -104,7 +104,7 @@ def get_client_ip(request) -> str:
 
 
 from auth import (
-    init_db, _migrate_user_unique_indexes, get_conn,
+    init_db, _migrate_user_unique_indexes, _migrate_profiles_user_unique, EmailTakenError, get_conn,
     create_appointment, send_appointment, accept_appointment,
     request_reschedule_appointment, reschedule_appointment,
     cancel_appointment, complete_appointment, close_appointment,
@@ -739,6 +739,7 @@ async def _pipeline_asyncpg(
 def _startup_migrations():
     return (
         ("init_db",                           init_db,                             True),
+        ("profiles_user_unique",              _migrate_profiles_user_unique,       True),
         ("user_unique_indexes",               _migrate_user_unique_indexes,        False),
         ("news_posts",                        _migrate_news_posts,                 False),
         ("feed_indexes",                      _migrate_feed_indexes,               False),
@@ -3581,11 +3582,10 @@ def register(data: RegisterInput, request: Request):
         )
         token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
         return {"status": "success", "user": user, "token": token}
-    except ValueError as e:
+    except EmailTakenError as e:
         raise HTTPException(409, detail=str(e))
     except Exception as e:
-        print(f"Register error: {e}")
-        raise HTTPException(500, detail="خطأ في الخادم")
+        raise _server_error("register", e)
 
 @app.post("/auth/login")
 def login(data: LoginInput, request: Request):
