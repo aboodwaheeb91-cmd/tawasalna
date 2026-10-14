@@ -164,7 +164,8 @@ const PHASE_C = [path.join('static', 'job', 'job-detail.js'), 'appointments.html
   'edu-profile.html',   // edu logo via twAvatarEl xl — PR 1.7 (ARCHITECTURE.md → edu-profile)
   path.join('static', 'shared', 'tw-schedule.js'),   // person search avatars — PR 3.10 (SYSTEMS_INDEX §23b)
   'messages.render.js',   // conversation list + chat header avatars — PR 4.4 (SYSTEMS_INDEX §18)
-  path.join('static', 'home', 'home.cards.js')];  // feed company logo + post author — PR 4.1 (SYSTEMS_INDEX §12)
+  path.join('static', 'home', 'home.cards.js'),   // feed company logo + post author — PR 4.1 (SYSTEMS_INDEX §12)
+  path.join('static', 'company', 'company.main.js')];   // applicants / followers / talent bank avatars — PR 4.3c
 const SKIP = new Set(['.git', 'node_modules', 'vendor', '__pycache__', 'docs']);
 const users = [];
 (function walk(dir) {

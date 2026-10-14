@@ -1,4 +1,4 @@
-// company.main.js — bootstrap, navigation, modals, follow, cover, report
+// company.main.js — bootstrap, navigation, modals, follow, cover
 // Load order: 7th (last — depends on all other modules)
 (function () {
   'use strict';
@@ -26,8 +26,6 @@
     }
   }
 
-  // ── Dropdown menu ──────────────────────────────────────────────
-  // Menu toggle is handled by initGlobalHeaderMenu() in tw_shared.js (VM-10).
   var _branchesLoaded = false; // true only after GET /company/branches succeeds
 
   // ── Shared: resolve numeric company id (works on /u/C0... and ?id= routes) ─
@@ -45,7 +43,7 @@
 
   function toggleFollow() {
     // Guest → login, then back to this page (Follow System PR 3.5)
-    if (!window._jwt || !_jwt()) { location.href = twLoginHref(location.pathname + location.search); return; }
+    if (!TwCompanyPage.signedIn()) { TwCompanyPage.toLogin(); return; }
     if (!window.companyState || !companyState.permissions.can_follow) return;
     if (isFollowLoading) return;
 
@@ -81,69 +79,6 @@
       }
       if (window.renderFollowBtn) renderFollowBtn();
       if (window.renderStats)     renderStats();
-    });
-  }
-
-  // ── Contact modal ──────────────────────────────────────────────
-  function openContact() {
-    var el = document.getElementById('contactOverlay');
-    if (el) el.classList.add('show');
-    if (window.history && !_contactHistoryPushed) {
-      history.pushState({ modal: 'contact' }, '', location.href);
-      _contactHistoryPushed = true;
-    }
-  }
-  function closeContact(e) {
-    var el = document.getElementById('contactOverlay');
-    if (!e || e.target === el) {
-      if (el) el.classList.remove('show');
-      if (_contactHistoryPushed) {
-        _contactHistoryPushed = false;
-        if (window.history) history.back();
-      }
-    }
-  }
-  var isSendingMsg = false;
-  function sendMsg() {
-    var subjectEl = document.getElementById('msg-subject');
-    var bodyEl    = document.getElementById('msg-body');
-    var subject   = (subjectEl ? subjectEl.value : '').trim();
-    var body      = (bodyEl    ? bodyEl.value    : '').trim();
-    if (!body) { if (window.showToast) showToast('أدخل الرسالة', 'error'); return; }
-
-    if (!window._jwt || !_jwt()) { window.location.href = '/login'; return; }
-
-    var coId = _resolveCoId();
-    if (!coId) { if (window.showToast) showToast('تعذّر تحديد الشركة', 'error'); return; }
-
-    if (isSendingMsg) return;
-    isSendingMsg = true;
-    var sendBtn = document.getElementById('contactSendBtn');
-    if (sendBtn) sendBtn.disabled = true;
-
-    var content = subject ? (subject + '\n' + body) : body;
-
-    fetch('/messages/send', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ receiver_id: coId, content: content }),
-    })
-    .then(function (r) {
-      if (!r.ok) return r.json().then(function (e) { throw new Error(e.detail || String(r.status)); });
-      return r.json();
-    })
-    .then(function () {
-      if (subjectEl) subjectEl.value = '';
-      if (bodyEl)    bodyEl.value    = '';
-      closeContact();
-      if (window.showToast) showToast('تم إرسال رسالتك ✓');
-    })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر إرسال الرسالة، حاول مجدداً', 'error');
-    })
-    .finally(function () {
-      isSendingMsg = false;
-      if (sendBtn) sendBtn.disabled = false;
     });
   }
 
@@ -309,24 +244,23 @@
       bList.innerHTML = '<div class="branch-loading">جاري تحميل الفروع...</div>';
     }
     if (bCoId) {
-      fetch('/company/branches/' + bCoId)
-        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function (d) {
+      twApi('/company/branches/' + parseInt(bCoId, 10)).then(function (res) {
+        if (res.ok) {
           if (bList) {
             bList.innerHTML = '';
-            (d.branches || []).forEach(function (b) { _addBranchRow(b); });
+            ((res.raw && res.raw.branches) || []).forEach(function (b) { _addBranchRow(b); });
           }
           _branchesLoaded = true;
           if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
-        })
-        .catch(function () {
+        } else {
           if (bList) {
             bList.innerHTML =
               '<div class="branch-load-err">تعذّر تحميل الفروع، حاول إغلاق المودال وإعادة فتحه</div>';
           }
           if (window.showToast) showToast('تعذّر تحميل الفروع', 'error');
           // save stays disabled — _branchesLoaded remains false
-        });
+        }
+      });
     } else {
       // No company ID yet — treat as empty branches
       if (bList) bList.innerHTML = '';
@@ -354,18 +288,17 @@
       }
     }
   }
-  function _parseOk(r) {
-    if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || ('HTTP ' + r.status)); });
-    return r.json();
-  }
-
+  // @vm-extract-begin: co-save-edit
   // ── Confirmed Immediate Update helper ─────────────────────────
-  // Called only after all 3 PUTs succeed. Updates companyState + partial DOM.
+  // Called with the parts the server confirmed (a part that was not saved is passed as
+  // null and left untouched). Updates companyState + partial DOM.
   // Does NOT call renderAll() — calls renderProfile() + renderBranches() only.
   function _applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr) {
     if (!window.companyState) return;
     var p = companyState.profile  = companyState.profile  || {};
     var c = companyState.company  = companyState.company  || {};
+    profilePayload = profilePayload || {};
+    companyPayload = companyPayload || {};
     // Profile fields
     if (profilePayload.full_name !== undefined) p.full_name = profilePayload.full_name;
     if (profilePayload.bio       !== undefined) p.bio       = profilePayload.bio;
@@ -378,11 +311,10 @@
     if (companyPayload.founded_year  !== undefined) c.founded_year  = companyPayload.founded_year;
     if (companyPayload.company_size  !== undefined) c.company_size  = companyPayload.company_size;
     // Branches
-    companyState.branches = branchesArr;
+    if (branchesArr) companyState.branches = branchesArr;
     // Partial re-render — profile header + branches only
     if (window.renderProfile)  renderProfile();
-    if (window.renderBranches) renderBranches(companyState.branches);
-    if (window.lucide)         lucide.createIcons();
+    if (window.renderBranches && branchesArr) renderBranches(companyState.branches);
   }
 
   function saveEdit() {
@@ -402,9 +334,7 @@
     if (saveBtn && saveBtn.disabled) return;
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ…'; }
 
-    var coId = (companyState.profile || {}).id;
-    var jwt  = _jwt();
-    var hdrs = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt };
+    var coId = parseInt((companyState.profile || {}).id, 10);
 
     // Capture payloads before modal closes (modal stays open during save)
     var profilePayload = {
@@ -434,41 +364,51 @@
       });
     });
 
-    // ── 1. Update base profile (profiles table) ───────────────────
-    var p1 = fetch('/profile/' + coId, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify(profilePayload),
-    }).then(_parseOk);
+    // ── Save: 3 PUTs one after the other (no single endpoint covers all three) ──
+    // Sequential, not Promise.all: a failure stops the chain, so the user is told
+    // exactly which part was not saved, and only confirmed parts touch the page.
+    // company_profiles first — it carries the required classification check.
+    var steps = [
+      { part: 'company',  path: '/company/profile/'  + coId, body: coPayload },
+      { part: 'profile',  path: '/profile/'          + coId, body: profilePayload },
+      { part: 'branches', path: '/company/branches/' + coId, body: { branches: branchesArr } },
+    ];
+    var saved = {};
 
-    // ── 2. Update company_profiles table ──────────────────────────
-    var p2 = fetch('/company/profile/' + coId, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify(coPayload),
-    }).then(_parseOk);
-
-    // ── 3. Update branches (snapshot replace) ─────────────────────
-    var p3 = fetch('/company/branches/' + coId, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify({ branches: branchesArr }),
-    }).then(_parseOk);
-
-    Promise.all([p1, p2, p3])
-      .then(function () {
-        // Close modal only after API confirms success
-        var ov = document.getElementById('editOverlay');
-        if (ov) ov.classList.remove('show');
+    function _finish(failedStep, res) {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
+      var anySaved = saved.company || saved.profile || saved.branches;
+      if (anySaved) {
+        _applyCompanyLocalUpdate(saved.profile ? profilePayload : null,
+                                 saved.company ? coPayload : null,
+                                 saved.branches ? branchesArr : null);
+      }
+      if (!failedStep) {
+        closeEdit();   // closes the overlay and pops the history entry it pushed
         if (window.showToast) showToast('تم الحفظ ✓');
-        // Immediate DOM update from captured payloads — no full reload wait
-        _applyCompanyLocalUpdate(profilePayload, coPayload, branchesArr);
         // Background state sync — silent, no renderAll
         if (window.loadData) loadData({ silent: true });
-      })
-      .catch(function (err) {
-        // Keep modal open — user can correct and retry
-        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
-        if (window.showToast) showToast((err && err.message) || 'خطأ في الحفظ', 'error');
+        return;
+      }
+      // Keep the modal open — user can correct and retry (each PUT is a full replace)
+      var reason = twApiMessage(res, twT('company.edit.save_failed'));
+      var msg = twT('company.edit.part_failed', { part: twT('company.edit.part.' + failedStep.part), reason: reason });
+      if (anySaved) msg += ' ' + twT('company.edit.partial_retry');
+      if (window.showToast) showToast(msg, 'error');
+    }
+
+    (function _next(i) {
+      if (i >= steps.length) { _finish(null); return; }
+      var st = steps[i];
+      twApi(st.path, { method: 'PUT', body: st.body }).then(function (res) {
+        if (!res.ok) { _finish(st, res); return; }
+        saved[st.part] = true;
+        _next(i + 1);
       });
+    }(0));
   }
+
+  // @vm-extract-end: co-save-edit
 
   // ── Cover photo — crop via shared cropper, then upload ──
   function setCover(src) {
@@ -541,8 +481,9 @@
 
     var userId = window.companyState && companyState.profile && companyState.profile.id;
     if (!userId) return;
-    var jwt = window._jwt ? _jwt() : '';
-    if (!jwt) { window.location.href = '/login'; return; }
+    // Raw token for the shared upload client only (TW.uploadImage) — TwAuthSync.getToken
+    var jwt = (window.TwAuthSync && TwAuthSync.getToken) ? TwAuthSync.getToken() : '';
+    if (!jwt) { TwCompanyPage.toLogin(); return; }
 
     isUploadingCover = true;
     var saveBtn   = document.getElementById('coCoverCropSaveBtn');
@@ -558,14 +499,10 @@
         throw TW.uploadError(res, 'تعذّر رفع الغلاف، حاول مرة أخرى', 'upload_failed');
       }
       var url = res.data.url;
-      return fetch('/company/cover/' + userId, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-        body:    JSON.stringify({ cover_url: url }),
-      })
-      .then(TW.uploadResult)
-      .then(function (r2) {
-        if (!r2.ok) throw TW.uploadError(r2, 'تعذّر حفظ الغلاف، حاول مرة أخرى', 'save_failed');
+      return twApi('/company/cover/' + parseInt(userId, 10), {
+        method: 'PUT', body: { cover_url: url },
+      }).then(function (r2) {
+        if (!r2.ok) throw _saveError(r2, 'تعذّر حفظ الغلاف، حاول مرة أخرى');
         return url;
       });
     })
@@ -585,6 +522,14 @@
       if (saveBtn)   { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الغلاف'; }
       if (uploadBtn) uploadBtn.style.pointerEvents = '';
     });
+  }
+
+  // A failed twApi save after a successful upload → Error with .userMsg, the shape
+  // TW.uploadFailureMessage already reads in the flow's catch.
+  function _saveError(res, fallback) {
+    var err = new Error('save_failed');
+    err.userMsg = twApiMessage(res, fallback);
+    return err;
   }
 
   // ── Logo photo — crop via shared cropper, then upload ──
@@ -649,8 +594,8 @@
 
     var userId = window.companyState && companyState.profile && companyState.profile.id;
     if (!userId) return;
-    var jwt = window._jwt ? _jwt() : '';
-    if (!jwt) { window.location.href = '/login'; return; }
+    var jwt = (window.TwAuthSync && TwAuthSync.getToken) ? TwAuthSync.getToken() : '';
+    if (!jwt) { TwCompanyPage.toLogin(); return; }
 
     var saveBtn = document.getElementById('coLogoCropSaveBtn');
     var camBtn  = document.getElementById('coLogoCamBtn');
@@ -669,14 +614,10 @@
         throw TW.uploadError(res, 'تعذر رفع الصورة، حاول مرة أخرى', 'upload_failed');
       }
       var url = res.data.url;
-      return fetch('/profile/' + userId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-        body: JSON.stringify({ avatar_url: url })
-      })
-      .then(TW.uploadResult)
-      .then(function (r2) {
-        if (!r2.ok) throw TW.uploadError(r2, 'تعذّر حفظ الشعار، حاول مرة أخرى', 'save_failed');
+      return twApi('/profile/' + parseInt(userId, 10), {
+        method: 'PUT', body: { avatar_url: url },
+      }).then(function (r2) {
+        if (!r2.ok) throw _saveError(r2, 'تعذّر حفظ الشعار، حاول مرة أخرى');
         return url;
       });
     })
@@ -698,59 +639,10 @@
     });
   }
 
-  // ── Report modal ───────────────────────────────────────────────
-  var _reportTargetId = null, _reportTargetType = 'company', _reportTargetUrl = '';
-  function openReportModal(targetId, targetType, targetUrl) {
-    _reportTargetId   = targetId;
-    _reportTargetType = targetType || 'company';
-    _reportTargetUrl  = targetUrl  || location.href;
-    var el = document.getElementById('reportModal');
-    if (el) el.style.display = 'flex';
-    var reason = document.getElementById('reportReason');
-    if (reason) reason.value = '';
-  }
-  function closeReportModal() {
-    var el = document.getElementById('reportModal');
-    if (el) el.style.display = 'none';
-  }
-  function submitReport() {
-    var type   = (document.getElementById('reportType')    || {}).value || '';
-    var reason = ((document.getElementById('reportReason') || {}).value || '').trim();
-    if (!reason) { if (window.showToast) showToast('اكتب سبب البلاغ', 'error'); return; }
-    if (!_reportTargetId) { if (window.showToast) showToast('خطأ في البلاغ', 'error'); return; }
-    var btn = document.getElementById('reportSubmitBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'جاري الإرسال...'; }
-    fetch('/reports/submit', {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': 'Bearer ' + (window._jwt ? _jwt() : ''),
-      },
-      body: JSON.stringify({
-        reported_id:   _reportTargetId,
-        reported_type: _reportTargetType,
-        report_type:   type,
-        reason:        reason,
-        target_url:    _reportTargetUrl,
-      }),
-    })
-    .then(function (r) {
-      if (r.ok) { if (window.showToast) showToast('تم إرسال البلاغ ✓'); closeReportModal(); }
-      else throw new Error();
-    })
-    .catch(function () {
-      if (window.showToast) showToast('خطأ في إرسال البلاغ', 'error');
-    })
-    .finally(function () {
-      if (btn) { btn.disabled = false; btn.textContent = '🚨 إرسال البلاغ'; }
-    });
-  }
-
   // ── Applicants Modal — owner-only, per-job ────────────────────
   var _appJobId               = null;
   var _appLoading             = false;
   var _appModalHistoryPushed  = false; // true after pushState for applicants modal
-  var _contactHistoryPushed   = false; // true after pushState for contact modal
   var _editHistoryPushed      = false; // true after pushState for edit modal
   var _astFloat               = null;   // singleton classify dropdown (body-level)
   var _astFloatTrigger        = null;   // classify btn that opened it
@@ -773,19 +665,6 @@
     rejected:  'غير مناسب'
   };
 
-  function _escApp(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function _appFmtDate(iso) {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('ar-EG',
-        { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch (e) { return ''; }
-  }
 
   function openApplicantsModal(jobId) {
     _appJobId   = jobId;
@@ -810,44 +689,46 @@
     var el = document.getElementById('coApplicantsModal');
     if (el) el.style.display = 'none';
     _appJobId = null;
+    _appReqSeq++;   // any in-flight applicants reply is now stale
     if (_appModalHistoryPushed) {
       _appModalHistoryPushed = false;
       if (window.history) history.back();
     }
   }
 
+  // @vm-extract-begin: co-applicants-load
+  // Each call is a new request; only the latest one for the job that is open now may
+  // render. A reply for job A that lands after the modal moved to job B (or closed)
+  // is dropped — before, A's applicants showed under B's title.
+  var _appReqSeq = 0;
   function _loadApplicants(jobId) {
-    if (_appLoading) return;
+    var seq = ++_appReqSeq;
     _appLoading = true;
     var list = document.getElementById('coAppList');
     if (list) list.innerHTML = '<div class="co-app-spin">جارٍ التحميل…</div>';
-    var jwt = window._jwt ? _jwt() : '';
-    if (!jwt) {
+    if (!TwCompanyPage.signedIn()) {
       if (list) list.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
       _appLoading = false;
       return;
     }
-    fetch('/jobs/' + parseInt(jobId, 10) + '/applicants', {
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      if (!r.ok) { var err = new Error('HTTP ' + r.status); err.status = r.status; throw err; }
-      return r.json();
-    })
-    .then(function (data) {
+    twApi('/jobs/' + parseInt(jobId, 10) + '/applicants').then(function (res) {
+      if (seq !== _appReqSeq || String(jobId) !== String(_appJobId)) return;   // stale reply
       _appLoading = false;
+      if (!res.ok) {
+        var list2 = document.getElementById('coAppList');
+        var msg = (res.status === 401 || res.status === 403)
+          ? 'انتهت الجلسة أو لا تملك صلاحية عرض المتقدمين'
+          : 'تعذّر تحميل المتقدمين، حاول مجدداً';
+        if (list2) list2.innerHTML = '<div class="co-app-empty">' + twEscHtml(msg) + '</div>';
+        return;
+      }
+      var data = res.raw;
       var apps = (data && Array.isArray(data.applicants)) ? data.applicants : [];
       _renderApplicants(apps);
-    })
-    .catch(function (err) {
-      _appLoading = false;
-      var list2 = document.getElementById('coAppList');
-      var msg = (err && (err.status === 401 || err.status === 403))
-        ? 'انتهت الجلسة أو لا تملك صلاحية عرض المتقدمين'
-        : 'تعذّر تحميل المتقدمين، حاول مجدداً';
-      if (list2) list2.innerHTML = '<div class="co-app-empty">' + msg + '</div>';
     });
   }
+
+  // @vm-extract-end: co-applicants-load
 
   function _renderApplicants(apps) {
     var list = document.getElementById('coAppList');
@@ -858,10 +739,9 @@
     }
     var html = '';
     apps.forEach(function (a) {
-      var initial        = (a.full_name || '؟').charAt(0);
       var statusKey      = a.status || 'pending';
       var statusLbl      = _APP_STATUS_LABEL[statusKey] || statusKey;
-      var dateStr        = _appFmtDate(a.applied_at);
+      var dateStr        = twFormatDate(a.applied_at);
       var appId          = parseInt(a.id, 10);
       var uid            = parseInt(a.user_id, 10);
       var twId           = a.tw_id || '';
@@ -876,30 +756,27 @@
       var isHired      = statusKey === 'hired';
       var isClassified = statusKey !== 'pending';
 
-      var avatarHtml = a.avatar_url
-        ? '<img src="' + _escApp(a.avatar_url) + '" alt="" loading="lazy"'
-          + ' onerror="this.style.display=\'none\';this.parentNode.dataset.fb=\'1\'">'
-          + '<span class="co-app-ava-fb">' + _escApp(initial) + '</span>'
-        : _escApp(initial);
+      // DS-IMAGE: URL check + fallback letter + error handling all live in twAvatarHtml
+      var avatarHtml = twAvatarHtml({ full_name: a.full_name, avatar_url: a.avatar_url, user_type: 'emp' }, 'md');
 
       var statusBadge = isClassified
-        ? '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        ? '<span class="co-app-status co-app-status--' + twEscHtml(statusKey) + '">' + twEscHtml(statusLbl) + '</span>'
         : '';
 
       var stageHtml = (entryId && stage)
-        ? '<div class="co-app-meta-line co-app-stage">المرحلة: ' + _escApp(stage) + '</div>'
+        ? '<div class="co-app-meta-line co-app-stage">المرحلة: ' + twEscHtml(stage) + '</div>'
         : '';
 
       var nextApptHtml = '';
       if (nextAppt && nextAppt.scheduled_at) {
         var apptTypeLbl = nextAppt.appointment_type || 'مقابلة';
         nextApptHtml = '<div class="co-app-next-appt">'
-          + _escApp(apptTypeLbl) + ' · ' + _escApp(_appFmtDate(nextAppt.scheduled_at))
+          + twEscHtml(apptTypeLbl) + ' · ' + twEscHtml(twFormatDate(nextAppt.scheduled_at))
           + '</div>';
       }
 
       var viewBtn = twId
-        ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+        ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
         : '';
 
       var classifyLbl = !isClassified ? 'ترشيح للوظيفة ▾'
@@ -908,7 +785,7 @@
 
       var classifyBtn = '<button type="button" class="co-classify-btn co-app-act'
         + (isRejected ? ' co-classify-btn--reclassify' : '')
-        + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
+        + '" data-app-id="' + appId + '" data-status="' + twEscHtml(statusKey) + '"'
         + ' data-uid="' + uid + '"'
         + (isHired ? ' data-hired="1"' : '')
         + '>' + classifyLbl + '</button>';
@@ -933,21 +810,21 @@
 
       var savedCtx = isSaved && otherJobTitles.length > 0
         ? '<div class="co-app-saved-ctx">محفوظ · أيضاً في: '
-          + otherJobTitles.slice(0, 2).map(function (t) { return _escApp(t); }).join(' · ')
+          + otherJobTitles.slice(0, 2).map(function (t) { return twEscHtml(t); }).join(' · ')
           + (otherJobTitles.length > 2 ? ' · +' + (otherJobTitles.length - 2) : '')
           + '</div>'
         : '';
 
       html += '<div class="co-app-card' + (isRejected ? ' co-app-card--rejected' : '') + '"'
-        + ' data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '"'
-        + ' data-uid="' + uid + '" data-tw-id="' + _escApp(twId) + '"'
+        + ' data-app-id="' + appId + '" data-name="' + twEscHtml(a.full_name || '') + '"'
+        + ' data-uid="' + uid + '" data-tw-id="' + twEscHtml(twId) + '"'
         + (entryId ? ' data-entry-id="' + entryId + '"' : '')
         + '>'
         + '<div class="co-app-card-head">'
-        +   '<div class="co-app-ava">' + avatarHtml + '</div>'
+        +   avatarHtml
         +   '<div class="co-app-info">'
-        +     '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
-        +     (dateStr ? '<div class="co-app-meta-line">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
+        +     '<div class="co-app-name">' + twEscHtml(a.full_name || '—') + '</div>'
+        +     (dateStr ? '<div class="co-app-meta-line">تقدّم: ' + twEscHtml(dateStr) + '</div>' : '')
         +     stageHtml
         +   '</div>'
         +   statusBadge
@@ -975,9 +852,9 @@
       : null;
     return '<span data-tw-schedule-slot data-class="co-app-sched-btn co-app-act"'
       + ' data-candidate-id="' + parseInt(uid, 10) + '"'
-      + ' data-candidate-name="' + _escApp(name) + '"'
+      + ' data-candidate-name="' + twEscHtml(name) + '"'
       + ' data-job-id="' + (parseInt(_appJobId, 10) || '') + '"'
-      + ' data-job-title="' + _escApp(job ? job.title : '') + '"></span>';
+      + ' data-job-title="' + twEscHtml(job ? job.title : '') + '"></span>';
   }
 
   function _wireApplicantCards(list) {
@@ -998,16 +875,22 @@
       promoteBtn.disabled    = true;
       promoteBtn.textContent = 'جارٍ الترقية…';
     }
-    var jwt = window._jwt ? _jwt() : '';
-    fetch('/jobs/applications/' + appId + '/promote', {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
-      return r.json();
-    })
-    .then(function (data) {
+    twApi('/jobs/applications/' + parseInt(appId, 10) + '/promote', { method: 'POST' }).then(function (res) {
+      if (!res.ok) {
+        if (promoteBtn) {
+          promoteBtn.disabled    = false;
+          promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
+        }
+        var status = res.status;
+        var msg;
+        if (status === 403) msg = 'انتهت الجلسة أو لا تملك صلاحية الترقية';
+        else if (status === 404) msg = 'الطلب غير موجود';
+        else if (status === 401) msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
+        else                     msg = 'تعذّرت الترقية، حاول مجدداً';
+        if (window.showToast) showToast(msg, 'error');
+        return;
+      }
+      var data = res.raw || {};
       var action = data && data.candidate && data.candidate.action;
       // PR 2B: rejected / withdrawn → server changed nothing; keep the card as it is.
       if (action === 'rejected_noop') {
@@ -1038,19 +921,6 @@
                 : action === 'unchanged' ? 'المرشح مصنّف مسبقاً ✓'
                 : 'تم تصنيف المرشح بنجاح ✓');
       }
-    })
-    .catch(function (err) {
-      if (promoteBtn) {
-        promoteBtn.disabled    = false;
-        promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
-      }
-      var status = err && err.status;
-      var msg;
-      if (status === 403) msg = 'انتهت الجلسة أو لا تملك صلاحية الترقية';
-      else if (status === 404) msg = 'الطلب غير موجود';
-      else if (status === 401) msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
-      else                     msg = 'تعذّرت الترقية، حاول مجدداً';
-      if (window.showToast) showToast(msg, 'error');
     });
   }
 
@@ -1059,26 +929,18 @@
     if (!uid || btn.disabled) return;
     btn.disabled    = true;
     btn.textContent = 'جارٍ الحفظ…';
-    var jwt     = window._jwt ? _jwt() : '';
     var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
-    fetch('/company/saved-candidates/' + uid + jobSufx, {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'error'); });
-      return r.json();
-    })
-    .then(function () {
+    twApi('/company/saved-candidates/' + uid + jobSufx, { method: 'POST' }).then(function (res) {
+      if (!res.ok) {
+        btn.disabled    = false;
+        btn.textContent = '+ حفظ المرشح';
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ المرشح'), 'error');
+        return;
+      }
       btn.textContent = 'تم الحفظ ✓';
       btn.classList.add('saved');
       btn.disabled = true;
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
-    })
-    .catch(function (err) {
-      btn.disabled    = false;
-      btn.textContent = '+ حفظ المرشح';
-      if (window.showToast) showToast((err && err.message) || 'تعذّر حفظ المرشح', 'error');
     });
   }
 
@@ -1088,20 +950,12 @@
     if (!uid || btn.disabled || btn.getAttribute('data-saved') === '1') return;
     btn.disabled    = true;
     btn.textContent = 'جارٍ الحفظ…';
-    var jwt     = window._jwt ? _jwt() : '';
     var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
-    fetch('/company/saved-candidates/' + uid + jobSufx, {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
-    })
-    .then(function (res) {
-      if (res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
+    twApi('/company/saved-candidates/' + uid + jobSufx, { method: 'POST' }).then(function (res) {
+      if (res.status === 409 && res.raw && res.raw.code === 'talent_bank_limit_reached') {
         btn.disabled    = false;
         btn.textContent = 'حفظ في بنك المواهب';
-        var body = res.data;
+        var body = res.raw;
         if (window.showToast) showToast(
           'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
           + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
@@ -1124,11 +978,6 @@
       btn.disabled = true;
       if (window.showToast) showToast('تم الحفظ في بنك المواهب ✓');
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
-    })
-    .catch(function () {
-      btn.disabled    = false;
-      btn.textContent = 'حفظ في بنك المواهب';
-      if (window.showToast) showToast('تعذّر الحفظ في بنك المواهب، حاول مجدداً', 'error');
     });
   }
 
@@ -1182,24 +1031,19 @@
   function _loadPanelNotes(entryId) {
     var listEl = document.getElementById('coNotesList');
     if (!listEl) return;
-    var jwt = window._jwt ? _jwt() : '';
-    if (!jwt) {
+    if (!TwCompanyPage.signedIn()) {
       listEl.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
       return;
     }
-    fetch('/company/pipeline/' + entryId + '/notes', {
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function (d) {
-      var notes = (d && d.data && Array.isArray(d.data.notes)) ? d.data.notes : [];
+    twApi('/company/pipeline/' + parseInt(entryId, 10) + '/notes').then(function (res) {
+      if (entryId !== _notesCurrentEntryId) return;   // panel moved on / closed
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="co-app-empty">تعذّر تحميل الملاحظات</div>';
+        return;
+      }
+      var d = res.data;
+      var notes = (d && Array.isArray(d.notes)) ? d.notes : [];
       _renderPanelNotes(notes, listEl);
-    })
-    .catch(function () {
-      if (listEl) listEl.innerHTML = '<div class="co-app-empty">تعذّر تحميل الملاحظات</div>';
     });
   }
 
@@ -1239,28 +1083,19 @@
     _notesInFlight = true;
     var submitBtn = document.getElementById('coNotesSubmit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الحفظ…'; }
-    var jwt = window._jwt ? _jwt() : '';
-    fetch('/company/pipeline/' + entryId + '/notes', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: body })
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function () {
-      if (inp) inp.value = '';
+    twApi('/company/pipeline/' + parseInt(entryId, 10) + '/notes', {
+      method: 'POST', body: { body: body },
+    }).then(function (res) {
       _notesInFlight = false;
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إضافة'; }
+      if (!res.ok) {
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ الملاحظة'), 'error');
+        return;
+      }
+      if (inp) inp.value = '';
       _loadPanelNotes(entryId);
       // Refresh notes count on the card
       _refreshCardNotesCount(entryId);
-    })
-    .catch(function () {
-      _notesInFlight = false;
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إضافة'; }
-      if (window.showToast) showToast('تعذّر حفظ الملاحظة', 'error');
     });
   }
 
@@ -1269,22 +1104,14 @@
     if (!noteId) return;
     var entryId = _notesCurrentEntryId;
     delBtn.disabled = true;
-    var jwt = window._jwt ? _jwt() : '';
-    fetch('/company/pipeline/notes/' + noteId, {
-      method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function () {
+    twApi('/company/pipeline/notes/' + noteId, { method: 'DELETE' }).then(function (res) {
+      if (!res.ok) {
+        delBtn.disabled = false;
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حذف الملاحظة'), 'error');
+        return;
+      }
       _loadPanelNotes(entryId);
       _refreshCardNotesCount(entryId);
-    })
-    .catch(function () {
-      delBtn.disabled = false;
-      if (window.showToast) showToast('تعذّر حذف الملاحظة', 'error');
     });
   }
 
@@ -1458,7 +1285,6 @@
 
   // ── Classify: save candidate + set application status ──────────
   function _execClassify(appId, newStatus, card, classifyBtn, prevStatus, wasSaved, onSuccess) {
-    var jwt = window._jwt ? _jwt() : '';
 
     // "مرشح قوي" uses the promote endpoint (atomic save + accept)
     if (newStatus === 'accepted') {
@@ -1481,17 +1307,12 @@
     // Single atomic request — backend writes job_applications.status AND
     // company_candidate_job_refs.candidate_status in one transaction (pipeline dual-write).
     // Does NOT write to company_saved_candidates (Talent Bank independence — PR-3).
-    fetch('/jobs/applications/' + appId + '/status', {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-      body:    JSON.stringify({ status: newStatus })
-    })
-      .then(function (r) {
-        if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
-        return r.json();
-      })
-      .then(function (data) {
-        if (card) {
+    twApi('/jobs/applications/' + parseInt(appId, 10) + '/status', {
+      method: 'PUT', body: { status: newStatus },
+    }).then(function (res) {
+      if (!res.ok) { _onClassifyFail(res); return; }
+      var data = res.raw || {};
+      if (card) {
           _reRenderCardFoot(card, newStatus);
         }
         // Dispatch cross-IIFE event so Saved Candidates screen syncs without refresh.
@@ -1508,23 +1329,24 @@
         if (window._loadCandidatesBadge) window._loadCandidatesBadge();
         if (window.showToast) showToast('تم التصنيف بنجاح ✓');
         if (onSuccess) onSuccess();
-      })
-      .catch(function (err) {
-        var msg = (err && (err.status === 401 || err.status === 403))
-          ? 'انتهت الجلسة أو لا تملك صلاحية التصنيف'
-          : 'تعذّر التصنيف، حاول مجدداً';
-        if (window.showToast) showToast(msg, 'error');
-        if (_appJobId) {
-          _loadApplicants(_appJobId);
-        } else {
-          if (card) _applyClassifyBadge(card, prevStatus);
-          if (classifyBtn) {
-            classifyBtn.disabled    = false;
-            var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
-            classifyBtn.textContent = wasFresh ? 'ترشيح للوظيفة ▾' : 'تعديل التصنيف ▾';
-          }
-        }
       });
+
+    function _onClassifyFail(res) {
+      var msg = (res.status === 401 || res.status === 403)
+        ? 'انتهت الجلسة أو لا تملك صلاحية التصنيف'
+        : 'تعذّر التصنيف، حاول مجدداً';
+      if (window.showToast) showToast(msg, 'error');
+      if (_appJobId) {
+        _loadApplicants(_appJobId);
+      } else {
+        if (card) _applyClassifyBadge(card, prevStatus);
+        if (classifyBtn) {
+          classifyBtn.disabled    = false;
+          var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
+          classifyBtn.textContent = wasFresh ? 'ترشيح للوظيفة ▾' : 'تعديل التصنيف ▾';
+        }
+      }
+    }
   }
 
   function _applyClassifyBadge(card, statusKey) {
@@ -1566,13 +1388,13 @@
     }
 
     var viewHtml = twId
-      ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+      ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
       : '';
 
     var classifyLbl  = isRejected ? 'إعادة التصنيف ▾' : 'تعديل التصنيف ▾';
     var classifyHtml = '<button type="button" class="co-classify-btn co-app-act'
       + (isRejected ? ' co-classify-btn--reclassify' : '')
-      + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
+      + '" data-app-id="' + appId + '" data-status="' + twEscHtml(statusKey) + '"'
       + ' data-uid="' + uid + '"'
       + (isHired ? ' data-hired="1"' : '')
       + '>' + classifyLbl + '</button>';
@@ -1587,11 +1409,18 @@
       + (tbAlreadySaved ? ' disabled' : '')
       + '>' + tbLbl + '</button>';
 
+    // Notes button stays after a reclassify — kept as is (its count badge included),
+    // or built from the card's pipeline entry when the card did not have one yet.
+    var existingNotes = card.querySelector('.co-notes-btn');
+    var entryId       = parseInt(card.getAttribute('data-entry-id'), 10) || 0;
+    var notesHtml     = existingNotes ? existingNotes.outerHTML
+      : (entryId ? '<button type="button" class="co-notes-btn co-app-act" data-entry-id="' + entryId + '">ملاحظات الوظيفة</button>' : '');
+
     var schedHtml = isRejected ? '' : _schedSlotHTML(uid, card.getAttribute('data-name') || '');
 
     var foot = card.querySelector('.co-app-card-foot');
     if (foot) {
-      foot.innerHTML = viewHtml + classifyHtml + talentHtml + schedHtml;
+      foot.innerHTML = viewHtml + classifyHtml + talentHtml + notesHtml + schedHtml;
       if (window.twScheduleMount) twScheduleMount(foot);
     }
   }
@@ -1604,13 +1433,6 @@
     if (editEl && editEl.classList.contains('show')) {
       _editHistoryPushed = false;
       closeEdit();
-      return;
-    }
-    // contact modal
-    var contactEl = document.getElementById('contactOverlay');
-    if (contactEl && contactEl.classList.contains('show')) {
-      _contactHistoryPushed = false;
-      closeContact();
       return;
     }
     // postJob / editJob modal (handled by company.jobs.js via _closePostJobOverlay)
@@ -1646,11 +1468,7 @@
   // ── Expose ─────────────────────────────────────────────────────
   window.switchTab                = switchTab;
   window.doLogout                 = doLogout;
-  // toggleMenu removed — menu lifecycle handled by initGlobalHeaderMenu (VM-10)
   window.toggleFollow             = toggleFollow;
-  window.openContact              = openContact;
-  window.closeContact             = closeContact;
-  window.sendMsg                  = sendMsg;
   window.openEditModal            = openEditModal;
   window.closeEdit                = closeEdit;
   window.saveEdit                 = saveEdit;
@@ -1662,9 +1480,6 @@
   window.uploadLogo               = uploadLogo;
   window.openLogoCrop             = openLogoCrop;
   window.closeLogoCrop            = closeLogoCrop;
-  window.openReportModal          = openReportModal;
-  window.closeReportModal         = closeReportModal;
-  window.submitReport             = submitReport;
   window.openApplicantsModal      = openApplicantsModal;
   window.closeApplicantsModal     = closeApplicantsModal;
   window._onSaveApplicant         = _onSaveApplicant;
@@ -1686,8 +1501,6 @@
     var editInfoBtn   = q('editInfoBtn');   if (editInfoBtn)   editInfoBtn.addEventListener('click', openEditModal);
     var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
-    // Shared header — session-aware menu via initGlobalHeaderMenu (VM-10)
-    if (window.initGlobalHeaderMenu) initGlobalHeaderMenu('coMenuBtn', 'coMenuDropdown', 'coMenuDynamic');
 
     // Cover photo upload → crop overlay → upload
     var coverFileInput = q('coverFileInput');
@@ -1731,9 +1544,8 @@
       if (e.target === coLogoCropOverlay) closeLogoCrop();
     });
 
-    // Follow + Contact
+    // Follow
     var followBtn  = q('followBtn');  if (followBtn)  followBtn.addEventListener('click', toggleFollow);
-    var contactBtn = q('contactBtn'); if (contactBtn) contactBtn.addEventListener('click', openContact);
 
     // Tabs
     document.querySelectorAll('.sc-tab[data-tab]').forEach(function (tab) {
@@ -1753,16 +1565,6 @@
     // Add branch row
     var addBranchBtn = q('addBranchBtn');
     if (addBranchBtn) addBranchBtn.addEventListener('click', function () { _addBranchRow({}); });
-
-    // Contact modal
-    var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);
-    var contactSendBtn   = q('contactSendBtn');   if (contactSendBtn)   contactSendBtn.addEventListener('click', sendMsg);
-    var contactCancelBtn = q('contactCancelBtn');
-    if (contactCancelBtn) contactCancelBtn.addEventListener('click', function () { closeContact(); });
-
-    // Report modal
-    var reportSubmitBtn = q('reportSubmitBtn'); if (reportSubmitBtn) reportSubmitBtn.addEventListener('click', submitReport);
-    var reportCancelBtn = q('reportCancelBtn'); if (reportCancelBtn) reportCancelBtn.addEventListener('click', closeReportModal);
 
     // Inline handlers migrated from HTML (refactor/company-profile-remove-inline-handlers)
     // Edit modal X button — calls closeEdit() without args; !e path closes unconditionally
@@ -1837,30 +1639,10 @@
 
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    if (window.lucide) lucide.createIcons();
     if (window.initScrollProg)      initScrollProg();
     if (window.initCompanyProfile)  initCompanyProfile();
     _bindMainEvents();
   });
-
-  // ── Pull-to-refresh ────────────────────────────────────────────
-  var _ptr2Start = 0, _ptr2Active = false;
-  document.addEventListener('touchstart', function (e) {
-    if (window.scrollY === 0) _ptr2Start = e.touches[0].clientY;
-  }, { passive: true });
-  document.addEventListener('touchend', function () {
-    if (_ptr2Active) {
-      _ptr2Active = false;
-      if (window.showToast) showToast('جاري التحديث...', 'info', 1200);
-      if (window.loadData) loadData();
-    }
-  }, { passive: true });
-  document.addEventListener('touchmove', function (e) {
-    if (window.scrollY === 0 && _ptr2Start > 0) {
-      var diff = e.touches[0].clientY - _ptr2Start;
-      if (diff > 120 && !_ptr2Active) { _ptr2Active = true; }
-    }
-  }, { passive: true });
 }());
 
 // ── Company Followers Modal ────────────────────────────────────────
@@ -1876,6 +1658,7 @@
   var _filtersEl= document.getElementById('coFlFilters');
 
   var _loading  = false;
+  var _reqSeq   = 0;      // last request wins — a filter click supersedes the one in flight
   var _filter   = 'all';
   var _offset   = 0;
   var _limit    = 20;
@@ -1926,26 +1709,14 @@
     });
   }
 
-  function _esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
   function _renderItems(items) {
     items.forEach(function (item) {
       var div = document.createElement('div');
       div.className = 'co-fl-item';
 
-      // Avatar
-      var avaDiv = document.createElement('div');
-      avaDiv.className = 'co-fl-ava';
-      if (item.avatar_url) {
-        var img = document.createElement('img');
-        img.src = item.avatar_url;
-        img.alt = item.display_name || '';
-        avaDiv.appendChild(img);
-      } else {
-        avaDiv.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
-      }
+      // Avatar / logo — DS-IMAGE (shape by account type, URL check, fallback letter)
+      var avaDiv = twAvatarEl({ full_name: item.display_name, avatar_url: item.avatar_url,
+                                user_type: item.user_type }, 'md');
 
       // Info
       var infoDiv = document.createElement('div');
@@ -1972,8 +1743,7 @@
         followBtnEl.textContent = item.is_following ? 'متابَع' : 'تابع';
         (function (it, btn) {
           btn.addEventListener('click', function () {
-            var jwt = window._jwt ? window._jwt() : '';
-            if (!jwt) { location.href = twLoginHref(location.pathname + location.search); return; }
+            if (!TwCompanyPage.signedIn()) { TwCompanyPage.toLogin(); return; }
             var isF = btn.classList.contains('following');
             btn.disabled = true;
             followAccount(it.id, !isF).then(function (res) {
@@ -1997,13 +1767,17 @@
     });
   }
 
+  // replace = a new list (open / filter): always runs and makes any older reply stale.
+  // !replace = "load more": skipped while a request is running.
   function _fetchPage(replace) {
     var coId = _getCompanyId();
-    if (_loading || !coId) return;
+    if (!coId || (_loading && !replace)) return;
+    var seq = replace ? ++_reqSeq : _reqSeq;
     _loading = true;
     if (replace) _list.innerHTML = '<div class="co-fl-spin">جاري التحميل...</div>';
     window.getCompanyFollowersList(coId, _limit, _offset, _filter)
       .then(function (res) {
+        if (seq !== _reqSeq) return;   // superseded by a newer filter / open
         _loading = false;
         if (!res || !res.ok || !res.data) {
           if (replace) _list.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
@@ -2023,9 +1797,9 @@
         _offset += d.items.length;
         _hasMore = d.pagination && d.pagination.has_more;
         _loadWrap.style.display = _hasMore ? '' : 'none';
-        if (window.lucide && lucide.createIcons) lucide.createIcons();
       })
       .catch(function () {
+        if (seq !== _reqSeq) return;
         _loading = false;
         if (replace) _list.innerHTML = '<div class="co-fl-empty">حدث خطأ، حاول مرة أخرى</div>';
       });
@@ -2066,9 +1840,6 @@
     document.body.style.overflow = '';
   }
 
-  function _esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
 
   function _stars(n) {
     var s = '';
@@ -2111,9 +1882,9 @@
 
     var avg = d.rating_avg ? parseFloat(d.rating_avg).toFixed(1) : '—';
     html += '<div class="co-rat-summary">';
-    html += '<div class="co-rat-avg">' + _esc(avg) + '</div>';
+    html += '<div class="co-rat-avg">' + twEscHtml(avg) + '</div>';
     html += '<div class="co-rat-stars">' + _stars(Math.round(d.rating_avg || 0)) + '</div>';
-    html += '<div class="co-rat-count">من ' + _esc(d.rating_count) + ' تقييم</div>';
+    html += '<div class="co-rat-count">من ' + twEscHtml(d.rating_count) + ' تقييم</div>';
     html += '</div>';
 
     // ── Distribution ──
@@ -2139,7 +1910,7 @@
       d.recent_comments.forEach(function (c) {
         html += '<div class="co-rat-comment">';
         html += '<span class="co-rat-comment-stars">' + _stars(c.score) + '</span>';
-        html += '<p class="co-rat-comment-text">' + _esc(c.comment) + '</p>';
+        html += '<p class="co-rat-comment-text">' + twEscHtml(c.comment) + '</p>';
         html += '</div>';
       });
       html += '</div>';
@@ -2187,35 +1958,12 @@
         stars.forEach(function (st) { st.classList.remove('active'); });
       });
       star.addEventListener('click', function () {
-        var score = parseInt(this.dataset.score);
-        _submitRating(score);
+        var score = parseInt(this.dataset.score, 10);
+        // The one rating submit (company.jobs.js) — guard, optimistic paint, toasts
+        if (!window.submitRating) return;
+        window.submitRating(score).then(function (saved) { if (saved) _fetch(); });
       });
     });
-  }
-
-  function _submitRating(score) {
-    var s = window.companyState;
-    if (!s || !s.profile) return;
-    var coId = String(s.profile.id);
-    var jwt  = window._jwt ? window._jwt() : '';
-    if (!jwt) return;
-    fetch('/company/rate/' + coId, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-      body: JSON.stringify({ score: score })
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (res) {
-      if (res.status === 'success') {
-        if (window.companyState) {
-          companyState.stats.rating_avg   = res.rating_avg;
-          companyState.stats.rating_count = res.rating_count;
-          if (window.renderStats) renderStats();
-        }
-        _fetch();
-      }
-    })
-    .catch(function () {});
   }
 
   // Wire
@@ -2229,22 +1977,6 @@
   });
 
   window._coRatOpen = _open;
-}());
-
-// ── Soft refresh: followers count every 30s while page is visible ─
-(function () {
-  var _interval = null;
-  function _start() {
-    if (_interval) return;
-    _interval = setInterval(function () {
-      if (window.loadData) loadData({ silent: true });
-    }, 30000);
-  }
-  function _stop() { clearInterval(_interval); _interval = null; }
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) _stop(); else _start();
-  });
-  document.addEventListener('DOMContentLoaded', _start);
 }());
 
 // ── Candidates Modal (Phase 4 + Phase 5B + Phase 6B — owner-only) ──
@@ -2364,39 +2096,25 @@
     }
   }
 
-  // ── Text escape helper ─────────────────────────────────────────
-  function _esc(s) {
-    if (s == null) return '';
-    return String(s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+
+  // Candidate avatar — DS-IMAGE (URL check, fallback letter, error handling)
+  function _candAvatarHTML(item) {
+    return twAvatarHtml({ full_name: item.full_name, avatar_url: item.avatar_url, user_type: 'emp' }, 'md');
   }
 
-  // ── Avatar SVG fallback ────────────────────────────────────────
-  var _avatarSvg =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
-    '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
-
-  // ── Custom dark picker helpers (Phase UI-Polish) ───────────────
-  var _S = 'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
-  function _chevronSvg() {
-    return '<svg class="co-dp-chev" viewBox="0 0 24 24" fill="none" ' + _S + '>'
-         + '<polyline points="6 9 12 15 18 9"/></svg>';
-  }
-  function _checkSvg() {
-    return '<svg class="co-dp-chk" viewBox="0 0 24 24" fill="none" ' + _S + '>'
-         + '<polyline points="20 6 9 17 4 12"/></svg>';
-  }
-  // Filter chip icons (Lucide-style inline SVG)
+  // ── Custom dark picker helpers (Phase UI-Polish) — icons from DS-ICON ──
+  function _chevronSvg() { return twIcon('expand', { className: 'co-dp-chev' }); }
+  function _checkSvg()   { return twIcon('check',  { className: 'co-dp-chk' }); }
+  // Filter chip icons — DS-ICON names by meaning (twIcon registry)
   var _FILTER_ICONS = {
-    'null':        '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
-    'saved':       '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
-    'shortlisted': '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
-    'contacted':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-    'interview':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-    'hired':       '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-    'rejected':    '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-    '_unlinked':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/></svg>'
+    'null':        'list',
+    'saved':       'bookmark',
+    'shortlisted': 'star',
+    'contacted':   'comment',
+    'interview':   'calendar',
+    'hired':       'success',
+    'rejected':    'error',
+    '_unlinked':   'user-minus'
   };
   // Build a custom dark picker (wrapClass + options array + current value).
   // meta (optional 4th arg): { cid, jid, locked } — adds data-cid/data-jid to wrap,
@@ -2410,17 +2128,17 @@
     var listHtml = opts.map(function (o) {
       var cls = 'co-dp-opt' + (o.value === current ? ' selected' : '') + (o.disabled ? ' co-dp-opt--disabled' : '');
       return '<button class="' + cls + '"'
-           + ' data-value="' + _esc(o.value) + '" type="button"'
+           + ' data-value="' + twEscHtml(o.value) + '" type="button"'
            + (o.disabled ? ' data-linked="1"' : '') + '>'
            + _checkSvg()
-           + '<span>' + _esc(o.label) + '</span></button>';
+           + '<span>' + twEscHtml(o.label) + '</span></button>';
     }).join('');
     var extraAttrs = '';
-    if (meta.cid != null) extraAttrs += ' data-cid="' + _esc(String(meta.cid)) + '"';
-    if (meta.jid != null) extraAttrs += ' data-jid="' + _esc(String(meta.jid)) + '"';
-    return '<div class="co-dp-wrap ' + _esc(wrapClass) + '" data-selected="' + _esc(current) + '"' + extraAttrs + '>'
+    if (meta.cid != null) extraAttrs += ' data-cid="' + twEscHtml(String(meta.cid)) + '"';
+    if (meta.jid != null) extraAttrs += ' data-jid="' + twEscHtml(String(meta.jid)) + '"';
+    return '<div class="co-dp-wrap ' + twEscHtml(wrapClass) + '" data-selected="' + twEscHtml(current) + '"' + extraAttrs + '>'
       + '<button class="co-dp-btn" type="button"' + (meta.locked ? ' disabled' : '') + '>'
-      + '<span class="co-dp-val">' + _esc(curLabel) + '</span>'
+      + '<span class="co-dp-val">' + twEscHtml(curLabel) + '</span>'
       + _chevronSvg()
       + '</button>'
       + '<div class="co-dp-list" style="display:none">' + listHtml + '</div>'
@@ -2644,12 +2362,12 @@
       : 'بنك المواهب';
     return '<div id="coCandSavedShell">'
       + '<div class="co-tb-quota-bar" id="coTbQuotaBar">'
-      + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl" dir="rtl">' + _esc(quotaStr) + '</span>'
+      + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl" dir="rtl">' + twEscHtml(quotaStr) + '</span>'
       + '</div>'
       + '<div class="co-cand-filter-bar">'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
-      + ' placeholder="بحث في بنك المواهب…" dir="rtl" value="' + _esc(_savedSearch) + '">'
+      + ' placeholder="بحث في بنك المواهب…" dir="rtl" value="' + twEscHtml(_savedSearch) + '">'
       + _dpHTML('co-cand-sort-dp', sortOpts, _savedSort)
       + '</div>'
       + '<div class="co-cand-adv-filters">'
@@ -2657,7 +2375,7 @@
       + _dpHTML('co-cand-rating-dp',   ratingOpts,   _savedMinRating)
       + _dpHTML('co-cand-source-dp',   sourceOpts,   _savedSaveSource)
       + '<input id="coCandTagFilter" type="text" class="co-cand-tag-input"'
-      + ' placeholder="بحث بالوسم…" dir="rtl" value="' + _esc(_savedTag) + '">'
+      + ' placeholder="بحث بالوسم…" dir="rtl" value="' + twEscHtml(_savedTag) + '">'
       + '</div>'
       + '</div>'
       + '<div id="coCandSavedList"></div>'
@@ -2677,14 +2395,14 @@
     chips.forEach(function (c) {
       var fval  = c[0], label = c[1], count = c[2];
       var fkey  = fval == null ? 'null' : fval;
-      var dataf = fval == null ? '' : _esc(fval);
+      var dataf = fval == null ? '' : twEscHtml(fval);
       var active = (fval === _savedFilter);
-      var icon   = _FILTER_ICONS[fkey] || _FILTER_ICONS['null'];
+      var icon   = twIcon(_FILTER_ICONS[fkey] || _FILTER_ICONS['null']);
       html += '<button class="co-cand-chip chip-f-' + fkey + (active ? ' active' : '') + '"'
             + ' data-filter="' + dataf + '">'
             + '<span class="co-cand-chip-main">'
             +   '<span class="co-cand-chip-ico">' + icon + '</span>'
-            +   '<span class="co-cand-chip-lbl">' + _esc(label) + '</span>'
+            +   '<span class="co-cand-chip-lbl">' + twEscHtml(label) + '</span>'
             + '</span>'
             + '<span class="co-cand-chip-cnt">' + count + '</span>'
             + '</button>';
@@ -2768,13 +2486,9 @@
 
   // Load talent bank quota from server
   function _loadTalentBankQuota() {
-    var jwt = window._jwt ? window._jwt() : '';
-    if (!jwt) return;
-    fetch('/company/saved-candidates/quota', {
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
+    if (!TwCompanyPage.signedIn()) return;
+    twApi('/company/saved-candidates/quota').then(function (res) {
+      var d = res.ok ? res.raw : null;
       if (d && d.used !== undefined) {
         _quotaUsed  = d.used;
         _quotaLimit = d.limit || 25;
@@ -2782,13 +2496,11 @@
         var lbl = document.getElementById('coTbQuotaLbl');
         if (lbl) lbl.textContent = 'بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit;
       }
-    })
-    .catch(function () {});
+    });
   }
 
   function _fetchSaved() {
     _savedOffset  = 0;
-    _savedLoading = false;
     _body.innerHTML = _savedShellHTML();
     _wireSavedFilterBar();
     _loadSavedStats(null);
@@ -2796,8 +2508,13 @@
     _doFetchSavedPage(true);
   }
 
+  // first = a new list (open / filter / search / sort): always runs and makes any older
+  // reply stale — before, it was dropped while a request ran and the list stayed old.
+  // !first = "عرض المزيد": skipped while a request is running.
+  var _savedReqSeq = 0;
   function _doFetchSavedPage(first) {
-    if (_savedLoading) return;
+    if (_savedLoading && !first) return;
+    var seq = first ? ++_savedReqSeq : _savedReqSeq;
     _savedLoading = true;
     var list = document.getElementById('coCandSavedList');
     if (first && list) list.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
@@ -2813,8 +2530,9 @@
     filters.sort = _savedSort;
 
     if (!window.getSavedCandidates) { _savedLoading = false; return; }
-    window.getSavedCandidates(20, _savedOffset, filters)
+    window.getSavedCandidates(20, first ? 0 : _savedOffset, filters)
       .then(function (res) {
+        if (seq !== _savedReqSeq) return;   // superseded by a newer list request
         var list = document.getElementById('coCandSavedList');
         if (!list) return;
         if (!res || !res.ok) {
@@ -2862,15 +2580,16 @@
         }
       })
       .catch(function () {
+        if (seq !== _savedReqSeq) return;
         var list = document.getElementById('coCandSavedList');
         if (list && first) list.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
       })
-      .finally(function () { _savedLoading = false; });
+      .finally(function () { if (seq === _savedReqSeq) _savedLoading = false; });
   }
 
   function _savedEmptyHTML(filter, q) {
     if (q) return '<div class="co-cand-empty">'
-      + '<div class="co-cand-empty-title">لا نتائج للبحث عن "' + _esc(q) + '"</div>'
+      + '<div class="co-cand-empty-title">لا نتائج للبحث عن "' + twEscHtml(q) + '"</div>'
       + '<div class="co-cand-empty-sub">جرّب كلمات بحث مختلفة.</div></div>';
     var msgs = {
       'null':        ['لا توجد مواهب محفوظة بعد',             'عند حفظ موهبة ستظهر هنا لإدارتها لاحقاً.'],
@@ -2885,17 +2604,11 @@
     var key = filter == null ? 'null' : String(filter);
     var m = msgs[key] || msgs['null'];
     return '<div class="co-cand-empty">'
-      + '<div class="co-cand-empty-title">' + _esc(m[0]) + '</div>'
-      + (m[1] ? '<div class="co-cand-empty-sub">' + _esc(m[1]) + '</div>' : '')
+      + '<div class="co-cand-empty-title">' + twEscHtml(m[0]) + '</div>'
+      + (m[1] ? '<div class="co-cand-empty-sub">' + twEscHtml(m[1]) + '</div>' : '')
       + '</div>';
   }
 
-  function _fmtDate(iso) {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('ar-SA', { year:'numeric', month:'short', day:'numeric' });
-    } catch (e) { return ''; }
-  }
 
   // Rating stars HTML (display-only, 1-5)
   function _starsHTML(rating) {
@@ -2911,8 +2624,8 @@
   var _PRIORITY_LABELS = { high: 'عالية', medium: 'متوسطة', low: 'منخفضة' };
   function _priorityBadgeHTML(priority) {
     if (!priority) return '';
-    return '<span class="co-cand-priority co-cand-priority--' + _esc(priority) + '">'
-      + _esc(_PRIORITY_LABELS[priority] || priority) + '</span>';
+    return '<span class="co-cand-priority co-cand-priority--' + twEscHtml(priority) + '">'
+      + twEscHtml(_PRIORITY_LABELS[priority] || priority) + '</span>';
   }
 
   // Save source Arabic labels
@@ -2930,22 +2643,22 @@
   // Shared by _savedCardHTML (first build) and _renderCandidateJobLinksUI (re-render from
   // data-job-links) so both paths produce the same DOM.
   function _buildChip(jl, idx, maxVisible) {
-    var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+    var applyDate   = jl.apply_date ? twFormatDate(jl.apply_date) : '';
     var hiddenCls   = idx >= maxVisible ? ' co-cand-job-chip--hidden' : '';
     var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
     var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
     var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
     var extraCls    = appId ? ' co-cand-job-chip--applied' : '';
     return '<button class="co-cand-job-chip' + hiddenCls + extraCls + '" type="button"'
-         + ' data-jid="' + _esc(String(jl.job_id)) + '"'
-         + ' data-title="' + _esc(jl.title || '') + '"'
-         + ' data-apply-date="' + _esc(applyDate) + '"'
-         + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-         + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
-         + ' data-pe-id="' + _esc(peId) + '"'
-         + ' data-app-id="' + _esc(appId) + '"'
-         + ' data-notes-count="' + _esc(notesCount) + '">'
-         + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
+         + ' data-jid="' + twEscHtml(String(jl.job_id)) + '"'
+         + ' data-title="' + twEscHtml(jl.title || '') + '"'
+         + ' data-apply-date="' + twEscHtml(applyDate) + '"'
+         + ' data-app-status="' + twEscHtml(jl.application_status || '') + '"'
+         + ' data-cand-status="' + twEscHtml(jl.candidate_status || '') + '"'
+         + ' data-pe-id="' + twEscHtml(peId) + '"'
+         + ' data-app-id="' + twEscHtml(appId) + '"'
+         + ' data-notes-count="' + twEscHtml(notesCount) + '">'
+         + twEscHtml(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
   }
 
   // Chip strip split: "تقدّم إلى:" (real applications) vs "مرتبط بوظيفة:" (pipeline-only links)
@@ -3007,9 +2720,9 @@
   // Shared schedule button slot (tw-schedule.js mounts it — PR 3.10). No job context here:
   // the dialog asks for one of the company's active jobs.
   function _schedSlot(item, cls) {
-    return '<span data-tw-schedule-slot data-class="' + _esc(cls) + '"'
-      + ' data-candidate-id="' + _esc(item.candidate_id) + '"'
-      + ' data-candidate-name="' + _esc(item.full_name || '') + '"></span>';
+    return '<span data-tw-schedule-slot data-class="' + twEscHtml(cls) + '"'
+      + ' data-candidate-id="' + twEscHtml(item.candidate_id) + '"'
+      + ' data-candidate-name="' + twEscHtml(item.full_name || '') + '"></span>';
   }
 
   // Build compact expandable card (V3: single-column, no left/right split)
@@ -3023,9 +2736,9 @@
     var followUpAt   = item.follow_up_at  || null;
     var followUpSt   = item.follow_up_status || null;
     var saveSource   = item.save_source   || null;
-    var date         = _fmtDate(item.created_at);
-    var cid          = _esc(item.candidate_id);
-    var twId         = _esc(item.tw_id || '');
+    var date         = twFormatDate(item.created_at);
+    var cid          = twEscHtml(item.candidate_id);
+    var twId         = twEscHtml(item.tw_id || '');
     var jobLinks     = Array.isArray(item.job_links) ? item.job_links : [];
 
     // Location line for expanded body
@@ -3034,36 +2747,32 @@
 
     var html = '<div class="co-cand-saved-card"'
       + ' data-cid="' + cid + '"'
-      + ' data-name="' + _esc(item.full_name || '') + '"'
-      + ' data-status="' + _esc(status) + '"'
-      + ' data-notes="' + _esc(notes) + '"'
-      + ' data-jobid="' + _esc(jobId) + '"'
+      + ' data-name="' + twEscHtml(item.full_name || '') + '"'
+      + ' data-status="' + twEscHtml(status) + '"'
+      + ' data-notes="' + twEscHtml(notes) + '"'
+      + ' data-jobid="' + twEscHtml(jobId) + '"'
       + ' data-rating="' + (rating || '') + '"'
-      + ' data-priority="' + _esc(priority || '') + '"'
-      + ' data-tags="' + _esc(JSON.stringify(tags)) + '"'
-      + ' data-follow-up-at="' + _esc(followUpAt || '') + '"'
-      + ' data-follow-up-status="' + _esc(followUpSt || '') + '"'
-      + ' data-save-source="' + _esc(saveSource || '') + '"'
-      + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '"'
+      + ' data-priority="' + twEscHtml(priority || '') + '"'
+      + ' data-tags="' + twEscHtml(JSON.stringify(tags)) + '"'
+      + ' data-follow-up-at="' + twEscHtml(followUpAt || '') + '"'
+      + ' data-follow-up-status="' + twEscHtml(followUpSt || '') + '"'
+      + ' data-save-source="' + twEscHtml(saveSource || '') + '"'
+      + ' data-job-links="' + twEscHtml(JSON.stringify(jobLinks)) + '"'
       + ' data-expanded="false">';
 
     // ── Compact header (always visible) ──────────────────────────
     html += '<div class="co-csc-header">';
 
     // Avatar
-    html += '<div class="co-csc-ava">'
-      + (item.avatar_url
-          ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">'
-          : _avatarSvg)
-      + '</div>';
+    html += _candAvatarHTML(item);
 
     // Name + priority + profession + stars column
     html += '<div class="co-csc-main">';
     html += '<div class="co-csc-name-row">';
-    html += '<span class="co-csc-name">' + _esc(item.full_name || '') + '</span>';
+    html += '<span class="co-csc-name">' + twEscHtml(item.full_name || '') + '</span>';
     if (priority) html += _priorityBadgeHTML(priority);
     html += '</div>';
-    if (item.profession) html += '<div class="co-csc-profession">' + _esc(item.profession) + '</div>';
+    if (item.profession) html += '<div class="co-csc-profession">' + twEscHtml(item.profession) + '</div>';
     if (rating) html += '<div class="co-csc-stars">' + _starsHTML(rating) + '</div>';
     html += '</div>'; // .co-csc-main
 
@@ -3071,10 +2780,7 @@
     html += '<button type="button" class="co-csc-toggle"'
           + ' aria-expanded="false"'
           + ' aria-label="عرض تفاصيل الموهبة">'
-          + '<svg class="co-csc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-          + '<polyline points="6 9 12 15 18 9"></polyline>'
-          + '</svg>'
+          + twIcon('expand', { className: 'co-csc-chevron' })
           + '</button>';
 
     html += '</div>'; // .co-csc-header
@@ -3087,29 +2793,29 @@
     if (locationStr) line1Parts.push(locationStr);
     if (date)        line1Parts.push('حُفظ ' + date);
     if (line1Parts.length) {
-      html += '<div class="co-csc-detail-row">' + _esc(line1Parts.join(' | ')) + '</div>';
+      html += '<div class="co-csc-detail-row">' + twEscHtml(line1Parts.join(' | ')) + '</div>';
     }
 
     // Row 2: follow-up status + date (only if status is not 'none')
     if (followUpSt && followUpSt !== 'none') {
       var fuLabel = _FU_STATUS_LABELS[followUpSt] || followUpSt;
       var fuLine  = fuLabel;
-      if (followUpAt) fuLine += ' | ' + _fmtDate(followUpAt);
-      html += '<div class="co-csc-detail-row co-csc-fu-row co-csc-followup--' + _esc(followUpSt) + '">'
-            + _esc(fuLine) + '</div>';
+      if (followUpAt) fuLine += ' | ' + twFormatDate(followUpAt);
+      html += '<div class="co-csc-detail-row co-csc-fu-row co-csc-followup--' + twEscHtml(followUpSt) + '">'
+            + twEscHtml(fuLine) + '</div>';
     }
 
     // Row 3: save source (always shown)
     var sourceLbl = _SOURCE_LABELS[saveSource] || (saveSource || 'غير معروف');
     html += '<div class="co-csc-detail-row co-csc-source-row">'
-          + 'مصدر الحفظ: <span class="co-csc-source-val">' + _esc(sourceLbl) + '</span>'
+          + 'مصدر الحفظ: <span class="co-csc-source-val">' + twEscHtml(sourceLbl) + '</span>'
           + '</div>';
 
     // Row 4: Tags (top 3 + "+N")
     if (tags.length) {
       html += '<div class="co-csc-tags">';
       tags.slice(0, 3).forEach(function (t) {
-        html += '<span class="co-cand-tag-chip">' + _esc(t) + '</span>';
+        html += '<span class="co-cand-tag-chip">' + twEscHtml(t) + '</span>';
       });
       if (tags.length > 3) {
         html += '<span class="co-cand-tag-chip co-cand-tag-more">+' + (tags.length - 3) + '</span>';
@@ -3118,7 +2824,7 @@
     }
 
     // Row 5: Notes (only if non-empty)
-    if (notes) html += '<div class="co-csc-notes">' + _esc(notes) + '</div>';
+    if (notes) html += '<div class="co-csc-notes">' + twEscHtml(notes) + '</div>';
 
     // Row 6: Job chips (applied vs pipeline-only) + per-job classification pickers (§20c)
     html += _jobChipSectionsHTML(jobLinks);
@@ -3174,8 +2880,8 @@
     html += '<div class="co-panel-tags-wrap" id="coPanelTags_' + cid + '">';
     tags.forEach(function (t) {
       html += '<span class="co-panel-tag">'
-            + '<span class="co-panel-tag-txt">' + _esc(t) + '</span>'
-            + '<button type="button" class="co-panel-tag-del" data-tag="' + _esc(t) + '">✕</button>'
+            + '<span class="co-panel-tag-txt">' + twEscHtml(t) + '</span>'
+            + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(t) + '">✕</button>'
             + '</span>';
     });
     html += '</div>';
@@ -3191,7 +2897,7 @@
     html += '<div class="co-cand-panel-ta-wrap">';
     html += '<textarea class="co-cand-panel-ta" maxlength="500"'
           + ' placeholder="أضف ملاحظة عن هذا المرشح…" dir="rtl">'
-          + _esc(notes) + '</textarea>';
+          + twEscHtml(notes) + '</textarea>';
     html += '<span class="co-cand-panel-counter" dir="ltr">' + notes.length + ' / 500</span>';
     html += '</div>';
     html += '</div>';
@@ -3200,7 +2906,7 @@
     html += '<div class="co-panel-section">';
     html += '<div class="co-panel-subsection">';
     html += '<label class="co-cand-panel-sublabel">تاريخ المتابعة</label>';
-    html += '<input type="date" class="co-panel-followup-date" value="' + _esc(followUpAt ? followUpAt.slice(0, 10) : '') + '">';
+    html += '<input type="date" class="co-panel-followup-date" value="' + twEscHtml(followUpAt ? followUpAt.slice(0, 10) : '') + '">';
     html += '</div>';
     html += '<div class="co-panel-subsection">';
     html += '<label class="co-cand-panel-sublabel">حالة المتابعة</label>';
@@ -3212,7 +2918,7 @@
     if (saveSource) {
       html += '<div class="co-panel-section co-panel-section--readonly">';
       html += '<label class="co-cand-panel-label">مصدر الحفظ</label>';
-      html += '<span class="co-panel-source-val">' + _esc(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
+      html += '<span class="co-panel-source-val">' + twEscHtml(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
       html += '</div>';
     }
 
@@ -3426,8 +3132,8 @@
             }
             var tagSpan = document.createElement('span');
             tagSpan.className = 'co-panel-tag';
-            tagSpan.innerHTML = '<span class="co-panel-tag-txt">' + _esc(tagVal) + '</span>'
-              + '<button type="button" class="co-panel-tag-del" data-tag="' + _esc(tagVal) + '">✕</button>';
+            tagSpan.innerHTML = '<span class="co-panel-tag-txt">' + twEscHtml(tagVal) + '</span>'
+              + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(tagVal) + '">✕</button>';
             tw.appendChild(tagSpan);
             tagInput.value = '';
           }
@@ -3465,10 +3171,10 @@
       document.body.appendChild(pop);
     }
 
-    var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
-    html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
+    var html = '<div class="co-cjp-title">' + twEscHtml(title) + '</div>';
+    html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + twEscHtml(candJobLbl) + '</span></div>';
     if (appId && applyDate) {
-      html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
+      html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + twEscHtml(applyDate) + '</span></div>';
     }
     // Pipeline action: notes — only when this chip has a real pipeline entry.
     // Schedule: the shared button (tw-schedule.js — PR 3.10) for every job chip.
@@ -3476,7 +3182,7 @@
     if (peId) {
       var notesLbl  = notesCount > 0 ? ('ملاحظات الوظيفة (' + notesCount + ')') : 'ملاحظات الوظيفة';
       html += '<button type="button" class="co-cjp-btn co-cjp-btn--notes"'
-            + ' data-pe-id="' + _esc(peId) + '">' + _esc(notesLbl) + '</button>';
+            + ' data-pe-id="' + twEscHtml(peId) + '">' + twEscHtml(notesLbl) + '</button>';
     }
     html += '</div>';
     pop.innerHTML = html;
@@ -3617,10 +3323,20 @@
   function _handlePanelRemove(btn) {
     var cid = parseInt(btn.getAttribute('data-cid'));
     if (!cid) return;
-    if (!window.confirm('هل تريد إزالة هذا المرشح من بنك المواهب نهائياً؟')) return;
+    if (!window.deleteSavedCandidate) return;
+    twConfirm({
+      title:       twT('company.talent.remove.title'),
+      message:     twT('company.talent.remove.msg'),
+      confirmText: twT('company.talent.remove.ok'),
+      danger:      true,
+    }).then(function (yes) {
+      if (yes) _removeFromTalentBank(btn, cid);
+    });
+  }
+
+  function _removeFromTalentBank(btn, cid) {
     btn.disabled    = true;
     btn.textContent = 'جارٍ الإزالة…';
-    if (!window.deleteSavedCandidate) return;
     window.deleteSavedCandidate(cid)
       .then(function (res) {
         if (res && res.ok) {
@@ -3852,7 +3568,7 @@
     if (newFuStatus && newFuStatus !== 'none') {
       var fuLabel = _FU_STATUS_LABELS[newFuStatus] || newFuStatus;
       var fuLine  = fuLabel;
-      if (newFuAt) fuLine += ' | ' + _fmtDate(newFuAt);
+      if (newFuAt) fuLine += ' | ' + twFormatDate(newFuAt);
       if (fuRow) {
         fuRow.className = 'co-csc-detail-row co-csc-fu-row co-csc-followup--' + newFuStatus;
         fuRow.textContent = fuLine;
@@ -3941,23 +3657,23 @@
     var meta    = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
     var score   = item.match_score || 0;
     var reasons = item.match_reasons || [];
-    var html = '<div class="co-cand-item co-sugg-item" data-cid="' + _esc(item.candidate_id) + '">';
-    html += '<div class="co-cand-ava">' + (item.avatar_url ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">' : _avatarSvg) + '</div>';
+    var html = '<div class="co-cand-item co-sugg-item" data-cid="' + twEscHtml(item.candidate_id) + '">';
+    html += _candAvatarHTML(item);
     html += '<div class="co-cand-info">';
     html += '<div class="co-sugg-name-row">';
-    html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
+    html += '<div class="co-cand-name">' + twEscHtml(item.full_name) + '</div>';
     html += '<span class="co-sugg-score">' + score + '%</span>';
     html += '</div>';
-    if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+    if (meta) html += '<div class="co-cand-meta">' + twEscHtml(meta) + '</div>';
     if (reasons.length) {
       html += '<div class="co-sugg-reasons">';
-      reasons.forEach(function (r) { html += '<span class="co-sugg-chip">' + _esc(r) + '</span>'; });
+      reasons.forEach(function (r) { html += '<span class="co-sugg-chip">' + twEscHtml(r) + '</span>'; });
       html += '</div>';
     }
     html += '</div>';
     html += '<div class="co-cand-actions">';
-    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
-    html += '<button class="co-sugg-save-btn" data-cid="' + _esc(item.candidate_id) + '">حفظ كمرشح</button>';
+    html += '<a class="co-cand-view-btn" href="/u/' + twEscHtml(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
+    html += '<button class="co-sugg-save-btn" data-cid="' + twEscHtml(item.candidate_id) + '">حفظ كمرشح</button>';
     html += _schedSlot(item, 'co-cand-view-btn');
     html += '</div></div>';
     return html;
@@ -4169,14 +3885,6 @@
     if (tab === 'appointments' && !_apptsLoaded) _loadAppts();
   }
 
-  function _fmtDate(iso) {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('ar-EG',
-        { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return ''; }
-  }
-
   function _loadAppts() {
     var list = document.getElementById('coHubApptList');
     if (!list) return;
@@ -4209,7 +3917,7 @@
         nameEl.textContent = a.title || a.other_party_name || 'موعد';
         var dateEl  = document.createElement('div');
         dateEl.className = 'co-hub-appt-date';
-        dateEl.textContent = _fmtDate(a.scheduled_at);
+        dateEl.textContent = twFormatDateTime(a.scheduled_at);   // §59a
         var link    = document.createElement('a');
         link.href   = '/appointment-room?id=' + encodeURIComponent(a.id);
         link.className = 'co-hub-appt-link';

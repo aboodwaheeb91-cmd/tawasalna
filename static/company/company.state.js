@@ -1,4 +1,4 @@
-// company.state.js — companyState SSOT + viewMode + JWT helper
+// company.state.js — companyState SSOT + viewMode + session helpers
 // Rule #19: companyState is the Single Source of Truth
 // Rule #21: API → State → Render → Events (strict pipeline)
 // Load order: 1st (no dependencies)
@@ -12,6 +12,16 @@
   // internal functions one module needs from another. Not an ad-hoc global.
   // ARCHITECTURE.md → Company Profile → Page Namespace.
   window.TwCompanyPage = window.TwCompanyPage || {};
+
+  // Session = TwAuthSync snapshot only (never tw_jwt directly) — every company.*.js module
+  // asks "signed in?" the same way. Requests go through twApi (it adds the header itself).
+  TwCompanyPage.signedIn = function () {
+    return !!(window.TwAuthSync && TwAuthSync.getSessionSnapshot().isAuthenticated);
+  };
+  // Guest → login, then back to this page (AUTH ?next= — twLoginHref)
+  TwCompanyPage.toLogin = function () {
+    location.href = twLoginHref(location.pathname + location.search);
+  };
 
   // companyState — initial shape (Rule #19)
   window.companyState = {
@@ -58,14 +68,6 @@
     else                           document.body.classList.add('view-guest');
   }
 
-  // Current JWT from TwAuthSync only ('' when there is no valid session). Kept for the
-  // modules that still build their own Authorization header (company.main.js / company.jobs.js)
-  // until they move to twApi — new code calls twApi, which adds the header itself.
-  function _jwt() {
-    return (window.TwAuthSync && typeof TwAuthSync.getToken === 'function') ? TwAuthSync.getToken() : '';
-  }
-
   window._mergeCompanyState = _mergeCompanyState;
   window._applyViewMode     = _applyViewMode;
-  window._jwt               = _jwt;
 }());

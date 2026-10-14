@@ -5,6 +5,10 @@
 
   var isRateLoading = false;
 
+  // Session helpers live on the page namespace (company.state.js)
+  function _signedIn() { return TwCompanyPage.signedIn(); }
+  function _toLogin()  { TwCompanyPage.toLogin(); }
+
   // ── Visitor job card actions — share + save ────────────────────
   function _shareFallback(text) {
     var ta = document.createElement('textarea');
@@ -48,21 +52,19 @@
   // ── Apply ──────────────────────────────────────────────────────
   function _applyJob(btn, jobId) {
     if (!jobId) return;
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    if (!_signedIn()) { _toLogin(); return; }
     var origText = btn.textContent;
     btn.disabled = true; btn.textContent = 'جاري...';
-    fetch('/jobs/' + jobId + '/apply', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ cover_letter: '' }),
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      btn.textContent = data.already_applied ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
+    twApi('/jobs/' + encodeURIComponent(jobId) + '/apply', {
+      method: 'POST', body: { cover_letter: '' },
+    }).then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false; btn.textContent = origText;
+        if (window.showToast) showToast(twApiMessage(res, twT('company.job.apply_failed')), 'error');
+        return;
+      }
+      btn.textContent = (res.raw && res.raw.already_applied) ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
       btn.classList.add('applied');
-    })
-    .catch(function () {
-      btn.disabled = false; btn.textContent = origText;
     });
   }
 
@@ -223,7 +225,19 @@
   }
 
   // ── Rating ────────────────────────────────────────────────────
+  // #rateBox follows the server's can_rate (emp visitor) — a guest still sees it and is
+  // sent to login on click; an owner / company / edu visitor never sees it.
+  function _syncRateBox() {
+    var rb = document.getElementById('rateBox');
+    if (!rb || !window.companyState) return;
+    var perms = companyState.permissions || {};
+    var show  = !!perms.can_rate || companyState.viewMode === 'guest';
+    if (show) rb.style.removeProperty('display');
+    else      rb.style.setProperty('display', 'none', 'important');
+  }
+
   function bindRateStars() {
+    _syncRateBox();
     var box = document.getElementById('rateStars');
     if (!box || box.dataset.bound) return;
     box.dataset.bound = '1';
@@ -234,17 +248,21 @@
     });
   }
 
+  // @vm-extract-begin: co-rating-submit
+  // The ONE rating submit on the page (#rateStars and the ratings modal picker).
+  // Returns a Promise<boolean> (true = saved) so the modal can refresh itself.
   function submitRating(score) {
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
-    if (!window.companyState) return;
-    if (isRateLoading) return;
+    if (!_signedIn()) { _toLogin(); return Promise.resolve(false); }
+    if (!window.companyState || !companyState.permissions || !companyState.permissions.can_rate)
+      return Promise.resolve(false);
+    if (isRateLoading) return Promise.resolve(false);   // double-click guard
 
-    var companyId = (window.companyState && companyState.profile && companyState.profile.id)
+    var companyId = (companyState.profile && companyState.profile.id)
       ? String(companyState.profile.id)
       : new URLSearchParams(location.search).get('id');
     if (!companyId) {
       if (window.showToast) showToast('تعذّر تحديد الشركة', 'error');
-      return;
+      return Promise.resolve(false);
     }
 
     var prevMine  = companyState.permissions.my_rating;
@@ -255,16 +273,19 @@
     if (window._paintRateStars) _paintRateStars(score);
 
     isRateLoading = true;
-    fetch('/company/rate/' + companyId, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ score: score }),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('rate failed: ' + r.status);
-      return r.json();
-    })
-    .then(function (data) {
+    return twApi('/company/rate/' + encodeURIComponent(companyId), {
+      method: 'POST', body: { score: score },
+    }).then(function (res) {
+      isRateLoading = false;
+      if (!res.ok) {
+        companyState.permissions.my_rating = prevMine;
+        companyState.stats.rating_avg      = prevAvg;
+        companyState.stats.rating_count    = prevCount;
+        if (window.renderRating) renderRating();
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ التقييم'), 'error');
+        return false;
+      }
+      var data = res.raw || {};
       if (typeof data.rating_avg === 'number' || data.rating_avg === null)
         companyState.stats.rating_avg = data.rating_avg;
       if (typeof data.rating_count === 'number')
@@ -272,24 +293,15 @@
       if (typeof data.my_score === 'number')
         companyState.permissions.my_rating = data.my_score;
       if (window.renderRating) renderRating();
+      if (window.renderStats)  renderStats();
       if (window.showToast) showToast('تم حفظ تقييمك ✓');
-    })
-    .catch(function () {
-      companyState.permissions.my_rating = prevMine;
-      companyState.stats.rating_avg      = prevAvg;
-      companyState.stats.rating_count    = prevCount;
-      if (window.renderRating) renderRating();
-      if (window.showToast) showToast('تعذّر حفظ التقييم', 'error');
-    })
-    .finally(function () { isRateLoading = false; });
+      return true;
+    });
   }
+
+  // @vm-extract-end: co-rating-submit
 
   // ── Post job helpers ───────────────────────────────────────────
-
-  // XSS-safe escape for use in innerHTML
-  function _esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
 
   // ── Profession picker ──────────────────────────────────────────
   var _professions  = [];
@@ -308,10 +320,10 @@
     });
     var html = '<option value="">— اختر التخصص —</option>';
     order.forEach(function(g) {
-      html += '<optgroup label="' + _esc(g) + '">';
+      html += '<optgroup label="' + twEscHtml(g) + '">';
       groups[g].forEach(function(p) {
         var icon = (p.icon || 'briefcase').replace(/"/g, '');
-        html += '<option value="' + _esc(String(p.id)) + '" data-icon="' + _esc(icon) + '">' + _esc(p.name_ar || p.name_en || '') + '</option>';
+        html += '<option value="' + twEscHtml(String(p.id)) + '" data-icon="' + twEscHtml(icon) + '">' + twEscHtml(p.name_ar || p.name_en || '') + '</option>';
       });
       html += '</optgroup>';
     });
@@ -327,15 +339,15 @@
     var sel = document.getElementById('j-prof');
     if (!sel) return;
     if (_professions.length) { _rebuildProfSelect(); return; }
-    fetch('/professions', { headers: { 'Authorization': 'Bearer ' + _jwt() } })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        _professions = Array.isArray(data) ? data : (data.professions || []);
-        _rebuildProfSelect();
-      })
-      .catch(function() {
+    twApi('/professions', { auth: false }).then(function (res) {
+      if (!res.ok) {
         if (sel) sel.innerHTML = '<option value="">— تعذر التحميل —</option>';
-      });
+        return;
+      }
+      var data = res.raw;
+      _professions = Array.isArray(data) ? data : ((data && data.professions) || []);
+      _rebuildProfSelect();
+    });
   }
 
   // ── Skill chips ────────────────────────────────────────────────
@@ -351,13 +363,12 @@
     _jSkills.forEach(function(name) {
       var icon = (window.TW && TW.getSkillIcon) ? TW.getSkillIcon(name) : 'circle-check';
       html += '<span class="j-skill-chip">'
-        + '<i data-lucide="' + _esc(icon) + '" class="j-chip-ic"></i>'
-        + _esc(name)
-        + '<button type="button" class="j-skill-chip-del" data-skill="' + _esc(name) + '" aria-label="حذف">×</button>'
+        + twIcon(icon, { className: 'j-chip-ic' })
+        + twEscHtml(name)
+        + '<button type="button" class="j-skill-chip-del" data-skill="' + twEscHtml(name) + '" aria-label="حذف">×</button>'
         + '</span>';
     });
     box.innerHTML = html;
-    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [box] });
     var dels = box.querySelectorAll('.j-skill-chip-del');
     for (var k = 0; k < dels.length; k++) {
       (function(btn) {
@@ -400,14 +411,13 @@
     var html = '';
     results.forEach(function(s, i) {
       html += '<div class="j-skill-drop-item" data-idx="' + i + '">'
-        + '<i data-lucide="' + _esc(s.icon || 'circle-check') + '" class="j-drop-ic"></i>'
-        + '<span class="j-drop-en">' + _esc(s.en) + '</span>'
-        + (s.ar !== s.en ? '<span class="j-drop-ar">' + _esc(s.ar) + '</span>' : '')
+        + twIcon(s.icon || 'circle-check', { className: 'j-drop-ic' })
+        + '<span class="j-drop-en">' + twEscHtml(s.en) + '</span>'
+        + (s.ar !== s.en ? '<span class="j-drop-ar">' + twEscHtml(s.ar) + '</span>' : '')
         + '</div>';
     });
     drop.innerHTML = html;
     drop.style.display = 'block';
-    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [drop] });
     var items = drop.querySelectorAll('.j-skill-drop-item');
     for (var j = 0; j < items.length; j++) {
       (function(item, res) {
@@ -460,13 +470,12 @@
     var html = '';
     _jAccProfs.forEach(function(p) {
       html += '<span class="j-skill-chip">'
-        + '<i data-lucide="' + _esc(p.icon || 'briefcase') + '" class="j-chip-ic"></i>'
-        + _esc(p.name_ar || p.name_en || '')
-        + '<button type="button" class="j-skill-chip-del" data-id="' + _esc(String(p.id)) + '" aria-label="حذف">×</button>'
+        + twIcon(p.icon || 'briefcase', { className: 'j-chip-ic' })
+        + twEscHtml(p.name_ar || p.name_en || '')
+        + '<button type="button" class="j-skill-chip-del" data-id="' + twEscHtml(String(p.id)) + '" aria-label="حذف">×</button>'
         + '</span>';
     });
     box.innerHTML = html;
-    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [box] });
     var dels = box.querySelectorAll('.j-skill-chip-del');
     for (var k = 0; k < dels.length; k++) {
       (function(btn) {
@@ -522,13 +531,12 @@
     var html = '';
     results.forEach(function(p, i) {
       html += '<div class="j-skill-drop-item" data-idx="' + i + '">'
-        + '<i data-lucide="' + _esc(p.icon || 'briefcase') + '" class="j-drop-ic"></i>'
-        + '<span class="j-drop-ar">' + _esc(p.name_ar || p.name_en || '') + '</span>'
+        + twIcon(p.icon || 'briefcase', { className: 'j-drop-ic' })
+        + '<span class="j-drop-ar">' + twEscHtml(p.name_ar || p.name_en || '') + '</span>'
         + '</div>';
     });
     drop.innerHTML = html;
     drop.style.display = 'block';
-    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [drop] });
     var items = drop.querySelectorAll('.j-skill-drop-item');
     for (var j = 0; j < items.length; j++) {
       (function(item, prof) {
@@ -848,17 +856,13 @@
     var method  = isEdit ? 'PUT' : 'POST';
     var btnOrigText = isEdit ? 'حفظ التعديلات' : 'نشر الوظيفة';
 
-    fetch(url, {
-      method:  method,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify(payload),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function (data) {
-      if (data.status !== 'success') throw new Error(data.detail || 'فشل الحفظ');
+    twApi(url, { method: method, body: payload }).then(function (res) {
+      var data = res.raw || {};
+      if (!res.ok || data.status !== 'success') {
+        if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = btnOrigText; }
+        if (window.showToast) showToast(twApiMessage(res, 'خطأ في حفظ الوظيفة'), 'error');
+        return;
+      }
 
       // ── Confirmed Immediate Update ────────────────────────────
       _closePostJobOverlay();
@@ -888,10 +892,6 @@
       }
       if (window.renderJobs) renderJobs();
       _resetPostJobModal();
-    })
-    .catch(function (err) {
-      if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = btnOrigText; }
-      if (window.showToast) showToast((err && err.message) || 'خطأ في حفظ الوظيفة', 'error');
     });
   }
 
@@ -1025,46 +1025,41 @@
 
   // ── Job management — delete ────────────────────────────────────
   function deleteJob(jobId) {
-    if (!confirm('هل أنت متأكد من حذف إعلان الوظيفة؟\nلا يمكن التراجع عن هذا الإجراء.')) return;
-    fetch('/company/jobs/' + parseInt(jobId, 10), {
-      method:  'DELETE',
-      headers: { 'Authorization': 'Bearer ' + _jwt() },
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function () {
-      companyState.jobs = companyState.jobs.filter(function (j) {
-        return String(j.id) !== String(jobId);
+    twConfirm({
+      title:       twT('company.job.delete.title'),
+      message:     twT('company.job.delete.msg'),
+      confirmText: twT('company.job.delete.ok'),
+      danger:      true,
+    }).then(function (yes) {
+      if (!yes) return;
+      twApi('/company/jobs/' + parseInt(jobId, 10), { method: 'DELETE' }).then(function (res) {
+        if (!res.ok) {
+          var fb = res.status === 403 ? 'ليست وظيفتك أو غير موجودة' : 'تعذّر حذف الوظيفة، حاول مجدداً';
+          if (window.showToast) showToast(twApiMessage(res, fb), 'error');
+          return;
+        }
+        companyState.jobs = companyState.jobs.filter(function (j) {
+          return String(j.id) !== String(jobId);
+        });
+        if (companyState.stats)
+          companyState.stats.jobs_count = Math.max(0, (companyState.stats.jobs_count || 1) - 1);
+        if (window.renderJobs)  renderJobs();
+        if (window.renderStats) renderStats();
+        if (window.showToast) showToast('تم حذف الوظيفة');
       });
-      if (companyState.stats)
-        companyState.stats.jobs_count = Math.max(0, (companyState.stats.jobs_count || 1) - 1);
-      if (window.renderJobs)  renderJobs();
-      if (window.renderStats) renderStats();
-      if (window.showToast) showToast('تم حذف الوظيفة');
-    })
-    .catch(function (err) {
-      var msg = (err && err.message && err.message.indexOf('403') !== -1)
-        ? 'ليست وظيفتك أو غير موجودة'
-        : 'تعذّر حذف الوظيفة، حاول مجدداً';
-      if (window.showToast) showToast(msg, 'error');
     });
   }
 
   // ── Job management — pause / resume ───────────────────────────
   function toggleJobStatus(jobId, currentStatus) {
     var newStatus = (currentStatus === 'active') ? 'paused' : 'active';
-    fetch('/company/jobs/' + parseInt(jobId, 10) + '/status', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ status: newStatus }),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function () {
+    twApi('/company/jobs/' + parseInt(jobId, 10) + '/status', {
+      method: 'PATCH', body: { status: newStatus },
+    }).then(function (res) {
+      if (!res.ok) {
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر تغيير حالة الوظيفة'), 'error');
+        return;
+      }
       var msg = newStatus === 'paused' ? 'تم إيقاف التقديم' : 'تم إعادة فتح التقديم ✓';
       // Optimistic in-place update — only if jobs are already loaded in state
       if (companyState.jobs && companyState.jobs.length > 0) {
@@ -1078,35 +1073,33 @@
       // Background sync from DB to ensure state matches server (also handles edge cases
       // where the optimistic map ran over a stale/empty list)
       if (window.loadJobs) loadJobs();
-    })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر تغيير حالة الوظيفة', 'error');
     });
   }
 
   // ── Job management — close (إنهاء الإعلان) ────────────────────
   function closeJob(jobId) {
-    if (!confirm('هل أنت متأكد من إنهاء هذا الإعلان الوظيفي؟\nلن تتمكن من إعادة فتحه لاحقاً.')) return;
-    fetch('/company/jobs/' + parseInt(jobId, 10) + '/status', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ status: 'closed' }),
-    })
-    .then(function (r) {
-      if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'HTTP ' + r.status); });
-      return r.json();
-    })
-    .then(function () {
-      companyState.jobs = companyState.jobs.map(function (j) {
-        if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: 'closed', effective_status: 'closed' });
-        return j;
+    twConfirm({
+      title:       twT('company.job.close.title'),
+      message:     twT('company.job.close.msg'),
+      confirmText: twT('company.job.close.ok'),
+      danger:      true,
+    }).then(function (yes) {
+      if (!yes) return;
+      twApi('/company/jobs/' + parseInt(jobId, 10) + '/status', {
+        method: 'PATCH', body: { status: 'closed' },
+      }).then(function (res) {
+        if (!res.ok) {
+          if (window.showToast) showToast(twApiMessage(res, 'تعذّر إنهاء الإعلان'), 'error');
+          return;
+        }
+        companyState.jobs = companyState.jobs.map(function (j) {
+          if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: 'closed', effective_status: 'closed' });
+          return j;
+        });
+        if (window.renderJobs) renderJobs();
+        if (window.showToast) showToast('تم إنهاء الإعلان الوظيفي');
+        if (window.loadJobs) loadJobs(); // background sync
       });
-      if (window.renderJobs) renderJobs();
-      if (window.showToast) showToast('تم إنهاء الإعلان الوظيفي');
-      if (window.loadJobs) loadJobs(); // background sync
-    })
-    .catch(function (err) {
-      if (window.showToast) showToast((err && err.message) || 'تعذّر إنهاء الإعلان', 'error');
     });
   }
 
@@ -1122,10 +1115,12 @@
     var publishJobBtn = q('publishJobBtn');
     if (publishJobBtn) publishJobBtn.addEventListener('click', publishJob);
 
-    // Two cancel buttons: header X and footer cancel
+    // Two cancel buttons: header X and footer cancel. Wrapped — passing the handler
+    // directly made the click event the truthy fromPopstate arg, so history.back() was
+    // skipped and the pushed modal entry stayed behind (Back then re-did nothing).
     ['postJobCancelBtn', 'postJobCancelFootBtn'].forEach(function(id) {
       var btn = q(id);
-      if (btn) btn.addEventListener('click', _closePostJobOverlay);
+      if (btn) btn.addEventListener('click', function () { _closePostJobOverlay(); });
     });
   }
 
@@ -1165,16 +1160,14 @@
   // so _getProfName() is ready when renderJobs() first runs after loadData().
   // /professions is public — no JWT needed; fetch for all viewer types.
   (function _prefetchProfCatalog() {
-    fetch('/professions')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (_professions.length) return; // already populated (modal opened first)
-        _professions = Array.isArray(data) ? data : (data.professions || []);
+    twApi('/professions', { auth: false }).then(function (res) {
+        if (!res.ok || _professions.length) return; // failed, or already populated (modal opened first)
+        var data = res.raw;
+        _professions = Array.isArray(data) ? data : ((data && data.professions) || []);
         // Re-render job cards now that profession names are available
         if (window.renderJobs && window.companyState && companyState.jobs && companyState.jobs.length > 0) {
           window.renderJobs();
         }
-      })
-      .catch(function () {});
+      });
   }());
 }());

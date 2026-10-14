@@ -859,13 +859,13 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 
 | الترتيب | الملف | المسؤولية |
 |---------|-------|-----------|
-| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` + `_jwt()` |
+| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` (`_jwt()` removed — PR 4.3c) |
 | 2 | `static/company/company.api.js` | `loadData` + `loadJobs` + `loadPosts` — JWT Bearer فقط |
 | 3 | `static/company/company.permissions.js` | `_applyLoadingState` + permission guards |
 | 4 | `static/company/company.render.js` | `renderProfile/Stats/Jobs/All` + `renderFollowBtn/Rating/Posts` + DOM helpers |
 | 5 | `static/company/company.jobs.js` | `_applyJob` + `applyJob` + `bindEvents` + `bindRateStars` + `submitRating` + `openPostJob` + `publishJob` |
 | 6 | `static/company/company.posts.js` | `openPostModal` + `createPost` + `deletePost` |
-| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report + pull-to-refresh |
+| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report (pull-to-refresh + 30s poll removed — PR 4.3c) |
 | CSS | `static/company/company.css` | كل styles الصفحة (منقولة من `<style>` blocks داخل HTML) |
 
 ### قواعد إلزامية
@@ -971,12 +971,12 @@ function saveEdit() {
 ### PR 4.3a — Page structure & display (Page Shell · unified header · twApi)
 
 - **Shell + chrome:** `company-profile.html` = Page Shell (`<!--tw:shell-head-->` / `<!--tw:shell-scripts-->`) + `<header data-tw-header>` + `<nav data-tw-bottom-nav>` (`twMountAppChrome`). The page-local `.co-hdr` (home / hub / bell / messages / menu) is gone; the owner buttons `#editInfoBtn` + `#coHubBtn` live in the owner-only row `#ownerActions` under the profile row (same ids → `company.main.js` wiring unchanged). Public page → **no `twRequireAuth`**; owner / visitor = `viewer_type` from the API (VM) + `TwAuthSync` only.
-- **Requests:** every call in `company.api.js` / `company.posts.js` goes through `twApi` (no `fetch`). The Talent Bank / ratings wrappers keep their old result shape for `company.main.js` via `_bodyShape(res)` → `{ok, status, data: <response body>, error}`. Session = `TwAuthSync` (`getSessionSnapshot` / `getToken`); `_jwt()` (`company.state.js`) = `TwAuthSync.getToken()` — kept only for `company.main.js` / `company.jobs.js` until they move to `twApi`.
+- **Requests:** every call in `company.api.js` / `company.posts.js` goes through `twApi` (no `fetch`). The Talent Bank / ratings wrappers keep their old result shape for `company.main.js` via `_bodyShape(res)` → `{ok, status, data: <response body>, error}`. Session = `TwAuthSync` (`getSessionSnapshot` / `getToken`); sign-in checks = `TwCompanyPage.signedIn()` (`company.state.js`); `_jwt()` was removed in PR 4.3c (no user left).
 - **Load failure:** `loadData()` checks the response — 404 → error state «الشركة غير موجودة» (no retry) · anything else (500 / network / bad body) → «تعذّر تحميل صفحة الشركة» + `#coRetryBtn` (listener in `company.api.js`, no inline handler). Never an empty profile full of «—».
 - **About tab (`renderAbout()` in `company.render.js`):** type (`industry` / `company_type`) · location (country، city، district — rule 9) · founded · size · website · contact email (`company_profiles.contact_email`) · phone (owner only — the server strips it for visitors) · description. A row whose value is missing stays `hidden`; nothing at all → «لم تُضف الشركة معلومات بعد». Website = `<a rel="noopener noreferrer">` only when `twSafeLinkUrl` accepts it, else plain text. Verification card `#coAboutVerifiedRow` shown only when `is_verified`.
 - **Public link:** the meta-row link and «نسخ الرابط» = `location.origin + '/u/' + tw_id` (F7) — never `location.href`. Logo / cover / post avatars through `twSafeImageUrl`.
 - **Visitor actions (`renderVisitorActions()`):** `twAction('follow' | 'message' | 'share' | 'report')` in `#visitorActions` — mode from `viewer_type` (`owner` / `public-user` → registered / `guest`). Follow keeps id `followBtn` and calls `toggleFollow()`; message → `/messages?with={tw_id}`; report → `twReportDialog({reportedId, reportedType:'company'})` (the old page report sheet + contact modal were removed). Post delete → `twConfirm({danger:true})`.
-- Icons in the static HTML = `<i data-tw-icon>` + `twIcon.hydrate(document)` once (`company.render.js`); `lucide` stays loaded only for the `data-lucide` markup `company.main.js` / `company.jobs.js` still build.
+- Icons in the static HTML = `<i data-tw-icon>` + `twIcon.hydrate(document)` once (`company.render.js`); `lucide` is no longer loaded on this page (PR 4.3c — `company.main.js` / `company.jobs.js` build icons with `twIcon`; no `data-lucide` left).
 - Test: `node tests/test_company_profile_page_runtime.js`.
 
 ## [P1] Controlled Exception 06 — Rating eligibility (Phase 2)
@@ -3464,7 +3464,7 @@ window._scCheckProfessional(text)
 ### الحالة الحالية (قبل DS-ICON المرحلة C)
 
 - **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) **v0.460.0** — مصدرين للتحميل اليوم (تناقض موروث، يُزال بالمرحلة C):
-  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `home-v2.html` · `company-profile.html` · `notifications.html`.
+  - vendor محلي `/static/vendor/lucide/lucide.min.js`: `home-v2.html` · `notifications.html` (`company-profile.html` شالها — PR 4.3c).
   - unpkg CDN `https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js`: `profile-showcase.html` · `index.html` (مخالف لقاعدة Vendor Assets — مسجّل بـ FUTURE_ROADMAP → DS-ICON Phase C).
 - **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM.
 - **الحقل في الكتالوج:** `skill_catalog.icon` · `profession_categories.icon` · `TW.SKILL_CATALOG[].icon` (fallback) — اسم Lucide بصيغة kebab-case.
@@ -9082,7 +9082,7 @@ INDEX idx_company_branches_company ON company_branches(company_id)
 - `PUT /company/branches/{company_id}` — owner only, JWT Bearer, max 10 branches
 
 **Save pattern (snapshot replace):**
-`saveEdit()` sends `Promise.all([p1_profile, p2_company_profiles, p3_branches])`.
+`saveEdit()` sends the 3 PUTs **one after the other** via `twApi` (PR 4.3c): `company_profiles` → `profiles` → branches. A failure stops the chain (see Confirmed Immediate Update below).
 `save_company_branches()` runs `BEGIN → DELETE → INSERT → COMMIT` atomically.
 Empty `country` rows are silently skipped.
 
@@ -9379,15 +9379,18 @@ tw-select.js          ← scSelectInit + scSelectClose
    ↓
 2. validation + disable زر الحفظ + نص "جاري الحفظ…"
    ↓
-3. Promise.all([PUT profile, PUT company, PUT branches])
+3. twApi PUT company → PUT profile → PUT branches (متتالي — PR 4.3c؛ ما في endpoint واحد)
    ↓
    ├── فشل أي PUT:
+   │     السلسلة بتوقف (الباقي ما بينبعت)
    │     re-enable زر الحفظ + نص "حفظ"
-   │     toast خطأ
-   │     المودال يبقى مفتوحاً (المستخدم يصحّح ويعيد)
+   │     toast خطأ بيسمّي الجزء + سبب السيرفر (company.edit.part_failed)
+   │     الأجزاء اللي انحفظت قبله بتنطبق محلياً + «اضغط حفظ لإكمال الباقي»
+   │     المودال يبقى مفتوحاً (المستخدم يصحّح ويعيد — كل PUT استبدال كامل)
    │
    └── نجاح كل PUTs:
-         إغلاق المودال
+         re-enable زر الحفظ + نص "حفظ"
+         closeEdit() — بتسكّر المودال وبترجّع الـ history entry
          toast نجاح
          _applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr)
            ├── تحديث companyState.profile
@@ -9621,7 +9624,7 @@ Replaces the old free-text category dropdown (`j-cat` / `TW.JOB_CATEGORIES`) and
 ### Script Load Order (Company Profile)
 
 ```
-lucide → tw_shared.js → tw-options-data.js → tw-select.js → tw-skills.js → company.state.js → ...
+Page Shell scripts → tw-icons.js → tw-overlay.js → tw-options-data.js → tw-select.js → tw-skills.js → company.state.js → ...   (no lucide — PR 4.3c)
 ```
 
 `tw-skills.js` must come before `company.state.js` (and all other company modules) so `TW.searchSkills` etc. are available when `company.jobs.js` runs.

@@ -7332,7 +7332,7 @@ check("184-01. company.main.js keeps no own appointment index — tw-schedule.js
 
 # 184-02: data-name attribute added to card div in _renderApplicants
 check("184-02. card div has data-name attribute in _renderApplicants",
-      'data-name="' in _main184 and '_escApp(a.full_name' in _main184)
+      'data-name="' in _main184 and 'twEscHtml(a.full_name' in _main184)   # PR 4.3c: shared escaping (§54)
 
 # 184-03: sched slot rendered in _renderApplicants for every applicant not marked rejected
 _render184 = _main184.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0] if 'function _renderApplicants' in _main184 else ''
@@ -7835,8 +7835,9 @@ check("187-25. _execClassify uses single atomic backend request — no saveP or 
 # 187-23: catch block calls _loadApplicants when _appJobId is available (not just badge rollback)
 _ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
            if 'function _execClassify' in _main187 else '')
-_catch187 = (_ec187b.split('.catch(function (err)')[1]
-             if '.catch(function (err)' in _ec187b else '')
+# PR 4.3c: twApi never rejects — the failure branch is the local _onClassifyFail(res)
+_catch187 = (_ec187b.split('function _onClassifyFail')[1]
+             if 'function _onClassifyFail' in _ec187b else '')
 check("187-23. catch block calls _loadApplicants when _appJobId is available",
       '_loadApplicants' in _catch187 and '_appJobId' in _catch187)
 
@@ -8276,8 +8277,8 @@ _cand_iife486 = (
 
 # 486-14: job chips carry data-app-status (application_status) AND data-cand-status (candidate_status)
 check("486-14. Job chips carry both data-app-status (application_status) and data-cand-status (candidate_status)",
-      "data-app-status=\"' + _esc(jl.application_status" in _cand_iife486
-      and "data-cand-status=\"' + _esc(jl.candidate_status" in _cand_iife486)
+      "data-app-status=\"' + twEscHtml(jl.application_status" in _cand_iife486
+      and "data-cand-status=\"' + twEscHtml(jl.candidate_status" in _cand_iife486)
 
 # ── Frontend: 3-row popover ───────────────────────────────────────────────
 

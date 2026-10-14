@@ -103,6 +103,21 @@ function gateway(opts) {
       ['', null, undefined, 'not-a-date'].every(v => ctx.twFormatDate(v) === ''));
   }
 
+  console.log('\nA2 — twFormatDateTime (tw_shared.js)');
+  {
+    const { ctx } = gateway();
+    const f = (h, m) => ctx.twFormatDateTime(new Date(2026, 9, 8, h, m, 0));
+    check('A7 afternoon → «8 أكتوبر 2026 · 3:05 م» (12h, 2-digit minutes, Western digits)',
+      f(15, 5) === '8 أكتوبر 2026 · 3:05 م', f(15, 5));
+    check('A8 morning → ص', f(9, 30) === '8 أكتوبر 2026 · 9:30 ص', f(9, 30));
+    check('A9 midnight → 12 ص · noon → 12 م',
+      f(0, 0) === '8 أكتوبر 2026 · 12:00 ص' && f(12, 0) === '8 أكتوبر 2026 · 12:00 م', [f(0, 0), f(12, 0)]);
+    check('A10 date part = twFormatDate (one rule)',
+      f(15, 5).indexOf(ctx.twFormatDate(new Date(2026, 9, 8))) === 0);
+    check('A11 empty / null / invalid → \'\'',
+      ['', null, undefined, 'not-a-date'].every(v => ctx.twFormatDateTime(v) === ''));
+  }
+
   console.log('\nB — TwAuthSync.startSession (auth-sync.js)');
   {
     const g = gateway({ store: { tw_cover_x: 'c', tw_prefs: '{"a":1}', tw_user: '{"id":1}', tw_jwt: 'old' } });

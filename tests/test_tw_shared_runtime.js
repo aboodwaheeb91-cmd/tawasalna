@@ -450,8 +450,12 @@ function check(name, condition, detail) {
 
     check('T01 — company.main.js no dangling window.toggleMenu export',
       !/window\.toggleMenu\s*=\s*toggleMenu/.test(coMainCode));
-    check('T02 — company.main.js retains doLogout + initGlobalHeaderMenu calls',
-      coMainCode.indexOf('doLogout') !== -1 && coMainCode.indexOf('initGlobalHeaderMenu') !== -1);
+    // PR 4.3c: the page is on the unified header (DS-HNAV — <header data-tw-header>, drawn by
+    // twMountAppChrome) → company.main.js no longer wires a page-own header menu.
+    var coPage = fs.readFileSync('./company-profile.html', 'utf8');
+    check('T02 — company page uses the unified header; no page-own header menu wiring',
+      coPage.indexOf('data-tw-header') !== -1 && !/initGlobalHeaderMenu\s*\(/.test(coMainCode)
+      && coMainCode.indexOf('doLogout') !== -1);
   }
 
   // ────────────────────────────────────────────────────────────────
