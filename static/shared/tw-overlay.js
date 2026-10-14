@@ -3,8 +3,10 @@
 // Usage:
 //   twConfirm({ title, message, confirmText, cancelText, danger }) → Promise<boolean>
 //   twAlert({ title, message, okText })                            → Promise<void>
-//   twModal({ title, content: Element, actions, dismissible, onClose }) → { close, setBusy, el }
-//     actions: [{ text, variant: 'primary'|'danger'|'secondary', onClick(ctl) }]
+//   twModal({ title, content: Element, actions, dismissible, onClose }) → { close, setBusy, setActionDisabled, el }
+//     actions: [{ text, variant: 'primary'|'danger'|'secondary', onClick(ctl), disabled? }]
+//       disabled: true → that button opens disabled; ctl.setActionDisabled(index, on) toggles it
+//       (setBusy(false) never re-enables a disabled action).
 //       onClick may return a Promise → the dialog is busy (buttons disabled, Escape and
 //       backdrop ignored) until it settles; resolved value === false keeps it open,
 //       anything else closes it (reason 'action'). A rejected Promise keeps it open.
@@ -267,8 +269,10 @@
     foot.className = 'tw-ovl-actions';
     (o.actions || []).forEach(function (a) {
       var b = makeBtn(a.text, a.variant);
+      b.disabled = !!a.locked;
       b.addEventListener('click', function () { if (!L.busy && L.state === 'open') a.run(b); });
       foot.appendChild(b);
+      b._twLocked = !!a.locked;
       L.buttons.push(b);
       a.el = b;
     });
@@ -283,7 +287,15 @@
     L.setBusy = function (on) {
       L.busy = !!on;
       surface.setAttribute('aria-busy', on ? 'true' : 'false');
-      L.buttons.concat(L.xBtn ? [L.xBtn] : []).forEach(function (b) { b.disabled = !!on; });
+      L.buttons.concat(L.xBtn ? [L.xBtn] : []).forEach(function (b) { b.disabled = !!on || !!b._twLocked; });
+    };
+
+    // one action stays disabled (not busy) until unlocked — setBusy(false) keeps it disabled
+    L.setActionDisabled = function (i, on) {
+      var b = L.buttons[i];
+      if (!b) return;
+      b._twLocked = !!on;
+      b.disabled = !!on || L.busy;
     };
 
     L.close = function (reason) {
@@ -335,7 +347,7 @@
     var ctl = {};
     var acts = (opts.actions || []).map(function (a) {
       return {
-        text: a.text, variant: a.variant || 'secondary',
+        text: a.text, variant: a.variant || 'secondary', locked: !!a.disabled,
         run: function () {
           if (typeof a.onClick !== 'function') { L.close('cancel'); return; }
           var r;
@@ -357,6 +369,7 @@
     });
     ctl.close = function (reason) { L.close(reason || 'system'); };
     ctl.setBusy = L.setBusy;
+    ctl.setActionDisabled = L.setActionDisabled;
     ctl.el = L.surface;
     return ctl;
   }

@@ -180,6 +180,22 @@ function makeEnv() {
       !E.surface() && closedWith === 'action' && E.doc.activeElement === E.trigger);
     check('C6 returns { close, setBusy }', typeof m.close === 'function' && typeof m.setBusy === 'function');
   }
+  {
+    // PR 4.14 — an action can open disabled; setBusy(false) never re-enables it; setActionDisabled toggles
+    const E = makeEnv();
+    let clicks = 0;
+    const m = E.ctx.twModal({ title: 'تحديد موعد', content: new E.El('div'),
+      actions: [{ text: 'إلغاء' }, { text: 'إرسال', variant: 'primary', disabled: true, onClick: () => { clicks++; return false; } }] });
+    const send = E.buttons().find(b => b.textContent === 'إرسال');
+    const cancel = E.buttons().find(b => b.textContent === 'إلغاء');
+    check('C7 disabled:true → the action opens disabled (others enabled)', send.disabled === true && cancel.disabled === false);
+    m.setBusy(true); m.setBusy(false);
+    check('C8 setBusy(false) keeps the disabled action disabled', send.disabled === true && cancel.disabled === false);
+    m.setActionDisabled(1, false);
+    check('C9 setActionDisabled(i, false) → enabled + clickable', send.disabled === false);
+    send.click();
+    check('C10 enabled action runs its onClick', clicks === 1);
+  }
 
   // ── E ──────────────────────────────────────────────────────────────────
   console.log('\nE — Escape + open tw-select dropdown (dropdown first, dialog stays)');

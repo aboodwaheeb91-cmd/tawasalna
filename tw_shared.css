@@ -187,6 +187,7 @@
   --color-categorical-gold:    var(--color-prim-amber-500);
   --color-categorical-slate:   var(--color-prim-slate-500);
   --color-categorical-teal-rgb:   var(--color-prim-teal-rgb);
+  --color-categorical-amber-rgb:  var(--color-prim-amber-rgb);
   --color-categorical-purple-rgb: var(--color-prim-purple-rgb);
   --color-categorical-azure-rgb:  var(--color-prim-blue-500-rgb);
   --color-categorical-orange-rgb: var(--color-prim-orange-rgb);

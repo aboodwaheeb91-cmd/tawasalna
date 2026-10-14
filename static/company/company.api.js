@@ -80,6 +80,7 @@
         if (window.loadJobs)                window.loadJobs();
         if (window.loadBranches)            window.loadBranches();
         if (window._loadCandidatesBadge)    window._loadCandidatesBadge();
+        if (window._openPostJobFromUrl)     window._openPostJobFromUrl();
         if (window.loadMyApplications)      window.loadMyApplications();
         if (window._applyLoadingState)      window._applyLoadingState(false);
         _loadController = null;

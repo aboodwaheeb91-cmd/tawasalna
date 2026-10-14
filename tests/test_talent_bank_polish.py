@@ -38,6 +38,12 @@ JS     = _read("static/company/company.main.js")
 CSS    = _read("static/company/company.css")
 AUTH   = _read("auth.py")
 SERVER = _read("server.py")
+STR    = json.loads(_read("tw_strings.json"))["ar"]   # PR 4.14 — the modal text is twT keys
+
+
+def _uses_key(key, text, src=None):
+    """PR 4.14 (Testing & CI rule 6): the label is a tw_strings.json key with that text, used via twT."""
+    return STR.get(key) == text and ("twT('%s'" % key) in (JS if src is None else src)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -66,7 +72,8 @@ class A_ButtonRename(unittest.TestCase):
         """JS: _setBadge shows 'used من limit' from _quotaUsed/_quotaLimit.
         PR 2B: the badge text became Arabic "X من 25" in PR-4 (ARCHITECTURE.md §68 —
         quota label "X من 25"); the old ' / ' assertion was stale."""
-        self.assertIn("_quotaUsed + ' من ' + _quotaLimit", JS)
+        self.assertIn("twT('company.tb.quota', { used: _quotaUsed, limit: _quotaLimit })", JS)
+        self.assertEqual(STR["company.tb.quota"], "{used} من {limit}")
 
     def test_04_nb_talent_bank_css_class_exists(self):
         """CSS: .nb-talent-bank rule is defined"""
@@ -158,7 +165,7 @@ class C_TagSearch(unittest.TestCase):
 
     def test_11_tag_placeholder_updated(self):
         """JS: tag filter placeholder says 'بحث بالوسم…'"""
-        self.assertIn("بحث بالوسم", JS)
+        self.assertTrue(_uses_key("company.tb.tag_search_ph", "بحث بالوسم…"))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -188,15 +195,18 @@ class E_SourceLabels(unittest.TestCase):
 
     def test_15_manual_label_is_correct(self):
         """JS: _SOURCE_LABELS['manual'] = 'حفظ يدوي'"""
-        self.assertIn("manual:         'حفظ يدوي'", JS)
+        self.assertIn("manual:         twT('company.tb.source.manual')", JS)
+        self.assertTrue(_uses_key("company.tb.source.manual", "حفظ يدوي"))
 
     def test_16_applicant_label_is_correct(self):
         """JS: _SOURCE_LABELS['applicant'] = 'متقدم لوظيفة'"""
-        self.assertIn("applicant:      'متقدم لوظيفة'", JS)
+        self.assertIn("applicant:      twT('company.tb.source.applicant')", JS)
+        self.assertTrue(_uses_key("company.tb.source.applicant", "متقدم لوظيفة"))
 
     def test_17_legacy_unknown_label_present(self):
         """JS: _SOURCE_LABELS['legacy_unknown'] = 'بيانات سابقة'"""
-        self.assertIn("legacy_unknown: 'بيانات سابقة'", JS)
+        self.assertIn("legacy_unknown: twT('company.tb.source.legacy_unknown')", JS)
+        self.assertTrue(_uses_key("company.tb.source.legacy_unknown", "بيانات سابقة"))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -233,13 +243,13 @@ class G_Popover(unittest.TestCase):
     def test_21_no_classification_label_updated(self):
         """JS: 'غير مصنف' replaced by 'لم يتم ترشيحه بعد'"""
         self.assertNotIn("'غير مصنف'", JS)
-        self.assertIn("'لم يتم ترشيحه بعد'", JS)
+        self.assertTrue(_uses_key("company.tb.not_classified", "لم يتم ترشيحه بعد"))
 
     def test_22_apply_date_gated_on_appId(self):
         """JS: apply-date row in popover requires both appId AND applyDate"""
         # Find the popover apply-date condition
         match = re.search(
-            r'if\s*\((\w+)\s*&&\s*(\w+)\)\s*\{[^}]*تاريخ التقدم', JS, re.S
+            r"if\s*\((\w+)\s*&&\s*(\w+)\)\s*\{[^}]*twT\('company\.tb\.apply_date'\)", JS, re.S
         )
         self.assertIsNotNone(
             match,
@@ -265,11 +275,11 @@ class H_ManagePanel(unittest.TestCase):
 
     def test_25_followup_date_label(self):
         """JS: 'تاريخ المتابعة' label above date input"""
-        self.assertIn("تاريخ المتابعة", JS)
+        self.assertTrue(_uses_key("company.tb.fu_date", "تاريخ المتابعة"))
 
     def test_26_followup_status_label(self):
         """JS: 'حالة المتابعة' label above status dropdown"""
-        self.assertIn("حالة المتابعة", JS)
+        self.assertTrue(_uses_key("company.tb.fu_status", "حالة المتابعة"))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -342,9 +352,9 @@ class K_BadgeOnLoad(unittest.TestCase):
     def test_35_setBadge_shows_quota_for_zero(self):
         """JS: _setBadge shows 'used / limit' even when used=0 (_quotaUsed !== null)"""
         # The condition must be _quotaUsed !== null (not _quotaUsed > 0)
-        fn = re.search(r'function _setBadge\(\w+\)\s*\{([^}]+)\}', JS, re.S)
-        self.assertIsNotNone(fn, "_setBadge not found")
-        body = fn.group(1)
+        i = JS.find("function _setBadge(")
+        self.assertNotEqual(i, -1, "_setBadge not found")
+        body = JS[i:JS.find("\n  function ", i + 10)]
         self.assertIn("_quotaUsed !== null", body)
         # Must NOT hide badge when quota is loaded with 0
         # i.e., the display:none branch must be in the else (not inside quota check)
@@ -374,11 +384,11 @@ class L_FilterCleanup(unittest.TestCase):
         src_block = re.search(r'var sourceOpts\s*=\s*\[(.*?)\];', JS, re.S)
         self.assertIsNotNone(src_block)
         self.assertIn("legacy_unknown", src_block.group(1))
-        self.assertIn("بيانات سابقة", src_block.group(1))
+        self.assertIn("twT('company.tb.source.legacy_unknown')", src_block.group(1))
 
     def test_38_empty_state_text_updated(self):
         """JS: empty state for no-filter case says 'لا توجد مواهب محفوظة بعد'"""
-        self.assertIn("لا توجد مواهب محفوظة بعد", JS)
+        self.assertTrue(_uses_key("company.tb.empty.all", "لا توجد مواهب محفوظة بعد"))
         self.assertNotIn("لا يوجد مرشحون محفوظون بعد", JS)
 
 

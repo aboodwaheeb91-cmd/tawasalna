@@ -1243,6 +1243,12 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 - `.skip-link` نص على teal: `#000` → `--color-text-on-brand` (`#070b18` — نفس الدور تبع كل زر teal).
 - **F30 — بدون توكن (ضلّوا ثابتين، 5):** `.badge-verified` بطاقة فاتحة بالـ mock (خلفية بيضاء .92 + نص `#111` + `.bv-sub` `#555`) — ما في سطح فاتح / نص غامق على سطح فاتح بـ DS-COLOR · `.fi-yellow` (`#eab308` + tint) — `--color-categorical-gold` مستعمل لـ `.fi-orange` و `--color-categorical-amber` (`#fbbf24`) فرقه مرئي، و `--color-status-warning-strong` ممنوع للتصنيف (القاعدة 6). القرار للمالك: توكن جديد (CLR-26) أو دمج.
 
+### PR 4.14 — `landing.html` (5 → 0)
+
+- قرار المالك (حلّ F30 تبع 4.13): `.badge-verified` صارت **بطاقة داكنة** بتوكنز موجودة (ما في وضع نهاري — CLR-23): خلفية `--color-surface-elevated` · نص `--color-text-primary` · `.bv-sub` `--color-text-meta` (قبل / بعد: أبيض .92 + `#111` + `#555` → داكن + أبيض + رمادي meta).
+- `.fi-yellow` → `--color-categorical-amber` (`#fbbf24` بدل `#eab308` — قرار المالك) + توأم جديد `--color-categorical-amber-rgb` (قاعدة التوأم — override الأدمن بيكتبه لحاله) للـ tint `.1`.
+- النتيجة: ألوان `page_audit` لـ `landing.html` = 0.
+
 ### الفحص الثابت
 
 - `scripts/ds_color_audit.py` — يعدّ الألوان الثابتة (hex · `rgb()` · `hsl()` بأرقام) لكل ملف — **تقرير** (`python scripts/ds_color_audit.py`). وقت PR 3.8: 2339 لون بـ 31 ملف (أكبرها `company.css` 886 · `profile-v2.css` 518).

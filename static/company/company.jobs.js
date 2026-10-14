@@ -775,6 +775,22 @@
     if (window.scSelectInit) scSelectInit();
   }
 
+  // ── ?post_job=1 deep link (twPostJobHref — PR 4.14) ───────────
+  // Read once at load, consumed after the first profile load (permissions known). The param
+  // is dropped from the URL first, so closing / reloading does not reopen the form.
+  var _postJobFromUrl = new URLSearchParams(location.search).get('post_job') === '1';
+  function _openPostJobFromUrl() {
+    if (!_postJobFromUrl) return;
+    _postJobFromUrl = false;
+    if (window.history && history.replaceState) {
+      var sp = new URLSearchParams(location.search);
+      sp.delete('post_job');
+      var qs = sp.toString();
+      history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+    }
+    openPostJob();   // no-op unless the owner can post jobs
+  }
+
   // ── Post job modal ─────────────────────────────────────────────
   function openPostJob() {
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
@@ -1140,6 +1156,7 @@
   window.bindRateStars         = bindRateStars;
   window.submitRating          = submitRating;
   window.openPostJob           = openPostJob;
+  window._openPostJobFromUrl   = _openPostJobFromUrl;
   window.publishJob            = publishJob;
   window.hydrateEditJobForm    = hydrateEditJobForm;
   window.openEditJob           = openEditJob;

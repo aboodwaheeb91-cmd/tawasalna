@@ -86,7 +86,7 @@
   // _CO_COUNTRIES, _CO_CITIES, _populateFoundedYears removed — use TW helpers.
 
   function _coPopulateCountries() {
-    TW.fillCountries(document.getElementById('e-country'), '— اختر الدولة —',
+    TW.fillCountries(document.getElementById('e-country'), twT('form.country_pick'),
       { valueMode: 'name_ar', withFlags: true });
   }
 
@@ -95,11 +95,11 @@
   }
 
   function _populateTypeOptions() {
-    TW.fillSelect(document.getElementById('e-type'), TW.COMPANY_TYPES, '— اختر تصنيف الجهة —');
+    TW.fillSelect(document.getElementById('e-type'), TW.COMPANY_TYPES, twT('company.edit.type_pick'));
   }
 
   function _populateSizeOptions() {
-    TW.fillSelect(document.getElementById('e-size'), TW.COMPANY_SIZES, '— اختر —');
+    TW.fillSelect(document.getElementById('e-size'), TW.COMPANY_SIZES, twT('common.pick'));
   }
 
   function _makeMf(labelText, child, extraClass) {
@@ -127,12 +127,13 @@
     hdr.className = 'branch-row-hdr';
     var num = document.createElement('span');
     num.className   = 'branch-row-num';
-    num.textContent = 'فرع ' + idx;
+    num.textContent = twT('company.edit.branch_num', { n: idx });
     var del = document.createElement('button');
     del.type        = 'button';
     del.className   = 'branch-row-del';
-    del.textContent = '✕ حذف';
-    del.setAttribute('aria-label', 'حذف الفرع');
+    del.appendChild(twIconEl('close', { size: 'sm' }));
+    del.setAttribute('aria-label', twT('company.edit.branch_delete'));
+    del.title = twT('company.edit.branch_delete');
     del.addEventListener('click', function () { list.removeChild(row); });
     hdr.appendChild(num);
     hdr.appendChild(del);
@@ -141,7 +142,7 @@
     var inpName = document.createElement('input');
     inpName.type        = 'text';
     inpName.className   = 'b-name';
-    inpName.placeholder = 'اسم الفرع (اختياري)';
+    inpName.placeholder = twT('company.edit.branch_name_ph');
     inpName.value       = data.branch_name || '';
     var hasName       = !!(data.branch_name && data.branch_name.trim());
     var nameFieldWrap = null;   // assigned below after _makeMf is called
@@ -149,7 +150,7 @@
     var toggleBtn       = document.createElement('button');
     toggleBtn.type      = 'button';
     toggleBtn.className = 'branch-name-toggle-btn';
-    toggleBtn.textContent = '+ إضافة اسم مخصص للفرع';
+    toggleBtn.textContent = twT('company.edit.branch_name_add');
     if (hasName) toggleBtn.style.display = 'none';
 
     // Fields grid
@@ -162,7 +163,7 @@
       (window.companyState && companyState.profile ? (companyState.profile.country || '') : '');
     var selCountry = document.createElement('select');
     selCountry.className = 'ep-select b-country';
-    TW.fillCountries(selCountry, '— الدولة —', { valueMode: 'name_ar', withFlags: true });
+    TW.fillCountries(selCountry, twT('company.edit.branch_country_pick'), { valueMode: 'name_ar', withFlags: true });
     if (_defaultCountry) selCountry.value = _defaultCountry;
 
     // City select, class b-city; pre-filled when country is known
@@ -171,7 +172,7 @@
     if (_defaultCountry) {
       TW.fillCities(selCity, _defaultCountry, data.city || '');
     } else {
-      selCity.innerHTML = '<option value="">— المدينة —</option>';
+      selCity.innerHTML = '<option value="">' + twEscHtml(twT('company.edit.branch_city_pick')) + '</option>';
     }
     selCountry.addEventListener('change', function () {
       TW.fillCities(selCity, this.value, '');
@@ -182,14 +183,14 @@
     var inpDistrict = document.createElement('input');
     inpDistrict.type        = 'text';
     inpDistrict.className   = 'b-district';
-    inpDistrict.placeholder = 'مثال: حي العليا، شارع...';
+    inpDistrict.placeholder = twT('company.edit.branch_district_ph');
     inpDistrict.value       = data.district || '';
 
-    fields.appendChild(_makeMf('الدولة *',                  selCountry));
-    fields.appendChild(_makeMf('المحافظة / المدينة',        selCity));
-    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)',  inpDistrict));
+    fields.appendChild(_makeMf(twT('company.edit.branch_country'),                  selCountry));
+    fields.appendChild(_makeMf(twT('company.edit.branch_city'),        selCity));
+    fields.appendChild(_makeMf(twT('company.edit.branch_district'),  inpDistrict));
 
-    nameFieldWrap = _makeMf('اسم الفرع (اختياري)', inpName, 'branch-name-field');
+    nameFieldWrap = _makeMf(twT('company.edit.branch_name_ph'), inpName, 'branch-name-field');
     if (!hasName) nameFieldWrap.style.display = 'none';
     toggleBtn.addEventListener('click', function () {
       nameFieldWrap.style.display = '';
@@ -241,7 +242,7 @@
     var bList = document.getElementById('branchesList');
     var bCoId = (companyState.profile || {}).id;
     if (bList) {
-      bList.innerHTML = '<div class="branch-loading">جاري تحميل الفروع...</div>';
+      bList.innerHTML = '<div class="branch-loading">' + twEscHtml(twT('company.edit.branches_loading')) + '</div>';
     }
     if (bCoId) {
       twApi('/company/branches/' + parseInt(bCoId, 10)).then(function (res) {
@@ -255,9 +256,9 @@
         } else {
           if (bList) {
             bList.innerHTML =
-              '<div class="branch-load-err">تعذّر تحميل الفروع، حاول إغلاق المودال وإعادة فتحه</div>';
+              '<div class="branch-load-err">' + twEscHtml(twT('company.edit.branches_load_failed_long')) + '</div>';
           }
-          if (window.showToast) showToast('تعذّر تحميل الفروع', 'error');
+          if (window.showToast) showToast(twT('company.edit.branches_load_failed'), 'error');
           // save stays disabled — _branchesLoaded remains false
         }
       });
@@ -320,14 +321,14 @@
   function saveEdit() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     if (!_branchesLoaded) {
-      if (window.showToast) showToast('يرجى الانتظار حتى اكتمال تحميل الفروع', 'error');
+      if (window.showToast) showToast(twT('company.edit.branches_wait'), 'error');
       return;
     }
     var val  = function (id) { return (document.getElementById(id) || {}).value || ''; };
     var name = val('e-name').trim();
-    if (!name) { if (window.showToast) showToast('أدخل اسم الشركة', 'error'); return; }
+    if (!name) { if (window.showToast) showToast(twT('company.edit.name_required'), 'error'); return; }
     var coType = val('e-type');
-    if (!coType) { if (window.showToast) showToast('يجب تحديد تصنيف الجهة', 'error'); return; }
+    if (!coType) { if (window.showToast) showToast(twT('company.edit.type_required'), 'error'); return; }
 
     // Prevent double submit
     var saveBtn = document.getElementById('editSaveBtn');
@@ -385,7 +386,7 @@
       }
       if (!failedStep) {
         closeEdit();   // closes the overlay and pops the history entry it pushed
-        if (window.showToast) showToast('تم الحفظ ✓');
+        if (window.showToast) showToast(twT('company.saved'));
         // Background state sync — silent, no renderAll
         if (window.loadData) loadData({ silent: true });
         return;
@@ -656,13 +657,13 @@
   var _notesInFlight       = false; // create-note in-flight guard
   var _notesModalInited    = false; // one-time listener guard
   var _APP_STATUS_LABEL = {
-    pending:   'محفوظ',
-    viewed:    'للمراجعة',
-    accepted:  'مرشح قوي',
-    contacted: 'تم التواصل',
-    interview: 'مقابلة',
-    hired:     'تم التوظيف',
-    rejected:  'غير مناسب'
+    pending:   twT('company.stage.saved'),
+    viewed:    twT('company.stage.viewed'),
+    accepted:  twT('company.stage.shortlisted'),
+    contacted: twT('company.stage.contacted'),
+    interview: twT('company.stage.interview'),
+    hired:     twT('company.stage.hired'),
+    rejected:  twT('company.stage.rejected')
   };
 
 
@@ -705,9 +706,9 @@
     var seq = ++_appReqSeq;
     _appLoading = true;
     var list = document.getElementById('coAppList');
-    if (list) list.innerHTML = '<div class="co-app-spin">جارٍ التحميل…</div>';
+    if (list) list.innerHTML = '<div class="co-app-spin">' + twEscHtml(twT('common.loading')) + '</div>';
     if (!TwCompanyPage.signedIn()) {
-      if (list) list.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
+      if (list) list.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.login_required')) + '</div>';
       _appLoading = false;
       return;
     }
@@ -717,8 +718,8 @@
       if (!res.ok) {
         var list2 = document.getElementById('coAppList');
         var msg = (res.status === 401 || res.status === 403)
-          ? 'انتهت الجلسة أو لا تملك صلاحية عرض المتقدمين'
-          : 'تعذّر تحميل المتقدمين، حاول مجدداً';
+          ? twT('company.app.load_forbidden')
+          : twT('company.app.load_failed');
         if (list2) list2.innerHTML = '<div class="co-app-empty">' + twEscHtml(msg) + '</div>';
         return;
       }
@@ -734,7 +735,7 @@
     var list = document.getElementById('coAppList');
     if (!list) return;
     if (!apps.length) {
-      list.innerHTML = '<div class="co-app-empty">لا يوجد متقدمون لهذه الوظيفة</div>';
+      list.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.app.empty')) + '</div>';
       return;
     }
     var html = '';
@@ -764,24 +765,24 @@
         : '';
 
       var stageHtml = (entryId && stage)
-        ? '<div class="co-app-meta-line co-app-stage">المرحلة: ' + twEscHtml(stage) + '</div>'
+        ? '<div class="co-app-meta-line co-app-stage">' + twEscHtml(twT('company.app.stage', { stage: stage })) + '</div>'
         : '';
 
       var nextApptHtml = '';
       if (nextAppt && nextAppt.scheduled_at) {
-        var apptTypeLbl = nextAppt.appointment_type || 'مقابلة';
+        var apptTypeLbl = nextAppt.appointment_type || twT('company.app.appt_default');
         nextApptHtml = '<div class="co-app-next-appt">'
           + twEscHtml(apptTypeLbl) + ' · ' + twEscHtml(twFormatDate(nextAppt.scheduled_at))
           + '</div>';
       }
 
       var viewBtn = twId
-        ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+        ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">' + twEscHtml(twT('company.app.view_profile')) + '</a>'
         : '';
 
-      var classifyLbl = !isClassified ? 'ترشيح للوظيفة ▾'
-        : isRejected                  ? 'إعادة التصنيف ▾'
-        : 'تعديل التصنيف ▾';
+      var classifyLbl = !isClassified ? twT('company.app.classify') + ' ▾'
+        : isRejected                  ? twT('company.app.reclassify') + ' ▾'
+        : twT('company.app.edit_classify') + ' ▾';
 
       var classifyBtn = '<button type="button" class="co-classify-btn co-app-act'
         + (isRejected ? ' co-classify-btn--reclassify' : '')
@@ -790,7 +791,7 @@
         + (isHired ? ' data-hired="1"' : '')
         + '>' + classifyLbl + '</button>';
 
-      var tbLbl = isSaved ? 'محفوظ في بنك المواهب ✓' : 'حفظ في بنك المواهب';
+      var tbLbl = isSaved ? twT('company.tb.in_bank') : twT('company.tb.save_to_bank');
       var talentBankBtn = '<button type="button" class="co-talentbank-btn co-app-act'
         + (isSaved ? ' co-talentbank-btn--saved' : '')
         + '" data-uid="' + uid + '" data-saved="' + (isSaved ? '1' : '0') + '"'
@@ -801,7 +802,7 @@
       var notesCountBadge = notesCount > 0 ? ' (' + notesCount + ')' : '';
       var notesBtn = entryId
         ? '<button type="button" class="co-notes-btn co-app-act" data-entry-id="' + entryId + '"'
-          + '>ملاحظات الوظيفة' + notesCountBadge + '</button>'
+          + '>' + twEscHtml(twT('company.notes.title')) + notesCountBadge + '</button>'
         : '';
 
       // "تحديد موعد" / "فتح الموعد" — every applicant not marked غير مناسب (the server refuses
@@ -809,7 +810,7 @@
       var schedBtn = isRejected ? '' : _schedSlotHTML(uid, a.full_name || '');
 
       var savedCtx = isSaved && otherJobTitles.length > 0
-        ? '<div class="co-app-saved-ctx">محفوظ · أيضاً في: '
+        ? '<div class="co-app-saved-ctx">' + twEscHtml(twT('company.app.saved_also'))
           + otherJobTitles.slice(0, 2).map(function (t) { return twEscHtml(t); }).join(' · ')
           + (otherJobTitles.length > 2 ? ' · +' + (otherJobTitles.length - 2) : '')
           + '</div>'
@@ -824,7 +825,7 @@
         +   avatarHtml
         +   '<div class="co-app-info">'
         +     '<div class="co-app-name">' + twEscHtml(a.full_name || '—') + '</div>'
-        +     (dateStr ? '<div class="co-app-meta-line">تقدّم: ' + twEscHtml(dateStr) + '</div>' : '')
+        +     (dateStr ? '<div class="co-app-meta-line">' + twEscHtml(twT('company.app.applied_on', { date: dateStr })) + '</div>' : '')
         +     stageHtml
         +   '</div>'
         +   statusBadge
@@ -873,20 +874,20 @@
   function _execPromote(appId, card, promoteBtn) {
     if (promoteBtn) {
       promoteBtn.disabled    = true;
-      promoteBtn.textContent = 'جارٍ الترقية…';
+      promoteBtn.textContent = twT('company.app.promoting');
     }
     twApi('/jobs/applications/' + parseInt(appId, 10) + '/promote', { method: 'POST' }).then(function (res) {
       if (!res.ok) {
         if (promoteBtn) {
           promoteBtn.disabled    = false;
-          promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
+          promoteBtn.textContent = promoteBtn.dataset.origText || twT('company.app.classify') + ' ▾';
         }
         var status = res.status;
         var msg;
-        if (status === 403) msg = 'انتهت الجلسة أو لا تملك صلاحية الترقية';
-        else if (status === 404) msg = 'الطلب غير موجود';
-        else if (status === 401) msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
-        else                     msg = 'تعذّرت الترقية، حاول مجدداً';
+        if (status === 403) msg = twT('company.app.promote_forbidden');
+        else if (status === 404) msg = twT('company.app.not_found');
+        else if (status === 401) msg = twT('company.session_expired');
+        else                     msg = twT('company.app.promote_failed');
         if (window.showToast) showToast(msg, 'error');
         return;
       }
@@ -896,9 +897,9 @@
       if (action === 'rejected_noop') {
         if (promoteBtn) {
           promoteBtn.disabled    = false;
-          promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
+          promoteBtn.textContent = promoteBtn.dataset.origText || twT('company.app.classify') + ' ▾';
         }
-        if (window.showToast) showToast(data.message || 'لا يمكن ترشيح هذا المرشح', 'error');
+        if (window.showToast) showToast(data.message || twT('company.app.promote_refused'), 'error');
         return;
       }
       if (card) {
@@ -917,9 +918,9 @@
       }
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
       if (window.showToast) {
-        showToast(action === 'kept_higher' ? 'المرشح بمرحلة متقدمة — بقيت مرحلته كما هي ✓'
-                : action === 'unchanged' ? 'المرشح مصنّف مسبقاً ✓'
-                : 'تم تصنيف المرشح بنجاح ✓');
+        showToast(action === 'kept_higher' ? twT('company.app.kept_higher')
+                : action === 'unchanged' ? twT('company.app.unchanged')
+                : twT('company.app.classified'));
       }
     });
   }
@@ -928,16 +929,16 @@
     var uid = parseInt(btn.getAttribute('data-uid'), 10);
     if (!uid || btn.disabled) return;
     btn.disabled    = true;
-    btn.textContent = 'جارٍ الحفظ…';
+    btn.textContent = twT('common.saving');
     var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
     twApi('/company/saved-candidates/' + uid + jobSufx, { method: 'POST' }).then(function (res) {
       if (!res.ok) {
         btn.disabled    = false;
-        btn.textContent = '+ حفظ المرشح';
-        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ المرشح'), 'error');
+        btn.textContent = twT('company.app.save_cand');
+        if (window.showToast) showToast(twApiMessage(res, twT('company.app.save_cand_failed')), 'error');
         return;
       }
-      btn.textContent = 'تم الحفظ ✓';
+      btn.textContent = twT('company.saved');
       btn.classList.add('saved');
       btn.disabled = true;
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
@@ -949,34 +950,33 @@
     var uid = parseInt(btn.getAttribute('data-uid'), 10);
     if (!uid || btn.disabled || btn.getAttribute('data-saved') === '1') return;
     btn.disabled    = true;
-    btn.textContent = 'جارٍ الحفظ…';
+    btn.textContent = twT('common.saving');
     var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
     twApi('/company/saved-candidates/' + uid + jobSufx, { method: 'POST' }).then(function (res) {
       if (res.status === 409 && res.raw && res.raw.code === 'talent_bank_limit_reached') {
         btn.disabled    = false;
-        btn.textContent = 'حفظ في بنك المواهب';
+        btn.textContent = twT('company.tb.save_to_bank');
         var body = res.raw;
         if (window.showToast) showToast(
-          'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
-          + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
+          twT('company.tb.limit_reached', { used: body.used, limit: body.limit }),
           'error');
         return;
       }
       if (!res.ok) {
         btn.disabled    = false;
-        btn.textContent = 'حفظ في بنك المواهب';
+        btn.textContent = twT('company.tb.save_to_bank');
         var status = res.status;
         var msg = (status === 401 || status === 403)
-          ? 'انتهت الجلسة أو لا تملك صلاحية الحفظ'
-          : 'تعذّر الحفظ في بنك المواهب، حاول مجدداً';
+          ? twT('company.tb.save_forbidden')
+          : twT('company.tb.save_failed');
         if (window.showToast) showToast(msg, 'error');
         return;
       }
-      btn.textContent = 'محفوظ في بنك المواهب ✓';
+      btn.textContent = twT('company.tb.in_bank');
       btn.setAttribute('data-saved', '1');
       btn.classList.add('co-talentbank-btn--saved');
       btn.disabled = true;
-      if (window.showToast) showToast('تم الحفظ في بنك المواهب ✓');
+      if (window.showToast) showToast(twT('company.tb.saved'));
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
     });
   }
@@ -993,7 +993,7 @@
     var el = document.getElementById('coNotesModal');
     if (!el) return;
     var listEl = document.getElementById('coNotesList');
-    if (listEl) listEl.innerHTML = '<div class="co-app-spin">جارٍ التحميل…</div>';
+    if (listEl) listEl.innerHTML = '<div class="co-app-spin">' + twEscHtml(twT('common.loading')) + '</div>';
     var inp = document.getElementById('coNotesInput');
     if (inp) inp.value = '';
     _notesInFlight = false;
@@ -1032,13 +1032,13 @@
     var listEl = document.getElementById('coNotesList');
     if (!listEl) return;
     if (!TwCompanyPage.signedIn()) {
-      listEl.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
+      listEl.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.login_required')) + '</div>';
       return;
     }
     twApi('/company/pipeline/' + parseInt(entryId, 10) + '/notes').then(function (res) {
       if (entryId !== _notesCurrentEntryId) return;   // panel moved on / closed
       if (!res.ok) {
-        listEl.innerHTML = '<div class="co-app-empty">تعذّر تحميل الملاحظات</div>';
+        listEl.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.notes.load_failed')) + '</div>';
         return;
       }
       var d = res.data;
@@ -1050,7 +1050,7 @@
   function _renderPanelNotes(notes, listEl) {
     if (!listEl) return;
     if (!notes.length) {
-      listEl.innerHTML = '<div class="co-app-empty">لا توجد ملاحظات بعد</div>';
+      listEl.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.notes.empty')) + '</div>';
       return;
     }
     var html = '';
@@ -1058,7 +1058,9 @@
       var noteId = parseInt(n.id, 10);
       html += '<div class="co-note-item" data-note-id="' + noteId + '">'
         + '<div class="co-note-body"></div>'
-        + '<button type="button" class="co-note-del" data-note-id="' + noteId + '">×</button>'
+        + '<button type="button" class="co-note-del" data-note-id="' + noteId + '"'
+        +   ' aria-label="' + twEscAttr(twT('company.notes.delete')) + '" title="' + twEscAttr(twT('company.notes.delete')) + '">'
+        +   twIcon('close', { size: 'sm' }) + '</button>'
         + '</div>';
     });
     listEl.innerHTML = html;
@@ -1077,7 +1079,7 @@
     var inp = document.getElementById('coNotesInput');
     var body = inp ? inp.value.trim() : '';
     if (!body) {
-      if (window.showToast) showToast('أدخل نص الملاحظة', 'error');
+      if (window.showToast) showToast(twT('company.notes.required'), 'error');
       return;
     }
     _notesInFlight = true;
@@ -1089,7 +1091,7 @@
       _notesInFlight = false;
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = twT('common.add'); }
       if (!res.ok) {
-        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ الملاحظة'), 'error');
+        if (window.showToast) showToast(twApiMessage(res, twT('company.notes.save_failed')), 'error');
         return;
       }
       if (inp) inp.value = '';
@@ -1107,7 +1109,7 @@
     twApi('/company/pipeline/notes/' + noteId, { method: 'DELETE' }).then(function (res) {
       if (!res.ok) {
         delBtn.disabled = false;
-        if (window.showToast) showToast(twApiMessage(res, 'تعذّر حذف الملاحظة'), 'error');
+        if (window.showToast) showToast(twApiMessage(res, twT('company.notes.delete_failed')), 'error');
         return;
       }
       _loadPanelNotes(entryId);
@@ -1127,13 +1129,13 @@
     _astFloat.className     = 'co-ast-float';
     _astFloat.style.display = 'none';
     _astFloat.innerHTML =
-      '<button class="co-ast-opt" data-val="pending">محفوظ</button>'
-      + '<button class="co-ast-opt" data-val="viewed">للمراجعة</button>'
-      + '<button class="co-ast-opt" data-val="accepted">مرشح قوي</button>'
-      + '<button class="co-ast-opt" data-val="contacted">تم التواصل</button>'
-      + '<button class="co-ast-opt" data-val="interview">مقابلة</button>'
-      + '<button class="co-ast-opt" data-val="hired">تم التوظيف</button>'
-      + '<button class="co-ast-opt co-ast-opt--reject" data-val="rejected">غير مناسب</button>';
+      '<button class="co-ast-opt" data-val="pending">' + twEscHtml(twT('company.stage.saved')) + '</button>'
+      + '<button class="co-ast-opt" data-val="viewed">' + twEscHtml(twT('company.stage.viewed')) + '</button>'
+      + '<button class="co-ast-opt" data-val="accepted">' + twEscHtml(twT('company.stage.shortlisted')) + '</button>'
+      + '<button class="co-ast-opt" data-val="contacted">' + twEscHtml(twT('company.stage.contacted')) + '</button>'
+      + '<button class="co-ast-opt" data-val="interview">' + twEscHtml(twT('company.stage.interview')) + '</button>'
+      + '<button class="co-ast-opt" data-val="hired">' + twEscHtml(twT('company.stage.hired')) + '</button>'
+      + '<button class="co-ast-opt co-ast-opt--reject" data-val="rejected">' + twEscHtml(twT('company.stage.rejected')) + '</button>';
     document.body.appendChild(_astFloat);
 
     _astFloat.addEventListener('click', function (e) {
@@ -1224,10 +1226,10 @@
       _icFloat.className     = 'co-ic-float';
       _icFloat.style.display = 'none';
       _icFloat.innerHTML =
-        '<div class="co-ic-prompt">تحديد موعد المقابلة؟</div>'
+        '<div class="co-ic-prompt">' + twEscHtml(twT('company.app.ic_prompt')) + '</div>'
         + '<div class="co-ic-btns">'
-        +   '<button class="co-ic-btn co-ic-btn--now">الآن</button>'
-        +   '<button class="co-ic-btn co-ic-btn--later">لاحقاً</button>'
+        +   '<button class="co-ic-btn co-ic-btn--now">' + twEscHtml(twT('company.app.ic_now')) + '</button>'
+        +   '<button class="co-ic-btn co-ic-btn--later">' + twEscHtml(twT('company.app.ic_later')) + '</button>'
         + '</div>';
       document.body.appendChild(_icFloat);
     }
@@ -1291,7 +1293,7 @@
       if (classifyBtn) {
         classifyBtn.dataset.origText = classifyBtn.textContent;
         classifyBtn.disabled    = true;
-        classifyBtn.textContent = 'جارٍ التصنيف…';
+        classifyBtn.textContent = twT('company.app.classifying');
       }
       _execPromote(appId, card, classifyBtn);
       return;
@@ -1301,7 +1303,7 @@
     if (card) _applyClassifyBadge(card, newStatus);
     if (classifyBtn) {
       classifyBtn.disabled    = true;
-      classifyBtn.textContent = 'جارٍ التصنيف…';
+      classifyBtn.textContent = twT('company.app.classifying');
     }
 
     // Single atomic request — backend writes job_applications.status AND
@@ -1327,14 +1329,14 @@
           }}));
         }
         if (window._loadCandidatesBadge) window._loadCandidatesBadge();
-        if (window.showToast) showToast('تم التصنيف بنجاح ✓');
+        if (window.showToast) showToast(twT('company.app.classify_done'));
         if (onSuccess) onSuccess();
       });
 
     function _onClassifyFail(res) {
       var msg = (res.status === 401 || res.status === 403)
-        ? 'انتهت الجلسة أو لا تملك صلاحية التصنيف'
-        : 'تعذّر التصنيف، حاول مجدداً';
+        ? twT('company.app.classify_forbidden')
+        : twT('company.app.classify_failed');
       if (window.showToast) showToast(msg, 'error');
       if (_appJobId) {
         _loadApplicants(_appJobId);
@@ -1343,7 +1345,7 @@
         if (classifyBtn) {
           classifyBtn.disabled    = false;
           var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
-          classifyBtn.textContent = wasFresh ? 'ترشيح للوظيفة ▾' : 'تعديل التصنيف ▾';
+          classifyBtn.textContent = wasFresh ? twT('company.app.classify') + ' ▾' : twT('company.app.edit_classify') + ' ▾';
         }
       }
     }
@@ -1388,10 +1390,10 @@
     }
 
     var viewHtml = twId
-      ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+      ? '<a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId) + '" target="_blank" rel="noopener">' + twEscHtml(twT('company.app.view_profile')) + '</a>'
       : '';
 
-    var classifyLbl  = isRejected ? 'إعادة التصنيف ▾' : 'تعديل التصنيف ▾';
+    var classifyLbl  = isRejected ? twT('company.app.reclassify') + ' ▾' : twT('company.app.edit_classify') + ' ▾';
     var classifyHtml = '<button type="button" class="co-classify-btn co-app-act'
       + (isRejected ? ' co-classify-btn--reclassify' : '')
       + '" data-app-id="' + appId + '" data-status="' + twEscHtml(statusKey) + '"'
@@ -1402,7 +1404,7 @@
     // Preserve talent bank saved state from the existing DOM
     var existingTb   = card.querySelector('.co-talentbank-btn');
     var tbAlreadySaved = existingTb ? existingTb.getAttribute('data-saved') === '1' : false;
-    var tbLbl        = tbAlreadySaved ? 'محفوظ في بنك المواهب ✓' : 'حفظ في بنك المواهب';
+    var tbLbl        = tbAlreadySaved ? twT('company.tb.in_bank') : twT('company.tb.save_to_bank');
     var talentHtml   = '<button type="button" class="co-talentbank-btn co-app-act'
       + (tbAlreadySaved ? ' co-talentbank-btn--saved' : '')
       + '" data-uid="' + uid + '" data-saved="' + (tbAlreadySaved ? '1' : '0') + '"'
@@ -1414,7 +1416,7 @@
     var existingNotes = card.querySelector('.co-notes-btn');
     var entryId       = parseInt(card.getAttribute('data-entry-id'), 10) || 0;
     var notesHtml     = existingNotes ? existingNotes.outerHTML
-      : (entryId ? '<button type="button" class="co-notes-btn co-app-act" data-entry-id="' + entryId + '">ملاحظات الوظيفة</button>' : '');
+      : (entryId ? '<button type="button" class="co-notes-btn co-app-act" data-entry-id="' + entryId + '">' + twEscHtml(twT('company.notes.title')) + '</button>' : '');
 
     var schedHtml = isRejected ? '' : _schedSlotHTML(uid, card.getAttribute('data-name') || '');
 
@@ -2011,24 +2013,24 @@
 
   // ── Pipeline status labels & order ───────────────────────────
   var _STATUS_LABELS = {
-    'saved':       'محفوظ',
-    'shortlisted': 'مرشح قوي',
-    'contacted':   'تم التواصل',
-    'interview':   'مقابلة',
-    'hired':       'تم التوظيف',
-    'rejected':    'غير مناسب'
+    'saved':       twT('company.stage.saved'),
+    'shortlisted': twT('company.stage.shortlisted'),
+    'contacted':   twT('company.stage.contacted'),
+    'interview':   twT('company.stage.interview'),
+    'hired':       twT('company.stage.hired'),
+    'rejected':    twT('company.stage.rejected')
   };
   var _STATUS_ORDER = ['saved','shortlisted','contacted','interview','hired','rejected'];
 
   // Job application status labels (for chip popover)
   var _APP_STATUS_LABELS = {
-    'pending':   'قيد المراجعة',
-    'viewed':    'تمت المشاهدة',
-    'accepted':  'مقبول',
-    'contacted': 'تم التواصل',
-    'interview': 'مقابلة',
-    'hired':     'تم التوظيف',
-    'rejected':  'مرفوض',
+    'pending':   twT('company.app_status.pending'),
+    'viewed':    twT('company.app_status.viewed'),
+    'accepted':  twT('company.app_status.accepted'),
+    'contacted': twT('company.app_status.contacted'),
+    'interview': twT('company.app_status.interview'),
+    'hired':     twT('company.app_status.hired'),
+    'rejected':  twT('company.app_status.rejected'),
   };
 
   // Pending manage panel open after tab switch (Reqs 5 & 6)
@@ -2072,7 +2074,7 @@
     if (!_badge) return;
     // Prefer quota format "used من limit" (RTL-safe Arabic) when quota is loaded
     if (_quotaUsed !== null) {
-      _badge.textContent = _quotaUsed + ' من ' + _quotaLimit;
+      _badge.textContent = twT('company.tb.quota', { used: _quotaUsed, limit: _quotaLimit });
       _badge.style.display = 'inline-flex';
     } else if (count > 0) {
       _badge.textContent = count > 99 ? '99+' : String(count);
@@ -2251,7 +2253,7 @@
             try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
             _renderCandidateJobLinksUI(card, rollLinks);
           }
-          if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
+          if (window.showToast) showToast(detail || twT('company.tb.classify_failed'), 'error');
           return;
         }
         if (card && card.parentNode) {
@@ -2264,7 +2266,7 @@
           });
           _renderCandidateJobLinksUI(card, links);
         }
-        if (window.showToast) showToast('تم حفظ التصنيف ✓');
+        if (window.showToast) showToast(twT('company.tb.classify_saved'));
       })
       .catch(function () {
         var card = _findLiveSavedCandidateCard(cidInt);
@@ -2273,7 +2275,7 @@
           try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
           _renderCandidateJobLinksUI(card, rollLinks);
         }
-        if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
+        if (window.showToast) showToast(twT('company.tb.classify_failed'), 'error');
       })
       .finally(function () {
         delete _jobStatusInFlight[cidStr];
@@ -2324,19 +2326,19 @@
 
   function _savedShellHTML() {
     var sortOpts = [
-      {value:'updated_desc',  label:'الأحدث تعديلاً'},
-      {value:'updated_asc',   label:'الأقدم تعديلاً'},
-      {value:'created_desc',  label:'الأحدث حفظاً'},
-      {value:'created_asc',   label:'الأقدم حفظاً'},
-      {value:'name_asc',      label:'الاسم أ-ي'},
-      {value:'rating_desc',   label:'التقييم الأعلى'},
-      {value:'priority_asc',  label:'الأولوية'}
+      {value:'updated_desc',  label:twT('company.tb.sort.updated_desc')},
+      {value:'updated_asc',   label:twT('company.tb.sort.updated_asc')},
+      {value:'created_desc',  label:twT('company.tb.sort.created_desc')},
+      {value:'created_asc',   label:twT('company.tb.sort.created_asc')},
+      {value:'name_asc',      label:twT('company.tb.sort.name_asc')},
+      {value:'rating_desc',   label:twT('company.tb.sort.rating_desc')},
+      {value:'priority_asc',  label:twT('company.tb.priority')}
     ];
     var priorityOpts = [
-      {value:'',       label:'كل الأولويات'},
-      {value:'high',   label:'عالية'},
-      {value:'medium', label:'متوسطة'},
-      {value:'low',    label:'منخفضة'}
+      {value:'',       label:twT('company.tb.priority_all')},
+      {value:'high',   label:twT('company.tb.priority.high')},
+      {value:'medium', label:twT('company.tb.priority.medium')},
+      {value:'low',    label:twT('company.tb.priority.low')}
     ];
     var ratingOpts = [
       {value:'',  label:twT('company.cand.rating_filter.all')},
@@ -2347,15 +2349,15 @@
       {value:'1', label:twT('company.cand.rating_filter.1')}
     ];
     var sourceOpts = [
-      {value:'',               label:'كل المصادر'},
-      {value:'manual',         label:'حفظ يدوي'},
-      {value:'applicant',      label:'متقدم لوظيفة'},
-      {value:'suggestion',     label:'اقتراح'},
-      {value:'legacy_unknown', label:'بيانات سابقة'}
+      {value:'',               label:twT('company.tb.source_all')},
+      {value:'manual',         label:twT('company.tb.source.manual')},
+      {value:'applicant',      label:twT('company.tb.source.applicant')},
+      {value:'suggestion',     label:twT('company.tb.source.suggestion')},
+      {value:'legacy_unknown', label:twT('company.tb.source.legacy_unknown')}
     ];
     var quotaStr = (_quotaUsed !== null)
-      ? ('بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit)
-      : 'بنك المواهب';
+      ? twT('company.tb.quota_label', { used: _quotaUsed, limit: _quotaLimit })
+      : twT('people.talent_bank');
     return '<div id="coCandSavedShell">'
       + '<div class="co-tb-quota-bar" id="coTbQuotaBar">'
       + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl" dir="rtl">' + twEscHtml(quotaStr) + '</span>'
@@ -2363,7 +2365,7 @@
       + '<div class="co-cand-filter-bar">'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
-      + ' placeholder="بحث في بنك المواهب…" dir="rtl" value="' + twEscHtml(_savedSearch) + '">'
+      + ' placeholder="' + twEscAttr(twT('company.tb.search_ph')) + '" dir="rtl" value="' + twEscHtml(_savedSearch) + '">'
       + _dpHTML('co-cand-sort-dp', sortOpts, _savedSort)
       + '</div>'
       + '<div class="co-cand-adv-filters">'
@@ -2371,7 +2373,7 @@
       + _dpHTML('co-cand-rating-dp',   ratingOpts,   _savedMinRating)
       + _dpHTML('co-cand-source-dp',   sourceOpts,   _savedSaveSource)
       + '<input id="coCandTagFilter" type="text" class="co-cand-tag-input"'
-      + ' placeholder="بحث بالوسم…" dir="rtl" value="' + twEscHtml(_savedTag) + '">'
+      + ' placeholder="' + twEscAttr(twT('company.tb.tag_search_ph')) + '" dir="rtl" value="' + twEscHtml(_savedTag) + '">'
       + '</div>'
       + '</div>'
       + '<div id="coCandSavedList"></div>'
@@ -2385,7 +2387,7 @@
     var byStatus = stats.by_status || {};
     // Only the "الكل" total chip — pipeline status filters removed from Talent Bank
     var chips = [
-      [null, 'الكل', stats.total || 0],
+      [null, twT('common.all'), stats.total || 0],
     ];
     var html = '';
     chips.forEach(function (c) {
@@ -2490,7 +2492,7 @@
         _quotaLimit = d.limit || 25;
         _setBadge(_quotaUsed);
         var lbl = document.getElementById('coTbQuotaLbl');
-        if (lbl) lbl.textContent = 'بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit;
+        if (lbl) lbl.textContent = twT('company.tb.quota_label', { used: _quotaUsed, limit: _quotaLimit });
       }
     });
   }
@@ -2513,7 +2515,7 @@
     var seq = first ? ++_savedReqSeq : _savedReqSeq;
     _savedLoading = true;
     var list = document.getElementById('coCandSavedList');
-    if (first && list) list.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    if (first && list) list.innerHTML = '<div class="co-fl-spin">' + twEscHtml(twT('common.loading')) + '</div>';
     var oldBtn = document.getElementById('coCandSavedLoadMore');
     if (oldBtn && oldBtn.parentNode) oldBtn.parentNode.removeChild(oldBtn);
 
@@ -2535,8 +2537,8 @@
           if (first) {
             var code = res && res.status;
             list.innerHTML = (code === 401 || code === 403)
-              ? '<div class="co-fl-empty">غير مصرح بالوصول</div>'
-              : '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+              ? '<div class="co-fl-empty">' + twEscHtml(twT('company.tb.forbidden')) + '</div>'
+              : '<div class="co-fl-empty">' + twEscHtml(twT('company.tb.load_failed')) + '</div>';
           }
           return;
         }
@@ -2566,11 +2568,11 @@
           var loadBtn = document.createElement('button');
           loadBtn.className = 'co-cand-load-more';
           loadBtn.id        = 'coCandSavedLoadMore';
-          loadBtn.textContent = 'عرض المزيد';
+          loadBtn.textContent = twT('company.show_more');
           shell.appendChild(loadBtn);
           loadBtn.addEventListener('click', function () {
             loadBtn.disabled    = true;
-            loadBtn.textContent = 'جارٍ التحميل…';
+            loadBtn.textContent = twT('common.loading');
             _doFetchSavedPage(false);
           });
         }
@@ -2578,24 +2580,24 @@
       .catch(function () {
         if (seq !== _savedReqSeq) return;
         var list = document.getElementById('coCandSavedList');
-        if (list && first) list.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+        if (list && first) list.innerHTML = '<div class="co-fl-empty">' + twEscHtml(twT('company.tb.load_failed')) + '</div>';
       })
       .finally(function () { if (seq === _savedReqSeq) _savedLoading = false; });
   }
 
   function _savedEmptyHTML(filter, q) {
     if (q) return '<div class="co-cand-empty">'
-      + '<div class="co-cand-empty-title">لا نتائج للبحث عن "' + twEscHtml(q) + '"</div>'
-      + '<div class="co-cand-empty-sub">جرّب كلمات بحث مختلفة.</div></div>';
+      + '<div class="co-cand-empty-title">' + twEscHtml(twT('company.tb.no_results', { q: q })) + '</div>'
+      + '<div class="co-cand-empty-sub">' + twEscHtml(twT('company.tb.no_results_sub')) + '</div></div>';
     var msgs = {
-      'null':        ['لا توجد مواهب محفوظة بعد',             'عند حفظ موهبة ستظهر هنا لإدارتها لاحقاً.'],
-      'saved':       ['لا يوجد مرشحون بحالة "محفوظ"',        'يمكنك تغيير حالة المرشح من لوحة الإدارة.'],
-      'shortlisted': ['لا يوجد مرشحون مرشحون قوياً',         ''],
-      'contacted':   ['لا يوجد مرشحون تم التواصل معهم',      ''],
-      'interview':   ['لا يوجد مرشحون في مرحلة المقابلة',    ''],
-      'hired':       ['لا يوجد مرشحون تم توظيفهم',           ''],
-      'rejected':    ['لا يوجد مرشحون بحالة "غير مناسب"',    ''],
-      '_unlinked':   ['لا يوجد مرشحون بدون وظيفة',           'جميع المرشحين مرتبطون بوظيفة حالياً.']
+      'null':        [twT('company.tb.empty.all'),             twT('company.tb.empty.all_sub')],
+      'saved':       [twT('company.tb.empty.saved'),        twT('company.tb.empty.saved_sub')],
+      'shortlisted': [twT('company.tb.empty.shortlisted'),         ''],
+      'contacted':   [twT('company.tb.empty.contacted'),      ''],
+      'interview':   [twT('company.tb.empty.interview'),    ''],
+      'hired':       [twT('company.tb.empty.hired'),           ''],
+      'rejected':    [twT('company.tb.empty.rejected'),    ''],
+      '_unlinked':   [twT('company.tb.empty.unlinked'),           twT('company.tb.empty.unlinked_sub')]
     };
     var key = filter == null ? 'null' : String(filter);
     var m = msgs[key] || msgs['null'];
@@ -2617,7 +2619,7 @@
   }
 
   // Priority badge HTML
-  var _PRIORITY_LABELS = { high: 'عالية', medium: 'متوسطة', low: 'منخفضة' };
+  var _PRIORITY_LABELS = { high: twT('company.tb.priority.high'), medium: twT('company.tb.priority.medium'), low: twT('company.tb.priority.low') };
   function _priorityBadgeHTML(priority) {
     if (!priority) return '';
     return '<span class="co-cand-priority co-cand-priority--' + twEscHtml(priority) + '">'
@@ -2626,14 +2628,14 @@
 
   // Save source Arabic labels
   var _SOURCE_LABELS = {
-    manual:         'حفظ يدوي',
-    applicant:      'متقدم لوظيفة',
-    suggestion:     'اقتراح',
-    legacy_unknown: 'بيانات سابقة'
+    manual:         twT('company.tb.source.manual'),
+    applicant:      twT('company.tb.source.applicant'),
+    suggestion:     twT('company.tb.source.suggestion'),
+    legacy_unknown: twT('company.tb.source.legacy_unknown')
   };
 
   // Follow-up status labels
-  var _FU_STATUS_LABELS = { pending: 'قيد المتابعة', done: 'تمت المتابعة', none: '' };
+  var _FU_STATUS_LABELS = { pending: twT('company.tb.fu.pending'), done: twT('company.tb.fu.done'), none: '' };
 
   // ── Job link sections on a saved card ─────────────────────────
   // Shared by _savedCardHTML (first build) and _renderCandidateJobLinksUI (re-render from
@@ -2654,7 +2656,7 @@
          + ' data-pe-id="' + twEscHtml(peId) + '"'
          + ' data-app-id="' + twEscHtml(appId) + '"'
          + ' data-notes-count="' + twEscHtml(notesCount) + '">'
-         + twEscHtml(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
+         + twEscHtml(jl.title || twT('company.tb.job_fallback', { id: jl.job_id })) + '</button>';
   }
 
   // Chip strip split: "تقدّم إلى:" (real applications) vs "مرتبط بوظيفة:" (pipeline-only links)
@@ -2666,11 +2668,11 @@
 
     if (appliedLinks.length) {
       html += '<div class="co-cand-job-section">';
-      html += '<span class="co-cand-job-section-title">تقدّم إلى:</span>';
+      html += '<span class="co-cand-job-section-title">' + twEscHtml(twT('company.tb.applied_to')) + '</span>';
       html += '<div class="co-cand-job-chips">';
       appliedLinks.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
       if (appliedLinks.length > 2) {
-        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="' + twEscAttr(twT('company.show_more')) + '">+'
               + (appliedLinks.length - 2) + '</button>';
       }
       html += '</div></div>';
@@ -2678,11 +2680,11 @@
 
     if (linkedOnly.length) {
       html += '<div class="co-cand-job-section">';
-      html += '<span class="co-cand-job-section-title">مرتبط بوظيفة:</span>';
+      html += '<span class="co-cand-job-section-title">' + twEscHtml(twT('company.tb.linked_to')) + '</span>';
       html += '<div class="co-cand-job-chips">';
       linkedOnly.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
       if (linkedOnly.length > 2) {
-        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="' + twEscAttr(twT('company.show_more')) + '">+'
               + (linkedOnly.length - 2) + '</button>';
       }
       html += '</div></div>';
@@ -2696,12 +2698,12 @@
   // (never job_applications.status). Wrap carries the status palette class (.co-cand-status--*).
   function _jobStatusSectionHTML(cid, jobLinks, meta) {
     if (!jobLinks.length) return '';
-    var jsOpts = [{ value: '', label: 'غير مصنّف' }].concat(_STATUS_ORDER.map(function (s) {
+    var jsOpts = [{ value: '', label: twT('company.tb.unclassified') }].concat(_STATUS_ORDER.map(function (s) {
       return { value: s, label: _STATUS_LABELS[s] };
     }));
     var rows = jobLinks.map(function (jl) {
       var cs    = _STATUS_LABELS[jl.candidate_status] ? jl.candidate_status : '';
-      var title = jl.title || ('وظيفة #' + jl.job_id);
+      var title = jl.title || twT('company.tb.job_fallback', { id: jl.job_id });
       return '<div class="co-cand-job-status-row">'
         + '<span class="co-cand-job-status-title" title="' + twEscAttr(title) + '">' + twEscHtml(title) + '</span>'
         + _dpHTML('co-cand-job-status-dp' + (cs ? ' co-cand-status--' + cs : ''), jsOpts, cs,
@@ -2709,7 +2711,7 @@
         + '</div>';
     }).join('');
     return '<div class="co-cand-job-section co-cand-job-status-section">'
-      + '<span class="co-cand-job-section-title">تصنيف المرشح لكل وظيفة:</span>'
+      + '<span class="co-cand-job-section-title">' + twEscHtml(twT('company.tb.per_job')) + '</span>'
       + '<div class="co-cand-job-status-list">' + rows + '</div></div>';
   }
 
@@ -2775,7 +2777,7 @@
     // Expand/collapse toggle button
     html += '<button type="button" class="co-csc-toggle"'
           + ' aria-expanded="false"'
-          + ' aria-label="عرض تفاصيل الموهبة">'
+          + ' aria-label="' + twEscAttr(twT('company.tb.show_details')) + '">'
           + twIcon('expand', { className: 'co-csc-chevron' })
           + '</button>';
 
@@ -2787,7 +2789,7 @@
     // Row 1: location + save date
     var line1Parts = [];
     if (locationStr) line1Parts.push(locationStr);
-    if (date)        line1Parts.push('حُفظ ' + date);
+    if (date)        line1Parts.push(twT('company.tb.saved_on', { date: date }));
     if (line1Parts.length) {
       html += '<div class="co-csc-detail-row">' + twEscHtml(line1Parts.join(' | ')) + '</div>';
     }
@@ -2802,9 +2804,9 @@
     }
 
     // Row 3: save source (always shown)
-    var sourceLbl = _SOURCE_LABELS[saveSource] || (saveSource || 'غير معروف');
+    var sourceLbl = _SOURCE_LABELS[saveSource] || (saveSource || twT('company.tb.source_unknown'));
     html += '<div class="co-csc-detail-row co-csc-source-row">'
-          + 'مصدر الحفظ: <span class="co-csc-source-val">' + twEscHtml(sourceLbl) + '</span>'
+          + twEscHtml(twT('company.tb.source_row')) + ' <span class="co-csc-source-val">' + twEscHtml(sourceLbl) + '</span>'
           + '</div>';
 
     // Row 4: Tags (top 3 + "+N")
@@ -2830,9 +2832,9 @@
     // Row 7: Action buttons (stacked vertically, same right-aligned edge)
     html += '<div class="co-csc-actions">';
     html += '<a class="co-csc-btn co-csc-btn--view" href="/u/' + twId + '" target="_blank" rel="noopener">'
-          + 'عرض الملف العام</a>';
+          + twEscHtml(twT('company.tb.view_public')) + '</a>';
     html += '<button type="button" class="co-csc-btn co-csc-btn--manage co-cand-manage-btn" data-cid="' + cid + '">'
-          + 'إدارة الموهبة</button>';
+          + twEscHtml(twT('company.tb.manage')) + '</button>';
     html += _schedSlot(item, 'co-csc-btn co-csc-btn--view');
     html += '</div>';
 
@@ -2840,59 +2842,61 @@
     // Sections: Rating · Priority · Tags · Notes · Follow-up · Save source (read-only)
     // Pipeline status and Job link are NOT in this panel (managed separately).
     var fuStatusOpts = [
-      {value: 'none',    label: 'لا متابعة'},
-      {value: 'pending', label: 'قيد المتابعة'},
-      {value: 'done',    label: 'تمت المتابعة'}
+      {value: 'none',    label: twT('company.tb.fu.none')},
+      {value: 'pending', label: twT('company.tb.fu.pending')},
+      {value: 'done',    label: twT('company.tb.fu.done')}
     ];
     html += '<div class="co-cand-manage-panel">';
 
     // Row 1: Rating (clearable 1-5 stars)
     html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">التقييم</label>';
+    html += '<label class="co-cand-panel-label">' + twEscHtml(twT('company.tb.rating')) + '</label>';
     html += '<div class="co-panel-stars" data-rating="' + (rating || 0) + '">';
     for (var si = 1; si <= 5; si++) {
       html += '<button type="button" class="co-panel-star' + (rating && si <= rating ? ' on' : '') + '"'
             + ' data-val="' + si + '">' + twIcon('star', { size: 'lg', filled: true }) + '</button>';
     }
-    html += '<button type="button" class="co-panel-star-clear" title="مسح التقييم">✕</button>';
+    html += '<button type="button" class="co-panel-star-clear" title="' + twEscAttr(twT('company.tb.rating_clear')) + '"'
+          + ' aria-label="' + twEscAttr(twT('company.tb.rating_clear')) + '">' + twIcon('close', { size: 'sm' }) + '</button>';
     html += '</div>';
     html += '</div>';
 
     // Row 2: Priority
     var priorityOpts2 = [
-      {value: '',       label: '— بدون أولوية —'},
-      {value: 'high',   label: 'عالية'},
-      {value: 'medium', label: 'متوسطة'},
-      {value: 'low',    label: 'منخفضة'}
+      {value: '',       label: twT('company.tb.priority_none')},
+      {value: 'high',   label: twT('company.tb.priority.high')},
+      {value: 'medium', label: twT('company.tb.priority.medium')},
+      {value: 'low',    label: twT('company.tb.priority.low')}
     ];
     html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">الأولوية</label>';
+    html += '<label class="co-cand-panel-label">' + twEscHtml(twT('company.tb.priority')) + '</label>';
     html += _dpHTML('co-cand-dp-priority', priorityOpts2, priority || '');
     html += '</div>';
 
     // Row 3: Tags
     html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">التصنيفات (tags)</label>';
+    html += '<label class="co-cand-panel-label">' + twEscHtml(twT('company.tb.tags')) + '</label>';
     html += '<div class="co-panel-tags-wrap" id="coPanelTags_' + cid + '">';
     tags.forEach(function (t) {
       html += '<span class="co-panel-tag">'
             + '<span class="co-panel-tag-txt">' + twEscHtml(t) + '</span>'
-            + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(t) + '">✕</button>'
+            + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(t) + '"'
+          + ' aria-label="' + twEscAttr(twT('company.tb.tag_remove')) + '">' + twIcon('close', { size: 'sm' }) + '</button>'
             + '</span>';
     });
     html += '</div>';
     html += '<div class="co-panel-tag-add-row">';
-    html += '<input type="text" class="co-panel-tag-input" placeholder="أضف tag…" dir="rtl" maxlength="30">';
+    html += '<input type="text" class="co-panel-tag-input" placeholder="' + twEscAttr(twT('company.tb.tag_add_ph')) + '" dir="rtl" maxlength="30">';
     html += '<button type="button" class="co-panel-tag-add-btn">+</button>';
     html += '</div>';
     html += '</div>';
 
     // Row 4: General notes
     html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">ملاحظات عامة</label>';
+    html += '<label class="co-cand-panel-label">' + twEscHtml(twT('company.tb.notes')) + '</label>';
     html += '<div class="co-cand-panel-ta-wrap">';
     html += '<textarea class="co-cand-panel-ta" maxlength="500"'
-          + ' placeholder="أضف ملاحظة عن هذا المرشح…" dir="rtl">'
+          + ' placeholder="' + twEscAttr(twT('company.tb.notes_ph')) + '" dir="rtl">'
           + twEscHtml(notes) + '</textarea>';
     html += '<span class="co-cand-panel-counter" dir="ltr">' + notes.length + ' / 500</span>';
     html += '</div>';
@@ -2901,11 +2905,11 @@
     // Row 5: Follow-up — split into two clearly labelled sub-sections
     html += '<div class="co-panel-section">';
     html += '<div class="co-panel-subsection">';
-    html += '<label class="co-cand-panel-sublabel">تاريخ المتابعة</label>';
+    html += '<label class="co-cand-panel-sublabel">' + twEscHtml(twT('company.tb.fu_date')) + '</label>';
     html += '<input type="date" class="co-panel-followup-date" value="' + twEscHtml(followUpAt ? followUpAt.slice(0, 10) : '') + '">';
     html += '</div>';
     html += '<div class="co-panel-subsection">';
-    html += '<label class="co-cand-panel-sublabel">حالة المتابعة</label>';
+    html += '<label class="co-cand-panel-sublabel">' + twEscHtml(twT('company.tb.fu_status')) + '</label>';
     html += _dpHTML('co-cand-dp-fu-status', fuStatusOpts, followUpSt || 'none');
     html += '</div>';
     html += '</div>';
@@ -2913,16 +2917,16 @@
     // Row 6: Save source (read-only)
     if (saveSource) {
       html += '<div class="co-panel-section co-panel-section--readonly">';
-      html += '<label class="co-cand-panel-label">مصدر الحفظ</label>';
+      html += '<label class="co-cand-panel-label">' + twEscHtml(twT('company.tb.source')) + '</label>';
       html += '<span class="co-panel-source-val">' + twEscHtml(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
       html += '</div>';
     }
 
     // Panel actions: Save + Cancel + Remove
     html += '<div class="co-cand-panel-acts">';
-    html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
-    html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
-    html += '<button class="co-cand-panel-remove" data-cid="' + cid + '">إزالة من بنك المواهب</button>';
+    html += '<button class="co-cand-panel-save" data-cid="' + cid + '">' + twEscHtml(twT('company.tb.save_edit')) + '</button>';
+    html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">' + twEscHtml(twT('common.cancel')) + '</button>';
+    html += '<button class="co-cand-panel-remove" data-cid="' + cid + '">' + twEscHtml(twT('company.tb.remove')) + '</button>';
     html += '</div>';
     html += '</div>'; // .co-cand-manage-panel
 
@@ -2958,7 +2962,7 @@
       var ot = c.querySelector('.co-csc-toggle');
       if (ot) {
         ot.setAttribute('aria-expanded', 'false');
-        ot.setAttribute('aria-label', 'عرض تفاصيل الموهبة');
+        ot.setAttribute('aria-label', twT('company.tb.show_details'));
       }
       var op = c.querySelector('.co-cand-manage-panel.open');
       if (op) {
@@ -2972,7 +2976,7 @@
     card.setAttribute('data-expanded', nowOpen ? 'true' : 'false');
     cardBody.hidden = !nowOpen;
     btn.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
-    btn.setAttribute('aria-label', nowOpen ? 'إخفاء تفاصيل الموهبة' : 'عرض تفاصيل الموهبة');
+    btn.setAttribute('aria-label', nowOpen ? twT('company.tb.hide_details') : twT('company.tb.show_details'));
 
     // If collapsing, also close manage panel
     if (!nowOpen) {
@@ -3123,13 +3127,14 @@
             });
             if (isDup) return;
             if (existingTags.length >= 20) {
-              if (window.showToast) showToast('الحد الأقصى 20 tag', 'error');
+              if (window.showToast) showToast(twT('company.tb.tags_max'), 'error');
               return;
             }
             var tagSpan = document.createElement('span');
             tagSpan.className = 'co-panel-tag';
             tagSpan.innerHTML = '<span class="co-panel-tag-txt">' + twEscHtml(tagVal) + '</span>'
-              + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(tagVal) + '">✕</button>';
+              + '<button type="button" class="co-panel-tag-del" data-tag="' + twEscHtml(tagVal) + '"'
+          + ' aria-label="' + twEscAttr(twT('company.tb.tag_remove')) + '">' + twIcon('close', { size: 'sm' }) + '</button>';
             tw.appendChild(tagSpan);
             tagInput.value = '';
           }
@@ -3147,7 +3152,7 @@
     var title         = chip.getAttribute('data-title') || '';
     var applyDate     = chip.getAttribute('data-apply-date') || '';
     var candJobSt     = chip.getAttribute('data-cand-status') || '';
-    var candJobLbl    = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'لم يتم ترشيحه بعد';
+    var candJobLbl    = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : twT('company.tb.not_classified');
     var candJobCls    = candJobSt ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
     var peId          = chip.getAttribute('data-pe-id') || '';
     var appId         = chip.getAttribute('data-app-id') || '';
@@ -3168,15 +3173,15 @@
     }
 
     var html = '<div class="co-cjp-title">' + twEscHtml(title) + '</div>';
-    html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + twEscHtml(candJobLbl) + '</span></div>';
+    html += '<div class="co-cjp-row"><span>' + twEscHtml(twT('company.tb.job_status')) + '</span><span class="' + candJobCls + '">' + twEscHtml(candJobLbl) + '</span></div>';
     if (appId && applyDate) {
-      html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + twEscHtml(applyDate) + '</span></div>';
+      html += '<div class="co-cjp-row co-cjp-row--date"><span>' + twEscHtml(twT('company.tb.apply_date')) + '</span><span>' + twEscHtml(applyDate) + '</span></div>';
     }
     // Pipeline action: notes — only when this chip has a real pipeline entry.
     // Schedule: the shared button (tw-schedule.js — PR 3.10) for every job chip.
     html += '<div class="co-cjp-actions">';
     if (peId) {
-      var notesLbl  = notesCount > 0 ? ('ملاحظات الوظيفة (' + notesCount + ')') : 'ملاحظات الوظيفة';
+      var notesLbl  = notesCount > 0 ? twT('company.notes.title_count', { count: notesCount }) : twT('company.notes.title');
       html += '<button type="button" class="co-cjp-btn co-cjp-btn--notes"'
             + ' data-pe-id="' + twEscHtml(peId) + '">' + twEscHtml(notesLbl) + '</button>';
     }
@@ -3303,15 +3308,15 @@
             }, 220);
           }
           _loadSavedStats(null);
-          if (window.showToast) showToast('تمت إزالة المرشح');
+          if (window.showToast) showToast(twT('company.tb.removed_short'));
         } else {
           btn.disabled = false;
-          if (window.showToast) showToast('تعذّر الإزالة', 'error');
+          if (window.showToast) showToast(twT('company.tb.remove_failed'), 'error');
         }
       })
       .catch(function () {
         btn.disabled = false;
-        if (window.showToast) showToast('تعذّر الإزالة', 'error');
+        if (window.showToast) showToast(twT('company.tb.remove_failed'), 'error');
       });
   }
 
@@ -3332,7 +3337,7 @@
 
   function _removeFromTalentBank(btn, cid) {
     btn.disabled    = true;
-    btn.textContent = 'جارٍ الإزالة…';
+    btn.textContent = twT('company.tb.removing');
     window.deleteSavedCandidate(cid)
       .then(function (res) {
         if (res && res.ok) {
@@ -3350,17 +3355,17 @@
           }
           _loadSavedStats(null);
           _loadTalentBankQuota();
-          if (window.showToast) showToast('تمت إزالة المرشح من بنك المواهب');
+          if (window.showToast) showToast(twT('company.tb.removed'));
         } else {
           btn.disabled    = false;
-          btn.textContent = 'إزالة من بنك المواهب';
-          if (window.showToast) showToast('تعذّر الإزالة', 'error');
+          btn.textContent = twT('company.tb.remove');
+          if (window.showToast) showToast(twT('company.tb.remove_failed'), 'error');
         }
       })
       .catch(function () {
         btn.disabled    = false;
-        btn.textContent = 'إزالة من بنك المواهب';
-        if (window.showToast) showToast('تعذّر الإزالة', 'error');
+        btn.textContent = twT('company.tb.remove');
+        if (window.showToast) showToast(twT('company.tb.remove_failed'), 'error');
       });
   }
 
@@ -3441,12 +3446,12 @@
 
     if (!window.updateSavedCandidate) return;
     btn.disabled    = true;
-    btn.textContent = 'جارٍ الحفظ…';
+    btn.textContent = twT('common.saving');
 
     window.updateSavedCandidate(cid, payload)
       .then(function (res) {
         if (!res || !res.ok || !res.data || !res.data.item) {
-          if (window.showToast) showToast('تعذّر الحفظ', 'error');
+          if (window.showToast) showToast(twT('company.save_failed'), 'error');
           return;
         }
         var updated = res.data.item;
@@ -3454,14 +3459,14 @@
         _closePanelOf(btn);
         _loadSavedStats(null);
 
-        if (window.showToast) showToast('تم تحديث المرشح');
+        if (window.showToast) showToast(twT('company.tb.updated'));
       })
       .catch(function () {
-        if (window.showToast) showToast('تعذّر الحفظ', 'error');
+        if (window.showToast) showToast(twT('company.save_failed'), 'error');
       })
       .finally(function () {
         btn.disabled    = false;
-        btn.textContent = 'حفظ التعديل';
+        btn.textContent = twT('company.tb.save_edit');
       });
   }
 
@@ -3600,7 +3605,7 @@
   function _fetchSuggestions(offset) {
     if (_suggLoading) return;
     _suggLoading = true;
-    if (offset === 0) _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    if (offset === 0) _body.innerHTML = '<div class="co-fl-spin">' + twEscHtml(twT('common.loading')) + '</div>';
     if (!window.getCandidateSuggestions) { _suggLoading = false; return; }
     window.getCandidateSuggestions(20, offset)
       .then(function (res) {
@@ -3608,8 +3613,8 @@
           var code = res && res.status;
           if (offset === 0) {
             _body.innerHTML = (code === 401 || code === 403)
-              ? '<div class="co-fl-empty">غير مصرح بالوصول للاقتراحات</div>'
-              : '<div class="co-fl-empty">تعذّر تحميل الاقتراحات</div>';
+              ? '<div class="co-fl-empty">' + twEscHtml(twT('company.sugg.forbidden')) + '</div>'
+              : '<div class="co-fl-empty">' + twEscHtml(twT('company.sugg.load_failed')) + '</div>';
           }
           return;
         }
@@ -3630,22 +3635,22 @@
         }
       })
       .catch(function () {
-        if (offset === 0) _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل الاقتراحات</div>';
+        if (offset === 0) _body.innerHTML = '<div class="co-fl-empty">' + twEscHtml(twT('company.sugg.load_failed')) + '</div>';
       })
       .finally(function () { _suggLoading = false; });
   }
 
   function _suggNoJobsHTML() {
     return '<div class="co-cand-empty">' +
-      '<div class="co-cand-empty-title">لا توجد اقتراحات بعد</div>' +
-      '<div class="co-cand-empty-sub">انشر وظيفة أولاً لتحسين الاقتراحات.</div>' +
+      '<div class="co-cand-empty-title">' + twEscHtml(twT('company.sugg.empty')) + '</div>' +
+      '<div class="co-cand-empty-sub">' + twEscHtml(twT('company.sugg.empty_sub')) + '</div>' +
       '</div>';
   }
 
   function _suggEmptyHTML() {
     return '<div class="co-cand-empty">' +
-      '<div class="co-cand-empty-title">لا توجد اقتراحات إضافية حالياً</div>' +
-      '<div class="co-cand-empty-sub">سنقترح مرشحين عند توفر تطابق أفضل.</div>' +
+      '<div class="co-cand-empty-title">' + twEscHtml(twT('company.sugg.empty_more')) + '</div>' +
+      '<div class="co-cand-empty-sub">' + twEscHtml(twT('company.sugg.empty_more_sub')) + '</div>' +
       '</div>';
   }
 
@@ -3668,8 +3673,8 @@
     }
     html += '</div>';
     html += '<div class="co-cand-actions">';
-    html += '<a class="co-cand-view-btn" href="/u/' + twEscHtml(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
-    html += '<button class="co-sugg-save-btn" data-cid="' + twEscHtml(item.candidate_id) + '">حفظ كمرشح</button>';
+    html += '<a class="co-cand-view-btn" href="/u/' + twEscHtml(item.tw_id) + '" target="_blank" rel="noopener">' + twEscHtml(twT('company.sugg.open_profile')) + '</a>';
+    html += '<button class="co-sugg-save-btn" data-cid="' + twEscHtml(item.candidate_id) + '">' + twEscHtml(twT('company.sugg.save')) + '</button>';
     html += _schedSlot(item, 'co-cand-view-btn');
     html += '</div></div>';
     return html;
@@ -3679,7 +3684,7 @@
     var html = '<div id="coCandSuggList">';
     items.forEach(function (item) { html += _suggItemHTML(item); });
     html += '</div>';
-    if (pg && pg.has_more) html += '<button class="co-sugg-load-more" id="coCandLoadMore">عرض المزيد</button>';
+    if (pg && pg.has_more) html += '<button class="co-sugg-load-more" id="coCandLoadMore">' + twEscHtml(twT('company.show_more')) + '</button>';
     _body.innerHTML = html;
     _wireSaveButtons();
     _wireLoadMore(pg);
@@ -3699,7 +3704,7 @@
     if (window.twScheduleMount) twScheduleMount(list);
     if (pg && pg.has_more) {
       var btn = document.createElement('button');
-      btn.className = 'co-sugg-load-more'; btn.id = 'coCandLoadMore'; btn.textContent = 'عرض المزيد';
+      btn.className = 'co-sugg-load-more'; btn.id = 'coCandLoadMore'; btn.textContent = twT('company.show_more');
       _body.appendChild(btn);
       _wireLoadMore(pg);
     }
@@ -3712,7 +3717,7 @@
     btn.addEventListener('click', function () {
       _suggOffset = (pg.offset || 0) + (pg.limit || 20);
       btn.disabled = true;
-      btn.textContent = 'جارٍ التحميل…';
+      btn.textContent = twT('common.loading');
       _fetchSuggestions(_suggOffset);
     });
   }
@@ -3737,7 +3742,7 @@
     var cid = parseInt(btn.getAttribute('data-cid'));
     if (!cid) return;
     btn.disabled = true;
-    btn.textContent = 'جارٍ الحفظ…';
+    btn.textContent = twT('common.saving');
     if (!window.saveSuggestedCandidate) { btn.disabled = false; return; }
     window.saveSuggestedCandidate(cid)
       .then(function (res) {
@@ -3748,7 +3753,7 @@
           var newBtn = document.createElement('button');
           newBtn.className = 'co-sugg-save-btn co-sugg-manage-mode';
           newBtn.type      = 'button';
-          newBtn.textContent = 'إدارة المرشح';
+          newBtn.textContent = twT('company.sugg.manage');
           newBtn.addEventListener('click', function () {
             _pendingManageOpen      = cid;
             _pendingManageOpenNotes = false;
@@ -3761,9 +3766,9 @@
             if (!existing) {
               var conf = document.createElement('div');
               conf.className = 'co-sugg-confirm';
-              conf.innerHTML = '<span class="co-sugg-conf-msg">✓ تم حفظ المرشح</span>'
-                + '<button class="co-sugg-conf-notes" type="button">إضافة ملاحظة</button>'
-                + '<button class="co-sugg-conf-later" type="button">ليس الآن</button>';
+              conf.innerHTML = '<span class="co-sugg-conf-msg">' + twEscHtml(twT('company.sugg.saved')) + '</span>'
+                + '<button class="co-sugg-conf-notes" type="button">' + twEscHtml(twT('company.sugg.add_note')) + '</button>'
+                + '<button class="co-sugg-conf-later" type="button">' + twEscHtml(twT('company.sugg.not_now')) + '</button>';
               conf.querySelector('.co-sugg-conf-notes').addEventListener('click', function () {
                 _pendingManageOpen      = cid;
                 _pendingManageOpenNotes = true;
@@ -3777,22 +3782,21 @@
           }
         } else {
           btn.disabled = false;
-          btn.textContent = 'حفظ كمرشح';
+          btn.textContent = twT('company.sugg.save');
           if (res && res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
             var body = res.data;
             if (window.showToast) showToast(
-              'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
-              + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
+              twT('company.tb.limit_reached', { used: body.used, limit: body.limit }),
               'error');
           } else {
-            if (window.showToast) showToast('تعذّر الحفظ', 'error');
+            if (window.showToast) showToast(twT('company.save_failed'), 'error');
           }
         }
       })
       .catch(function () {
         btn.disabled = false;
-        btn.textContent = 'حفظ كمرشح';
-        if (window.showToast) showToast('تعذّر الحفظ', 'error');
+        btn.textContent = twT('company.sugg.save');
+        if (window.showToast) showToast(twT('company.save_failed'), 'error');
       });
   }
 

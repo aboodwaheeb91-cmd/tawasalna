@@ -184,14 +184,16 @@ check("2-09. server.py does NOT pass job_id to save_company_candidate",
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n── Group 3: Static — Frontend button separation ──")
 
-check("3-01. 'ترشيح للوظيفة' present in company.main.js (classify button label)",
-      'ترشيح للوظيفة' in _main_src)
+# PR 4.14 (Testing & CI rule 6): the labels are tw_strings.json keys used via twT
+_STR = json.load(open('tw_strings.json', encoding='utf-8'))['ar']
+check("3-01. classify button label = twT('company.app.classify') («ترشيح للوظيفة»)",
+      _STR.get('company.app.classify') == 'ترشيح للوظيفة' and "twT('company.app.classify')" in _main_src)
 
 check("3-02. 'حفظ وتصنيف' NOT present in company.main.js (forbidden text removed)",
       'حفظ وتصنيف' not in _main_src)
 
-check("3-03. 'حفظ في بنك المواهب' present in company.main.js",
-      'حفظ في بنك المواهب' in _main_src)
+check("3-03. talent bank save label = twT('company.tb.save_to_bank') («حفظ في بنك المواهب»)",
+      _STR.get('company.tb.save_to_bank') == 'حفظ في بنك المواهب' and "twT('company.tb.save_to_bank')" in _main_src)
 
 check("3-04. 'القائمة المختصرة' NOT used as a talent bank label in _renderApplicants",
       'القائمة المختصرة' not in _render_fn)

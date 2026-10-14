@@ -11,7 +11,8 @@
 
 3. **التنبيه:** `twAlert({title, message})` → `Promise` — بس لرسالة لازم تنقرا قبل ما يكمّل. نجاح / خطأ عادي = `showToast` (DS-FEEDBACK — F34).
 
-4. **نافذة بمحتوى:** `twModal({title, content, actions, dismissible, onClose})` → `{close, setBusy, el}`. `onClick` بيرجّع Promise = busy (Escape والخلفية ما بيسكّروا لحتى يخلص). بدل `prompt()` والمودالات اليدوية الجديدة.
+4. **نافذة بمحتوى:** `twModal({title, content, actions, dismissible, onClose})` → `{close, setBusy, setActionDisabled, el}`. `onClick` بيرجّع Promise = busy (Escape والخلفية ما بيسكّروا لحتى يخلص). بدل `prompt()` والمودالات اليدوية الجديدة.
+   - **زر مطفّي (PR 4.14):** action بـ `disabled: true` بينفتح مطفّي؛ `ctl.setActionDisabled(index, on)` بيبدّلو؛ `setBusy(false)` ما بيرجّع يشغّلو. ❌ `button.disabled = …` من الصفحة على أزرار النافذة (setBusy بيمسحو).
 
 5. **السلوك ملك النظام:** role=dialog + aria-modal + aria-labelledby · Escape · focus trap · رجوع الـ focus · `inert` للخلفية · scroll lock — كلّه جوّا `tw-overlay.js`. الصفحة ما بتكتب ولا وحدة منهن لنافذة جديدة.
    - **Escape + قائمة منسدلة مفتوحة (PR 3.10):** `tw-select.js` بيمسك Escape على `window` (capture) وهي مفتوحة → `preventDefault` + `stopPropagation` + بيسكّر القائمة بس؛ و `tw-overlay.js` بيتجاهل Escape إذا `event.defaultPrevented`. الضغطة الجاية بتسكّر النافذة. Test: `node tests/test_ds_overlay_runtime.js` (القسم E).

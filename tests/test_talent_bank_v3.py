@@ -3,11 +3,13 @@ Talent Bank V3 — Compact Expandable Cards structural tests.
 Verifies JS and CSS sources contain the expected patterns.
 """
 import re
+import json
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JS_SRC  = (ROOT / "static" / "company" / "company.main.js").read_text()
+_STR    = json.loads((ROOT / "tw_strings.json").read_text(encoding="utf-8"))["ar"]   # PR 4.14 — twT keys
 CSS_SRC = (ROOT / "static" / "company" / "company.css").read_text()
 
 
@@ -252,8 +254,10 @@ class TestQuotaBadgeFormat(unittest.TestCase):
 
     def test_badge_uses_arabic_min(self):
         body = self._set_badge_fn()
-        self.assertIn("' من '", body,
-            "candidatesBadge must use Arabic ' من ' separator")
+        # PR 4.14: the format is the twT key company.tb.quota = «{used} من {limit}»
+        self.assertIn("twT('company.tb.quota'", body,
+            "candidatesBadge must use the quota string (Arabic ' من ' separator)")
+        self.assertEqual(_STR["company.tb.quota"], "{used} من {limit}")
 
     def test_quota_label_in_shell_uses_min(self):
         m = re.search(
@@ -262,8 +266,9 @@ class TestQuotaBadgeFormat(unittest.TestCase):
         )
         self.assertIsNotNone(m, "_savedShellHTML function not found")
         body = m.group(1)
-        self.assertIn("' من '", body,
-            "Quota label inside talent bank modal must use ' من '")
+        self.assertIn("twT('company.tb.quota_label'", body,
+            "Quota label inside talent bank modal must use the quota string (' من ')")
+        self.assertEqual(_STR["company.tb.quota_label"], "بنك المواهب: {used} من {limit}")
         self.assertNotIn("' / '", body,
             "Quota label inside talent bank modal must NOT use ' / '")
 
