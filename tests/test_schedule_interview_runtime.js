@@ -10,6 +10,8 @@
  *   D  draft dialog (PR 4.0): opens on the draft's mode + place · switching to أونلاين sends mode on /send
  *   E  reschedule mode (PR 4.12): appointment-room «اقتراح موعد جديد» = the same dialog → /reschedule
  *      with the picked LOCAL time as UTC ISO · type fixed · no create / send · past time refused
+ *   F  PR 4.14 — no active job: «إرسال الدعوة» disabled + «انشر وظيفة» → twPostJobHref (real,
+ *      tw_shared.js) · with jobs: enabled, no link · dialog text from twT (no fixed Arabic)
  *
  * Run: node tests/test_schedule_interview_runtime.js
  */
@@ -60,7 +62,7 @@ function makeEl(tag) {
   return el;
 }
 
-function ctxFor(snapshot, openData, noRegistry) {
+function ctxFor(snapshot, openData, noRegistry, jobsData) {
   const timers = [];
   const calls = [], posts = [], modals = [];
   const ctx = {
@@ -70,9 +72,14 @@ function ctxFor(snapshot, openData, noRegistry) {
     twApi: (url, opts) => {
       calls.push(url); posts.push({ url, body: opts && opts.body });
       if (/\/send$/.test(url)) return Promise.resolve({ ok: true, data: { id: 4 } });
+      if (url === '/api/schedule/jobs') return Promise.resolve({ ok: true, data: jobsData || [] });
       return Promise.resolve({ ok: true, data: openData || {} });
     },
-    twModal: cfg => { modals.push(cfg); },
+    twModal: cfg => {
+      modals.push(cfg);
+      cfg.disabledNow = cfg.actions.map(a => !!a.disabled);
+      return { close() {}, setBusy() {}, setActionDisabled: (i, on) => { cfg.disabledNow[i] = !!on; } };
+    },
     twApiMessage: (r, f) => f,
     twSafeLinkUrl: u => (/^https?:\/\/\S+$/.test(u) ? u : ''),
     location: { href: '/u/U1' },
@@ -84,8 +91,12 @@ function ctxFor(snapshot, openData, noRegistry) {
     twT: k => (Object.prototype.hasOwnProperty.call(STRINGS, k) ? STRINGS[k] : k),
     twLoginHref: next => '/login?next=' + encodeURIComponent(next),
   };
-  ctx.window = ctx;
+  // the real «انشر وظيفة» href builder from tw_shared.js (company tw_id from the session cache)
+  const ph = SHARED.slice(SHARED.indexOf('function twPostJobHref('), SHARED.indexOf('window.twPostJobHref'));
+  ctx.getTwUser = () => ({ tw_id: 'C8', user_type: 'co' });
   vm.createContext(ctx);
+  vm.runInContext(ph, ctx, { filename: 'tw_shared.js#twPostJobHref' });
+  ctx.window = ctx;
   if (!noRegistry) {
     vm.runInContext(ACTIONS_BLOCK, ctx, { filename: 'TW_ACTIONS' });
     vm.runInContext(REGISTRY, ctx, { filename: 'tw_shared.js#actions' });
@@ -215,6 +226,30 @@ const GUEST = { isAuthenticated: false, userType: null, userId: null };
   e.ctx.showToast = () => {};
   eDlg.onClose();
   check('E5 success → back to the room', e.ctx.location.href === '/appointment-room?id=12');
+
+  console.log('\nF — no active job (PR 4.14)');
+  const f = ctxFor(CO, null, false, []);
+  f.ctx.twScheduleInterview({ candidateId: 6, candidateName: 'سارة' });
+  await f.flush();
+  const fDlg = f.modals[0];
+  const post = fDlg.content.find(n => n.tagName === 'A');
+  check('F1 no active job → «إرسال الدعوة» disabled', fDlg.disabledNow[1] === true && fDlg.disabledNow[0] === false,
+    JSON.stringify(fDlg.disabledNow));
+  check('F2 «انشر وظيفة» link → the company page on the post-job form',
+    !!post && post.textContent === STRINGS['jobs.post'] && post.href === '/u/C8?post_job=1', post && post.href);
+  const g = ctxFor(CO, null, false, [{ id: 3, title: 'مطوّر' }]);
+  g.ctx.twScheduleInterview({ candidateId: 6, candidateName: 'سارة' });
+  await g.flush();
+  check('F3 active jobs → send enabled, no «انشر وظيفة» link',
+    g.modals[0].disabledNow[1] === false && !g.modals[0].content.find(n => n.tagName === 'A'));
+  const allText = [];
+  (function walk(n) { if (n.textContent && !n.children.length) allText.push(n.textContent);
+    if (n.placeholder) allText.push(n.placeholder); n.children.forEach(walk); })(g.modals[0].content);
+  const vals = new Set(Object.values(STRINGS));
+  const fixed = allText.filter(t => /[\u0600-\u06FF]/.test(t) && !vals.has(t) && t !== 'سارة' && t !== 'مطوّر');
+  check('F4 every dialog text comes from tw_strings.json (twT)', allText.length > 20 && !fixed.length, fixed.join(' | '));
+  check('F5 title + send text from twT', g.modals[0].title === STRINGS['appt.sch.title']
+    && g.modals[0].actions[1].text === STRINGS['appt.sch.send']);
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

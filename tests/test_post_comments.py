@@ -7249,14 +7249,21 @@ with open("static/company/company.main.js", encoding="utf-8") as _f183:
     _main183 = _f183.read()
 
 # 183-01: accepted label is "مرشح قوي" in _APP_STATUS_LABEL
-_asl183 = _main183.split('_APP_STATUS_LABEL')[1][:300] if '_APP_STATUS_LABEL' in _main183 else ''
+# PR 4.14 (Testing & CI rule 6): company modal / schedule dialog text is tw_strings.json keys via twT —
+# a label check = «the key holds that text» + «the code uses twT('key')» (not the Arabic literal).
+import json as _json414
+_STR414 = _json414.load(open('tw_strings.json', encoding='utf-8'))['ar']
+def _tk(key, text, src):
+    return _STR414.get(key) == text and ("twT('%s'" % key) in src
+
+_asl183 = _main183.split('_APP_STATUS_LABEL')[1][:400] if '_APP_STATUS_LABEL' in _main183 else ''
 check("183-01. _APP_STATUS_LABEL['accepted'] is 'مرشح قوي'",
-      'مرشح قوي' in _asl183)
+      "accepted:  twT('company.stage.shortlisted')" in _asl183 and _tk('company.stage.shortlisted', 'مرشح قوي', _asl183))
 
 # 183-02: classify button rendered; PR-3 replaces 'حفظ وتصنيف' with 'ترشيح للوظيفة'
 check("183-02. co-classify-btn rendered in _renderApplicants with PR-3 label 'ترشيح للوظيفة'",
       'co-classify-btn' in _main183
-      and 'ترشيح للوظيفة' in _main183
+      and _tk('company.app.classify', 'ترشيح للوظيفة', _main183)
       and 'حفظ وتصنيف' not in _main183)
 
 # 183-03: sched button rendered for interview status (replaces interview-btn on accepted)
@@ -7268,7 +7275,7 @@ check("183-03. co-app-sched-btn slot rendered for every non-rejected applicant i
 # 183-04: rejected cards get co-app-card--rejected class and show reclassify btn
 check("183-04. rejected card gets co-app-card--rejected class and إعادة التصنيف",
       'co-app-card--rejected' in _main183
-      and 'إعادة التصنيف' in _main183)
+      and _tk('company.app.reclassify', 'إعادة التصنيف', _main183))
 
 # 183-05: _wireApplicantCards delegates to co-classify-btn (not old promote/save/menu)
 _wire183 = (_main183.split('function _wireApplicantCards')[1].split('function _onSchedBtn')[0]
@@ -7299,7 +7306,8 @@ check("183-10. 409 status === 409 check removed from _execPromote (new flow has 
 
 # 183-11: _astFloat option label for accepted is "مرشح قوي" (not "مقبول")
 check("183-11. _astFloat accepted option label is 'مرشح قوي'",
-      "data-val=\"accepted\">مرشح قوي" in _main183 or "data-val='accepted'>مرشح قوي" in _main183)
+      "data-val=\"accepted\">' + twEscHtml(twT('company.stage.shortlisted'))" in _main183
+      and _tk('company.stage.shortlisted', 'مرشح قوي', _main183))
 
 # 183-12: _astFloat click handler routes accepted → _execPromote
 check("183-12. _astFloat click routes 'accepted' → _execPromote",
@@ -7365,7 +7373,7 @@ check("184-06. open-appointment lookup via twApi('/api/schedule/open…') — no
 
 # 184-07: open appointment → «فتح الموعد» → the room
 check("184-07. open appointment swaps the button to «فتح الموعد» → /appointment-room?id=",
-      "btn.textContent = 'فتح الموعد'" in _btn184
+      "btn.textContent = twT('appt.sch.open')" in _btn184 and _STR414.get('appt.sch.open') == 'فتح الموعد'
       and "'/appointment-room?id='" in _sched184
       and 'location.href = roomHref(open.id)' in _btn184)
 
@@ -7393,7 +7401,8 @@ check("184-12. tw-schedule.js sends no X-User-Id (twApi adds the Bearer JWT)",
 
 # 184-13: duplicate appointment → specific Arabic message
 check("184-13. يوجد موعد نشط message on appointment_exists",
-      "code === 'appointment_exists'" in _submit184 and 'يوجد موعد نشط' in _submit184)
+      "code === 'appointment_exists'" in _submit184
+      and _tk('appt.sch.err.exists', 'يوجد موعد نشط مع هذا الشخص على هذه الوظيفة', _submit184))
 
 # 184-14: on success, navigates to /appointment-room?id=
 check("184-14. success navigates to /appointment-room?id=",
@@ -7415,7 +7424,7 @@ check("184-16. company-profile.html loads tw-overlay.js → tw-schedule.js; no #
 check("184-17. dialog has day/month/year + hour/minute/ص-م dropdowns, type buttons, «إرسال الدعوة»",
       all(c in _sched184 for c in ("'tw-sch-day'", "'tw-sch-mon'", "'tw-sch-yr'",
                                     "'tw-sch-hr'", "'tw-sch-min'", "'tw-sch-ap'"))
-      and "'أونلاين'" in _sched184 and "'حضوري'" in _sched184
+      and _tk('appt.sch.online', 'أونلاين', _sched184) and _tk('appt.sch.onsite', 'حضوري', _sched184)
       # PR 4.12: submit text depends on the mode (send / reschedule) — structure: primary action = submit
       and "variant: 'primary', onClick: submit" in _sched184
       and 'type="date"' not in _sched184 and "type = 'date'" not in _sched184)
@@ -7718,7 +7727,7 @@ check("187-02. _INTERNAL_STATUSES includes contacted, interview, hired",
 _asl187 = _main187.split('_APP_STATUS_LABEL')[1][:400] if '_APP_STATUS_LABEL' in _main187 else ''
 check("187-03. _APP_STATUS_LABEL has all 7 statuses",
       'contacted' in _asl187 and 'interview' in _asl187 and 'hired' in _asl187
-      and 'مرشح قوي' in _asl187 and 'غير مناسب' in _asl187)
+      and _tk('company.stage.shortlisted', 'مرشح قوي', _asl187) and _tk('company.stage.rejected', 'غير مناسب', _asl187))
 
 # 187-04: _renderApplicants shows co-classify-btn with data-uid attribute
 _rend187 = (_main187.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0]
@@ -7728,12 +7737,12 @@ check("187-04. _renderApplicants renders co-classify-btn with data-uid",
 
 # 187-05: PR-3 — _renderApplicants shows 'ترشيح للوظيفة' (replaces 'حفظ وتصنيف') for unclassified
 check("187-05. PR-3: ترشيح للوظيفة label for unclassified applicants in _renderApplicants (no حفظ وتصنيف)",
-      'ترشيح للوظيفة' in _rend187 and 'isClassified' in _rend187
+      _tk('company.app.classify', 'ترشيح للوظيفة', _rend187) and 'isClassified' in _rend187
       and 'حفظ وتصنيف' not in _rend187)
 
 # 187-06: _renderApplicants shows إعادة التصنيف for rejected
 check("187-06. إعادة التصنيف label for rejected applicants in _renderApplicants",
-      'إعادة التصنيف' in _rend187 and 'isRejected' in _rend187)
+      _tk('company.app.reclassify', 'إعادة التصنيف', _rend187) and 'isRejected' in _rend187)
 
 # 187-07: _renderApplicants adds co-app-card--rejected class for rejected cards
 check("187-07. co-app-card--rejected class added for rejected cards",
@@ -7755,7 +7764,8 @@ check("187-09. _openClassifyFloat hides reject option when data-hired='1'",
 _sic187 = (_main187.split('function _showInterviewChoice')[1].split('function _closeInterviewChoice')[0]
            if 'function _showInterviewChoice' in _main187 else '')
 check("187-10. _showInterviewChoice creates co-ic-float mini-portal lazily",
-      'co-ic-float' in _sic187 and '_icFloat' in _sic187 and 'الآن' in _sic187 and 'لاحقاً' in _sic187)
+      'co-ic-float' in _sic187 and '_icFloat' in _sic187
+      and _tk('company.app.ic_now', 'الآن', _sic187) and _tk('company.app.ic_later', 'لاحقاً', _sic187))
 
 # 187-11: الآن path calls _execClassify then the shared dialog (PR 3.10)
 check("187-11. الآن choice calls _execClassify then twScheduleInterview",
@@ -7821,7 +7831,7 @@ _ec187b = (_main187.split('function _execClassify')[1].split('function _applyCla
            if 'function _execClassify' in _main187 else '')
 check("187-21. _execClassify error path calls _loadApplicants in catch block — updated §491",
       '_loadApplicants' in _ec187b
-      and ('تعذّر' in _ec187b or 'saveRes' in _ec187b))
+      and ("twT('company.app.classify_failed')" in _ec187b or 'saveRes' in _ec187b))
 
 # 187-22: on save failure, success toast and _reRenderCardFoot are NOT called in the save-fail branch
 # (they appear only after the early return — i.e., the save-fail block ends with return)
@@ -8103,7 +8113,7 @@ check("484-02. _closeJobPop removes scroll and resize listeners on close (no gho
 # 484-03 (updated §492): popover simplified — shows only حالة المرشح في هذه الوظيفة (candidate_status)
 # حالة الطلب and التصنيف العام rows were removed in fix/job-chip-pop-simplify
 check("484-03. _showJobChipPop renders «حالة المرشح في هذه الوظيفة» row — updated §492",
-      'حالة المرشح في هذه الوظيفة' in _show_pop484
+      _tk('company.tb.job_status', 'حالة المرشح في هذه الوظيفة', _show_pop484)
       and 'data-cand-status' in _show_pop484)
 
 # 484-04 (updated §492): general pipeline status (data-status from card) no longer shown in popover
@@ -8302,7 +8312,7 @@ _pop_fn486 = (
 # 486-15 (updated §492): popover simplified to 2 rows — حالة المرشح في هذه الوظيفة + تاريخ التقدم (conditional)
 # Rows حالة الطلب and التصنيف العام removed in fix/job-chip-pop-simplify
 check("486-15. Job chip popover: حالة الطلب and التصنيف العام removed; حالة المرشح في هذه الوظيفة present — updated §492",
-      'حالة المرشح في هذه الوظيفة' in _pop_fn486
+      _tk('company.tb.job_status', 'حالة المرشح في هذه الوظيفة', _pop_fn486)
       and 'حالة الطلب' not in _pop_fn486
       and 'التصنيف العام' not in _pop_fn486
       and 'data-cand-status' in _pop_fn486)
@@ -8342,18 +8352,19 @@ _appt_fn486 = (
 check("486-19. submit validates the online link (twSafeLinkUrl + https://) before any request",
       "if (st.mode === 'online')" in _appt_fn486
       and 'twSafeLinkUrl(' in _appt_fn486
-      and 'أدخل رابط اجتماع صالحاً' in _appt_fn486
+      and _tk('appt.sch.err.url', 'أدخل رابط اجتماع صالحاً يبدأ بـ https://', _appt_fn486)
       and _appt_fn486.index('twSafeLinkUrl(') < _appt_fn486.index('twApi('))
 
 # 486-20: deadline vs appointment time check runs client-side
 check("486-20. submit checks scheduled time > now + deadline_hours (prevents backend deadline error)",
       'hours * 3600000' in _appt_fn486
       and 'when.getTime() - Date.now()' in _appt_fn486
-      and 'مهلة الرد تنتهي بعد وقت الموعد' in _appt_fn486)
+      and _tk('appt.sch.err.deadline_after', 'مهلة الرد تنتهي بعد وقت الموعد — اختر موعداً أبعد أو مهلة أقصر', _appt_fn486))
 
 # 486-21: create-step error handler shows detail from API (not always generic message)
 check("486-21. Create-step error shows the API message (twApiMessage) before the generic fallback",
-      "twApiMessage(c, 'تعذّر إنشاء الموعد" in _appt_fn486)
+      "twApiMessage(c, twT('appt.sch.err.create'))" in _appt_fn486
+      and _STR414.get('appt.sch.err.create') == 'تعذّر إنشاء الموعد، حاول مجدداً')
 
 # ── CSS ───────────────────────────────────────────────────────────────────
 
@@ -8897,7 +8908,7 @@ _pop492 = (_main492.split('function _showJobChipPop')[1].split('function _jobPop
 
 # 492-01: Popover shows «حالة المرشح في هذه الوظيفة» as the row label
 check("492-01. _showJobChipPop uses «حالة المرشح في هذه الوظيفة» as row label",
-      'حالة المرشح في هذه الوظيفة' in _pop492)
+      _tk('company.tb.job_status', 'حالة المرشح في هذه الوظيفة', _pop492))
 
 # 492-02: Source is data-cand-status / candidate_status
 check("492-02. _showJobChipPop reads data-cand-status for candidate classification",
@@ -8916,12 +8927,12 @@ check("492-04. التصنيف العام row no longer appears in _showJobChipPo
 _date_block492 = (_pop492.split('if (appId && applyDate)')[1].split('\n    }')[0]
                   if 'if (appId && applyDate)' in _pop492 else '')
 check("492-05. تاريخ التقدم row only rendered inside if(appId && applyDate) — not unconditional",
-      'تاريخ التقدم' in _date_block492
-      and 'تاريخ التقدم' not in _pop492.split('if (appId && applyDate)')[0])
+      _tk('company.tb.apply_date', 'تاريخ التقدم', _date_block492)
+      and "twT('company.tb.apply_date')" not in _pop492.split('if (appId && applyDate)')[0])
 
 # 492-06: null candidate_status → «لم يتم ترشيحه بعد» label (updated in PR #498)
 check("492-06. null candidate_status displays «لم يتم ترشيحه بعد»",
-      'لم يتم ترشيحه بعد' in _pop492)
+      _tk('company.tb.not_classified', 'لم يتم ترشيحه بعد', _pop492))
 
 # 492-07: application_status field stays in job_links[] API contract (backward compat — not removed)
 check("492-07. application_status still present in job_links[] chip HTML (API backward compat)",

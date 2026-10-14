@@ -9,6 +9,7 @@
  *   D  visitor actions through twAction · report → twReportDialog({reportedType:'company'})
  *   E  post delete asks twConfirm (danger) first · cancel → no request · error toast type
  *   F  session from TwAuthSync only — TwCompanyPage.signedIn() follows the snapshot (_jwt() removed — PR 4.3c)
+ *   H  PR 4.14 — every twT key in the company JS / tw-schedule.js exists · modal JS has no Arabic literal · no ✕ / ×
  *   G  PR 4.13 — rating stars = DS-ICON star SVGs (real tw-icons.js) · modal markup keys exist in tw_strings.json
  *      · no Arabic text left inside the modals · fake follower avatars (fw-ava) gone
  *
@@ -253,6 +254,35 @@ const PROFILE_OK = {
       arText.concat(arAttr).join(' | '));
     check('G7 fake follower avatars removed (no fw-ava markup or CSS)',
       !page.includes('fw-ava') && !read('static/company/company.css').includes('fw-ava'));
+  }
+
+  console.log('\nH — PR 4.14: modal JS text through twT');
+  {
+    const STR = JSON.parse(read('tw_strings.json')).ar;
+    const main = read('static/company/company.main.js');
+    const used = [main, read('static/shared/tw-schedule.js')].flatMap(src =>
+      [...src.matchAll(/twT\('([a-z0-9_.]+[a-z0-9_])'/g)].map(m => m[1]));
+    const missing = [...new Set(used)].filter(k => !(k in STR));
+    check('H1 every twT key in company.main.js + tw-schedule.js exists in tw_strings.json',
+      used.length > 150 && !missing.length, missing.join());
+    // the JS that builds the edit / applicants / notes / candidates modals: no Arabic string literal
+    const fnBody = name => {
+      const i = main.indexOf('function ' + name + '(');
+      const j = main.indexOf('\n  function ', i + 10);
+      return i < 0 ? null : main.slice(i, j < 0 ? undefined : j);
+    };
+    const FNS = ['_addBranchRow', 'openEditModal', 'saveEdit', '_loadApplicants', '_renderApplicants',
+      '_execPromote', '_onSaveToTalentBank', '_renderPanelNotes', '_submitNote', '_initClassifyFloat',
+      '_execClassify', '_reRenderCardFoot', '_savedShellHTML', '_doFetchSavedPage', '_savedEmptyHTML',
+      '_jobChipSectionsHTML', '_savedCardHTML', '_showJobChipPop', '_handlePanelSave', '_suggItemHTML', '_saveSuggestion'];
+    const bad = FNS.filter(n => {
+      const body = fnBody(n);
+      if (body === null) return true;
+      const code = body.split('\n').filter(l => !/^\s*\/\//.test(l)).map(l => l.replace(/\s\/\/ .*$/, '')).join('\n');
+      return [...code.matchAll(/'((?:[^'\\\n]|\\.)*)'/g)].some(m => /[\u0600-\u06FF]/.test(m[1]));
+    });
+    check('H2 modal-building functions have no Arabic string literal (twT keys)', !bad.length, bad.join());
+    check('H3 no ✕ / × glyph left in company.main.js (DS-ICON close + aria-label)', !/[✕×]/.test(main));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

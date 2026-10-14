@@ -12829,3 +12829,8 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
 Removed: `#coApptModal` + `_openApptModal` / `_submitApptForm` / `_execSendStep` / appointment index (`company.main.js`, `.co-appt-*` CSS) · `TwCompanyPage.openApptModal` · `#newApptModal` + «رقم طلب التوظيف (application_id)» field (`appointments.html`) · `#sendModal` / `#reschedModal` (`datetime-local` with a UTC `min`) / `#reasonModal` (`appointment-room.html` — PR 4.12; the reason dialog is `twModal`).
 
 Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB_URL`) · `node tests/test_schedule_interview_runtime.js`.
+
+### PR 4.14 — strings + no active job
+
+- Every dialog / button text = `twT` (`appt.sch.*`; month names `date.month.*` — DS-DATE labels, not `Intl ar-JO`).
+- `GET /api/schedule/jobs` → `ok` with zero active jobs → the job picker says «لا توجد وظائف فعّالة — انشر وظيفة أولاً», «إرسال الدعوة» is disabled (`twModal` action `disabled` / `ctl.setActionDisabled(1, true)` — DS-OVL) and a «انشر وظيفة» link = `twPostJobHref()` (`tw_shared.js` → `/u/{tw_id}?post_job=1`) opens the company page on the post-job form (`company.jobs.js → _openPostJobFromUrl`, owner with `can_post_jobs`; the param is dropped from the URL first).

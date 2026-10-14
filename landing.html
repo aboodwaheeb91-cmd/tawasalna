@@ -102,11 +102,11 @@ section{position:relative;z-index:1;padding:80px 5%;}
 .qr-fill{background:var(--color-brand-primary);}
 .qr-empty{background:rgba(var(--color-ink-rgb),.06);}
 
-/* Floating badges — .badge-verified light card (white bg · dark text · gray sub): no DS-COLOR token (F30 — PR 4.13) */
+/* Floating badges — .badge-verified = dark card on Semantic tokens (dark-only V1 — CLR-23 · PR 4.14) */
 .badge-float{position:absolute;z-index:3;border-radius:var(--radius-lg);padding:var(--space-5) var(--space-7);font-size:var(--size-font-xs);font-weight:700;white-space:nowrap;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
-.badge-verified{top:-18px;left:-24px;background:rgba(255,255,255,.92);color:#111;display:flex;align-items:center;gap:7px;border:1px solid rgba(var(--color-brand-primary-rgb),.3);box-shadow:0 4px 24px rgba(var(--color-overlay-rgb),.3);}
+.badge-verified{top:-18px;left:-24px;background:var(--color-surface-elevated);color:var(--color-text-primary);display:flex;align-items:center;gap:7px;border:1px solid rgba(var(--color-brand-primary-rgb),.3);box-shadow:0 4px 24px rgba(var(--color-overlay-rgb),.3);}
 .badge-verified .bv-icon{width:24px;height:24px;border-radius:var(--radius-circle);background:var(--color-brand-primary);color:var(--color-text-primary);display:flex;align-items:center;justify-content:center;}
-.bv-sub{font-size:var(--size-font-2xs);color:#555;font-weight:600;margin-bottom:1px;}
+.bv-sub{font-size:var(--size-font-2xs);color:var(--color-text-meta);font-weight:600;margin-bottom:1px;}
 .badge-job{bottom:-18px;right:-24px;background:rgba(var(--color-brand-primary-rgb),.12);border:1px solid rgba(var(--color-brand-primary-rgb),.3);color:var(--lp-text);display:flex;flex-direction:column;gap:3px;box-shadow:0 4px 24px rgba(var(--color-overlay-rgb),.25);}
 .badge-job .bj-label{color:var(--color-brand-primary);font-size:var(--size-font-2xs);}
 .badge-job .bj-title{font-weight:800;}
@@ -209,10 +209,10 @@ section{position:relative;z-index:1;padding:80px 5%;}
 .fi-green{background:rgba(var(--color-brand-primary-rgb),.1);color:var(--color-brand-primary);}
 .fi-blue{background:rgba(var(--color-brand-secondary-rgb),.1);color:var(--color-brand-secondary);}
 .fi-purple{background:rgba(var(--color-brand-accent-rgb),.1);color:var(--color-brand-accent);}
-/* Decorative category hues = categorical tokens · .fi-yellow: no categorical token (F30 — PR 4.13) */
+/* Decorative category hues = categorical tokens */
 .fi-orange{background:rgba(var(--color-categorical-gold-rgb),.1);color:var(--color-categorical-gold);}
 .fi-pink{background:rgba(var(--color-categorical-pink-rgb),.1);color:var(--color-categorical-pink);}
-.fi-yellow{background:rgba(234,179,8,.1);color:#eab308;}
+.fi-yellow{background:rgba(var(--color-categorical-amber-rgb),.1);color:var(--color-categorical-amber);}
 .feat-title{font-size:var(--size-font-xl);font-weight:700;margin-bottom:var(--space-4);}
 .feat-desc{font-size:var(--size-font-md);color:var(--lp-text-2);line-height:1.75;}
 

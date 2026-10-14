@@ -75,6 +75,7 @@
     + '.tw-sch-err:empty{display:none}';
 
   var DEADLINES = [24, 48, 72, 168];          // = _APPT_DEADLINE_HOURS_ALLOWED (auth.py)
+  var SEND_ACTION = 1;                          // twModal actions: [cancel, send]
   var MINUTE_STEP = 15;                         // DATE-12 Field Contract: «موعد عام»
   var BATCH_MAX = 50;                           // = GET /api/schedule/open limit
 
@@ -173,7 +174,7 @@
     function setOpen(appt) {
       open = appt;
       if (appt && appt.status !== 'draft') {
-        btn.textContent = 'فتح الموعد';
+        btn.textContent = twT('appt.sch.open');
         btn.setAttribute('data-tw-schedule', 'open');
       }
     }
@@ -215,10 +216,7 @@
 
   function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }   // m = 1..12
 
-  function monthName(m) {
-    try { return new Intl.DateTimeFormat('ar-JO', { month: 'long' }).format(new Date(2000, m - 1, 1)); }
-    catch (e) { return String(m); }
-  }
+  function monthName(m) { return twT('date.month.' + m); }   // DS-DATE DATE-07 labels (§59a)
 
   function buildDateTime() {
     var now = new Date();
@@ -230,12 +228,12 @@
     var mins = [];
     for (var mi = 0; mi < 60; mi += MINUTE_STEP) mins.push({ value: mi, label: (mi < 10 ? '0' : '') + mi });
     // Year range (DATE-06 domain contract): this year + next year — an interview is near.
-    var day = sel('tw-sch-day', 'اليوم', []);
-    var mon = sel('tw-sch-mon', 'الشهر', months);
-    var yr  = sel('tw-sch-yr', 'السنة', [{ value: y0, label: y0 }, { value: y0 + 1, label: y0 + 1 }]);
-    var hr  = sel('tw-sch-hr', 'الساعة', hours);
-    var mn  = sel('tw-sch-min', 'الدقيقة', mins);
-    var ap  = sel('tw-sch-ap', 'ص / م', [{ value: 'am', label: 'صباحاً' }, { value: 'pm', label: 'مساءً' }]);
+    var day = sel('tw-sch-day', twT('appt.sch.day'), []);
+    var mon = sel('tw-sch-mon', twT('appt.sch.month'), months);
+    var yr  = sel('tw-sch-yr', twT('appt.sch.year'), [{ value: y0, label: y0 }, { value: y0 + 1, label: y0 + 1 }]);
+    var hr  = sel('tw-sch-hr', twT('appt.sch.hour'), hours);
+    var mn  = sel('tw-sch-min', twT('appt.sch.minute'), mins);
+    var ap  = sel('tw-sch-ap', twT('appt.sch.ampm'), [{ value: 'am', label: twT('appt.sch.am') }, { value: 'pm', label: twT('appt.sch.pm') }]);
 
     function fillDays() {
       var y = parseInt(yr.value, 10), m = parseInt(mon.value, 10);
@@ -313,12 +311,12 @@
       var personBox = el('div', 'tw-sch-f');
       function renderPerson() {
         personBox.innerHTML = '';
-        personBox.appendChild(el('span', 'tw-sch-lbl', 'الشخص'));
+        personBox.appendChild(el('span', 'tw-sch-lbl', twT('appt.sch.person')));
         if (st.cand) {
           var pick = el('div', 'tw-sch-pick');
           pick.appendChild(el('span', 'tw-sch-val', st.cand.name || '—'));
           if (!opts.candidateId) {
-            var chg = el('button', 'tw-sch-link', 'تغيير');
+            var chg = el('button', 'tw-sch-link', twT('appt.sch.change'));
             chg.type = 'button';
             chg.addEventListener('click', function () { st.cand = null; renderPerson(); });
             pick.appendChild(chg);
@@ -328,21 +326,21 @@
         }
         var q = el('input', 'tw-sch-in');
         q.type = 'search';
-        q.placeholder = 'ابحث بالاسم بين المتقدمين والمرشحين والمحفوظين…';
-        q.setAttribute('aria-label', 'ابحث عن الشخص بالاسم');
+        q.placeholder = twT('appt.sch.search_ph');
+        q.setAttribute('aria-label', twT('appt.sch.search_label'));
         var res = el('div', 'tw-sch-res');
         var hint = el('div', 'tw-sch-hint');
         personBox.appendChild(q); personBox.appendChild(res); personBox.appendChild(hint);
         var t = null, seq = 0;
         function search() {
           var my = ++seq;
-          hint.textContent = 'جارٍ البحث…';
+          hint.textContent = twT('appt.sch.searching');
           twApi('/api/schedule/people?q=' + encodeURIComponent(q.value.trim())).then(function (r) {
             if (my !== seq) return;
             res.innerHTML = '';
-            if (!r.ok) { hint.textContent = twApiMessage(r, 'تعذّر البحث، حاول مجدداً'); return; }
+            if (!r.ok) { hint.textContent = twApiMessage(r, twT('appt.sch.search_failed')); return; }
             var list = Array.isArray(r.data) ? r.data : [];
-            hint.textContent = list.length ? '' : 'لا يوجد أشخاص بهذا الاسم بين المتقدمين والمرشحين والمحفوظين';
+            hint.textContent = list.length ? '' : twT('appt.sch.search_empty');
             list.forEach(function (p) {
               var b = el('button');
               b.type = 'button';
@@ -361,20 +359,29 @@
 
       // Job
       var jobBox = el('div', 'tw-sch-f');
-      jobBox.appendChild(el('span', 'tw-sch-lbl', 'الوظيفة'));
+      jobBox.appendChild(el('span', 'tw-sch-lbl', twT('appt.sch.job')));
       var jobSel = null;
+      var noJobs = false;   // the company has no active job → send stays disabled
+      var ctl = null;       // twModal controller (set below — the job list may load first)
       if (st.jobId) {
-        jobBox.appendChild(el('span', 'tw-sch-val', st.jobTitle || 'الوظيفة المحددة'));
+        jobBox.appendChild(el('span', 'tw-sch-val', st.jobTitle || twT('appt.sch.job_fixed')));
       } else {
-        jobSel = sel('tw-sch-job', 'جارٍ تحميل الوظائف…', []);
-        jobSel.setAttribute('aria-label', 'الوظيفة');
+        jobSel = sel('tw-sch-job', twT('appt.sch.jobs_loading'), []);
+        jobSel.setAttribute('aria-label', twT('appt.sch.job'));
         jobBox.appendChild(jobSel);
         twApi('/api/schedule/jobs').then(function (r) {
           var jobs = (r.ok && Array.isArray(r.data)) ? r.data : [];
-          jobSel.options[0].textContent = !r.ok ? twApiMessage(r, 'تعذّر تحميل الوظائف')
-            : jobs.length ? 'اختر الوظيفة' : 'لا توجد وظائف فعّالة — انشر وظيفة أولاً';
+          jobSel.options[0].textContent = !r.ok ? twApiMessage(r, twT('appt.sch.jobs_failed'))
+            : jobs.length ? twT('appt.sch.job_pick') : twT('appt.sch.no_jobs');
+          if (r.ok && !jobs.length) {
+            noJobs = true;
+            var post = el('a', 'tw-sch-link', twT('jobs.post'));
+            post.href = twPostJobHref();
+            jobBox.appendChild(post);
+            if (ctl) ctl.setActionDisabled(SEND_ACTION, true);
+          }
           jobs.forEach(function (j) {
-            var o = el('option', null, j.title || ('وظيفة #' + j.id));
+            var o = el('option', null, j.title || twT('appt.sch.job_fallback', { id: j.id }));
             o.value = String(j.id);
             jobSel.appendChild(o);
           });
@@ -385,23 +392,23 @@
 
       // Date + time
       var dt = buildDateTime();
-      form.appendChild(field('التاريخ', dt.dateRow));
-      form.appendChild(field('الوقت', dt.timeRow));
+      form.appendChild(field(twT('appt.sch.date'), dt.dateRow));
+      form.appendChild(field(twT('appt.sch.time'), dt.timeRow));
 
       // Type
       var seg = el('div', 'tw-sch-seg');
-      var bOn = el('button', null, 'أونلاين'); bOn.type = 'button';
-      var bOff = el('button', null, 'حضوري'); bOff.type = 'button';
+      var bOn = el('button', null, twT('appt.sch.online')); bOn.type = 'button';
+      var bOff = el('button', null, twT('appt.sch.onsite')); bOff.type = 'button';
       seg.appendChild(bOn); seg.appendChild(bOff);
-      var segF = field('نوع المقابلة', seg);
+      var segF = field(twT('appt.sch.type'), seg);
       segF.hidden = !!resched;   // reschedule keeps the appointment's type (the server never changes it)
       form.appendChild(segF);
       var url = el('input', 'tw-sch-in');
       url.type = 'url'; url.dir = 'ltr'; url.placeholder = 'https://meet.google.com/…';
-      var urlF = field('رابط الاجتماع', url);
+      var urlF = field(twT('appt.sch.url'), url);
       var loc = el('input', 'tw-sch-in');
-      loc.type = 'text'; loc.maxLength = 500; loc.placeholder = 'مبنى الشركة، الطابق الثاني…';
-      var locF = field('مكان المقابلة', loc);
+      loc.type = 'text'; loc.maxLength = 500; loc.placeholder = twT('appt.sch.place_ph');
+      var locF = field(twT('appt.sch.place'), loc);
       form.appendChild(urlF); form.appendChild(locF);
       function setMode(m) {
         st.mode = m;
@@ -415,42 +422,42 @@
       if (base) { url.value = base.online_url || ''; loc.value = base.location_text || ''; }
       setMode(st.mode);
 
-      var dl = sel('tw-sch-dl', 'مهلة الرد', DEADLINES.map(function (h) {
-        return { value: h, label: h === 168 ? 'أسبوع' : h + ' ساعة' };
+      var dl = sel('tw-sch-dl', twT('appt.sch.deadline_pick'), DEADLINES.map(function (h) {
+        return { value: h, label: h === 168 ? twT('appt.sch.week') : twT('appt.sch.hours', { n: h }) };
       }));
       dl.value = '48';   // Feature Contract default (not a date field)
-      form.appendChild(field('مهلة رد المرشح', dl));
+      form.appendChild(field(twT('appt.sch.deadline'), dl));
       var rep = el('input', 'tw-sch-in');
-      rep.type = 'text'; rep.maxLength = 200; rep.placeholder = 'اسم مسؤول المقابلة (اختياري)';
-      var repF = field('ممثل الشركة', rep);
+      rep.type = 'text'; rep.maxLength = 200; rep.placeholder = twT('appt.sch.rep_ph');
+      var repF = field(twT('appt.sch.rep'), rep);
       repF.hidden = !!resched;   // /reschedule has no company-rep field
       form.appendChild(repF);
       var notes = el('textarea', 'tw-sch-in');
-      notes.maxLength = 1000; notes.rows = 2; notes.placeholder = 'أي تفاصيل أو تعليمات إضافية…';
-      form.appendChild(field('ملاحظات', notes));
+      notes.maxLength = 1000; notes.rows = 2; notes.placeholder = twT('appt.sch.notes_ph');
+      form.appendChild(field(twT('appt.sch.notes'), notes));
       form.appendChild(err);
 
       function fail(msg) { err.textContent = msg; return false; }
 
       function submit() {
         err.textContent = '';
-        if (!st.cand) return fail('اختر الشخص الذي تريد تحديد موعد معه');
+        if (!st.cand) return fail(twT('appt.sch.err.person'));
         var jobId = st.jobId || (jobSel && parseInt(jobSel.value, 10)) || null;
-        if (!jobId) return fail('اختر الوظيفة التي يرتبط بها الموعد');
+        if (!jobId) return fail(twT('appt.sch.err.job'));
         var when = dt.value();
-        if (!when) return fail('اختر التاريخ والوقت كاملين');
-        if (when.getTime() <= Date.now()) return fail('وقت الموعد يجب أن يكون في المستقبل');
+        if (!when) return fail(twT('appt.sch.err.when'));
+        if (when.getTime() <= Date.now()) return fail(twT('appt.sch.err.past'));
         var hours = parseInt(dl.value, 10);
-        if (DEADLINES.indexOf(hours) === -1) return fail('اختر مهلة الرد');
+        if (DEADLINES.indexOf(hours) === -1) return fail(twT('appt.sch.err.deadline'));
         if (when.getTime() - Date.now() <= hours * 3600000)
-          return fail('مهلة الرد تنتهي بعد وقت الموعد — اختر موعداً أبعد أو مهلة أقصر');
+          return fail(twT('appt.sch.err.deadline_after'));
         var link = null, place = null;
         if (st.mode === 'online') {
           link = twSafeLinkUrl(url.value.trim());
-          if (!link || link.indexOf('https://') !== 0) return fail('أدخل رابط اجتماع صالحاً يبدأ بـ https://');
+          if (!link || link.indexOf('https://') !== 0) return fail(twT('appt.sch.err.url'));
         } else {
           place = loc.value.trim();
-          if (!place) return fail('أدخل مكان المقابلة');
+          if (!place) return fail(twT('appt.sch.err.place'));
         }
         var extra = {
           notes: notes.value.trim() || null,
@@ -480,11 +487,11 @@
             if (code === 'appointment_exists') {
               return lookupOpen(st.cand.id, jobId).then(function (a) {
                 if (a && a.status === 'draft') { st.draftId = a.id; return submit(); }
-                return fail(twApiMessage(c, 'يوجد موعد نشط مع هذا الشخص على هذه الوظيفة')
-                  + (a ? ' — افتحه من «فتح الموعد»' : ''));
+                return fail(twApiMessage(c, twT('appt.sch.err.exists'))
+                  + (a ? ' — ' + twT('appt.sch.err.exists_open') : ''));
               });
             }
-            return fail(twApiMessage(c, 'تعذّر إنشاء الموعد، حاول مجدداً'));
+            return fail(twApiMessage(c, twT('appt.sch.err.create')));
           }
           st.draftId = c.data.id;   // a failed send below keeps the draft → retry sends it
           return twApi('/api/appointments/' + encodeURIComponent(c.data.id) + '/send', {
@@ -493,19 +500,20 @@
               mode: st.mode, online_url: link, location_text: place,   // the server updates a draft's mode
               notes: extra.notes, representative_name: extra.representative_name,
             } }).then(function (s) {
-            if (!s.ok) return fail(twApiMessage(s, 'أُنشئ الموعد لكن تعذّر إرسال الدعوة — اضغط «إرسال الدعوة» مجدداً'));
+            if (!s.ok) return fail(twApiMessage(s, twT('appt.sch.err.send')));
             st.result = { id: st.draftId, status: 'pending_response', job_id: jobId };
             return true;
           });
         });
       }
 
-      twModal({
-        title: resched ? twT('appt.room.propose') : 'تحديد موعد مقابلة',
+      ctl = twModal({
+        title: resched ? twT('appt.room.propose') : twT('appt.sch.title'),
         content: form,
         actions: [
-          { text: 'إلغاء', variant: 'secondary' },
-          { text: resched ? twT('appt.room.reschedule_submit') : 'إرسال الدعوة', variant: 'primary', onClick: submit },
+          { text: twT('common.cancel'), variant: 'secondary' },
+          { text: resched ? twT('appt.room.reschedule_submit') : twT('appt.sch.send'), variant: 'primary', onClick: submit,
+            disabled: noJobs },
         ],
         onClose: function () {
           var r = st.result;
@@ -513,7 +521,7 @@
             toast(twT('appt.room.reschedule_done'));
             if (opts.navigate !== false) location.href = roomHref(r.id);
           } else if (r) {
-            toast('تم إرسال دعوة المقابلة ✓');
+            toast(twT('appt.sch.sent'));
             try {
               document.dispatchEvent(new CustomEvent('tw:appointment-scheduled', { detail: {
                 appointmentId: r.id, candidateId: st.cand.id, jobId: r.job_id } }));

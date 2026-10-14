@@ -681,6 +681,14 @@ function twTalentBankHref(u) {
   return (u && u.tw_id) ? '/u/' + encodeURIComponent(u.tw_id) + '?cand=' : '/company-profile';
 }
 
+// «انشر وظيفة» deep link (PR 4.14): the company page opens the post-job form on ?post_job=1
+// (company.jobs.js → _openPostJobFromUrl, owner with can_post_jobs only — else ignored).
+function twPostJobHref(u) {
+  u = u || getTwUser();
+  return (u && u.tw_id) ? '/u/' + encodeURIComponent(u.tw_id) + '?post_job=1' : '/company-profile';
+}
+window.twPostJobHref = twPostJobHref;
+
 // Entry-page session gate (landing.html + Auth Gateway on-load/bfcache check).
 // Decides from TwAuthSync.getSessionSnapshot() only — never from tw_user alone.
 //   authenticated               → returns twAccountHref(tw_user) (caller redirects)
