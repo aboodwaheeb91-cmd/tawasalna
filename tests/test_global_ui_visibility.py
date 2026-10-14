@@ -200,24 +200,27 @@ print("\nC — company-profile.html")
 
 co = read("company-profile.html")
 
-check("C01 — coMenuDynamic container exists",
-      'id="coMenuDynamic"' in co)
-check("C02 — editInfoBtn preserved (static section)",
+# PR 4.3a: the page uses the unified header (HEADER-NAV.md) — session-aware menu + bell /
+# messages icons come from twMountAppChrome, so the page carries no header of its own.
+from page_shell import apply_shell as _apply_shell_c
+co_served = _apply_shell_c(co, "company-profile.html")
+check("C01 — unified header placeholder, no page-local menu",
+      '<header data-tw-header></header>' in co
+      and 'id="coMenuDynamic"' not in co and 'id="coMenuBtn"' not in co)
+check("C02 — editInfoBtn preserved (owner actions row)",
       'id="editInfoBtn"' in co)
 check("C03 — static Settings link removed from dropdown",
       re.search(r'<a[^>]+href=["\']?/settings["\']?[^>]*>.*?الإعدادات', co) is None)
 check("C04 — static Logout button removed from dropdown",
       'id="coLogoutBtn"' not in co)
-check("C05 — notifications icon has data-tw-session=authenticated",
-      'href="/notifications"' in co
-      and 'data-tw-session="authenticated"' in co)
-check("C06 — messages icon has data-tw-session=authenticated",
-      'href="/messages"' in co
-      and co.count('data-tw-session="authenticated"') >= 2)
-check("C07 — auth-sync.js loaded in company-profile",
-      'auth-sync.js' in co)
-check("C08 — nav icons start hidden (hidden attribute)",
-      co.count('data-tw-session="authenticated" hidden') >= 2)
+check("C05 — no page-local notifications icon (unified header renders it)",
+      'href="/notifications"' not in co)
+check("C06 — unified bottom nav placeholder present",
+      '<nav data-tw-bottom-nav></nav>' in co)
+check("C07 — auth-sync.js loaded in company-profile (Page Shell)",
+      'auth-sync.js' in co_served and '<!--tw:shell-head-->' in co)
+check("C08 — tw_shared.js before auth-sync.js (served page)",
+      co_served.index('/static/tw_shared.js') < co_served.index('auth-sync.js'))
 
 
 # ═══════════════════════════════════════════════════════

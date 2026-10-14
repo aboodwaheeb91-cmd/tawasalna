@@ -22,6 +22,7 @@ Requires: Python 3.8+, no DB, no server
 """
 
 import os
+import json
 import re
 import sys
 import unittest
@@ -45,18 +46,21 @@ SERVER = _read("server.py")
 class A_ButtonRename(unittest.TestCase):
 
     def test_01_button_label_is_talent_bank(self):
-        """HTML: candidatesBtn shows 'بنك المواهب' not 'المرشحون'"""
-        self.assertIn("بنك المواهب", HTML)
+        """HTML: candidatesBtn label = twT key whose text is 'بنك المواهب' (PR 4.3a — strings system)"""
+        btn_block = re.search(r'id="candidatesBtn".*?</button>', HTML, re.S)
+        self.assertIsNotNone(btn_block, "candidatesBtn not found")
+        keys = re.findall(r'data-tw-t="([\w.]+)"', btn_block.group())
+        strings = json.load(open("tw_strings.json", encoding="utf-8"))["ar"]
+        self.assertIn("بنك المواهب", [strings.get(k) for k in keys])
         self.assertNotIn(">المرشحون<", HTML)
 
     def test_02_button_uses_gem_icon(self):
-        """HTML: candidatesBtn uses data-lucide='gem'"""
-        # check gem appears near candidatesBtn
+        """HTML: candidatesBtn uses the DS-ICON gem icon (PR 4.3a)"""
         btn_block = re.search(
             r'id="candidatesBtn".*?</button>', HTML, re.S
         )
         self.assertIsNotNone(btn_block, "candidatesBtn not found")
-        self.assertIn('data-lucide="gem"', btn_block.group())
+        self.assertIn('data-tw-icon="gem"', btn_block.group())
 
     def test_03_badge_quota_format_in_setBadge(self):
         """JS: _setBadge shows 'used من limit' from _quotaUsed/_quotaLimit.

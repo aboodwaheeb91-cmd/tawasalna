@@ -19,8 +19,8 @@ These rules are permanent and apply to all future AI sessions:
 5. **New features for Company Profile go into the appropriate module** — never a new root-level JS file, never inline in HTML.
 
 6. **Security rules from PR #223 are permanent:**
-   - All fetch calls use `Authorization: Bearer {jwt}` only — X-User-Id is forbidden
-   - `_jwt()` from `company.state.js` is the only token source
+   - Requests go through `twApi` (it adds `Authorization: Bearer {jwt}`) — X-User-Id is forbidden (PR 4.3a: `company.api.js` / `company.posts.js` have no `fetch`)
+   - `_jwt()` from `company.state.js` returns `TwAuthSync.getToken()` — kept only for code that still builds its own header (`company.main.js` / `company.jobs.js`); never read `localStorage` `tw_jwt` / `tw_user`
    - Ownership checks stay server-side (DB query in server.py)
 
 7. **`companyState` is the Single Source of Truth.** No other variable may serve as state for company profile data. `localStorage` is never used as an authority for company data.
@@ -52,3 +52,12 @@ These rules are permanent and apply to all future AI sessions:
 16. **No merge without user approval.** No PR is to be merged automatically. Every merge requires explicit user instruction.
 
 17. **Talent Bank deep-link is the only entry to candidates (PR-4).** `/u/{company_tw_id}?cand=<id>[&notes=1]` opens the Talent Bank on a candidate; empty `?cand=` opens it without a selected candidate (`company.main.js`). Every link to the bank (header menu "بنك المواهب", Home V2 co sidebar) is built by `twTalentBankHref(u)` in `tw_shared.js` only. The old candidate-search page `company.html` is deleted — `/company` is a legacy redirect.
+
+18. **Structure & display (PR 4.3a):**
+    - Page Shell + unified header / bottom nav (`<header data-tw-header>` · `<nav data-tw-bottom-nav>`). ❌ a page header (`.co-hdr`) again — owner buttons stay in `#ownerActions`. Public page → no `twRequireAuth`.
+    - `loadData()` checks the response: 404 → «الشركة غير موجودة» · other failure → error + «إعادة المحاولة». ❌ rendering an empty profile on a failed load.
+    - About rows come only from the API (`renderAbout`); missing value → row `hidden`. ❌ «—» placeholders / static values / fake job cards in the HTML.
+    - The page's public link and «نسخ الرابط» = `/u/{tw_id}`. ❌ `location.href`.
+    - Visitor buttons only via `twAction` (`renderVisitorActions`); report only via `twReportDialog` (`reportedType: 'company'`). ❌ a page report / contact form.
+    - Images via `twSafeImageUrl`; escaping via `twEscHtml` / `twEscAttr` (no local `_esc` copy).
+    - Test: `node tests/test_company_profile_page_runtime.js`.

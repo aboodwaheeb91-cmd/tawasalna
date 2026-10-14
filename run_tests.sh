@@ -102,6 +102,7 @@ NODE_TESTS=(
   test_appointments_guard_runtime.js
   test_auth_next_icon_hydrate_runtime.js
   test_auth_sync_runtime.js
+  test_company_profile_page_runtime.js
   test_ds_icon_registry.js          # its RTL browser part prints SKIP without Playwright
   test_ds_image_runtime.js
   test_ds_overlay_runtime.js

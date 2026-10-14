@@ -1,24 +1,12 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--tw:shell-head-->
 <title>تواصلنا - ملف الشركة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app-header.css">
-<link rel="stylesheet" href="/static/shared/tw-select.css">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <link rel="stylesheet" href="/static/shared/tw-skeleton.css">
 <link rel="stylesheet" href="/static/company/company.css">
-<link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body class="co-loading">
 <!--
@@ -30,46 +18,10 @@
 ╚══════════════════════════════════════════════╝
 -->
 
-<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
+<a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
 
-<!-- ██ HEADER (shared .sc-header) ██ -->
-<div class="sc-header co-hdr">
-  <!-- Right group (RTL-start): home + hub — keeps logo absolute-centered -->
-  <div class="sc-head-right">
-    <a href="/home" class="sc-hicon sc-home-btn" title="الرئيسية" aria-label="الرئيسية">
-      <i data-lucide="home" class="ico"></i>
-    </a>
-    <button id="coHubBtn" class="sc-hicon sc-hicon-bare owner-only" type="button" title="التواصل والمواعيد" aria-label="التواصل والمواعيد">
-      <i data-lucide="calendar-clock" class="ico"></i>
-    </button>
-  </div>
-  <div class="sc-logo">
-    <img src="/static/33333.svg" alt="تواصلنا">
-  </div>
-  <div class="sc-head-icons">
-    <a href="/notifications" class="sc-hicon sc-hicon-bare sc-notif-wrap" title="الإشعارات" aria-label="الإشعارات" data-tw-session="authenticated" hidden>
-      <i data-lucide="bell" class="ico"></i>
-      <span data-ah-notif-badge></span>
-    </a>
-    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل" data-tw-session="authenticated" hidden>
-      <i data-lucide="message-circle-more" class="ico"></i>
-    </a>
-    <div class="sc-menu-wrap" id="coMenuWrap">
-      <button class="sc-hicon sc-hicon-bare" id="coMenuBtn" title="القائمة" aria-label="القائمة">
-        <i data-lucide="menu" class="ico"></i>
-      </button>
-      <div class="sc-menu-dropdown" id="coMenuDropdown">
-        <!-- Owner-only static section — direct event listeners survive re-renders -->
-        <button type="button" class="sc-menu-item owner-only" id="editInfoBtn">
-          <i data-lucide="pencil" class="ico-sm"></i> تعديل معلومات الشركة
-        </button>
-        <div class="sc-menu-sep owner-only" id="coMenuOwnerSep"></div>
-        <!-- Dynamic session-aware items rendered by initGlobalHeaderMenu() -->
-        <div id="coMenuDynamic"></div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- Unified app header (HEADER-NAV.md — rendered by twMountAppChrome) -->
+<header data-tw-header></header>
 
 <!-- ██ SHELL ██ -->
 <div class="sc-wrap">
@@ -109,10 +61,10 @@
 </div>
 
 <div id="coErrorState" class="co-error-state" role="alert" aria-live="polite">
-  <svg class="co-err-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
-  <div class="co-err-title">تعذر تحميل الصفحة</div>
-  <div class="co-err-sub">تحقق من الاتصال وحاول مرة أخرى</div>
-  <button id="coRetryBtn" class="co-err-btn" onclick="if(window._applyLoadingState)_applyLoadingState(true);if(window.loadData)loadData();">إعادة المحاولة</button>
+  <span class="co-err-ico"><i data-tw-icon="wifi-off" data-tw-size="2xl"></i></span>
+  <div class="co-err-title" id="coErrTitle" data-tw-t="company.error.title"></div>
+  <div class="co-err-sub" id="coErrSub" data-tw-t="common.check_connection"></div>
+  <button type="button" id="coRetryBtn" class="co-err-btn"><span data-tw-t="common.retry"></span></button>
 </div>
 
 <div class="sc-main-card">
@@ -120,9 +72,9 @@
 <!-- ██ COVER ██ -->
 <div class="sc-cover" id="heroSection">
   <img loading="lazy" id="coverImg" src="" alt="">
-  <label id="coverUploadBtn" class="cv-edit-btn owner-only" title="تغيير صورة الغلاف" aria-label="تغيير صورة الغلاف">
+  <label id="coverUploadBtn" class="cv-edit-btn owner-only" data-tw-t-label="company.cover_change">
     <input id="coverFileInput" type="file" accept="image/*" class="file-input-hidden">
-    <i data-lucide="camera"></i>
+    <i data-tw-icon="camera" data-tw-size="sm"></i>
   </label>
 </div>
 
@@ -132,17 +84,13 @@
   <!-- Logo column -->
   <div class="sc-ava-col">
     <div class="sc-avatar-wrap">
-      <div class="co-logo" id="coLogo"><i data-lucide="building-2"></i></div>
-      <span class="co-logo-verify" id="coLogoBadge" aria-label="شركة موثقة">
-        <i data-lucide="badge-check"></i>
+      <div class="co-logo" id="coLogo"><i data-tw-icon="building-2" data-tw-size="xl"></i></div>
+      <span class="co-logo-verify" id="coLogoBadge" data-tw-t-label="company.verified_aria">
+        <i data-tw-icon="badge-check" data-tw-size="sm"></i>
       </span>
       <!-- Logo cam button — owner-only, matches Profile V2 .av-cam-btn -->
-      <button class="av-cam-btn owner-only" id="coLogoCamBtn"
-              title="تغيير شعار الشركة" aria-label="تغيير شعار الشركة" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
+      <button class="av-cam-btn owner-only" id="coLogoCamBtn" data-tw-t-label="company.logo_change" type="button">
+        <i data-tw-icon="camera" data-tw-size="sm"></i>
       </button>
       <input id="coLogoFileInput" type="file" accept="image/jpeg,image/png,image/webp" class="file-input-hidden">
     </div>
@@ -153,31 +101,27 @@
     <div class="co-name-row">
       <h1 class="co-name" id="coName"></h1>
       <span id="coVerifiedBadge" class="co-verified-badge">
-        <i data-lucide="badge-check"></i> موثق
+        <i data-tw-icon="badge-check" data-tw-size="xs"></i> <span data-tw-t="company.verified"></span>
       </span>
     </div>
-    <div class="co-type-badge" id="coTypeBadge">
-      <i data-lucide="briefcase"></i> شركة
-    </div>
+    <div class="co-type-badge" id="coTypeBadge"></div>
     <div class="co-desc" id="coDesc"></div>
     <div class="co-meta-row">
       <div class="co-meta-inline">
         <span id="coWebsite">
-          <button type="button" class="co-copy-btn" id="coWebsiteCopyBtn" title="نسخ الرابط" aria-label="نسخ الرابط">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          </button>
+          <button type="button" class="co-copy-btn" id="coWebsiteCopyBtn" data-tw-t-label="company.copy_link"><i data-tw-icon="copy" data-tw-size="sm"></i></button>
           <a href="#" id="coWebsiteLink" class="co-meta-link" target="_blank" rel="noopener noreferrer"></a>
         </span>
       </div>
     </div>
     <div class="co-hq-row" id="coHqRow">
-      <i data-lucide="map-pin"></i>
-      <span class="co-hq-label">الموقع الرئيسي:</span>
+      <i data-tw-icon="map-pin" data-tw-size="sm"></i>
+      <span class="co-hq-label" data-tw-t="company.hq_label"></span>
       <span id="coHqText"></span>
     </div>
     <div class="co-branches-row" id="coBranchesRow">
-      <i data-lucide="git-branch"></i>
-      <span class="co-branches-label">الفروع:</span>
+      <i data-tw-icon="git-branch" data-tw-size="sm"></i>
+      <span class="co-branches-label" data-tw-t="company.branches_label"></span>
       <span id="coBranchesText"></span>
     </div>
 
@@ -186,51 +130,53 @@
 </div><!-- /sc-prof-row -->
 
 <!-- ██ ACTIONS ██ -->
-<!-- Visitor order (RTL): تواصل معنا (right) | متابعة (left/primary) -->
-<div class="sc-actions visitor-only" id="visitorActions">
-  <button id="contactBtn" class="nb nb-outline">
-    <i data-lucide="mail"></i> تواصل معنا
+<!-- Owner: edit + communication hub (click handlers bound by id in the main module) -->
+<div class="sc-actions owner-only" id="ownerActions">
+  <button type="button" class="nb nb-outline" id="editInfoBtn">
+    <i data-tw-icon="edit" data-tw-size="sm"></i> <span data-tw-t="company.edit_info"></span>
   </button>
-  <button class="nb nb-follow" id="followBtn">
-    <i data-lucide="plus"></i> متابعة
+  <button type="button" class="nb nb-outline" id="coHubBtn">
+    <i data-tw-icon="calendar-clock" data-tw-size="sm"></i> <span data-tw-t="company.hub"></span>
   </button>
 </div>
+<!-- Visitor actions (follow / message / share / report) — twAction in company.render.js -->
+<div class="sc-actions" id="visitorActions"></div>
 
 <!-- ██ STATS ██ -->
 <div class="sc-stats">
   <div class="sc-stat">
-    <i data-lucide="briefcase" class="ico sc-stat-i" style="color:#f97316"></i>
+    <span class="sc-stat-i" style="color:#f97316"><i data-tw-icon="briefcase" data-tw-size="lg"></i></span>
     <div class="sc-stat-n" id="jobsCount">0</div>
-    <div class="sc-stat-l">الوظائف</div>
+    <div class="sc-stat-l" data-tw-t="company.stat.jobs"></div>
   </div>
   <div class="sc-stat">
-    <i data-lucide="file-text" class="ico sc-stat-i" style="color:#00c896"></i>
+    <span class="sc-stat-i" style="color:#00c896"><i data-tw-icon="file-text" data-tw-size="lg"></i></span>
     <div class="sc-stat-n" id="postsCount">0</div>
-    <div class="sc-stat-l">المنشورات</div>
+    <div class="sc-stat-l" data-tw-t="company.stat.posts"></div>
   </div>
   <div class="sc-stat">
-    <i data-lucide="eye" class="ico sc-stat-i" style="color:#2563ff"></i>
+    <span class="sc-stat-i" style="color:#2563ff"><i data-tw-icon="eye" data-tw-size="lg"></i></span>
     <div class="sc-stat-n" id="viewsCount">0</div>
-    <div class="sc-stat-l">المشاهدات</div>
+    <div class="sc-stat-l" data-tw-t="company.stat.views"></div>
   </div>
   <div class="sc-stat co-stat-clickable" id="coStatFollowersTile">
-    <i data-lucide="users" class="ico sc-stat-i" style="color:#8b5cf6"></i>
+    <span class="sc-stat-i" style="color:#8b5cf6"><i data-tw-icon="users" data-tw-size="lg"></i></span>
     <div class="sc-stat-n" id="followersCount">0</div>
-    <div class="sc-stat-l">المتابعون</div>
+    <div class="sc-stat-l" data-tw-t="company.stat.followers"></div>
   </div>
   <div class="sc-stat co-stat-clickable" id="coStatRatingTile">
-    <i data-lucide="star" class="ico sc-stat-i" style="color:#f59e0b"></i>
+    <span class="sc-stat-i" style="color:#f59e0b"><i data-tw-icon="star" data-tw-size="lg"></i></span>
     <div class="sc-stat-n" id="ratingAvg">—</div>
-    <div class="sc-stat-l">التقييم</div>
+    <div class="sc-stat-l" data-tw-t="company.stat.rating"></div>
   </div>
 </div>
 
 <!-- ██ TABS ██ -->
 <div class="sc-tabs-wrap">
   <div class="sc-tabs">
-    <button class="sc-tab active" data-tab="jobs">الوظائف</button>
-    <button class="sc-tab" data-tab="posts">المنشورات</button>
-    <button class="sc-tab" data-tab="about">عن الشركة</button>
+    <button type="button" class="sc-tab active" data-tab="jobs" data-tw-t="company.tab.jobs"></button>
+    <button type="button" class="sc-tab" data-tab="posts" data-tw-t="company.tab.posts"></button>
+    <button type="button" class="sc-tab" data-tab="about" data-tw-t="company.tab.about"></button>
   </div>
 </div>
 
@@ -241,38 +187,15 @@
   <div id="tab-jobs">
     <div class="jobs-owner-toolbar owner-only">
       <button id="postJobBtn" class="nb nb-owner-action">
-        <i data-lucide="plus"></i> نشر وظيفة
+        <i data-tw-icon="add" data-tw-size="sm"></i> <span data-tw-t="company.post_job"></span>
       </button>
       <button id="candidatesBtn" class="nb nb-owner-action nb-talent-bank">
-        <i data-lucide="gem"></i> بنك المواهب
+        <i data-tw-icon="gem" data-tw-size="sm"></i> <span data-tw-t="company.talent_bank"></span>
         <span class="co-cand-badge" id="candidatesBadge" style="display:none">0</span>
       </button>
     </div>
 
-    <div id="jobsList">
-      <div class="job-card tw-card-lift">
-        <div class="job-card-logo"><i data-lucide="building-2"></i></div>
-        <div class="job-card-body">
-          <div class="job-title">مطور Full Stack</div>
-          <div class="job-card-meta">
-            <span class="job-meta-chip"><i data-lucide="map-pin"></i> عمان، الأردن</span>
-            <span class="job-meta-chip"><i data-lucide="clock"></i> دوام كامل</span>
-          </div>
-        </div>
-        <button class="apply-btn-pill">تقديم الآن</button>
-      </div>
-      <div class="job-card tw-card-lift">
-        <div class="job-card-logo"><i data-lucide="building-2"></i></div>
-        <div class="job-card-body">
-          <div class="job-title">مصمم UX/UI</div>
-          <div class="job-card-meta">
-            <span class="job-meta-chip"><i data-lucide="map-pin"></i> عمان، الأردن</span>
-            <span class="job-meta-chip"><i data-lucide="clock"></i> دوام جزئي</span>
-          </div>
-        </div>
-        <button class="apply-btn-pill">تقديم الآن</button>
-      </div>
-    </div>
+    <div id="jobsList"></div>
 
   </div><!-- /tab-jobs -->
 
@@ -280,11 +203,11 @@
   <div id="tab-posts">
     <div class="owner-only posts-owner-bar">
       <button id="postModalBtn" class="nb nb-owner-action">
-        <i data-lucide="send"></i> نشر منشور جديد
+        <i data-tw-icon="send" data-tw-size="sm"></i> <span data-tw-t="company.new_post"></span>
       </button>
     </div>
     <div id="postsList"></div>
-    <div id="postsEmpty">لا منشورات بعد</div>
+    <div id="postsEmpty" data-tw-t="company.posts_empty"></div>
   </div>
 
   <!-- ABOUT TAB -->
@@ -292,30 +215,30 @@
     <div class="about-grid">
 
       <div class="about-card">
-        <div class="ac-title">عن الشركة</div>
-        <div id="aboutDesc"></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="building-2"></i></span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="map-pin"></i></span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="calendar"></i></span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="users"></i></span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="aboutSize">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="globe"></i></span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="aboutWeb" target="_blank" rel="noopener">—</a></div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="mail"></i></span><div><div class="ac-key">البريد الإلكتروني</div><div class="ac-val" id="aboutEmail">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon"><i data-lucide="phone"></i></span><div><div class="ac-key">الهاتف</div><div class="ac-val" id="aboutPhone">—</div></div></div>
+        <div class="ac-title" data-tw-t="company.tab.about"></div>
+        <div id="aboutDesc" hidden></div>
+        <div class="ac-item" id="aboutTypeRow" hidden><span class="ac-icon"><i data-tw-icon="building-2" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.type"></div><div class="ac-val" id="aboutType"></div></div></div>
+        <div class="ac-item" id="aboutLocRow" hidden><span class="ac-icon"><i data-tw-icon="map-pin" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.location"></div><div class="ac-val" id="aboutLoc"></div></div></div>
+        <div class="ac-item" id="aboutFoundedRow" hidden><span class="ac-icon"><i data-tw-icon="calendar" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.founded"></div><div class="ac-val" id="aboutFounded"></div></div></div>
+        <div class="ac-item" id="aboutSizeRow" hidden><span class="ac-icon"><i data-tw-icon="users" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.size"></div><div class="ac-val" id="aboutSize"></div></div></div>
+        <div class="ac-item" id="aboutWebRow" hidden><span class="ac-icon"><i data-tw-icon="globe" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.website"></div><div class="ac-val" id="aboutWeb"></div></div></div>
+        <div class="ac-item" id="aboutEmailRow" hidden><span class="ac-icon"><i data-tw-icon="mail" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.email"></div><div class="ac-val" id="aboutEmail"></div></div></div>
+        <div class="ac-item" id="aboutPhoneRow" hidden><span class="ac-icon"><i data-tw-icon="phone" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.phone"></div><div class="ac-val" id="aboutPhone"></div></div></div>
+        <div class="tw-empty-sub" id="aboutEmpty" hidden data-tw-t="company.about.empty"></div>
       </div>
 
       <div>
-        <div class="about-card">
-          <div class="ac-title">الإنجازات والتوثيق</div>
-          <div class="ac-item" id="coAboutVerifiedRow" style="display:none"><span class="ac-icon"><i data-lucide="shield-check"></i></span><div><div class="ac-key">التوثيق</div><div class="ac-val">جهة موثقة من تواصلنا</div></div></div>
-          <div class="ac-item"><span class="ac-icon"><i data-lucide="clipboard-check"></i></span><div><div class="ac-key">عمليات التوثيق</div><div class="ac-val" id="aboutVerified">0 توثيق معتمد</div></div></div>
+        <div class="about-card" id="coAboutVerifiedRow" hidden>
+          <div class="ac-title" data-tw-t="company.about.achievements"></div>
+          <div class="ac-item"><span class="ac-icon"><i data-tw-icon="shield-check" data-tw-size="sm"></i></span><div><div class="ac-key" data-tw-t="company.about.verification"></div><div class="ac-val" data-tw-t="company.about.verified_by"></div></div></div>
         </div>
 
         <div class="followers-wrap">
           <div class="ac-title">المتابعون</div>
           <div class="fw-avatars">
-            <div class="fw-ava"><i data-lucide="user"></i></div>
-            <div class="fw-ava"><i data-lucide="user"></i></div>
-            <div class="fw-ava"><i data-lucide="user"></i></div>
+            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
+            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
+            <div class="fw-ava"><i data-tw-icon="user" data-tw-size="sm"></i></div>
           </div>
           <div class="fw-count"><span id="followersCount2">0</span> متابع</div>
         </div>
@@ -350,11 +273,11 @@
   <div class="modal co-edit-sheet">
     <div class="modal-head">
       <span class="modal-head-title">
-        <i data-lucide="pencil" class="ico-sm" style="color:var(--ac2);vertical-align:middle;margin-left:6px"></i>
+        <span style="color:var(--ac2);vertical-align:middle;margin-left:6px"><i data-tw-icon="edit" data-tw-size="sm"></i></span>
         تعديل ملف الشركة
       </span>
       <button type="button" class="modal-head-close" aria-label="إغلاق">
-        <i data-lucide="x" class="ico-sm"></i>
+        <i data-tw-icon="close" data-tw-size="sm"></i>
       </button>
     </div>
     <div class="modal-scroll-body">
@@ -393,7 +316,7 @@
         </select>
       </div>
       <div class="mf">
-        <label>المنطقة / الحي / الشارع <span class="mf-section-note">(لا يوجد مصدر رسمي — input مؤقت)</span></label>
+        <label>المنطقة / الحي / الشارع</label>
         <input id="e-district" placeholder="مثال: شارع الملك عبدالله...">
       </div>
     </div>
@@ -414,30 +337,30 @@
   <div class="co-hub-sheet">
     <div class="co-hub-head">
       <span class="co-hub-title">
-        <i data-lucide="messages-square" class="ico-sm" style="color:var(--ac);vertical-align:middle;margin-left:6px"></i>
+        <span style="color:var(--ac);vertical-align:middle;margin-left:6px"><i data-tw-icon="messages-square" data-tw-size="sm"></i></span>
         التواصل والمواعيد
       </span>
       <button class="modal-head-close" id="coHubCloseBtn" aria-label="إغلاق">
-        <i data-lucide="x" class="ico-sm"></i>
+        <i data-tw-icon="close" data-tw-size="sm"></i>
       </button>
     </div>
     <div class="co-hub-tabs">
       <button class="co-hub-tab active" data-hub-tab="messages">
-        <i data-lucide="message-circle" class="ico-sm"></i> المحادثات
+        <i data-tw-icon="message-circle" data-tw-size="sm"></i> المحادثات
       </button>
       <button class="co-hub-tab" data-hub-tab="appointments">
-        <i data-lucide="calendar" class="ico-sm"></i> المواعيد والمقابلات
+        <i data-tw-icon="calendar" data-tw-size="sm"></i> المواعيد والمقابلات
       </button>
     </div>
     <div class="co-hub-body">
       <div class="co-hub-panel" id="coHubMsgPanel">
         <a href="/messages" class="co-hub-nav-card">
-          <div class="co-hub-nav-ico"><i data-lucide="message-circle-more"></i></div>
+          <div class="co-hub-nav-ico"><i data-tw-icon="messages" data-tw-size="lg"></i></div>
           <div class="co-hub-nav-info">
             <div class="co-hub-nav-title">صندوق الرسائل</div>
             <div class="co-hub-nav-sub">تابع محادثاتك مع المرشحين والشركاء</div>
           </div>
-          <span class="co-hub-go-ico"><i data-lucide="arrow-left" class="ico-sm"></i></span>
+          <span class="co-hub-go-ico"><i data-tw-icon="forward" data-tw-size="sm"></i></span>
         </a>
       </div>
       <div class="co-hub-panel" id="coHubApptPanel" style="display:none">
@@ -446,23 +369,6 @@
           <a href="/appointments" class="nb nb-outline" style="width:100%;justify-content:center">إدارة كل المواعيد</a>
         </div>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- ██ CONTACT MODAL ██ -->
-<div class="overlay" id="contactOverlay">
-  <div class="modal">
-    <div class="modal-title">التواصل مع الشركة</div>
-    <p class="modal-hint-text">أرسل رسالة للشركة وسيصلها إشعار.</p>
-    <div class="mf">
-      <label>رسالتك</label>
-      <input id="msg-subject" placeholder="الموضوع">
-      <textarea id="msg-body" placeholder="اكتب رسالتك هنا..."></textarea>
-    </div>
-    <div class="mact">
-      <button id="contactSendBtn" class="mbtn mbtn-ok">إرسال</button>
-      <button id="contactCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
@@ -481,7 +387,7 @@
       <div class="mf j-acc-all-wrap">
         <label class="j-toggle-label">
           <input type="checkbox" id="j-acc-all">
-          <i data-lucide="users" class="j-toggle-ico"></i>
+          <span class="j-toggle-ico"><i data-tw-icon="users" data-tw-size="sm"></i></span>
           <span>قبول جميع التخصصات</span>
         </label>
       </div>
@@ -593,31 +499,6 @@
     <div class="modal-btns">
       <button id="createPostBtn" class="mbtn mbtn-yes"><span id="createPostBtnLabel">نشر</span></button>
       <button id="postCancelBtn" class="mbtn mbtn-no">إلغاء</button>
-    </div>
-  </div>
-</div>
-
-<!-- ██ REPORT MODAL (bottom sheet) ██ -->
-<div id="reportModal" class="report-modal">
-  <div class="report-inner">
-    <div class="report-title">إبلاغ عن محتوى مخالف</div>
-    <div class="report-section">
-      <div class="report-label">نوع البلاغ</div>
-      <select id="reportType" class="report-select">
-        <option value="sexual">محتوى جنسي</option>
-        <option value="fraud">احتيال أو نصب</option>
-        <option value="harassment">تحرش أو مضايقة</option>
-        <option value="spam">سبام أو إعلان مزيف</option>
-        <option value="other">أخرى</option>
-      </select>
-    </div>
-    <div class="report-section-reason">
-      <div class="report-label">تفاصيل البلاغ</div>
-      <textarea id="reportReason" class="report-textarea" placeholder="اشرح سبب البلاغ..." rows="3"></textarea>
-    </div>
-    <div class="report-actions">
-      <button id="reportSubmitBtn" class="report-submit-btn">إرسال البلاغ</button>
-      <button id="reportCancelBtn" class="report-cancel-btn">إلغاء</button>
     </div>
   </div>
 </div>
@@ -743,24 +624,26 @@
   </div>
 </div>
 
-<!-- Scripts: load order — lucide → tw-shared → state → api → permissions → render → jobs → posts → main -->
+<!-- Unified bottom nav (HEADER-NAV.md — rendered by twMountAppChrome) -->
+<nav data-tw-bottom-nav></nav>
+
+<!--tw:shell-scripts-->
+<!-- Page scripts: shared first → state → api → permissions → render → jobs → posts → main -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
-<!--tw:strings-->
-<script src="/tw_shared.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <script src="/static/shared/tw-options-data.js"></script>
-<script src="/static/shared/tw-select.js"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
 <script src="/static/shared/tw-skills.js?v=taxonomy-v1"></script>
-<script src="/static/shared/auth-sync.js"></script>
+<script src="/static/shared/tw-upload.js"></script>
+<script src="/static/shared/tw-image-cropper.js"></script>
+<script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
 <script src="/static/company/company.state.js"></script>
 <script src="/static/company/company.api.js"></script>
 <script src="/static/company/company.permissions.js"></script>
 <script src="/static/company/company.render.js"></script>
 <script src="/static/company/company.jobs.js"></script>
 <script src="/static/company/company.posts.js"></script>
-<script src="/static/shared/tw-upload.js"></script>
-<script src="/static/shared/tw-image-cropper.js"></script>
-<script src="/static/shared/tw-overlay.js?v=ovl-v1"></script>
-<script src="/static/shared/tw-schedule.js?v=sched-v2"></script>
 <script src="/static/company/company.main.js"></script>
 </body>
 </html>

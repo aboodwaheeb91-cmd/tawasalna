@@ -58,8 +58,11 @@
     else                           document.body.classList.add('view-guest');
   }
 
+  // Current JWT from TwAuthSync only ('' when there is no valid session). Kept for the
+  // modules that still build their own Authorization header (company.main.js / company.jobs.js)
+  // until they move to twApi — new code calls twApi, which adds the header itself.
   function _jwt() {
-    return localStorage.getItem('tw_jwt') || '';
+    return (window.TwAuthSync && typeof TwAuthSync.getToken === 'function') ? TwAuthSync.getToken() : '';
   }
 
   window._mergeCompanyState = _mergeCompanyState;

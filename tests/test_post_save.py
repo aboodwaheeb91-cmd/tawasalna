@@ -91,7 +91,8 @@ else:
     fail(12, 'Save Desired State Queue', 'vars غير موجودة')
 
 # 13. company.posts.js: _toggleSave calls PUT /save
-if '_toggleSave' in posts and "'/company/posts/' + postId + '/save'" in posts:
+# PR 4.3a: request through twApi (method PUT) — the path is built from the encoded post id
+if '_toggleSave' in posts and "twApi('/company/posts/' + encodeURIComponent(postId) + '/save', { method: 'PUT'" in posts:
     ok(13, 'company.posts.js: _toggleSave يستخدم PUT /save ✅')
 else:
     fail(13, '_toggleSave endpoint', 'غير موجود أو endpoint خاطئ')
