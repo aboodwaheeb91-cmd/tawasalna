@@ -102,7 +102,7 @@ def test_dead_css_removed():
 def test_company_logo_is_rounded_square():
     for sel in (".co-logo", ".sc-avatar-wrap::after", "#coLogoCropCanvas"):
         radius = re.search(r"border-radius\s*:\s*([^;]+);", _rule(sel)).group(1).strip()
-        assert radius != "50%" and radius.startswith("var(--radius-"), (sel, radius)
+        assert radius != "50%" and re.fullmatch(r"\d+px", radius), (sel, radius)
     js = open(os.path.join(ROOT, "static", "company", "company.main.js"), encoding="utf-8").read()
     body = re.search(r"function _getLogoCropper\(\)\s*\{(.*?)\n  \}", js, re.S).group(1)
     assert re.search(r"shape:\s*'rect'", body), "logo cropper must be shape 'rect' (IMG-03)"

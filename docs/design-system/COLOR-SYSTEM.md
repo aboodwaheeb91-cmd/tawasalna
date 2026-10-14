@@ -610,7 +610,7 @@ feature CSS:
 | `--border` · `--bd2` | `--color-border-subtle` · `--color-border-medium` |
 | `--t` (.87) · `--t1` | `rgba(var(--color-ink-rgb), .87)` · `--color-text-primary` |
 | `--t2` · `--t3` · `--t4` | `--color-text-meta` · `--color-text-muted` · `--color-text-disabled` |
-| `--r-sm` · `--r-md` · `--r-lg` | `--radius-md` · `--radius-xl` · `--radius-3xl` (DS-SIZE) |
+| `--r-sm` · `--r-md` · `--r-lg` | `10px` · `14px` · `20px` حرفي (مش لون — ترحيل DS-SIZE للصفحة بده موافقة منفصلة، ds-size القاعدة 5) |
 
 ```
 ❌ page :root بيعيد تعريف أي alias مشترك (--ac / --t2 / --bg …) أو أي --color-* — test_company_colors.py

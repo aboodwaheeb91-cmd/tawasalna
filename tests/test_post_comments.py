@@ -2089,9 +2089,9 @@ check(
 )
 _logo_canvas_rule_126 = re.search(r"(?m)^#coLogoCropCanvas\s*\{([^}]*)\}", co_css_126)
 check(
-    "126e. #coLogoCropCanvas CSS is a rounded square (radius token, not 50%) — IMG-03",
+    "126e. #coLogoCropCanvas CSS is a rounded square (px radius, not 50%) — IMG-03",
     bool(_logo_canvas_rule_126) and
-    re.search(r"border-radius\s*:\s*var\(--radius-[\w-]+\)", _logo_canvas_rule_126.group(1)) is not None
+    re.search(r"border-radius\s*:\s*\d+px\s*;", _logo_canvas_rule_126.group(1)) is not None
 )
 check(
     "126f. #coLogoCropCanvas CSS has overflow:hidden",
