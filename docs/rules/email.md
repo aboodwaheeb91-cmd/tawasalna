@@ -1,7 +1,7 @@
-# Unified Email System + Forgot Password (task 5.1a)
+# Unified Email System + Forgot Password + Email Change (tasks 5.1a · 5.1b)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتبعت إيميل أو بتلمس إعادة تعيين كلمة السر.
-> المواصفة: `docs/SYSTEMS_INDEX.md` §54j (الإيميل) + §1b (نسيت كلمة المرور) · `ARCHITECTURE.md → Unified Email System + Password Reset (5.1a)`.
+> المواصفة: `docs/SYSTEMS_INDEX.md` §54j (الإيميل) + §1b (نسيت كلمة المرور) + §1c (تغيير الإيميل) + §54c (OTP التوثيق) · `ARCHITECTURE.md → Unified Email System + Password Reset (5.1a)`.
 
 ## Email Rules (mandatory for all AI sessions)
 
@@ -10,7 +10,8 @@
 3. **التحكم الكامل:** `site_settings[email_settings]` = `from_address` (افتراضي `no-reply@tawasolna.com`) · `from_name` («تواصلنا») · `site_url` (أصل روابط الإيميل — **مش** من `Host` header: reset-link poisoning) · `types` (تشغيل / إيقاف كل نوع). الأدمن: `GET` / `PUT /admin/email` + `POST /admin/email/test` (`check_admin`).
 4. **القوالب:** نوع جديد = سطر بـ `TEMPLATES` (`email_service.py`) + مفاتيح `email.<type>.<part>` بـ `tw_strings.json` (قابلة للتعديل من الأدمن عبر `PUT /admin/strings`) + بـ `TYPES` إذا الأدمن لازم يقدر يطفّيه. قالب HTML واحد RTL (ألوان من primitives `tw_shared.css`) + نسخة نص عادي. كل متغيّر مُهرَّب بالـ HTML؛ العنوان بدون أسطر جديدة؛ زر الرابط بس لـ `https://`.
 5. **الـ logs:** النوع + السبب بس (`http 500` / نوع الخطأ) — ❌ المفتاح · ❌ عنوان المستلم · ❌ النص · ❌ رابط / توكن.
-- ❌ `smtplib` / مزوّد تاني / `urlopen` لـ Resend برّا `email_service.py` · ❌ نص إيميل ثابت بالكود · ❌ رابط إيميل مبني من `request` · ❌ تشغيل `is_email_otp_delivery_available()` (KYC = 5.1b).
+- ❌ `smtplib` / مزوّد تاني / `urlopen` لـ Resend برّا `email_service.py` · ❌ نص إيميل ثابت بالكود · ❌ رابط إيميل مبني من `request`.
+6. **OTP التوثيق (5.1b):** `is_email_otp_delivery_available()` = `email_service.can_send("kyc_email_otp")` · الرمز بينبعت عبر `send_email` (قالب `kyc_email_otp`) لبريد الحساب (`users.email`) بس — عنوان تاني بالطلب → 400 · الرمز مخزّن hash (`_otp_issue`) متل ما هو. الهاتف بدون مزوّد SMS → `verify_identity` بيضل مطفّى افتراضياً.
 
 ## Forgot Password Rules (mandatory for all AI sessions)
 
@@ -21,3 +22,13 @@
 - ❌ رد بيختلف حسب وجود الإيميل · ❌ التوكن نص عادي بالـ DB أو بالـ log · ❌ التوكن بـ query string · ❌ كتابة `password_hash` بدون `set_user_password` · ❌ مسار بينهي جلسات بدون `_ws_revoke_user`.
 
 Test: `python -m pytest tests/test_password_reset_email.py -q` (Resend مزيّف على مستوى HTTP + PostgreSQL حقيقي).
+
+## Email Change Rules (mandatory for all AI sessions — task 5.1b)
+
+1. **الطلب** `POST /auth/email-change/request {new_email, current_password}` (JWT) → كلمة السر الحالية (bcrypt) · صيغة الإيميل · نفس الإيميل الحالي · مستعمل لحساب تاني → 422 `new_email/email_taken` عبر `EmailTakenError` (مش نص الخطأ) · 5 / ساعة لكل مستخدم (قبل فحص كلمة السر) + `_RATE_LIMITED_PATHS`.
+2. **التوكن = نفس كود نسيت كلمة المرور:** `auth.email_token_issue` / `email_token_consume` (purpose `email_change`، الإيميل الجديد بـ `payload`) — hash بس · 30 دقيقة · مرة وحدة · الجديد بيلغي القديم. ❌ جدول أو دالة توكن تانية.
+3. **الرابط** `{site_url}/confirm-email#token=…` للإيميل **الجديد** · الصفحة بتبعت التوكن بس بكبسة زر (مش عند التحميل — ماسحات الروابط).
+4. **التأكيد** `POST /auth/email-change/confirm {token}` → وقتها بس `users.email` بيتغيّر · مستعمل بالوقت (سباق) → 409 `email_taken` عبر `EmailTakenError` (UNIQUE) · بعدها إيميل «تغيّر بريدك الإلكتروني» (`email_changed`) للعنوان **القديم** — بدون رابط إلغاء بهالمرحلة.
+- ❌ تغيير `users.email` قبل الرابط · ❌ إرسال برّا `send_email`.
+
+Test: `python -m pytest tests/test_email_change_kyc_email.py -q`.

@@ -34,9 +34,13 @@ TEMPLATES = {
     "password_reset":   {"vars": ("name", "link", "minutes"),
                          "parts": ("subject", "body", "button", "note")},
     "password_changed": {"vars": ("name",), "parts": ("subject", "body", "note")},
+    "email_change":     {"vars": ("name", "link", "minutes"),
+                         "parts": ("subject", "body", "button", "note")},
+    "email_changed":    {"vars": ("name",), "parts": ("subject", "body", "note")},
+    "kyc_email_otp":    {"vars": ("name", "code", "minutes"), "parts": ("subject", "body", "note")},
     "admin_test":       {"vars": (), "parts": ("subject", "body")},
 }
-TYPES = ("password_reset", "password_changed")
+TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "kyc_email_otp")
 
 DEFAULTS = {
     "from_address": "no-reply@tawasolna.com",
