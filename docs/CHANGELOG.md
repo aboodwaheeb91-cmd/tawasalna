@@ -11,6 +11,143 @@
 - [سجل `docs/design-system/VIEWER-MODES.md`](#سجل-docsdesign-systemviewer-modesmd)
 - [سجل `docs/design-system/BUTTONS.md`](#سجل-docsdesign-systembuttonsmd)
 
+## PR 4.3c — صفحة الشركة: لوحة الإدارة والوظائف — 2026-10-14
+- `company.main.js` + `company.jobs.js`: كل الطلبات عبر `twApi` (26 `fetch` انشالوا، وما ضل ولا `_jwt()`) · الضيف → `twLoginHref` (كان `/` أو `/login`) · `twConfirm` (danger) لحذف وظيفة / إنهاء وظيفة / إزالة من بنك المواهب بنصوص `company.*`.
+- **حفظ «تعديل الملف»:** السبب الجذري — النجاح كان يشيل `show` عن النافذة بدل `closeEdit()` (الـ history entry بيضل) وما يرجّع نص الزر، و3 PUT بـ `Promise.all` فالفشل الجزئي بيحفظ نص البيانات بصمت. هلق متتالي (شركة → ملف → فروع)، الفشل بيوقف السلسلة وبيسمّي الجزء وسبب السيرفر، والأجزاء اللي انحفظت بس بتنطبق.
+- **آخر طلب بيكسب:** متقدمو وظيفة A ما عاد يطلعوا تحت B (`_loadApplicants`) · فلتر المتابعين و قائمة بنك المواهب ما عاد ينرمى طلبهم وقت طلب شغّال.
+- انحذفوا: الـ poll كل 30 ثانية (`loadData` الصامت ما كان يعيد الرسم) · pull-to-refresh (كان يشتغل تحت النوافذ) · `_submitRating` المكرر (التقييم من `submitRating` وحدة، محمية من الضغط المزدوج، برسالة نجاح / خطأ) · 4 دوال escaping محلية · SVG المضمّن و `_FILTER_ICONS` كـ SVG.
+- زر «ملاحظات الوظيفة» بيضل بعد إعادة التصنيف · أزرار إلغاء نافذة الوظيفة بترجّع الـ history entry · `#rateBox` حسب `can_rate`.
+- الصور `twAvatarHtml` / `twAvatarEl` · الأيقونات `twIcon` (بما فيها `data-lucide` المبني من بيانات) · التواريخ `twFormatDate` (كانت `ar-SA` هجري / `ar-EG`).
+- بعد 4.3a (#593): انحذف الكود الميت بـ `company.main.js` (`openContact` / `closeContact` / `sendMsg` / `openReportModal` / `closeReportModal` / `submitReport` وربطهم + `initGlobalHeaderMenu('coMenuBtn', …)` — عناصرهم انشالت من الصفحة) · ما ضل `data-lucide` بالصفحة → انشال تحميل `lucide.min.js` من `company-profile.html` واستدعاءات `lucide.createIcons` من ملفاتي. `_jwt()` بـ `company.state.js` باقية — `company.posts.js` لسا بيستعملها.
+- اختبار جديد `tests/test_company_admin_runtime.js` (vm، الكود الحقيقي). فحوصات نصية انكسرت حُوّلت لبنية / سلوك: `test_company_save_static` · `test_talent_bank_v3` · `test_post_comments` (184-02 · 187-23/24 · 486-14) · `test_ds_image_runtime` (B3 PHASE_C) · `test_tw_shared_runtime` (T02) · `test_global_ui_visibility` (F03).
+- **`twFormatDateTime(value)` جديدة بـ `tw_shared.js`** (قرار F30): التاريخ متل `twFormatDate` + الوقت 12 ساعة ص / م (`date.format.datetime` · `date.format.time` · `date.am` · `date.pm`). «مركز التواصل» صار يستعملها بدل `ar-EG`. اختبار: `test_login_jobdetail_runtime.js` (A2).
+- `company.posts.js`: فحوصات تسجيل الدخول (13) صارت `TwCompanyPage.signedIn()` (= `TwAuthSync.getSessionSnapshot().isAuthenticated`) → `_jwt()` انحذفت من `company.state.js` (ما ضل إلها مستخدم) · `company.render.js`: انحذف `lucide.createIcons` الميت.
+
+## PR 4.3b — ألوان صفحة الشركة → DS-COLOR tokens · حذف CSS ميت · لوغو مربّع — 2026-10-14
+
+- `static/company/company.css`: انحذف الـ `:root` الخاص بالصفحة (`--ac` أزرق / `--ac2` أخضر / `--bg` / `--t*` / `--card` / `--border` / `--r-*` → `10px` / `14px` / `20px` حرفي، بدون ترحيل DS-SIZE) — كل استعمال صار Semantic token (CLR-16 ✅). كل لون ثابت → `--color-*` (أو `rgba(var(--color-ink-rgb|--color-overlay-rgb), a)` بنفس الألفا). ألوان صفحة الشركة بـ `page_audit`: 897 → 27 (الباقي بدون توكن — CLR-35 → Company page gaps، F30).
+- CSS ميت انحذف: `.co-hdr` (+ `.sc-home-btn` تبعه) · `.co-app-ava` · `.co-fl-ava` · `.co-cand-ava` · `.co-csc-ava` (صاروا `.tw-ava`) · نسخ `.tw-toast` / `.tw-skeleton` / `.tw-fab` / `.tw-empty` (+ title / sub / btn) المكررة من المشترك.
+- لوغو الشركة مربّع بزوايا (IMG-03): `.co-logo` + الحلقة + `#coLogoCropCanvas` = `20px` · cropper اللوغو `shape: 'rect'`.
+- `company-profile.html` (أيقونات الإحصائيات + عنوانين) · `company.render.js` (fallback لون المنشور + أيقونة الحفظ) · `company.posts.js`: ألوان inline → tokens.
+- Test: `python -m pytest tests/test_company_colors.py -q` (جديد) · `test_post_comments.py` 126a / 126e + `test_talent_bank_polish.py` test_20 تحوّلوا لفحص بنية (القاعدة 6).
+- Docs: COLOR-SYSTEM CLR-16 / CLR-35 · `docs/rules/ds-color.md` (8) · IMAGE-SYSTEM IMG-12 · `docs/rules/image-cropper.md` · SYSTEMS_INDEX §50.
+
+## PR 4.3a — صفحة الشركة: الهيكل والعرض (Page Shell + هيدر موحّد + twApi + «عن الشركة» من البيانات) — 2026-10-14
+- `company-profile.html`: Page Shell (`<!--tw:shell-*-->`) + الهيدر الموحّد (`<header data-tw-header>`) + الشريط السفلي — انحذف `.co-hdr` الخاص · زرّين المالك («تعديل معلومات الشركة» + «التواصل والمواعيد») طلعوا لصف بالصفحة `#ownerActions` بنفس الـ ids · الصفحة عامة (بدون `twRequireAuth`)، المالك / الزائر من `viewer_type` + `TwAuthSync`.
+- حالة خطأ التحميل: `loadData` ما كان بيفحص الرد (السبب الجذري: `r.json()` بدون `r.ok` → 404 / 500 بيرسموا بروفايل فاضي) → 404 «الشركة غير موجودة» بدون إعادة · غير هيك «تعذّر تحميل صفحة الشركة» + «إعادة المحاولة» (بدون `onclick` بالـ HTML).
+- «عن الشركة»: الحقول (النوع · الموقع · التأسيس · الحجم · الموقع الإلكتروني · الإيميل · الهاتف · الوصف) ما حدا كان بيعبّيها → `renderAbout()` من بيانات الـ API، والحقل الفاضي ما بيطلع · الموقع الإلكتروني رابط بس إذا `twSafeLinkUrl` قبله · انحذف «0 توثيق معتمد» الثابت · انحذفت كرتين الوظائف الوهميين + ملاحظة المطوّر «(لا يوجد مصدر رسمي — input مؤقت)».
+- «نسخ الرابط» + رابط الصفحة = `/u/{tw_id}` (كان `location.href`) · اللوغو / الغلاف / صور المنشورات والتعليقات عبر `twSafeImageUrl` · `_esc` / `_escAttr` / `_escapeHtml` المحليين → `twEscHtml` / `twEscAttr` (ما حدا برّا `company.render.js` كان بيستعمل `window._esc` / `window._escapeHtml` → انحذفوا).
+- أزرار الزائر عبر `twAction`: متابعة · مراسلة (`/messages?with=` — بدل نافذة «تواصل معنا») · مشاركة · إبلاغ (`twReportDialog` بـ `reportedType: 'company'` — نموذج الإبلاغ الخاص بالصفحة انحذف وما كان إله زر أصلاً).
+- `twApi` لكل طلبات `company.api.js` + `company.posts.js` (0 `fetch`) · `_jwt()` = `TwAuthSync.getToken()` · بدون قراءة `tw_user` · حذف المنشور عبر `twConfirm` (danger) · أخطاء المنشورات / التعليقات / الحفظ / التقدير بنوع `error` (كانت بتطلع toast نجاح) · زر «إلغاء» بنافذة المنشور كان بيمرّر حدث النقر كـ `fromPopstate` → ما كان بيرجّع الـ history.
+- أيقونات الـ HTML الثابت `data-lucide` → DS-ICON (`data-tw-icon` + `twIcon.hydrate`) · النصوص المعروضة عبر `twT` (مفاتيح `company.*`).
+- `page_audit` company-profile: fetch 52→26 · ls_session 3→0 · dialogs 4→3 · no_shell / no_header 1→0 (الباقي بـ `company.main.js` / `company.jobs.js` — جلسة 4.3c).
+- اختبار: `node tests/test_company_profile_page_runtime.js` (كود حقيقي بـ vm) · فحوص نص حرفي بـ `test_post_comments` / `test_post_save` / `test_global_ui_visibility` / `test_talent_bank_polish` / `test_no_dummy_content` / `test_page_shell` تحوّلت لفحوص بنية.
+
+## PR 4.2b — ألوان البروفايل → DS-COLOR tokens + نصوص بطاقة النمو → twT — 2026-10-14
+
+- `profile-v2.css` + الستايل المضمّن بـ `profile-showcase.html` / `profile-v2.{exp,render,completion}.js`: كل لون ثابت → `--color-*` من `tw_shared.css` (جدول الدمج CLR-35؛ أبيض شفاف بدون توكن مطابق → `rgba(var(--color-ink-rgb), a)` بنفس الألفا). شيل fallbacks الـ `var(--x, #hex)`. `page_audit` ألوان الصفحة 540 → 41.
+- الباقي (41) = فجوات F30 بدون توكن: ألوان مستويات المهارة (نص فاتح + tint بدون قنوات `-rgb` لـ blue / amber / neutral) · cyan حالة «منفتح على وظائف» / «فريلانس» وعدّاد «يتابع» (CLR-29) · تدرّج الغلاف الافتراضي (CLR-29 Gradient). ما انضاف أي توكن.
+- استثناءات `tw-color-literal` (بيانات صورة): خلفية QR البيضاء + الحلقة حول لوغو QR · ألوان QR وبطاقة PNG المصدّرة بـ `profile-v2.qr.js`.
+- `profile-v2.completion.js`: نصوص اقتراحات بطاقة النمو (text / toast / reason / benefit) + وسوم التخصص + «اذهب إلى القسم» / «تفاصيل» / «إخفاء» → `twT` (50 مفتاح `profile.growth.*` بـ `tw_strings.json`)؛ وسوم التخصص صارت عبر `twEscHtml`.
+- `tests/test_edit_profile_phase1.py` Q1 / Q13–Q15: من فحص نص حرفي لفحص القيمة المحلولة عبر توكنز `tw_shared.css`.
+
+## PR 4.11 — DS-COLOR: توكنز الألوان الناقصة (بروفايل + شركة) — 2026-10-14
+
+- `tw_shared.css`: توكنز جديدة بنفس القيم بالزبط (كل واحد +`-rgb`، وكلهم قابلين للتعديل من `/admin/theme/colors`): `--color-skill-level-1..5` · `--color-status-open-to-work` · `--color-pipeline-contacted` · `--color-pipeline-viewed` (+`-text`) · `--color-follow-count` · `--color-talent-bank` (+`-text`) · `--color-categorical-orange-light` · `--color-brand-accent-strong` · `--color-cover-start/mid/end` (CLR-35 → PR 4.11 tokens).
+- `profile-v2.css` / `profile-v2.skills.js` / `profile-v2.render.js` / `profile-showcase.html` / `static/company/company.css`: كل لون ثابت → توكن. تلاشي غلاف الشركة = `rgba(var(--color-surface-page-rgb), .6)` (نفس البروفايل) · انحذف `prefers-color-scheme: light` تبع `.co-ic-float`.
+- `page_audit` ألوان: `profile-showcase.html` 41 → 0 · `company-profile.html` 27 → 0 (baseline محدّث). اختبار: `tests/test_ds_color_gap_tokens.py`.
+
+## PR 4.9 — صفحات الأدمن: الحد الأدنى (جلسة موحّدة + DS-OVL) — 2026-10-13
+
+- `admin.html`: آخر 3 `fetch` مباشرة راحت — `/admin/logo` و `/jobs` عبر `TwAdminSession.fetch` · الدخول `/tw-ctrl-login` عبر `twApi(…, {auth:false})` (ما في جلسة لسا؛ 401 هون = كلمة مرور غلط مش «انتهت الجلسة»). شعار الموقع عبر `twSafeImageUrl` بدل الـ regex المحلي.
+- كل `confirm` / `prompt` بالصفحتين → `twConfirm` (DS-OVL): حذف حساب / وظيفة / خبرة / شهادة / دورة وترحيل الصور = `danger:true` بنص بيقول شو رح يصير بالضبط · التوثيق تأكيد عادي. نافذة الترحيل اليدوية ونافذة «حذف الحساب» اليدوية (admin-view) انحذفوا. `prompt()` لرسالة / كلمة مرور بالإجراءات السريعة → نفس فورمات الصفحة الموجودة.
+- `admin-view.html`: حذف `toast` / `showToast` / `setBtnLoad` / `twNavigate` / `initScrollProg` المحلية (وCSS الـ toast الميت) لصالح `tw_shared.js` · `showQuickActions` المكررة انحذفت.
+- أرقام الـ id بالـ `onclick` صارت `Number(…)` · `data.count` / `e.line` بقائمة الأخطاء `Number(…)`.
+- نصوص التأكيد `admin.*` بـ `tw_strings.json`. `page_audit`: admin fetch 3→0 · dialogs 4→0 · admin-view dialogs 7→0 · helpers 2→0 · colors 145→130 (CSS ميت) — baseline محدّث.
+- اختبار جديد `tests/test_admin_pages_min.py` · Docs: SYSTEMS_INDEX §25.
+
+## PR 4.7 — الإعدادات + صفحة الجهة التعليمية على قائمة الصفحة الموحّدة — 2026-10-13
+- `settings.html` + `static/settings/settings.js` (جديد): Page Shell · `twRequireAuth()` · كل الطلبات عبر `twApi` (كانت `api()` محلية + 8 `fetch` و `tw_jwt` من localStorage بالـ KYC) · نوافذ الهاتف / كلمة المرور / التوثيق عبر `twModal` (كانت overlay يدوي) · نصوص `settings.*` · DS-ICON بدل emoji · ألوان `--color-*` بس. انحذفوا `showToast` / `toast` / `setBtnLoad` / `twNavigate` / `initScrollProg` المحلية لصالح المشتركة.
+- **KYC صار ممكن الوصول له:** السبب الجذري — `openKYC()` موجودة بس صف التوثيق (`kycStatus` / `kycBadge` / `kycArrow`) ما كان بالصفحة، فما في شي بيفتحها. هلق صف «توثيق الهوية» بقسم «الأمان والتوثيق»: الحالة من `GET /kyc/status/{uid}` + زر `twAction('verify_identity')` (إجراء جديد بـ `tw_actions.json` — كل أنواع الحسابات) → نافذة وحدة: إيميل ← هاتف ← هوية (+ سيلفي اختياري) ← «قيد المراجعة». 503 `otp_delivery_unavailable` → «غير متاحة حالياً» بدون حقل رمز. الملف المختار بيبيّن اسمه بس (ما في معاينة `data:` بـ `src`).
+- **`verify_identity` مطفّى افتراضياً لحد 5.1:** إرسال رمز التوثيق بيرجّع 503 بالإنتاج لحد ما يصير في مزوّد إيميل، فالمستخدم كان رح يوقف بأول خطوة. السجل صار بيقبل `"enabled": false` (مطفّى لحد ما الأدمن يبعت `{"enabled": true}` عبر `PUT /admin/actions`). ولما الإجراء مطفّى، صف «توثيق الهوية» ما بيطلع أبداً: لا زر ولا نص ولا طلب `/kyc`.
+- تغيير الإيميل مخفي لحد 5.1 · حذف الحساب مخفي لحد 5.5 (بدون تغيير).
+- `edu-profile.html`: Page Shell · `twApi` · «تعديل الملف» = `twAction('edit_profile')` → `twModal` · «مراسلة» = `twAction('message')` · نصوص `edu.*` · كرت «قريباً» نظيف · tokens بس · انحذف الـ CSS الميت (دورات / تقييمات / منشورات) والـ helpers المحلية و pull-to-refresh.
+- اختبار جديد `tests/test_settings_edu_runtime.js` (سلوك — الكود الحقيقي بـ vm). فحوصات نصية انكسرت حُوّلت لسلوك / بنية: `test_privacy_boundary` (G3 · J6–J9) · `test_no_dummy_content` · `test_global_ui_visibility` (L01/L02/L15) · `test_post_comments` (136f/g) · `test_page_shell` (B01) · `test_vm01_bfcache_runtime` (stubs المشتركة).
+- `tools/page_audit_baseline.json`: settings و edu-profile صاروا صفر بكل المقاييس.
+
+## PR 4.2a — البروفايل: الهيكل والأخطاء (Page Shell + هيدر موحّد + نسبة اكتمال واحدة) — 2026-10-13
+- `profile-showcase.html`: Page Shell (`<!--tw:shell-*-->`) + الهيدر الموحّد (`<header data-tw-header>`) + الشريط السفلي — انحذف `.sc-header` الخاص ونسخته بـ `profile-v2.css` · «المعاينة» طلعت من قائمة الهيدر لزر بالصفحة تحت الهيدر + شريط «وضع المعاينة» فيه «إنهاء المعاينة» · لوغو بطاقة QR = `TW_LOGO_SRC`.
+- حالة خطأ التحميل: كانت صفحة فاضية (السبب الجذري: `.sc-error-state{display:none}` بالـ CSS + الـ JS بيرجّع `style.display=''` → بيضل مخفي والـ skeleton كمان) → الحالة بتتحكم فيها `[hidden]` بس: 404 «الملف الشخصي غير موجود» بدون إعادة · شبكة / سيرفر «تعذّر تحميل الملف الشخصي» + زر «إعادة المحاولة» · بدون معرّف → نفس الحالة.
+- نسبة الاكتمال (F29): كانت محسوبة مرتين — المتصفح 14 بند والسيرفر 9 بنود (مجموعها 95) → `PROFILE_SCORE_ITEMS` بـ `server.py` هو التعريف الوحيد (13 بند، مجموعها 100 — السبب بـ ARCHITECTURE §55) · `GET /profile/{id}/score` بيرجّع كمان `items: [{id, done, points}]` · بطاقة الاكتمال + رقم الإحصائيات بياخدوا الرقم منه (ما في حساب بالمتصفح) · الرئيسية نفس المصدر · **خصوصية:** `items` + `tips` لصاحب الحساب (JWT نفس المستخدم) أو الأدمن بس؛ الزائر بياخد `score` + `level` (الرقم معروض للزوار ببلاطة «القوة») — PROFILE-DATA-VISIBILITY V1.3.
+- الأزرار عبر `twAction`: متابعة · مراسلة (كانت «تواصل معي») · تعديل الملف · إبلاغ (جديد — `twReportDialog` مشترك بـ `tw_shared.js` → `POST /reports/submit`؛ صفحة الوظيفة كمان صارت تستعمله وانحذف نموذجها الخاص + مفاتيح `job.report.*` — نموذج إبلاغ واحد بكل الموقع، F29) · مشاركة (بطاقة QR) · «تحديد موعد» عبر `twScheduleButton` (زائر شركة).
+- `twApi` لكل طلبات البروفايل (17 `fetch` → 0) · بدون قراءة `tw_user` / `tw_jwt` (رابط بنك المواهب من `twTalentBankHref` · التوكن من `TwAuthSync.getToken`) · `toast` / `esc` المحليين → `showToast` / `twEscHtml`.
+- المصطلحات: «منفتح على فرص» → «منفتح على وظائف» · «موظف / موظفون» بقائمة المتابعين → «حساب شخصي / حسابات شخصية» (+ «حساب شركة» / «حساب جهة تعليمية») · البايو 8px → `--size-font-xs` (DS-SIZE: `profile-v2.css` + `profile-showcase.html` انضافوا لـ `_PHASE_C_FILES` — ترحيل الصفحة المعتمد؛ القيم الموجودة بس المطابقة اتحوّلت، `.sc-btn` ما انلمس).
+- `page_audit` profile-showcase: fetch 17→0 · ls_session 4→0 · «فرص» 7→0 · helpers 3→1 · no_shell / no_header 1→0 · colors 585→540 (baseline محدّث).
+- اختبار: `python tests/test_profile_v2_structure.py` (+ زائر ما بياخد `items`) · `node tests/test_login_jobdetail_runtime.js` D3b (الإبلاغ → `twReportDialog`) (السكور على السيرفر + حالة الخطأ وبطاقة الاكتمال بالكود الحقيقي بـ vm) · فحوص نص حرفي بـ `test_global_ui_visibility` / `test_post_comments` / `test_safe_link_url` / `test_edit_profile_phase1` / `test_privacy_boundary` تحوّلت لفحوص بنية.
+
+## PR 4.10 — `[hidden]` مضمون بالموقع كله (المسجّل ما بيشوف «تسجيل الدخول» بالهيدر) — 2026-10-13
+
+- السبب الجذري: `_twApplyDeclarativeVisibility` بتحط `hidden` صح، بس `.tw-hdr-auth { display:inline-flex }` و `.sc-hicon` / `.sc-home-btn { display:flex }` كانوا يغلبوا على قاعدة المتصفح `[hidden]` → المسجّل شاف «تسجيل الدخول / إنشاء حساب»، والزائر شاف الرئيسية / الجرس / الرسائل. نفس الخطأ كان ورا صفحة الخطأ الفاضية ببروفايل V2 (4.2a).
+- الإصلاح بالنظام: قاعدة وحدة `[hidden] { display:none !important; }` بـ `tw_shared.css` (SYSTEMS_INDEX §58a). انحذفت الترقيعات المحلية: `index.css` (4) · `job-detail.css` (1) · `messages.css` (1) · `profile-v2.css` (3) · `app-header.css` (`.tw-bnav[hidden]`). ما في تعديل بأي HTML / JS.
+- فحص: ما في عنصر عليه `hidden` بيعتمد إنو يضل ظاهر (لا CSS بيظهّره، ولا JS بيظهّره بـ `style.display` وهو عليه `hidden`).
+- Docs: SYSTEMS_INDEX §58a (جديد) + §28 · HEADER-NAV.md HNAV-09 (جديد) + HNAV-08.
+- اختبار: `node tests/test_header_hidden_runtime.js` (جديد — Chrome headless، الهيدر الحقيقي كمسجّل وكزائر + عنصر برّا الهيدر، `getComputedStyle`) · `tests/test_register_ds.py` L (EXCLUDED — Playwright): فحص نص حرفي `#registerPanel [hidden]` تحوّل لفحص `getComputedStyle`.
+
+## PR 4.0 — ثلاث إصلاحات من مراجعة خارجية (WS · twApi · مسودة الموعد) — 2026-10-13
+- أمان WS: تغيير كلمة السر · إعادة تعيينها من الأدمن · حذف الحساب (المستخدم / الأدمن) بيسكّروا فوراً كل اتصالات `/ws/{uid}` المفتوحة للمستخدم بكود **4008 Session Revoked** (`_ws_revoke_user` → `ws_manager.close_user`). 4008 برا نطاق 4001–4007 → الجهاز صاحب التوكن الجديد بيرجع يتصل، التوكنات القديمة بتنرفض بـ 4001.
+- `twApi`: رد 2xx جسمه مش JSON (صفحة HTML) → `ok:false` بكود `bad_response` ورسالة `twT('api.bad_response')`؛ الرد الفاضي (204) بيضل `ok:true`.
+- تحديد موعد: المسودة بتنفتح على نوعها (حضوري / أونلاين) ومكانها / رابطها؛ `/send` بيبعت `mode` والسيرفر بيحدّث نوع المسودة (نوع غير معروف → 400). `GET /api/schedule/open` بيرجّع `mode` / `online_url` / `location_text`.
+- اختبارات: `python tests/test_ws_session_revoke.py` (جديد) · `node tests/test_tw_api_runtime.js` (القسم G) · `node tests/test_schedule_interview_runtime.js` (القسم D) · `test_schedule_interview.py::test_send_updates_draft_mode`.
+- كاش المتصفح: `tw-schedule.js?v=sched-v2` (company-profile · profile-showcase) · `tw_shared.js?v=api-v2` (profile-showcase) — الصفحات غير المحوّلة للـ shell.
+- `test_post_comments.py` 171-104: فحص النص الحرفي لـ `effective_url` بـ `send_appointment` اتحوّل لفحص بنية (AST) — Testing & CI القاعدة 6.
+- كلاينت WS (badge بـ `tw_shared.js` + `messages.ws.js`): على 4008 ما بيرجع يتصل بالتوكن الملغى — توكن جديد مخزّن → اتصال فوري، وإلا نظرة تانية بعد ثانيتين، وإلا بيستنى `token_renewed`. الجهاز اللي غيّر كلمة السر ما بيطلع من حسابه ورجع يتصل بالتوكن الجديد مهما كان الترتيب. `messages.ws.js?v=v27`. اختبار `node tests/test_ws_session_revoke_client_runtime.js`.
+
+## PR 4.8 — تسجيل الدخول + تفاصيل الوظيفة على قائمة الصفحة الموحّدة — 2026-10-08
+
+- `index.html` (+ `index.auth.js` / `index.ui.js` / `index.css`): Page Shell · الدخول والتسجيل عبر `twApi` (التسجيل كان `res.json()` بدون فحص `ok` → 502 HTML كان يطلع «تعذّر الاتصال» ورسالة الخطأ الخام بـ toast) · رسائل واضحة: الدخول نص ثابت حسب الحالة · التسجيل 409 تحت حقل البريد، 4xx رسالة السيرفر العربية بشريط الفورم، 429 / 5xx / نت نص ثابت · الجلسة عبر `TwAuthSync.startSession` (ما في `localStorage` بالصفحة).
+- نوع الحساب صار مجموعة radio حقيقية (`role=radiogroup` + أسهم الكيبورد) بدل `div onclick` · «نسيت كلمة المرور؟» و«دخول / سجّل الآن» صاروا `<button>` (الاستعادة لسا مش مبنية → toast «قريباً») · «موظف» → «حساب شخصي» (و«حساب شركة» / «حساب جهة تعليمية») · Lucide + SVG يدوي + emoji → DS-ICON · ما في `onclick` بالـ HTML · حذف نسخ محلية لـ `toast` / `twNavigate` / `initScrollProg` · كل النصوص `login.*` / `register.*`.
+- `job-detail.html` (+ `job-detail.js` / `.css`): كل الطلبات `twApi` · «تقديم» عبر `twAction('apply_job')` (+ `share` / `report`) · نافذتي التقديم والإبلاغ `twModal` (DS-OVL) + نوع البلاغ DS-SEL · الشركة والوظائف المشابهة روابط `<a>` حقيقية (بدل `role="link"`) · الموبايل: العمود الجانبي صار تحت المحتوى (كان مخفي — معلومات الوظيفة والشركة والوظائف المشابهة ما كانت تبين) والـ «إبلاغ» صار متاح عالموبايل · نصوص `job.*`.
+- مشترك: `twFormatDate` بـ `tw_shared.js` (ميلادي موحّد — تاريخ النشر كان `ar-SA` = هجري) + `date.*` بـ `tw_strings.json` · `TwAuthSync.startSession(user, token)` بـ `auth-sync.js` (الكاتب الوحيد لجلسة جديدة).
+- ألوان `--color-*` بس بالصفحتين. `page_audit`: index fetch 3→0 · colors 42→0 · ls_session 8→0 · helpers 1→0 · no_shell 1→0 · job-detail fetch 6→0 · colors 91→0 (baseline محدّث). `no_header` لـ index بيضل 1 (صفحات الدخول برّا HEADER-NAV).
+- Docs: SYSTEMS_INDEX §11a · §14 · §59a (جديد) · §60 · ARCHITECTURE (Auth Gateway · Session invalidation) · CLAUDE.md (Auth Gateway 9 / 9b · Strings 4).
+- اختبار: `node tests/test_login_jobdetail_runtime.js` (جديد) · فحوص نص حرفي انكسرت تحوّلت / انتقلت: `test_job_detail_shell.py` (B10 · C03 · E03) · `test_post_comments.py` (132b–h) · `test_tw_shared_runtime.js` (T10 · T15–16) · `test_page_shell.py` B01 · `test_page_shell_security.py` (Lucide) · `test_ds_icon_registry.js` (قائمة صفحات DS-ICON).
+
+## PR 4.5 — صفحة الإشعارات على قائمة الصفحة الموحّدة — 2026-10-08
+- `notifications.html`: Page Shell + `twRequireAuth()` (بدل قراءة `tw_user` + `location.href = '/login'`) · كل الطلبات عبر `twApi` (كانت `fetch` + `r.json()` بلا فحص status) · حذف `showToast` المحلي (المشترك DS-FEEDBACK) · الإشعارات وطلبات التوظيف بيتحمّلوا مع بعض ويترسموا مرة وحدة (كان `setTimeout` 800ms + fallback 3.5s → سباق وصفحة فاضية).
+- حالات واضحة: فاضية · خطأ مع «إعادة المحاولة» · فلتر بدون نتائج — ما في صفحة بيضا.
+- «تمييز الكل كمقروء»: تحديث متفائل للبطاقات + عدّاد الهيدر، رجوع + toast خطأ لو فشل (كان بيطلع «تم التحديث» حتى بالفشل).
+- `tw_shared.js`: `twSetNotifBadge(count)` — الكاتب الوحيد لشارة الإشعارات (`loadGlobalBadges` بيستعملها).
+- نصوص الصفحة مفاتيح `notif.*` بـ `tw_strings.json` · أيقونات DS-ICON · ألوان `--color-*` · `page_audit` للصفحة: fetch 4→0 · colors 55→0 · ls_session 2→0 · helpers 1→0 · no_shell 1→0 (baseline محدّث).
+- اختبار: `node tests/test_notifications_page_runtime.js` (سكربت الصفحة الحقيقي بـ vm) · فحوص النص الحرفي القديمة للصفحة بـ `test_post_comments.py` اتشالت لصالحه (Testing & CI — القاعدة 6).
+
+## PR 4.4 — صفحة الرسائل على قائمة الصفحة الموحّدة — 2026-10-08
+- `messages.html` + `messages.*.js` + `messages.css`: Page Shell + `twRequireAuth()` بـ `messages.state.js` (كانت تقرأ `tw_user` من localStorage وتحوّل بـ `location.href = '/'` بدون `return` — باقي الكود كان يكمّل) · كل الطلبات عبر `twApi` (`_msgApi`) · الجلسة من `TwAuthSync` بس.
+- سباقات التحميل: رد المحادثة مربوط بـ id المحادثة + رقم تسلسلي — رد قديم (محادثة سابقة أو reload هادي أقدم) ما بيكتب فوق الأحدث؛ نفس الشي لقائمة المحادثات.
+- socket واحد: `<meta name="tw-ws" content="page">` بيوقّف الـ Badge WS المشترك بهالصفحة (كان في اتصالين لنفس `/ws/{uid}`) · `connectWS()` بيسكّر القديم وأي reconnect معلّق قبل ما يفتح جديد.
+- إعادة المحاولة بحد: الـ socket أقصى 5 محاولات (backoff) والـ poll بيوقف بعد 3 فشل متتالي → شريط إشعار واضح + «إعادة المحاولة» (كان الـ poll يعيد كل 10 ثوانٍ للأبد بصمت).
+- التنقّل عند logout / تبديل حساب صار لـ `twRequireAuth` بس (`/login?next=/messages`) — handler الـ socket بيسكّر وينظّف بدون تنقّل.
+- «تحديد موعد» بهيدر المحادثة عبر `twScheduleButton` (موجود من PR 3.10 — صار مغطّى باختبار).
+- مشترك: `TwAuthSync.getToken()` (توكن إطار الـ WS) · `twTApply` بيدعم `data-tw-t-placeholder`.
+- نصوص `msg.*` بـ `tw_strings.json` (و«حساب شخصي / شركة / جهة تعليمية» حسب GLOSSARY بدل «موظف / شركة») · أيقونات DS-ICON · أفاتار `twAvatarHtml` · ألوان `--color-*`. `page_audit` للصفحة: fetch 5→0 · colors 82→0 · ls_session 8→0 · forsa 1→0 · helpers 1→0 · no_shell 1→0 (baseline محدّث).
+- اختبار: `node tests/test_messages_page_runtime.js` (سكربتات الصفحة الحقيقية بـ vm) · `test_ws_client.mjs` / `test_ws_api.mjs` / `test_pr2c_session_sockets_runtime.js` / `test_ws_security.py` محدّثة للعقد الجديد · فحوص النص الحرفي اللي انكسرت تحوّلت لفحوص بنية / سلوك (Testing & CI — القاعدة 6).
+
+## PR 4.1 — الرئيسية + صفحة الهبوط على قائمة الصفحة الموحّدة — 2026-10-08
+- `home-v2.html` + `static/home/*.js`: `twRequireAuth()` (بدل guard يدوي + `location.replace('/login')`) · كل الطلبات عبر `twApi` (كانت `fetch` + `tw_jwt` من localStorage) · نصوص الصفحة مفاتيح `home.*` بـ `tw_strings.json` (فلتر «فرص» صار «الوظائف») · DS-ICON بدل Lucide · لوغو الشركة وأفاتار الكاتب عبر `twAvatarEl` (الرابط بيمرق على `twSafeImageUrl` — كان `img.src` مباشر).
+- صندوق اكتمال الملف (حساب شخصي): الرقم من `GET /profile/{id}/score` — كان دايماً «—» وشريط فاضي؛ الصندوق مخفي لحد ما يوصل الرقم أو لو فشل الطلب، ومخفي لحساب الشركة / الجهة التعليمية (ما في API).
+- بانر الشركة: «وظيفة نشطة» من `GET /company/jobs?view=active` · «متقدم جديد» انشال (ما في API لـ «جديد») · بانر الجهة التعليمية بدون أرقام (ما في API) — كانت «—» ثابتة.
+- روابط قديمة → الحالية: `/profile` · `/company-profile` · `/edu-profile` بالشريط الجانبي صارت `twAccountHref(user)` (`/u/{tw_id}`).
+- `landing.html`: هيدر الزائر الموحّد (`<header data-tw-header>` + `twMountAppChrome` — لوغو · تسجيل الدخول · إنشاء حساب) بدل الـ `<nav>` الخاص؛ روابط الأقسام (من نخدم · المميزات · التوثيق) انشالت من الهيدر · المصطلحات حسب GLOSSARY («فرص» → «وظائف» · «موظف» → «حساب شخصي» / «أفراد» · «المرشحين» → «الكفاءات» / «المتقدمين») · `sw.js`: `app-header.css` بالـ precache + `BUILD_TIME`.
+- `page_audit`: home-v2 fetch 1→0 · ls_session 1→0 · «فرص» 9→0 · landing colors 35→30 · «فرص» 3→0 · no_header 1→0 (baseline محدّث).
+- اختبار: `node tests/test_home_landing_runtime.js` (سكربتات الرئيسية الحقيقية بـ vm) · فحصين نص حرفي بـ `test_legacy_routes_cleanup.py` + H01 بـ `test_landing_shell.py` تحوّلوا لفحوص بنية (Testing & CI — القاعدة 6).
+
+## PR 3.11 — أدوات المرحلة 4: قواعد ثابتة · changelog.d · page_audit · تنظيف test_post_comments — 2026-10-08
+
+- `CLAUDE.md`: قسم «قواعد ثابتة لكل مهمة» (اختبار مركّز · ممنوع تقرير قبل Tests أخضر / مراقبة / دمج · F30 · المصطلحات + `twT` · قائمة الصفحة الموحّدة · «حوّل عند اللمس») + بروتوكول المهام 13 صار `changelog.d/`.
+- `changelog.d/` + `tools/changelog_collect.py` (جديد): كل PR بنده بملف لحاله؛ السكربت بيجمعهم بـ `docs/CHANGELOG.md` بعد الدمج. `--check` بـ `run_tests.sh`. Test: `tests/test_changelog_collect.py`.
+- `tools/page_audit.py` + `tools/page_audit_baseline.json` (جديد): لكل صفحة fetch مباشر · ألوان ثابتة · `tw_user`/`tw_jwt` · `alert`/`confirm`/`prompt` · «فرص» · helpers محلية · Shell / هيدر موحّد. رقم زاد → فشل؛ نزل → «حدّث الـ baseline». بيشتغل بـ `run_tests.sh`. Test: `tests/test_page_audit.py`. الأرقام اليوم: fetch 104 · ألوان 2304 · tw_user/tw_jwt 28 · dialogs 15 · «فرص» 20 · helpers 15 · بدون Shell 9 · بدون هيدر 6.
+- `tests/test_post_comments.py`: −339 فحص كانوا بيقروا ملفات توثيق (`.md`) مش الكود (1876 → 1537 فحص، −1525 سطر).
+- Docs: SYSTEMS_INDEX §54g · §54h (page audit) · §54i (changelog.d).
+
 ## PR 3.9b — ترتيب الاختبارات + بقايا 3.9 + IP الافتراضي — 2026-10-08
 
 - **`tests/`:** 73 ملف اختبار انتقلوا لـ `tests/` بنفس الأسماء. `run_tests.sh` بيشغّلهم من جذر الريبو (`PYTHONPATH` = الجذر)، الـ guard بيرفض أي `test_*` / `*.test.js` برّا `tests/`، وبالآخر بيطبع ملخص: كل ملف فاشل بسطر مع أول سطر خطأ. المسارات جوّا الاختبارات (`__file__` / `__dirname`) + أوامر التشغيل بالتوثيق صارت `tests/…`.
