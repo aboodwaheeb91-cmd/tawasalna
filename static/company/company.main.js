@@ -541,7 +541,7 @@
       _logoCropper = TW.createCropper({
         canvas:  canvas,
         ratio:   1 / 1,
-        shape:   'circle',
+        shape:   'rect',
         outputW: 300,
         outputH: 300,
         quality: 0.85

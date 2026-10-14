@@ -157,7 +157,7 @@
 | 8 دوال escaping محلية على مسارات صور | `messages.state.js → esc` · `profile-v2.utils.js → esc` · `static/company/company.main.js → _esc` (×3) · `static/company/company.jobs.js → _esc` · `static/company/company.render.js → _esc` + `_escapeHtml` | بتنشال بالمرحلة C مع تحويل كل صفحة (مش بـ PR-7b) |
 | `src="' + esc(url)` بدون تحقق رابط | `messages.render.js` · `static/company/company.main.js` (كروت المرشحين) | المرحلة C (`twAvatarHtml`) |
 | غلاف الموظف ديناميكي W×240 | `profile-v2.cover.js` · `.sc-cover` | IMG-10 — المرحلة C |
-| `company-logo` cropper دائري | `company.main.js → openLogoCrop` | يصير مربع (IMG-03) — المرحلة C |
+| ~~`company-logo` cropper دائري~~ | ~~`company.main.js → openLogoCrop`~~ | ✅ مربّع بزوايا (IMG-03): `shape: 'rect'` + `.co-logo` / الحلقة / `#coLogoCropCanvas` = `--radius-3xl` (PR 4.3b) |
 | ~~`[data-ah-av]` ميت~~ | ~~`static/app-header.js`~~ | ✅ انحذف الملف كله (PR 3.9) |
 | home-v2 بدون `twAvatar*` (بتحمّل `tw_shared.*` من PR-8) | home-v2 | تحويلها بالمرحلة C (job-detail ✅) |
 

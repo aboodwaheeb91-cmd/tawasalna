@@ -23,7 +23,7 @@
 | تريد تعديل `--ac` أو `--ac2` مباشرة | CLR-04 + CLR-27 — ممنوع؛ استخدم Semantic token |
 | تريد إضافة `--color-*` token جديد | CLR-28 — V1 Scope Rule (No Token Without Real Consumer) |
 | تريد ترحيل لون hardcoded إلى token | CLR-27 — Migration ≠ Redesign |
-| تريد تعديل company.css (blue/teal swap) | CLR-16 — Migration Intent only; لا تغيير الآن |
+| تريد تعديل company.css | CLR-16 ✅ (PR 4.3b — tokens بس) + CLR-35 → Company page gaps |
 | لون يبدو محلياً (مثل الـ cyan في messages.css) | CLR-26 — Promotion Criteria |
 | تعمل على Phase 2 (migration لون hardcoded → Semantic token في page CSS) | CLR-27 — Migration ≠ Redesign + CLR-28 — تأكد من مستهلك حقيقي |
 | تحتاج تعيين Color Role لعنصر UI جديد | CLR-33 — Color Role Assignment Contract |
@@ -596,45 +596,24 @@ feature CSS:
 
 ---
 
-## CLR-16 — company.css — Architectural Debt & Migration Intent
+## CLR-16 — company.css — ✅ Resolved (PR 4.3b)
 
-### الوضع الحالي
+**كان:** `static/company/company.css` بيعيد تعريف `--ac: #2563ff` / `--ac2: #00c896` (تبديل الأزرق والأخضر) + `--bg` / `--t2` / `--t3` / `--t4` / `--card` / `--border` … بـ hex بـ `:root` خاص بالصفحة.
 
-`static/company/company.css` يُعيد تعريف `--ac` و`--ac2`:
+**صار (PR 4.3b):** الـ `:root` انحذف. كل استعمال بالصفحة صار Semantic token مباشرة (بدون T2 alias — ما في حاجة):
 
-```css
-/* company.css — الحالة الحالية */
-:root {
-  --ac:  #2563ff;  /* تبادل: الأزرق يصبح الـ accent الأول */
-  --ac2: #00c896;  /* تبادل: الأخضر يصبح الثاني */
-}
-```
-
-### التصنيف الصحيح
-
-- **ليست مشكلة بصرية (Visual Bug):** اختيار الأزرار الأولية للشركة بالأزرق قد يكون قراراً تصميمياً مقصوداً.
-- **مشكلة معمارية:** تعريف page CSS لـ global tokens في `--color-*` namespace أو إعادة تعريف global tokens هو انتهاك لـ CLR-04 وCLR-15.
-
-### Migration Intent (ليس Bug Fix)
-
-**المسار المستهدف في Phase 1+:**
-
-```css
-/* company.css — الحالة المستهدفة */
-:root {
-  --co-accent:  var(--color-brand-secondary);  /* الأزرق لصفحة الشركة */
-  --co-accent2: var(--color-brand-primary);    /* الأخضر ثانوي */
-}
-```
-
-ثم يُستبدَل كل استخدام لـ `--ac` و`--ac2` في `company.css` بـ `--co-accent` و`--co-accent2`.
-
-### القاعدة الحالية
+| الاسم القديم (قيمة الصفحة) | التوكن |
+|----------------------------|--------|
+| `--ac` (`#2563ff`) | `--color-brand-secondary` |
+| `--ac2` (`#00c896`) | `--color-brand-primary` |
+| `--bg` · `--bg2` · `--card` | `--color-surface-page` · `--color-surface-card-solid` · `--color-surface-elevated` |
+| `--border` · `--bd2` | `--color-border-subtle` · `--color-border-medium` |
+| `--t` (.87) · `--t1` | `rgba(var(--color-ink-rgb), .87)` · `--color-text-primary` |
+| `--t2` · `--t3` · `--t4` | `--color-text-meta` · `--color-text-muted` · `--color-text-disabled` |
+| `--r-sm` · `--r-md` · `--r-lg` | `--radius-md` · `--radius-xl` · `--radius-3xl` (DS-SIZE) |
 
 ```
-❌ لا تُعدِّل company.css كجزء من DS-COLOR Phase 0 أو Phase 1 الأساسي
-❌ لا تُصنِّف هذا الوضع كـ "Bug P0" يستدعي إصلاحاً فورياً
-✅ وثِّق الأمر كـ Migration Debt ويُنفَّذ في PR مستقل بعد توافر Semantic tokens
+❌ page :root بيعيد تعريف أي alias مشترك (--ac / --t2 / --bg …) أو أي --color-* — test_company_colors.py
 ```
 
 ---
@@ -1085,7 +1064,6 @@ Phase 4: حذف Legacy Aliases من tw_shared.css
 ❌ الافتراض بأن --fbk-bdr-* هي DS-COLOR canonical tokens (CLR-21)
 ❌ إضافة Light Theme في Phase 1 (CLR-29 — مؤجَّل لـ V2)
 ❌ remapping Primitive Layer في [data-theme] — يجب remapping الـ Semantic Layer فقط (CLR-23)
-❌ تعديل company.css من داخل DS-COLOR Phase 1 (CLR-16 — Migration Debt منفصل)
 ❌ استخدام Status tokens لتمثيل مستويات تصنيف بيانات (CLR-13)
 ❌ استبدال --color-brand-primary بـ --color-categorical-teal أو العكس (CLR-12)
 ❌ تعريف --color-categorical-* بدون consumer حقيقي موثَّق (CLR-11, CLR-28)
@@ -1231,6 +1209,21 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 - `#00b386` · `#00d4b4` · `#20e0c0` → `--color-brand-primary-hover` / `--color-brand-primary`
 
 لون مش بالجدول (مثل cyan المحلي بـ `messages.css`) → CLR-26 (Promotion) قبل ما ينضاف توكن.
+
+### Company page gaps (PR 4.3b — F30، ما في توكن)
+
+صفحة الشركة صار فيها 27 لون ثابت بس (من 897). الباقي ما إله توكن — بيضل حرفي لحد قرار CLR-26:
+
+| اللون | المكان | ليش ما في توكن |
+|-------|--------|---------------|
+| indigo `rgba(99,102,241,…)` · `#a5b4fc` · `#818cf8` | `.nb-talent-bank` (+ badge) · `.co-app-status--viewed` · `.co-ast-opt[data-val="viewed"]` | indigo مش بـ DS-COLOR (أقرب: brand-accent بنفسجي — فرق واضح) |
+| sky `rgba(56,189,248,…)` · `#38bdf8` | `.co-cand-status--contacted` · `.chip-f-contacted` | sky / cyan مش بـ DS-COLOR |
+| orange-400 `rgba(251,146,60,…)` | `.co-cand-saved-card[data-rating="2"]` | `--color-categorical-orange` = `#f97316` (فرق واضح) |
+| purple-600 `#7c3aed` | `.report-submit-btn` (نهاية التدرّج) | أغمق من `--color-brand-accent` |
+| `rgba(20,26,36,.6)` | `.sc-cover::after` (تلاشي الغلاف) | `--color-surface-elevated` بدون قناة `-rgb` |
+| `#fff` · `#1e293b` | `@media (prefers-color-scheme: light)` لـ `.co-ic-float` | ما في وضع نهاري بـ DS-COLOR (CLR-23) |
+
+الفحص: `python -m pytest tests/test_company_colors.py -q` (أي لون ثابت برّا هالمجموعة = فشل).
 
 ### الفحص الثابت
 
