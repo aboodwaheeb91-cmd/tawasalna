@@ -26,14 +26,14 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-36).
    - `--color-status-warning` = UX signal (something is wrong/risky). Use for: form errors, expiration notices, warnings.
    - `--color-categorical-amber` = data category marker (e.g. "expert" skill level in Tawasolna). Use for: charts, skill tiers, badges.
    - Using a Status token for data categorization (or vice versa) is a permanent violation.
-   - **Tawasolna skill level mapping:** beginner=`--color-categorical-neutral`, intermediate=`--color-categorical-blue`, good=`--color-categorical-purple`, advanced=`--color-categorical-teal`, expert=`--color-categorical-amber`.
+   - **Tawasolna skill level mapping (PR 4.11):** مبتدئ / متوسط / جيد / متقدم / محترف = `--color-skill-level-1` … `--color-skill-level-5` (+`-rgb` للـ tints) — admin-overridable (CLR-35 → PR 4.11 tokens).
 
 7. **Migration ≠ Redesign.**
    - `#00c896` → `var(--color-brand-primary)` = migration (zero visual change, approved).
    - `#00c896` → `#00b386` = redesign (visual change, requires explicit architectural approval).
    - Never bundle a redesign inside a migration PR.
 
-8. **`company.css` (CLR-16 ✅ PR 4.3b).** The page `:root` that redefined `--ac` / `--ac2` / `--bg` / `--t*` / `--card` / `--border` is deleted; every company-page color is a Semantic token (`--ac` → `--color-brand-secondary`, `--ac2` → `--color-brand-primary` — CLR-16 table). Colors with no token stay literal and are listed in CLR-35 → Company page gaps (F30). No page CSS may redefine a shared alias again (`tests/test_company_colors.py`).
+8. **`company.css` (CLR-16 ✅ PR 4.3b).** The page `:root` that redefined `--ac` / `--ac2` / `--bg` / `--t*` / `--card` / `--border` is deleted; every company-page color is a Semantic token (`--ac` → `--color-brand-secondary`, `--ac2` → `--color-brand-primary` — CLR-16 table). The last gaps got named tokens in PR 4.11 (CLR-35 → PR 4.11 tokens) — the page has zero hardcoded colors and no `prefers-color-scheme: light` block (CLR-23). No page CSS may redefine a shared alias again (`tests/test_company_colors.py`).
 
 9. **Phase 0 ✅ Documentation Only (complete). Phase 1 ✅ Runtime Tokens Foundation (complete — PR #520).** `tw_shared.css` now contains `--color-*` tokens in three sections (Foundation/Semantic/Legacy Aliases). `--t3` consumer audit complete: `--t3` → `var(--color-text-muted)` ✅ (all consumers are muted-role text). `--t4` mapping deferred to Phase 2: `--t4` remains raw `rgba(255,255,255,.2)` (mixed consumers — placeholder + subtitle; requires Phase 2 consumer separation before canonical mapping). Phase 2+ = gradual page-by-page migration when pages are touched — requires explicit approval per page/system. Phase 4 = remove Legacy Aliases at zero consumers. Any DS-COLOR change needs a declared PR specifying the change type (migration / redesign / phase change).
 

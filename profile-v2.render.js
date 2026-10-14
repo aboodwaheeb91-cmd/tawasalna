@@ -174,15 +174,15 @@ function _buildAboutPane(p, isOwner){
   var skills = Array.isArray(p.skills) ? p.skills.map(function(s){ return typeof s==='object'?s:{skill:s}; }) : [];
   if(skills.length || isOwner){
     var _RANK = {'محترف':5,'متقدم':4,'جيد':3,'متوسط':2,'مبتدئ':1};
-    var _CLR  = {'مبتدئ':'#9ca3af','متوسط':'#60a5fa','جيد':'#a78bfa','متقدم':'#00c896','محترف':'#fbbf24'};
+    var _LV   = {'مبتدئ':1,'متوسط':2,'جيد':3,'متقدم':4,'محترف':5};
     var sk5 = skills.slice().sort(function(a,b){ return ((_RANK[b.level]||0)-(_RANK[a.level]||0)); }).slice(0,5);
     var skInner = '';
     if(sk5.length){
       skInner = '<div class="sc-ab-chips" dir="ltr">';
       for(var _si=0;_si<sk5.length;_si++){
-        var _s=sk5[_si], _c=_CLR[_s.level]||'#9ca3af';
+        var _s=sk5[_si], _lv=_LV[_s.level]||1;
         var _ico = (window._getSkillIcon && window._getSkillIcon(_s.skill||'')) || 'code';
-        skInner += '<span class="sc-ab-chip" style="border-color:'+_c+'44;color:'+_c+'">'
+        skInner += '<span class="sc-ab-chip" style="border-color:rgba(var(--color-skill-level-'+_lv+'-rgb), .267);color:var(--color-skill-level-'+_lv+')">'
           + '<i data-lucide="'+_ico+'" class="sc-ab-chip-ico"></i>'
           + '<span style="unicode-bidi:isolate">'+twEscHtml(_s.skill||'')+'</span>'
           + '</span>';
@@ -1415,13 +1415,13 @@ window._scShowLoadError = _scShowLoadError;
   var _STATUS_MAP = {
     // Current semantic values (avail field, post-unification)
     'available':      { color:'var(--color-status-success-strong)', label:'متاح للعمل' },
-    'open_to_offers': { color:'#22d3ee', label:'منفتح على وظائف' },
+    'open_to_offers': { color:'var(--color-status-open-to-work)', label:'منفتح على وظائف' },
     'busy':           { color:'var(--color-status-warning-strong)', label:'مشغول حالياً' },
     'not_available':  { color:'var(--color-text-meta)', label:'غير متاح حالياً' },
     // Legacy avail values — backward compat for existing users' saved data
     'open':      { color:'var(--color-status-success-strong)', label:'متاح للعمل' },
     'employed':  { color:'var(--color-text-meta)', label:'غير متاح حالياً' },
-    'freelance': { color:'#22d3ee', label:'فريلانس' },
+    'freelance': { color:'var(--color-status-open-to-work)', label:'فريلانس' },
     'closed':    { color:'var(--color-text-meta)', label:'غير متاح' },
   };
   var _pickerOpen = false;

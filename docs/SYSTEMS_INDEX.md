@@ -1038,11 +1038,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Semantic ≠ Categorical** (CLR-13): `--color-status-warning` إشارة UX (خلل/تحذير). `--color-categorical-amber` تمييز بيانات (مستوى مهارة/فئة). مستخدَم مختلف، سياق مختلف — ممنوع الخلط بينهما.
 - **Domain/Feature Mapping Policy** (CLR-14): DS-COLOR يملك القيمة والهوية. Feature/Domain يملك المعنى (Tier 2 alias في feature CSS يُشير إلى DS-COLOR، لا يُعرِّف قيمة hex بنفسه).
 - **Three-Tier Local Token Policy** (CLR-15): T1 = Global DS-COLOR في `tw_shared.css` · T2 = Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)`) · T3 = Local non-color tokens + Local Color Role مسموح بشروط (documented exception). T2 ممنوع أن يُحدِّد قيم hex مستقلة. Shared Meaning هو معيار الترقية — ليس عدد الـ surfaces وحده (CLR-26).
-- **company.css** (CLR-16 ✅ PR 4.3b): الـ `:root` الخاص بالصفحة (`--ac` أزرق / `--ac2` أخضر …) انحذف — كل لون بالصفحة Semantic token مباشرة. 27 لون بدون توكن موثّقين (CLR-35 → Company page gaps). Test: `python -m pytest tests/test_company_colors.py -q`.
+- **company.css** (CLR-16 ✅ PR 4.3b): الـ `:root` الخاص بالصفحة (`--ac` أزرق / `--ac2` أخضر …) انحذف — كل لون بالصفحة Semantic token مباشرة. صفر لون ثابت بعد PR 4.11. Test: `python -m pytest tests/test_company_colors.py -q`.
 - **Alpha Policy** (CLR-19): 6 مستويات موثَّقة كنص (subtle/.06, soft/.12, muted/.20, medium/.28, strong/.35, overlay/.70). لا CSS custom properties للألفا.
 - **Migration ≠ Redesign** (CLR-27): `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية صريحة.
 - **No Token Without Real Consumer in V1** (CLR-28): لا tokens افتراضية. كل token مُضاف يجب أن يملك مستهلكاً حقيقياً في نطاق V1.
 - **Phase 2 Token Set + Twin Rule** (CLR-35, PR 3.8): كل لون بالموقع إله Semantic token (brand text/hover · `--color-ink(-rgb)` / `--color-overlay(-rgb)` · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status `*-strong` · categorical لوحة المنشور). شفافية = `rgba(var(--color-<token>-rgb), a)` وكل `-rgb` توأم لتوكن أساسي. جدول دمج (من ← إلى) للصفحات بالمرحلة 4. الملفات المشتركة (`tw_shared.css` خارج أسطر التعريف · `static/app-header.css` · `static/home-v2.css` · `static/shared/*`) = صفر لون ثابت (`test_ds_color_tokens.py`)؛ تقرير باقي الملفات `scripts/ds_color_audit.py`؛ استثناء بس بتعليق `tw-color-literal: <سبب>`.
+- **PR 4.11 gap tokens** (CLR-35 → PR 4.11 tokens): `--color-skill-level-1..5` (مبتدئ → محترف) · `--color-status-open-to-work` · `--color-pipeline-contacted` · `--color-pipeline-viewed` (+`-text` / `-text-light`) · `--color-categorical-orange-light` · `--color-brand-accent-strong` · `--color-cover-start/mid/end` — كل واحد +`-rgb`، بنفس القيم القديمة، وكلهم بقائمة الأدمن (`theme_tokens.KNOWN`). البروفايل + الشركة = صفر لون ثابت بـ `page_audit`. Test: `python -m pytest tests/test_ds_color_gap_tokens.py -q`.
 - **Admin Color Override** (CLR-36, PR 3.8): آلية وحدة — `site_settings.theme_color_tokens` (JSON) → `GET /theme.css` (`:root{}`، فاضي بدون override) محمّل بالـ shell head بعد `tw_shared.css` · `GET/PUT /admin/theme/colors` (`check_admin`، مفاتيح Semantic معروفة + قيم ألوان صالحة بس، كل حفظ بالـ log). المصدر `theme_tokens.py`. بدون واجهة أدمن بعد.
 - **Theme readiness** (CLR-23): مجموعة نهارية لاحقاً = `:root[data-theme="light"]` بـ `tw_shared.css` تعيد تعريف Section B بس (`--color-ink` بينقلب)، و `data-theme` على `<html>` بس.
 - **Color Role Assignment Contract** (CLR-33): كل عنصر مرئي يجب أن يحمل Color Role مقصود ومعروف. الوراثة مسموحة فقط إذا كانت مقصودة وقابلة للتتبع إلى Color Role رسمي. فجوات النظام تُوثَّق في نفس PR.
@@ -1283,4 +1284,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-08 — PR 3.11 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-14 — PR 4.11 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

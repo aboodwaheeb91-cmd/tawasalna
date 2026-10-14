@@ -23,7 +23,7 @@
 | تريد تعديل `--ac` أو `--ac2` مباشرة | CLR-04 + CLR-27 — ممنوع؛ استخدم Semantic token |
 | تريد إضافة `--color-*` token جديد | CLR-28 — V1 Scope Rule (No Token Without Real Consumer) |
 | تريد ترحيل لون hardcoded إلى token | CLR-27 — Migration ≠ Redesign |
-| تريد تعديل company.css | CLR-16 ✅ (PR 4.3b — tokens بس) + CLR-35 → Company page gaps |
+| تريد تعديل company.css | CLR-16 ✅ (PR 4.3b — tokens بس) + CLR-35 → PR 4.11 tokens (صفر لون ثابت) |
 | لون يبدو محلياً (مثل الـ cyan في messages.css) | CLR-26 — Promotion Criteria |
 | تعمل على Phase 2 (migration لون hardcoded → Semantic token في page CSS) | CLR-27 — Migration ≠ Redesign + CLR-28 — تأكد من مستهلك حقيقي |
 | تحتاج تعيين Color Role لعنصر UI جديد | CLR-33 — Color Role Assignment Contract |
@@ -482,6 +482,7 @@ Feature (profile-v2.css أو skills.css):
 - **DS-COLOR** يُعرِّف `--color-categorical-purple` فقط (لون + identity)
 - **Feature** يربطه بـ "good" أو أي تصنيف domain
 - **لا يوجد** `--color-skill-good` في DS-COLOR — هذا feature-specific alias
+- **استثناء PR 4.11:** مستويات المهارة صار إلها `--color-skill-level-1..5` بـ DS-COLOR (CLR-35 → PR 4.11 tokens) — لأن override الأدمن (CLR-36) بيقرأ توكنز `tw_shared.css` بس، ولازم تكون قابلة للتعديل. ما في alias T2 تاني لها.
 
 ### Domain Alias المسموح
 
@@ -1210,20 +1211,29 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 
 لون مش بالجدول (مثل cyan المحلي بـ `messages.css`) → CLR-26 (Promotion) قبل ما ينضاف توكن.
 
-### Company page gaps (PR 4.3b — F30، ما في توكن)
+### PR 4.11 tokens — فجوات البروفايل (4.2b) والشركة (4.3b)
 
-صفحة الشركة صار فيها 27 لون ثابت بس (من 897). الباقي ما إله توكن — بيضل حرفي لحد قرار CLR-26:
+القرار: كل لون كان بدون توكن (F30) أخد توكن **باسم معناه** بنفس قيمته بالزبط (صفر فرق مرئي)، وكلهم بقائمة الأدمن (`theme_tokens.KNOWN` → `GET/PUT /admin/theme/colors`). كل توكن إله توأم `-rgb`. القيم مبنية على primitives جديدة بـ Section A (`--color-prim-gray-400` · `cyan-400` · `sky-400` · `indigo-500/400/300` · `orange-400` · `purple-600` · `cover-900/800/700`).
 
-| اللون | المكان | ليش ما في توكن |
-|-------|--------|---------------|
-| indigo `rgba(99,102,241,…)` · `#a5b4fc` · `#818cf8` | `.nb-talent-bank` (+ badge) · `.co-app-status--viewed` · `.co-ast-opt[data-val="viewed"]` | indigo مش بـ DS-COLOR (أقرب: brand-accent بنفسجي — فرق واضح) |
-| sky `rgba(56,189,248,…)` · `#38bdf8` | `.co-cand-status--contacted` · `.chip-f-contacted` | sky / cyan مش بـ DS-COLOR |
-| orange-400 `rgba(251,146,60,…)` | `.co-cand-saved-card[data-rating="2"]` | `--color-categorical-orange` = `#f97316` (فرق واضح) |
-| purple-600 `#7c3aed` | `.report-submit-btn` (نهاية التدرّج) | أغمق من `--color-brand-accent` |
-| `rgba(20,26,36,.6)` | `.sc-cover::after` (تلاشي الغلاف) | `--color-surface-elevated` بدون قناة `-rgb` |
-| `#fff` · `#1e293b` | `@media (prefers-color-scheme: light)` لـ `.co-ic-float` | ما في وضع نهاري بـ DS-COLOR (CLR-23) |
+| التوكن (+`-rgb`) | القيمة | المستهلك |
+|------------------|--------|----------|
+| `--color-skill-level-1` | `#9ca3af` | مبتدئ — `.sc-skill-card--lv-beginner` · `.sc-legend-beginner` · `LEVEL_COLORS` (`profile-v2.skills.js`) · chips المهارات (`profile-v2.render.js`) |
+| `--color-skill-level-2` | `#60a5fa` | متوسط — نفس المستهلكين |
+| `--color-skill-level-3` | `#a78bfa` | جيد — نفس المستهلكين |
+| `--color-skill-level-4` | `#00c896` | متقدم — نفس المستهلكين |
+| `--color-skill-level-5` | `#fbbf24` | محترف — نفس المستهلكين |
+| `--color-status-open-to-work` | `#22d3ee` | نقطة «منفتح على وظائف» / «فريلانس» (legacy) — `_STATUS_MAP` + `profile-showcase.html` · عدّاد «يتابع» (`.sc-fl-pop-item--following`) |
+| `--color-pipeline-contacted` | `#38bdf8` | مرحلة «تم التواصل» — `.co-cand-status--contacted` · `.chip-f-contacted` |
+| `--color-pipeline-viewed` | `99,102,241` (`#6366f1`) | tint / حد مرحلة «تمت المشاهدة» — `.co-app-status--viewed` · زر بنك المواهب `.nb-talent-bank` (+ badge) |
+| `--color-pipeline-viewed-text` | `#818cf8` | نص «تمت المشاهدة» — `.co-app-status--viewed` · `.co-ast-opt[data-val="viewed"]` |
+| `--color-pipeline-viewed-text-light` | `#a5b4fc` | نص فاتح فوق tint الـ indigo — `.nb-talent-bank` (+ badge) |
+| `--color-categorical-orange-light` | `251,146,60` (`#fb923c`) | تقييم 2 بالمرشحين المحفوظين — `.co-cand-saved-card[data-rating="2"]`. اسم مستقل لأن `--color-categorical-orange` = `#f97316` (لوحة المنشور) — تغييره = redesign |
+| `--color-brand-accent-strong` | `#7c3aed` | نهاية تدرّج accent — `.report-submit-btn` |
+| `--color-cover-start` · `-mid` · `-end` | `#0f2027` · `#203a43` · `#2c5364` | تدرّج الغلاف الافتراضي — `.sc-cover` (`profile-v2.css`) |
 
-الفحص: `python -m pytest tests/test_company_colors.py -q` (أي لون ثابت برّا هالمجموعة = فشل).
+- تلاشي الغلاف بالصفحتين = `rgba(var(--color-surface-page-rgb), .6)` (واحد للاثنين): البروفايل كان هيك؛ الشركة كانت `rgba(20,26,36,.6)` → صارت نفس البروفايل (فرق ≤ 13 درجة RGB تحت ألفا .6 — قرار المهمة).
+- انحذف `@media (prefers-color-scheme: light)` تبع `.co-ic-float` — ما في وضع نهاري (CLR-23).
+- النتيجة: ألوان `page_audit` لـ `profile-showcase.html` 41 → 0 و `company-profile.html` 27 → 0. الفحص: `python -m pytest tests/test_ds_color_gap_tokens.py -q` (معرّف + القيمة القديمة + بقائمة الأدمن) · `tests/test_company_colors.py` (صفر لون ثابت).
 
 ### الفحص الثابت
 
@@ -1264,6 +1274,7 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 
 | التاريخ | التغيير |
 |---------|---------|
+| 2026-10-14 | **PR 4.11 — فجوات البروفايل + الشركة** — توكنز جديدة بنفس القيم (CLR-35 → PR 4.11 tokens): `--color-skill-level-1..5` · `--color-status-open-to-work` · `--color-pipeline-contacted` · `--color-pipeline-viewed` (+`-text` / `-text-light`) · `--color-categorical-orange-light` · `--color-brand-accent-strong` · `--color-cover-start/mid/end` (كلهم +`-rgb`، وكلهم بقائمة الأدمن). تلاشي الغلاف موحّد على `surface-page-rgb` · حذف `prefers-color-scheme: light` بالشركة. البروفايل والشركة = صفر لون ثابت. |
 | 2026-10-07 | **DS-COLOR Phase 2 — PR 3.8** — مجموعة توكنز كاملة (CLR-35: brand text/hover · ink/overlay · surface glass/raised/hover/elevated · border subtle/medium · text body/soft/meta/on-brand/on-fill · status strong · categorical لوحة المنشور) + قاعدة التوأم `-rgb` + جدول الدمج · override أدمن واحد (CLR-36: `site_settings.theme_color_tokens` → `/theme.css` · `GET/PUT /admin/theme/colors`) · تحويل `tw_shared.css` · `app-header.css` · `home-v2.css` · `static/shared/*` (صفر ألوان ثابتة — `test_ds_color_tokens.py`) · تقرير `scripts/ds_color_audit.py` · جاهزية `[data-theme="light"]` (CLR-23). |
 | 2026-07-26 | **DS-COLOR Phase 2 — Index/Auth Full Color Migration** — `index.css` fully migrated to DS-COLOR. Changes: (1) Removed `:root{--ac:#00c896;--ac2:#2563ff;}` shadow from `index.css` L5 (was overriding the canonical chain in `tw_shared.css`). (2) Added Auth Local Color Roles block (CLR-15 Tier 3, `--auth-*` namespace, 34 tokens) for page-scoped roles with no Shared Semantic meaning. (3) All hardcoded hex/rgba values migrated by role: Brand glows → `rgba(var(--color-brand-primary-rgb),X)`; page-bg → `--color-surface-page`; input/select surface → `--color-surface-input`; text roles → `--color-text-*`; focus states → `--color-border-focus`; field/form errors → `--color-status-danger-rgb`. (4) Autofill blocks: `-webkit-box-shadow` and `background-color` now use `var(--auth-ctrl-surface)` with `!important` (CSS custom properties DO work with `!important`). (5) Password strength: `index.ui.js` updated — no raw hex in JS; levels now use `--auth-strength-*` CSS var strings via `'var(' + level.tok + ')'`. (6) System Gap resolved: `--color-surface-input: rgba(255,255,255,.06)` added to `tw_shared.css` Section B Surface (confirmed independent consumer distinct from `--color-surface-card`). (7) Same-value traps avoided: `--auth-logo-sub` ≠ `--color-text-placeholder` (different roles); `--auth-strength-bar-track` ≠ `--color-border-default` (decorative track); OR divider line `.08` = `--color-border-default` (IS a border). (8) Error banner documented as Legacy Visual Exception (`--auth-error-banner-*` = red-500 #ef4444; `--color-status-danger` = red-400; normalization requires explicit Visual Redesign approval). (9) `<meta name="theme-color" content="#00c896">` in `index.html` documented as Non-CSS Color Mirror — cannot use CSS vars; must stay manually aligned to `--color-brand-primary` during any Brand Redesign. Zero visual change contract (CLR-27): all computed values identical before/after except the addition of `--color-surface-input` (same computed value as before). |
 | 2026-07-26 | Phase 0 — Document created. DS-COLOR V1 Architecture & Documentation Foundation. 33 sections (CLR-00 → CLR-32). No runtime changes. SYSTEMS_INDEX.md §50 added. ARCHITECTURE_FOUNDATION.md F35 + F31 row added. DESIGN_SYSTEM.md updated. CLAUDE.md DS-COLOR routing rule added. |

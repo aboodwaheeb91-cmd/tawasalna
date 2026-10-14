@@ -42,7 +42,7 @@ body { background:var(--color-surface-page); color:rgba(var(--color-ink-rgb), .8
 }
 .sc-cover::after {
   content:''; position:absolute; inset:0; z-index:2;
-  background:linear-gradient(180deg,transparent,rgba(20,26,36,.6));
+  background:linear-gradient(180deg,transparent,rgba(var(--color-surface-page-rgb), .6));
   pointer-events:none;
 }
 #coverImg {
@@ -382,21 +382,21 @@ body { background:var(--color-surface-page); color:rgba(var(--color-ink-rgb), .8
 
 /* بنك المواهب button — distinct purple/indigo so it doesn't clash with teal owner actions */
 .nb-talent-bank {
-  background:rgba(99,102,241,.08);
-  color:#a5b4fc;
-  border:1px solid rgba(99,102,241,.38);
-  box-shadow:inset 0 0 12px rgba(99,102,241,.08), 0 0 14px rgba(99,102,241,.12);
+  background:rgba(var(--color-pipeline-viewed-rgb), .08);
+  color:var(--color-pipeline-viewed-text-light);
+  border:1px solid rgba(var(--color-pipeline-viewed-rgb), .38);
+  box-shadow:inset 0 0 12px rgba(var(--color-pipeline-viewed-rgb), .08), 0 0 14px rgba(var(--color-pipeline-viewed-rgb), .12);
 }
 .nb-talent-bank:hover {
-  background:rgba(99,102,241,.14);
-  border-color:rgba(99,102,241,.65);
-  box-shadow:inset 0 0 16px rgba(99,102,241,.12), 0 0 20px rgba(99,102,241,.2);
+  background:rgba(var(--color-pipeline-viewed-rgb), .14);
+  border-color:rgba(var(--color-pipeline-viewed-rgb), .65);
+  box-shadow:inset 0 0 16px rgba(var(--color-pipeline-viewed-rgb), .12), 0 0 20px rgba(var(--color-pipeline-viewed-rgb), .2);
 }
 /* Badge on بنك المواهب — wider to fit "N / M" format */
 .nb-talent-bank .co-cand-badge {
   min-width:36px;
-  background:rgba(99,102,241,.22);
-  color:#a5b4fc;
+  background:rgba(var(--color-pipeline-viewed-rgb), .22);
+  color:var(--color-pipeline-viewed-text-light);
   letter-spacing:.04em;
 }
 
@@ -1413,7 +1413,7 @@ a.pc-cmt-mention:hover { text-decoration:underline; }
 .report-select { width:100%; padding:9px 12px; border-radius:10px; border:1px solid var(--color-border-default); background:rgba(var(--color-ink-rgb), .05); color:var(--color-text-primary); font-family:Cairo,sans-serif; font-size:.78rem; }
 .report-textarea { width:100%; padding:9px 12px; border-radius:10px; border:1px solid var(--color-border-default); background:rgba(var(--color-ink-rgb), .05); color:var(--color-text-primary); font-family:Cairo,sans-serif; font-size:.78rem; resize:none; }
 .report-actions { display:flex; gap:8px; }
-.report-submit-btn { flex:1; padding:10px; border-radius:10px; border:none; background:linear-gradient(135deg,var(--color-status-danger-strong),#7c3aed); color:var(--color-text-on-fill); font-family:Cairo,sans-serif; font-size:.8rem; font-weight:700; cursor:pointer; }
+.report-submit-btn { flex:1; padding:10px; border-radius:10px; border:none; background:linear-gradient(135deg,var(--color-status-danger-strong),var(--color-brand-accent-strong)); color:var(--color-text-on-fill); font-family:Cairo,sans-serif; font-size:.8rem; font-weight:700; cursor:pointer; }
 .report-cancel-btn { padding:10px 16px; border-radius:10px; border:1px solid var(--color-border-default); background:var(--color-surface-raised); color:rgba(var(--color-ink-rgb), .6); font-family:Cairo,sans-serif; font-size:.8rem; cursor:pointer; }
 
 /* ══ SHARED UTILITIES ════════════════════════════════════════════ */
@@ -2014,7 +2014,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 }
 .co-cand-status--saved       { background:rgba(var(--color-text-meta-rgb), .12); color:var(--color-text-meta); }
 .co-cand-status--shortlisted { background:rgba(var(--color-brand-secondary-text-rgb), .12);  color:var(--color-brand-secondary-text); }
-.co-cand-status--contacted   { background:rgba(56,189,248,.12);  color:#38bdf8; }
+.co-cand-status--contacted   { background:rgba(var(--color-pipeline-contacted-rgb), .12);  color:var(--color-pipeline-contacted); }
 .co-cand-status--interview   { background:rgba(var(--color-status-warning-rgb), .12);  color:var(--color-status-warning); }
 .co-cand-status--hired       { background:rgba(var(--color-status-success-rgb), .12);  color:var(--color-status-success); }
 .co-cand-status--rejected    { background:rgba(var(--color-status-danger-rgb), .12); color:var(--color-status-danger); }
@@ -2330,7 +2330,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cand-chip.chip-f-null        { color:var(--color-brand-primary); background:rgba(var(--color-brand-primary-rgb), .05);   border-color:rgba(var(--color-brand-primary-rgb), .2); }
 .co-cand-chip.chip-f-saved       { color:var(--color-text-meta); background:rgba(var(--color-text-meta-rgb), .06); border-color:rgba(var(--color-text-meta-rgb), .2); }
 .co-cand-chip.chip-f-shortlisted { color:var(--color-brand-secondary-text); background:rgba(var(--color-brand-secondary-text-rgb), .06);  border-color:rgba(var(--color-brand-secondary-text-rgb), .2); }
-.co-cand-chip.chip-f-contacted   { color:#38bdf8; background:rgba(56,189,248,.06);  border-color:rgba(56,189,248,.2); }
+.co-cand-chip.chip-f-contacted   { color:var(--color-pipeline-contacted); background:rgba(var(--color-pipeline-contacted-rgb), .06);  border-color:rgba(var(--color-pipeline-contacted-rgb), .2); }
 .co-cand-chip.chip-f-interview   { color:var(--color-status-warning); background:rgba(var(--color-status-warning-rgb), .06);  border-color:rgba(var(--color-status-warning-rgb), .2); }
 .co-cand-chip.chip-f-hired       { color:var(--color-status-success); background:rgba(var(--color-status-success-rgb), .06);  border-color:rgba(var(--color-status-success-rgb), .2); }
 .co-cand-chip.chip-f-rejected    { color:var(--color-status-danger); background:rgba(var(--color-status-danger-rgb), .06); border-color:rgba(var(--color-status-danger-rgb), .2); }
@@ -2340,7 +2340,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cand-chip.chip-f-null.active        { background:rgba(var(--color-brand-primary-rgb), .15);   border-color:rgba(var(--color-brand-primary-rgb), .48); }
 .co-cand-chip.chip-f-saved.active       { background:rgba(var(--color-text-meta-rgb), .15); border-color:rgba(var(--color-text-meta-rgb), .48); }
 .co-cand-chip.chip-f-shortlisted.active { background:rgba(var(--color-brand-secondary-text-rgb), .15);  border-color:rgba(var(--color-brand-secondary-text-rgb), .48); }
-.co-cand-chip.chip-f-contacted.active   { background:rgba(56,189,248,.15);  border-color:rgba(56,189,248,.48); }
+.co-cand-chip.chip-f-contacted.active   { background:rgba(var(--color-pipeline-contacted-rgb), .15);  border-color:rgba(var(--color-pipeline-contacted-rgb), .48); }
 .co-cand-chip.chip-f-interview.active   { background:rgba(var(--color-status-warning-rgb), .15);  border-color:rgba(var(--color-status-warning-rgb), .48); }
 .co-cand-chip.chip-f-hired.active       { background:rgba(var(--color-status-success-rgb), .15);  border-color:rgba(var(--color-status-success-rgb), .48); }
 .co-cand-chip.chip-f-rejected.active    { background:rgba(var(--color-status-danger-rgb), .15); border-color:rgba(var(--color-status-danger-rgb), .48); }
@@ -2529,7 +2529,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   white-space: nowrap; flex-shrink: 0;
 }
 .co-app-status--pending   { background: rgba(var(--color-status-warning-strong-rgb), .15);   color: var(--color-status-warning-strong); }
-.co-app-status--viewed    { background: rgba(99,102,241,.15);  color: #818cf8; }
+.co-app-status--viewed    { background: rgba(var(--color-pipeline-viewed-rgb), .15);  color: var(--color-pipeline-viewed-text); }
 .co-app-status--accepted  { background: rgba(var(--color-brand-primary-rgb), .15);   color: var(--color-brand-primary); }
 .co-app-status--contacted { background: rgba(var(--color-brand-secondary-rgb), .15);   color: var(--color-brand-secondary-text); }
 .co-app-status--interview { background: rgba(var(--color-brand-accent-rgb), .15);  color: var(--color-brand-accent-text); }
@@ -2671,11 +2671,6 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-ic-btn--now  { color: var(--color-brand-accent-text); border-color: rgba(var(--color-brand-accent-rgb), .3); background: rgba(var(--color-brand-accent-rgb), .1); }
 .co-ic-btn--now:hover { background: rgba(var(--color-brand-accent-rgb), .2); border-color: rgba(var(--color-brand-accent-rgb), .5); }
 .co-ic-btn--later { color: var(--color-text-meta); }
-@media (prefers-color-scheme: light) {
-  .co-ic-float { background: #fff; border-color: rgba(var(--color-overlay-rgb), .12); }
-  .co-ic-prompt { color: rgba(var(--color-overlay-rgb), .55); }
-  .co-ic-btn { background: rgba(var(--color-overlay-rgb), .04); border-color: rgba(var(--color-overlay-rgb), .1); color: #1e293b; }
-}
 
 /* ── Floating status dropdown (.co-ast-float) ───────────────────── */
 
@@ -2712,7 +2707,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-ast-float .co-ast-opt[data-val="interview"] { color: var(--color-brand-accent-text); }
 .co-ast-float .co-ast-opt[data-val="hired"]     { color: var(--color-status-success); }
 .co-ast-float .co-ast-opt[data-val="rejected"]  { color: var(--color-status-danger); }
-.co-ast-float .co-ast-opt[data-val="viewed"]    { color: #818cf8; }
+.co-ast-float .co-ast-opt[data-val="viewed"]    { color: var(--color-pipeline-viewed-text); }
 
 /* Current status highlight + checkmark */
 .co-ast-float .co-ast-opt.co-ast-current {
@@ -3085,7 +3080,7 @@ body.co-hub-open { overflow:hidden; }
 .co-cand-saved-card[data-rating="5"] { border-color:rgba(var(--color-status-warning-rgb), .4);   box-shadow:0 0 10px rgba(var(--color-status-warning-rgb), .1); }
 .co-cand-saved-card[data-rating="4"] { border-color:rgba(var(--color-status-success-rgb), .35);  box-shadow:0 0 10px rgba(var(--color-status-success-rgb), .09); }
 .co-cand-saved-card[data-rating="3"] { border-color:rgba(var(--color-brand-secondary-text-rgb), .35);  box-shadow:0 0 10px rgba(var(--color-brand-secondary-text-rgb), .09); }
-.co-cand-saved-card[data-rating="2"] { border-color:rgba(251,146,60,.35);  box-shadow:0 0 10px rgba(251,146,60,.09); }
+.co-cand-saved-card[data-rating="2"] { border-color:rgba(var(--color-categorical-orange-light-rgb), .35);  box-shadow:0 0 10px rgba(var(--color-categorical-orange-light-rgb), .09); }
 .co-cand-saved-card[data-rating="1"] { border-color:rgba(var(--color-status-danger-rgb), .35); box-shadow:0 0 10px rgba(var(--color-status-danger-rgb), .09); }
 .co-cand-saved-card[data-rating=""]  { border-color:rgba(var(--color-brand-accent-rgb), .15);  box-shadow:none; }
 

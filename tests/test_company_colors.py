@@ -4,8 +4,8 @@ Structure checks on the real files:
   1. company.css defines no custom property that shadows a shared one (--ac / --t2 / --color-* …)
   2. every var(--x) without a fallback in company.css resolves to a definition
      (tw_shared.css / company.css / shared CSS) — nothing points at the deleted page :root
-  3. the hard-coded colors left on the page are only the documented no-token set (F30 —
-     COLOR-SYSTEM.md CLR-35 → Company page gaps)
+  3. zero hard-coded colors on the page (PR 4.11 gave the last gaps a token — CLR-35 →
+     PR 4.11 tokens) and no prefers-color-scheme: light block (no light theme — CLR-23)
   4. dead CSS is gone: .co-hdr, the old avatar classes, local .tw-toast / .tw-skeleton /
      .tw-fab / .tw-empty copies
   5. company logo = rounded square (IMG-03): .co-logo / ring / crop canvas not 50%,
@@ -27,12 +27,6 @@ import page_audit  # noqa: E402
 CSS_PATH = os.path.join(ROOT, "static", "company", "company.css")
 CSS = open(CSS_PATH, encoding="utf-8").read()
 
-# F30 — colors with no DS-COLOR token (indigo · sky · orange-400 · purple-600 · cover fade ·
-# the light-scheme popup). Each one waits for a CLR-26 promotion decision.
-F30_RGB = {"99,102,241", "165,180,252", "129,140,248", "56,189,248", "251,146,60",
-           "124,58,237", "20,26,36"}
-# The light-scheme popup block (@media prefers-color-scheme: light) — no light theme in DS-COLOR yet (CLR-23).
-LIGHT_RE = re.compile(r"@media \(prefers-color-scheme: light\) \{(?:[^{}]*\{[^{}]*\})*[^{}]*\}")
 
 
 def _defs(src):
@@ -51,16 +45,6 @@ def _rule(selector):
     return m.group(1)
 
 
-def _rgb(lit):
-    lit = lit.lower()
-    if lit.startswith("#"):
-        h = lit[1:]
-        if len(h) in (3, 4):
-            h = "".join(c * 2 for c in h[:3])
-        return "%d,%d,%d" % tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-    return ",".join(p.strip() for p in lit[lit.index("(") + 1:].split(",")[:3])
-
-
 def test_no_shadowed_shared_property():
     shadowed = _defs(CSS) & _defs(_shared_css())
     assert not shadowed, "company.css redefines shared properties: %s" % sorted(shadowed)
@@ -73,23 +57,13 @@ def test_every_var_without_fallback_resolves():
     assert not bare - known, "undefined: %s" % sorted(bare - known)
 
 
-def test_only_documented_literals_left():
-    files = [os.path.join(ROOT, f) for f in page_audit.page_files("company-profile.html")]
+def test_no_literal_colors_left():
     stray = []
-    for path in files:
-        src = open(path, encoding="utf-8").read()
-        light = {src[:m.start()].count("\n") + 1 + k for m in LIGHT_RE.finditer(src)
-                 for k in range(m.group(0).count("\n") + 1)}
-        for i, line in enumerate(src.splitlines(), 1):
-            if i in light:
-                continue
-            for m in LITERAL_RE.finditer(line):
-                full = m.group(0)
-                if not full.startswith("#"):
-                    full = line[m.start():line.index(")", m.start()) + 1]
-                if _rgb(full) not in F30_RGB:
-                    stray.append("%s:%d %s" % (os.path.relpath(path, ROOT), i, full))
+    for rel in page_audit.page_files("company-profile.html"):
+        for i, line in enumerate(open(os.path.join(ROOT, rel), encoding="utf-8").read().splitlines(), 1):
+            stray += ["%s:%d %s" % (rel, i, m.group(0)) for m in LITERAL_RE.finditer(line)]
     assert not stray, stray
+    assert "prefers-color-scheme" not in CSS
 
 
 def test_dead_css_removed():

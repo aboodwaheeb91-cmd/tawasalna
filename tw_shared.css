@@ -46,6 +46,18 @@
   --color-prim-slate-300:  #cbd5e1;
   --color-prim-slate-400:  #94a3b8;
   --color-prim-slate-500:  #64748b;
+  /* PR 4.11 — profile / company gaps (CLR-35 → PR 4.11 tokens) */
+  --color-prim-gray-400:   #9ca3af;
+  --color-prim-cyan-400:   #22d3ee;
+  --color-prim-sky-400:    #38bdf8;
+  --color-prim-indigo-500: #6366f1;
+  --color-prim-indigo-400: #818cf8;
+  --color-prim-indigo-300: #a5b4fc;
+  --color-prim-orange-400: #fb923c;
+  --color-prim-purple-600: #7c3aed;
+  --color-prim-cover-900:  #0f2027;
+  --color-prim-cover-800:  #203a43;
+  --color-prim-cover-700:  #2c5364;
 
   /* RGB channels (for rgba() composition in Section B only) */
   --color-prim-teal-rgb:       0,200,150;
@@ -67,6 +79,17 @@
   --color-prim-pink-rgb:       236,72,153;
   --color-prim-slate-400-rgb:  148,163,184;
   --color-prim-slate-500-rgb:  100,116,139;
+  --color-prim-gray-400-rgb:   156,163,175;
+  --color-prim-cyan-400-rgb:   34,211,238;
+  --color-prim-sky-400-rgb:    56,189,248;
+  --color-prim-indigo-500-rgb: 99,102,241;
+  --color-prim-indigo-400-rgb: 129,140,248;
+  --color-prim-indigo-300-rgb: 165,180,252;
+  --color-prim-orange-400-rgb: 251,146,60;
+  --color-prim-purple-600-rgb: 124,58,237;
+  --color-prim-cover-900-rgb:  15,32,39;
+  --color-prim-cover-800-rgb:  32,58,67;
+  --color-prim-cover-700-rgb:  44,83,100;
 }
 
 /* ─── Section B: Semantic ───────────────────────────────────────────
@@ -171,6 +194,42 @@
   --color-categorical-red-rgb:    var(--color-prim-red-500-rgb);
   --color-categorical-gold-rgb:   var(--color-prim-amber-500-rgb);
   --color-categorical-slate-rgb:  var(--color-prim-slate-500-rgb);
+
+  /* PR 4.11 — named gaps of profile (4.2b) + company (4.3b). Same values as before (CLR-35). */
+  --color-brand-accent-strong:        var(--color-prim-purple-600);  /* darker end of an accent gradient */
+  --color-brand-accent-strong-rgb:    var(--color-prim-purple-600-rgb);
+  --color-categorical-orange-light:     var(--color-prim-orange-400); /* saved-candidate rating 2 */
+  --color-categorical-orange-light-rgb: var(--color-prim-orange-400-rgb);
+  /* Skill level 1..5 = مبتدئ · متوسط · جيد · متقدم · محترف (categorical — not status) */
+  --color-skill-level-1:     var(--color-prim-gray-400);
+  --color-skill-level-1-rgb: var(--color-prim-gray-400-rgb);
+  --color-skill-level-2:     var(--color-prim-blue-400);
+  --color-skill-level-2-rgb: var(--color-prim-blue-400-rgb);
+  --color-skill-level-3:     var(--color-prim-purple-400);
+  --color-skill-level-3-rgb: var(--color-prim-purple-400-rgb);
+  --color-skill-level-4:     var(--color-prim-teal);
+  --color-skill-level-4-rgb: var(--color-prim-teal-rgb);
+  --color-skill-level-5:     var(--color-prim-amber);
+  --color-skill-level-5-rgb: var(--color-prim-amber-rgb);
+  /* Availability «منفتح على وظائف» */
+  --color-status-open-to-work:     var(--color-prim-cyan-400);
+  --color-status-open-to-work-rgb: var(--color-prim-cyan-400-rgb);
+  /* Hiring pipeline stages with no brand / status color */
+  --color-pipeline-contacted:           var(--color-prim-sky-400);
+  --color-pipeline-contacted-rgb:       var(--color-prim-sky-400-rgb);
+  --color-pipeline-viewed:              var(--color-prim-indigo-500);    /* tint / border (alpha) */
+  --color-pipeline-viewed-rgb:          var(--color-prim-indigo-500-rgb);
+  --color-pipeline-viewed-text:         var(--color-prim-indigo-400);    /* status label text */
+  --color-pipeline-viewed-text-rgb:     var(--color-prim-indigo-400-rgb);
+  --color-pipeline-viewed-text-light:   var(--color-prim-indigo-300);    /* lighter text on an indigo tint */
+  --color-pipeline-viewed-text-light-rgb: var(--color-prim-indigo-300-rgb);
+  /* Default cover gradient (no cover image) */
+  --color-cover-start:     var(--color-prim-cover-900);
+  --color-cover-start-rgb: var(--color-prim-cover-900-rgb);
+  --color-cover-mid:       var(--color-prim-cover-800);
+  --color-cover-mid-rgb:   var(--color-prim-cover-800-rgb);
+  --color-cover-end:       var(--color-prim-cover-700);
+  --color-cover-end-rgb:   var(--color-prim-cover-700-rgb);
 }
 
 /* ─── Section C: Legacy Aliases ────────────────────────────────────
