@@ -7416,7 +7416,8 @@ check("184-17. dialog has day/month/year + hour/minute/ص-م dropdowns, type but
       all(c in _sched184 for c in ("'tw-sch-day'", "'tw-sch-mon'", "'tw-sch-yr'",
                                     "'tw-sch-hr'", "'tw-sch-min'", "'tw-sch-ap'"))
       and "'أونلاين'" in _sched184 and "'حضوري'" in _sched184
-      and "text: 'إرسال الدعوة'" in _sched184
+      # PR 4.12: submit text depends on the mode (send / reschedule) — structure: primary action = submit
+      and "variant: 'primary', onClick: submit" in _sched184
       and 'type="date"' not in _sched184 and "type = 'date'" not in _sched184)
 
 # 184-18: link row / place row shown by type
