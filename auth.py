@@ -1004,6 +1004,77 @@ def _migrate_password_changed_at():
         release_conn(conn)
 
 
+# ── Password reset tokens (task 5.1a · SYSTEMS_INDEX §1b) ──
+# Random 256-bit token, mailed once; only its HMAC is stored (like the KYC OTP). 30 minutes,
+# single use (consumed by one atomic DELETE … RETURNING), and issuing a new one deletes
+# every older token of that user. Times come from the DB clock (issue + check agree).
+PASSWORD_RESET_TTL_MINUTES = 30
+_RESET_HASH_PREFIX = "v1$"
+
+
+def _password_reset_hash(token: str) -> str:
+    import hmac, hashlib
+    key = (os.environ.get("JWT_SECRET", "") + ":password-reset").encode()
+    return _RESET_HASH_PREFIX + hmac.new(key, token.encode(), hashlib.sha256).hexdigest()
+
+
+def _migrate_password_reset_tokens():
+    """Idempotent — one table, hash only (never the token)."""
+    with db_conn() as conn:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id         SERIAL PRIMARY KEY,
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""")
+        conn.run("CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens (user_id)")
+
+
+def get_user_for_password_reset(email: str) -> Optional[dict]:
+    """{id, email, full_name} of the account with this email, or None."""
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+    with db_conn() as conn:
+        rows = conn.run("SELECT id, email, full_name FROM users WHERE email = :e LIMIT 1", e=email)
+    if not rows:
+        return None
+    return {"id": rows[0][0], "email": rows[0][1], "full_name": rows[0][2] or ""}
+
+
+def password_reset_issue(user_id: int) -> str:
+    """New token for the user; older tokens of this user (and any expired token) are deleted
+    in the same statement. Returns the plain token — for the email link only, never stored/logged."""
+    import secrets
+    token = secrets.token_urlsafe(32)
+    with db_conn() as conn:
+        conn.run(
+            "WITH old AS (DELETE FROM password_reset_tokens WHERE user_id = :uid OR expires_at < NOW()) "
+            "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) "
+            f"VALUES (:uid, :h, NOW() + INTERVAL '{PASSWORD_RESET_TTL_MINUTES} minutes')",
+            uid=user_id, h=_password_reset_hash(token))
+    return token
+
+
+def password_reset_consume(token: str) -> Optional[dict]:
+    """Valid + unexpired token → deleted (single use) → {id, email, full_name} of its user.
+    Unknown / expired / already used → None."""
+    token = (token or "").strip()
+    if not token:
+        return None
+    with db_conn() as conn:
+        rows = conn.run(
+            "WITH t AS (DELETE FROM password_reset_tokens WHERE token_hash = :h RETURNING user_id, expires_at) "
+            "SELECT u.id, u.email, u.full_name FROM t JOIN users u ON u.id = t.user_id "
+            "WHERE t.expires_at > NOW()",
+            h=_password_reset_hash(token))
+    if not rows:
+        return None
+    return {"id": rows[0][0], "email": rows[0][1], "full_name": rows[0][2] or ""}
+
+
 def get_user_by_id(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:

@@ -12644,6 +12644,37 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 ---
 
+## Unified Email System + Password Reset (5.1a)
+
+> SYSTEMS_INDEX §54j (email) + §1b (forgot password) · rules `docs/rules/email.md`. Provider: Resend (domain `tawasolna.com`, verified, Ireland) over its HTTP API — Railway blocks SMTP. Key: Railway variable `RESEND_API_KEY`.
+
+### Email (`email_service.py`)
+
+- `send_email(to, template_key, vars)` — the only sender. Never raises → `{ok, code}` (`sent` · `unavailable` · `disabled` · `invalid` · `failed`). One `POST https://api.resend.com/emails` (`Authorization: Bearer <key>`, JSON `{from: "<from_name> <from_address>", to: [to], subject, html, text}`, 10 s timeout, own `User-Agent` — Cloudflare in front of Resend rejects the default Python one).
+- Texts: Strings keys `email.common.{greeting, greeting_plain, footer, link_hint}` + `email.<type>.{subject, body, button?, note?}` (admin override via `PUT /admin/strings`). Layout: one RTL table layout (inline styles — email clients have no CSS vars; brand colors read from the DS-COLOR primitives in `tw_shared.css`) + a plain-text version.
+- Settings: `site_settings[email_settings]` = `{from_address, from_name, site_url, types:{password_reset, password_changed}}`; defaults `no-reply@tawasolna.com` · «تواصلنا» · `https://tawasolna.com` · all on. Loaded at startup + on save.
+- `/health` → `email: configured | missing` (does not change `status`).
+
+| Endpoint | Auth | Body | Errors | Success |
+|----------|------|------|--------|---------|
+| `GET /admin/email` | `check_admin` | — | 401 / 503 | `{ok, data:{status, settings, defaults, types, templates}}` |
+| `PUT /admin/email` | `check_admin` | partial `{from_address?, from_name?, site_url?, types?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
+| `POST /admin/email/test` | `check_admin` | `{to}` | 422 `invalid_email` · 503 `email_unavailable` · 502 `email_failed` | `{ok, data:{sent:true}}` |
+
+### Forgot password
+
+| Endpoint | Auth | Body | Errors | Success |
+|----------|------|------|--------|---------|
+| `POST /auth/password-reset/request` | public · `_RATE_LIMITED_PATHS` + 10 / hour per IP + 3 / hour per email | `{email}` | 422 field `email` (empty) · 503 `email_unavailable` · 429 `rate_limited` (IP) | always `{ok:true, data:{sent:true}}` |
+| `POST /auth/password-reset/confirm` | public (the token) · `_RATE_LIMITED_PATHS` | `{token, new_password}` | 422 field `new_password/weak_password` · 400 `invalid_token` · 500 fixed | `{ok:true, data:{reset:true}}` |
+
+- Table `password_reset_tokens` (`_migrate_password_reset_tokens`, critical): `id SERIAL PK · user_id INT NOT NULL → users(id) ON DELETE CASCADE · token_hash TEXT NOT NULL UNIQUE · expires_at TIMESTAMPTZ NOT NULL · created_at TIMESTAMPTZ DEFAULT NOW()` + index `(user_id)`. Only `v1$` HMAC-SHA256 of the token is stored.
+- Request: reply first, then (`BackgroundTasks`) lookup → `password_reset_issue` (one statement: delete the user's older + all expired tokens, insert new, 30 min) → email `password_reset` with `{site_url}/reset-password#token=…`. Unknown email → nothing, same reply, same timing.
+- Confirm: `password_reset_consume` (one `DELETE … RETURNING` — single use, expired rows die too) → `set_user_password` → `_password_changed_cache_set` + `_ws_revoke_user(uid, "password_reset")` → `_login_email_reset` → email `password_changed`. A failure between consume and set leaves the token used (the user asks again) — logged via `_server_error`.
+- Page `/reset-password` (`reset-password.html`): no `#token` → request form; `#token=…` → new password + confirm; the fragment is removed on load (`history.replaceState`), `<meta name="referrer" content="no-referrer">`. Login page «نسيت كلمة المرور؟» = `<a href="/reset-password">`.
+
+---
+
 ## Account Security Operations (PR 1.2)
 
 > SYSTEMS_INDEX §1a. Page: `settings.html` (`/settings`). Before PR 1.2 the page showed «تم» for operations that never happened (password checked via `/auth/login` only; email changed in `localStorage` only; phone `PUT` without JWT + success in `.finally`; delete without JWT then wiped storage anyway).
