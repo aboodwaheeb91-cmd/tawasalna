@@ -12659,8 +12659,8 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|
-| `GET /admin/email` | `check_admin` | — | 401 / 503 | `{ok, data:{status, settings, defaults, types, templates}}` |
-| `PUT /admin/email` | `check_admin` | partial `{from_address?, from_name?, site_url?, types?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
+| `GET /admin/email` | `check_admin` | — | 401 / 503 | `{ok, data:{status, settings, defaults, types, categories, notify_types, notify_limits, stats, templates}}` (5.1c: `stats` = `null` when the counter is unreadable) |
+| `PUT /admin/email` | `check_admin` | partial `{from_address?, from_name?, site_url?, types?, notify?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
 | `POST /admin/email/test` | `check_admin` | `{to}` | 422 `invalid_email` · 503 `email_unavailable` · 502 `email_failed` | `{ok, data:{sent:true}}` |
 
 ### Forgot password
@@ -12689,6 +12689,23 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 ### KYC email OTP (5.1b — SYSTEMS_INDEX §54c)
 
 - `is_email_otp_delivery_available()` = `email_service.can_send("kyc_email_otp")`. `POST /kyc/email/send` → the account's `users.email` only (another address → 400) → `_otp_issue` (hash) → `send_email(email, "kyc_email_otp", {name, code, minutes: 10})`; send failure → 503 `otp_delivery_unavailable`. Phone: no SMS provider → 503 → `verify_identity` stays off by default.
+
+### Notification emails (5.1c — SYSTEMS_INDEX §54j · rules `docs/rules/email.md` → Notification Emails)
+
+- **Categories:** `TEMPLATES[k]["category"]` = `security` (5.1a/5.1b templates + `admin_test`) | `notification` (`notify_message` · `notify_appointment_invited` · `notify_appointment_rescheduled` · `notify_appointment_cancelled`). `NOTIFY_TYPES` are also in `types` (admin on/off).
+- **Flow of `send_email` for a notification:** template / recipient check → `user_id` required → key → admin type on (else `disabled`, log `skipped_off`) → gate `email_notify_reserve(template, user_id, ref_key, limits)` (one transaction, `pg_advisory_xact_lock(515103)`: preference → throttle (`notify_message`, same `ref_key` = `msg:{receiver}:{sender}`, `sent`/`sending` within `message_throttle_hours`) → cap (notification rows `sent`/`sending` since UTC day / month start ≥ `daily_cap` / `monthly_cap`); inserts the row: `sending` or the skip status) → Resend (`headers.List-Unsubscribe = <{site_url}/settings#notifications>`) → row → `sent` / `failed`. Security: no gate; one row `sent` / `failed` (or `skipped_off`).
+- **Tables** (`_migrate_email_notify`, critical): `email_send_log (id BIGSERIAL PK, created_at TIMESTAMPTZ DEFAULT NOW(), template_key TEXT, category TEXT CHECK IN (security, notification), status TEXT, user_id INT NULL, ref_key TEXT NULL)` + indexes `(created_at)` and partial `(template_key, ref_key, created_at) WHERE ref_key IS NOT NULL` · `email_notify_prefs (user_id → users ON DELETE CASCADE, type TEXT, enabled BOOLEAN, updated_at, PK (user_id, type))`.
+- **Hooks:** `auth.create_notification` → after the insert → `_notification_email(user_id, type, title, body, link)` → mapped type + `can_send` → `_email_submit(email_notify_user, …)` (2-thread pool; vars `{title, details, link}` = the notification's own text; link made absolute on `site_url`). `POST /messages/send` cold path → `BackgroundTasks` → `schedule_message_email(receiver, sender, msg_id)` → `schedule_job("message_email", …, run_at = now + message_delay_minutes, dedupe_key = message_email:{r}:{s}:{window})` → runner → `_handle_message_email` (message unread → `notify_message` `{sender, link: /messages?with={sender tw_id}}`, no content).
+- **Settings:** `email_settings.notify = {daily_cap: 80 (0–100000), monthly_cap: 2800 (0–1000000), message_delay_minutes: 15 (1–1440), message_throttle_hours: 6 (1–168)}` — ints only (bool / string → 422).
+
+| Endpoint | Auth | Body | Errors | Success |
+|----------|------|------|--------|---------|
+| `GET /my/email-notifications` | JWT | — | 401 | `{ok, data:{types:[{key, enabled, available}]}}` (`available` = key set + admin on) |
+| `PUT /my/email-notifications` | JWT | `{types:{notify_*: bool}}` | 422 `invalid_body` / `unknown_type` (incl. security types) / `invalid_value` · 500 fixed | same as GET |
+| `GET /tw-ctrl-{ADMIN_URL_TOKEN}/email` | page (data via `check_admin` endpoints; admin JWT from the panel login in the same tab — `TwAdminSession`) | — | — | `admin-email.html` (admin shell, no PWA meta) |
+
+- **Admin page:** cards status · usage (day / month × security / notification: sent · failed · blocked by cap) · notification types · caps · message rules, each with an ⓘ toggle (`aria-expanded`). Save = one `PUT /admin/email {types, notify}`; a type turned off or a cap cut to ≤ half → `twConfirm` first.
+- **Application status:** not emailed — the notification never fires by policy (all 7 pipeline statuses internal) → open F30.
 
 ---
 
@@ -12733,6 +12750,7 @@ Known edge: a JWT issued **in the same second** as the change (iat == stamp) sta
 - **KYC entry (PR 4.7 — §52):** shown **only while the `verify_identity` action is on** — off by default (`"enabled": false` in `tw_actions.json`) — email OTP works since 5.1b, phone OTP still returns 503 (no SMS provider; open decision); off → `#kycRow` (rendered `hidden`) is removed and no `/kyc` request is made; admin enables it via `PUT /admin/actions` `{"verify_identity": {"enabled": true}}`. Row «توثيق الهوية» in «الأمان والتوثيق» — state from `GET /kyc/status/{uid}` (none / progress / review / approved / rejected) + button `twAction('verify_identity')` (BTN-19; label «أكمل التوثيق» / «عرض الحالة» by state; approved → verified icon, no button). The button opens one `twModal`: email OTP → phone OTP (`POST /kyc/{email|phone}/{send|verify}`; 503 `otp_delivery_unavailable` → «غير متاحة حالياً» and no code field; success only on 2xx + `status:"success"`) → ID (+ optional selfie) via `TW.uploadImage` (`jwt: TwAuthSync.getToken()`; private `data.path`) → `POST /kyc/docs` → «قيد المراجعة». Rejected → «إعادة المحاولة» (`POST /kyc/start`). A picked file shows its name only (no `data:` preview in `src` — §54). Before PR 4.7 `openKYC()` existed but no element opened it (the row was missing) — the flow was unreachable.
 - Phone: `PUT /profile/{uid}` `{phone}` then re-fetch — no manual `localStorage` write.
 - Email change (5.1b): row `data-st-open="email"` → `twModal` (new address + current password) → `POST /auth/email-change/request`; field errors under `new_email` / `current_password`; success toast «أرسلنا رابط التأكيد…». The address changes only on `/confirm-email` (→ Unified Email System → Email change).
+- Notification emails (5.1c): section `#notifications` → `GET /my/email-notifications` → one native `role="switch"` checkbox per type (admin-off → disabled + «متوقف حالياً») · change → `PUT {types:{key:bool}}` (optimistic, rolled back + error toast on failure) · note: security emails always arrive. Anchor = link + `List-Unsubscribe` of every notification email.
 - Account delete: **hidden** — read-only row «حذف الحساب — قريباً» until soft delete (F27). The endpoint stays, password-checked. When re-enabled: password field → `DELETE …/delete` → only after `r.ok` → `TwAuthSync.invalidateSession(…)` (never manual storage wipe).
 
 ### `users` delete — FK audit (2026-10-07)

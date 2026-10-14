@@ -8,6 +8,8 @@
 //     email OTP → phone OTP → ID (+ selfie) upload (TW.uploadImage) → admin review
 //   - email change (task 5.1b): new address + current password → POST /auth/email-change/request
 //     → link to the new address; the email changes only on /confirm-email (SYSTEMS_INDEX §1c)
+//   - notification emails (task 5.1c): one switch per type → GET / PUT /my/email-notifications
+//     (section #notifications — the link + List-Unsubscribe target of every notification email)
 //   - account delete hidden until plan 5.5 (soft delete — F27)
 (function () {
   'use strict';
@@ -395,6 +397,57 @@
     });
   }
 
+  // ── notification emails (task 5.1c) — one switch per type, saved on change (optimistic,
+  //    rolled back on failure); a type the admin switched off is shown disabled ──
+  function renderNotify(types) {
+    var list = $('notifyList');
+    list.textContent = '';
+    list.removeAttribute('aria-busy');
+    types.forEach(function (t) {
+      var row = el('label', 'st-row' + (t.available ? '' : ' is-off'));
+      var body = el('span', 'st-body');
+      body.appendChild(el('span', 'st-name', twT('email.type.' + t.key)));
+      body.appendChild(el('span', 'st-val', t.available ? twT('email.type.' + t.key + '.hint')
+                                                         : twT('settings.notify.off_by_admin')));
+      var sw = document.createElement('input');
+      sw.type = 'checkbox';
+      sw.className = 'st-switch';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('data-notify-type', t.key);
+      sw.checked = !!t.enabled;
+      sw.disabled = !t.available;
+      row.appendChild(el('span', 'st-ico', null)).appendChild(twIconEl('mail'));
+      row.appendChild(body);
+      row.appendChild(sw);
+      list.appendChild(row);
+    });
+  }
+  function saveNotify(sw) {
+    var key = sw.getAttribute('data-notify-type'), on = sw.checked, body = { types: {} };
+    body.types[key] = on;
+    sw.disabled = true;
+    twApi('/my/email-notifications', { method: 'PUT', body: body }).then(function (res) {
+      sw.disabled = false;
+      if (res.ok) { showToast(twT('settings.notify.saved'), 'success'); return; }
+      sw.checked = !on;
+      if (res.status !== 401) showToast(twApiMessage(res, twT('settings.notify.error')), 'error');
+    });
+  }
+  function loadNotify() {
+    return twApi('/my/email-notifications').then(function (res) {
+      var types = res.ok && res.data && res.data.types;
+      if (!types) {
+        $('notifyList').removeAttribute('aria-busy');
+        if (res.status !== 401) showToast(twApiMessage(res, twT('settings.notify.load_error')), 'error');
+        return;
+      }
+      renderNotify(types);
+    });
+  }
+  $('notifyList').addEventListener('change', function (e) {
+    if (e.target && e.target.hasAttribute('data-notify-type')) saveNotify(e.target);
+  });
+
   // verify_identity off (registry default until plan 5.1 — the OTP provider) or not for this
   // account → the KYC row never appears: no button, no text, no /kyc request.
   var kycOn = twActionState('verify_identity') !== 'hidden';
@@ -410,5 +463,6 @@
   renderAccount();
   if (kycOn) renderKycRow();
   loadAccount();
+  loadNotify();
   if (kycOn) loadKyc();
 }());

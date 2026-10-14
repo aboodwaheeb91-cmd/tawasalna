@@ -97,6 +97,12 @@ button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outl
 .st-result.is-review svg   { color: var(--color-status-warning); }
 .st-result.is-rejected svg { color: var(--color-status-danger); }
 .st-result-title { font-size: .9rem; font-weight: 800; color: var(--color-text-primary); }
+
+/* ── Notification email switches (task 5.1c) — native checkbox role=switch ── */
+label.st-row { cursor: pointer; }
+label.st-row.is-off { cursor: default; opacity: .6; }
+.st-switch { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--color-brand-primary); cursor: inherit; }
+.st-note { font-size: .65rem; color: var(--color-text-muted); line-height: 1.7; padding: 8px 4px 0; }
 </style>
 </head>
 <body>
@@ -157,6 +163,15 @@ button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outl
         <span class="st-end" id="kycAction"></span>
       </div>
     </div>
+  </section>
+
+  <!-- ── إشعارات البريد (task 5.1c) — one switch per notification email type (GET / PUT
+       /my/email-notifications); security emails are not a choice. Anchor = the link at the end of
+       every notification email + its List-Unsubscribe header (/settings#notifications). ── -->
+  <section class="st-sec" id="notifications">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.notifications"></h2>
+    <div class="st-card" id="notifyList" aria-busy="true"></div>
+    <p class="st-note" data-tw-t="settings.notify.security_note"></p>
   </section>
 
   <!-- ── معلومات الحساب ── -->

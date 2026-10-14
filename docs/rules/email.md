@@ -1,4 +1,4 @@
-# Unified Email System + Forgot Password + Email Change (tasks 5.1a · 5.1b)
+# Unified Email System + Forgot Password + Email Change + Notification Emails (tasks 5.1a · 5.1b · 5.1c)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتبعت إيميل أو بتلمس إعادة تعيين كلمة السر.
 > المواصفة: `docs/SYSTEMS_INDEX.md` §54j (الإيميل) + §1b (نسيت كلمة المرور) + §1c (تغيير الإيميل) + §54c (OTP التوثيق) · `ARCHITECTURE.md → Unified Email System + Password Reset (5.1a)`.
@@ -32,3 +32,16 @@ Test: `python -m pytest tests/test_password_reset_email.py -q` (Resend مزيّ�
 - ❌ تغيير `users.email` قبل الرابط · ❌ إرسال برّا `send_email`.
 
 Test: `python -m pytest tests/test_email_change_kyc_email.py -q`.
+
+## Notification Emails Rules (mandatory for all AI sessions — task 5.1c)
+
+1. **التصنيف:** كل قالب بـ `TEMPLATES` إلو `category`: `security` (`password_reset` · `password_changed` · `email_change` · `email_changed` · `kyc_email_otp` · `admin_test`) أو `notification` (`notify_*`). الأمان **ما بيتأثر** لا بالحد ولا بتفضيلات المستخدم (مفتاح الأدمن تبع 5.1a بيضل متل ما هو). قالب جديد بدون `category` = غلط.
+2. **بوابة واحدة جوّا `send_email`:** إيميل `notification` لازم `user_id` (+ `ref_key` اختياري) → `auth.email_notify_reserve` (مسجّلة من `server.py` عبر `email_service.set_send_hooks`) بـ transaction وحدة تحت `pg_advisory_xact_lock`: تفضيل المستخدم → `skipped_pref` · throttle الرسائل (`notify_message` + نفس `ref_key` خلال `message_throttle_hours`) → `skipped_throttle` · الحد اليومي / الشهري (صفوف `notification` بحالة `sent` / `sending` من بداية اليوم / الشهر UTC) → `skipped_cap` · غير هيك صف `sending` بيصير `sent` / `failed`. مفتاح الأدمن مطفّى → `disabled` (صف `skipped_off`). البوابة مش مسجّلة → `unavailable` (fail-closed). ❌ إرسال إيميل إشعار بدون `user_id` · ❌ عدّ الحد من مكان تاني.
+3. **العداد = `email_send_log`** (`created_at` · `template_key` · `category` · `status` · `user_id` · `ref_key`) — كل محاولة صف واحد (أمان + إشعار) عبر hook الـ log؛ فشل الكتابة بالـ log بيتسجّل وما بيوقّف الإرسال. migration `_migrate_email_notify` (critical).
+4. **نقاط الربط (بس هدول):** `create_notification` → `_notification_email` لأنواع `NOTIFICATION_EMAIL_TEMPLATES` (`appointment_invited` / `appointment_rescheduled` / `appointment_cancelled`) — الإيميل على thread pool (`_email_submit`) بعد إنشاء الإشعار، فالإشعار داخل الموقع ما بيتأثر بأي منع. الرسائل: `POST /messages/send` (cold path بس — المستلم مش فاتح المحادثة) → `schedule_message_email` → scheduler job `message_email` بعد `message_delay_minutes` (dedupe لكل مستلم + مرسل بكل نافذة) → `_handle_message_email` بيبعت بس إذا الرسالة لسا `is_read = FALSE` — بدون نص الرسالة بالإيميل. ❌ hook تاني بصفحة أو endpoint.
+5. **حالة طلب التوظيف — F30 مفتوح:** سياسة دائمة (SYSTEMS_INDEX §9 / §19) إن الحالات السبعة داخلية وما بتبعت إشعار للمتقدم → ما في نقطة ربط → ما في إيميل. أي إيميل لحالة الطلب بيحتاج قرار سياسة أول.
+6. **تحكم الأدمن:** `site_settings[email_settings]` → `types.notify_*` (تشغيل / إيقاف) + `notify` = `email.notify.daily_cap` (80) · `monthly_cap` (2800) · `message_delay_minutes` (15) · `message_throttle_hours` (6) — أرقام صحيحة بحدود `NOTIFY_LIMITS` (غير هيك 422). الصفحة `/tw-ctrl-{ADMIN_URL_TOKEN}/email` (`admin-email.html` + `static/admin-email/admin-email.js`, `TwAdminSession`): حالة المزوّد · الاستهلاك (اليوم / الشهر × أمان / إشعارات + «انمنع بسبب الحد») · الأنواع · الحدود · قواعد الرسائل — كل كرت إلو ⓘ. إطفاء نوع أو خفض حد للنص أو أقل → `twConfirm` قبل الحفظ.
+7. **تفضيلات المستخدم:** `GET` / `PUT /my/email-notifications` (JWT، `{types:{notify_*: bool}}` — نوع أمان → 422) · جدول `email_notify_prefs (user_id, type, enabled)` (صف بس لما يتغيّر؛ غيابه = مفعّل). `settings.html` قسم `#notifications`: مفتاح لكل نوع (حفظ فوري، رجوع عند الفشل، نوع مطفّى من الأدمن = معطّل) + سطر إن إيميلات الأمان دايماً بتوصل.
+8. **آخر كل إيميل إشعار:** رابط `{site_url}/settings#notifications` (نص + HTML) + هيدر `List-Unsubscribe: <{site_url}/settings#notifications>`. إيميلات الأمان بدونهم.
+
+Test: `python -m pytest tests/test_email_notify.py -q` · الواجهة: `node tests/test_settings_edu_runtime.js` (القسم L).

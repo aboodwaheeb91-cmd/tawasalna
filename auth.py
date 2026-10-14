@@ -1184,6 +1184,197 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
         release_conn(conn)
 
 
+# ══ Notification Emails (task 5.1c · docs/rules/email.md → Notification Emails · SYSTEMS_INDEX §54j) ══
+# email_send_log = the one counter: every send attempt (security + notification) is one row.
+# The daily / monthly caps count notification rows 'sent' / 'sending' in it (UTC day / month).
+# email_notify_prefs = the user's per-type switch (row only when changed; missing row = on).
+EMAIL_LOG_STATUSES = ("sending", "sent", "failed", "skipped_cap", "skipped_pref",
+                      "skipped_off", "skipped_throttle")
+_EMAIL_DAY_START = "(date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')"
+_EMAIL_MONTH_START = "(date_trunc('month', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')"
+_EMAIL_NOTIFY_LOCK = 515103   # pg_advisory_xact_lock key — caps are exact across workers
+
+
+def _migrate_email_notify():
+    """Idempotent — email_send_log + email_notify_prefs (5.1c)."""
+    with db_conn() as conn:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS email_send_log (
+                id           BIGSERIAL PRIMARY KEY,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                template_key TEXT NOT NULL,
+                category     TEXT NOT NULL CHECK (category IN ('security', 'notification')),
+                status       TEXT NOT NULL,
+                user_id      INTEGER,
+                ref_key      TEXT
+            )""")
+        conn.run("CREATE INDEX IF NOT EXISTS email_send_log_created_idx ON email_send_log (created_at)")
+        conn.run("CREATE INDEX IF NOT EXISTS email_send_log_ref_idx "
+                 "ON email_send_log (template_key, ref_key, created_at) WHERE ref_key IS NOT NULL")
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS email_notify_prefs (
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                type       TEXT NOT NULL,
+                enabled    BOOLEAN NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, type)
+            )""")
+
+
+def email_log_write(template_key: str, category: str, status: str, log_id=None) -> None:
+    """Log hook of email_service: log_id (a reserved notification row) → final status; else a new row."""
+    if status not in EMAIL_LOG_STATUSES:
+        raise ValueError(f"email_log_write: unknown status {status!r}")
+    with db_conn() as conn:
+        if log_id:
+            conn.run("UPDATE email_send_log SET status = :s WHERE id = :id", s=status, id=int(log_id))
+        else:
+            conn.run("INSERT INTO email_send_log (template_key, category, status) VALUES (:t, :c, :s)",
+                     t=template_key, c=category, s=status)
+
+
+def get_email_prefs(user_id: int, types) -> dict:
+    """{type: bool} for every type in `types` — missing row = on (default)."""
+    with db_conn() as conn:
+        rows = conn.run("SELECT type, enabled FROM email_notify_prefs WHERE user_id = :u", u=int(user_id))
+    stored = {r[0]: bool(r[1]) for r in rows}
+    return {t: stored.get(t, True) for t in types}
+
+
+def set_email_prefs(user_id: int, prefs: dict) -> None:
+    """prefs = {type: bool} — already validated by the caller (server.py)."""
+    with db_conn() as conn:
+        for t, on in prefs.items():
+            conn.run("INSERT INTO email_notify_prefs (user_id, type, enabled) VALUES (:u, :t, :e) "
+                     "ON CONFLICT (user_id, type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()",
+                     u=int(user_id), t=t, e=bool(on))
+
+
+def email_notify_reserve(template_key: str, user_id: int, ref_key, limits: dict):
+    """Gate of every notification email (email_service.send_email). One transaction under an
+    advisory lock (exact caps across workers): user preference → per-ref throttle (notify_message:
+    one email per conversation per message_throttle_hours) → daily / monthly cap.
+    → ("ok", log_id of a 'sending' row) or (skip status, None) — the skip is logged here."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run("SELECT pg_advisory_xact_lock(:k)", k=_EMAIL_NOTIFY_LOCK)
+            status = "ok"
+            pref = conn.run("SELECT enabled FROM email_notify_prefs WHERE user_id = :u AND type = :t",
+                            u=int(user_id), t=template_key)
+            if pref and not pref[0][0]:
+                status = "skipped_pref"
+            if status == "ok" and ref_key and template_key == "notify_message":
+                recent = conn.run(
+                    "SELECT 1 FROM email_send_log WHERE template_key = :t AND ref_key = :r "
+                    "AND status IN ('sent', 'sending') "
+                    "AND created_at > NOW() - make_interval(hours => :h) LIMIT 1",
+                    t=template_key, r=ref_key, h=int(limits["message_throttle_hours"]))
+                if recent:
+                    status = "skipped_throttle"
+            if status == "ok":
+                day, month = conn.run(
+                    "SELECT COUNT(*) FILTER (WHERE created_at >= " + _EMAIL_DAY_START + "), COUNT(*) "
+                    "FROM email_send_log WHERE category = 'notification' AND status IN ('sent', 'sending') "
+                    "AND created_at >= " + _EMAIL_MONTH_START)[0]
+                if int(day) >= int(limits["daily_cap"]) or int(month) >= int(limits["monthly_cap"]):
+                    status = "skipped_cap"
+                    print(f"[email] notification cap reached template={template_key} "
+                          f"day={day}/{limits['daily_cap']} month={month}/{limits['monthly_cap']}")
+            rows = conn.run(
+                "INSERT INTO email_send_log (template_key, category, status, user_id, ref_key) "
+                "VALUES (:t, 'notification', :s, :u, :r) RETURNING id",
+                t=template_key, s="sending" if status == "ok" else status, u=int(user_id), r=ref_key)
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return (status, rows[0][0]) if status == "ok" else (status, None)
+
+
+def email_send_stats() -> dict:
+    """Admin counter: {day|month: {security|notification: {status: n}}} (UTC day / month)."""
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT created_at >= " + _EMAIL_DAY_START + " AS today, category, status, COUNT(*) "
+            "FROM email_send_log WHERE created_at >= " + _EMAIL_MONTH_START + " GROUP BY 1, 2, 3")
+    out = {p: {"security": {}, "notification": {}} for p in ("day", "month")}
+    for today, cat, status, n in rows:
+        if cat not in out["month"]:
+            continue
+        out["month"][cat][status] = out["month"][cat].get(status, 0) + int(n)
+        if today:
+            out["day"][cat][status] = out["day"][cat].get(status, 0) + int(n)
+    return out
+
+
+def email_notify_user(user_id: int, template_key: str, values: dict, ref_key: str = None) -> dict:
+    """Notification email to an account: its address + name from users, links made absolute on
+    site_url (never from a request). All checks happen inside email_service.send_email."""
+    import email_service
+    with db_conn() as conn:
+        rows = conn.run("SELECT email, full_name FROM users WHERE id = :id", id=int(user_id))
+    if not rows or not rows[0][0]:
+        return {"ok": False, "code": "invalid"}
+    vals = dict(values or {})
+    vals.setdefault("name", rows[0][1] or "")
+    link = vals.get("link") or ""
+    if link.startswith("/") and not link.startswith("//"):
+        vals["link"] = email_service.get_settings()["site_url"] + link
+    return email_service.send_email(rows[0][0], template_key, vals, user_id=int(user_id), ref_key=ref_key)
+
+
+# In-site notification type → its email template (5.1c). Only these types email.
+NOTIFICATION_EMAIL_TEMPLATES = {
+    "appointment_invited":     "notify_appointment_invited",
+    "appointment_rescheduled": "notify_appointment_rescheduled",
+    "appointment_cancelled":   "notify_appointment_cancelled",
+}
+_EMAIL_POOL = None
+
+
+def _email_submit(fn, *args):
+    """Notification emails leave the request thread (a Resend call is up to 10 s)."""
+    global _EMAIL_POOL
+    if _EMAIL_POOL is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _EMAIL_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="tw-email")
+    return _EMAIL_POOL.submit(fn, *args)
+
+
+def _notification_email(user_id: int, type_: str, title: str, body: str, link: str) -> None:
+    """Hook of create_notification — a new in-site notification of a mapped type → its email."""
+    template = NOTIFICATION_EMAIL_TEMPLATES.get(type_)
+    if not template:
+        return
+    try:
+        import email_service
+        if not email_service.can_send(template):
+            return
+        _email_submit(email_notify_user, int(user_id), template,
+                      {"title": title or "", "details": body or "", "link": link or ""})
+    except Exception as e:
+        print(f"[email] notification email not queued type={type_}: {type(e).__name__}")
+
+
+def schedule_message_email(receiver_id: int, sender_id: int, message_id: int) -> None:
+    """Unread message → scheduler job message_email after message_delay_minutes. One job per
+    (receiver, sender) per delay window (dedupe_key); the handler sends only if still unread."""
+    try:
+        import email_service
+        if not email_service.can_send("notify_message"):
+            return
+        from datetime import timedelta, timezone
+        delay = int(email_service.notify_settings()["message_delay_minutes"])
+        window = int(_time_mod.time() // (delay * 60))
+        schedule_job("message_email",
+                     {"receiver_id": int(receiver_id), "sender_id": int(sender_id), "message_id": int(message_id)},
+                     datetime.now(timezone.utc) + timedelta(minutes=delay),
+                     f"message_email:{int(receiver_id)}:{int(sender_id)}:{window}", max_attempts=3)
+    except Exception as e:
+        print(f"[email] message email not scheduled: {type(e).__name__}: {e}")
+
+
 # ══ الملفات الشخصية ══
 def _safe_query(conn, sql, uid):
     """
@@ -3908,9 +4099,11 @@ def create_notification(
         if not rows:
             return None  # duplicate event_key — idempotent skip
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        created = _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
+    _notification_email(user_id, type_, title, body, link)   # 5.1c — mapped types only
+    return created
 
 
 def create_or_update_aggregated_notification(
@@ -10060,6 +10253,7 @@ _SCHEDULER_HANDLERS = {
     "appointment_deadline_expire",   # S4: expire pending_response when deadline passes.
     "appointment_missed",            # S4: mark confirmed appointment missed (_appt_missed_at — PR 2B).
     "job_expiring_soon",             # S4: notify company 48h before job listing expires.
+    "message_email",                 # 5.1c: email for a message still unread after N minutes.
 }
 
 
@@ -10348,6 +10542,24 @@ def _handle_job_expiring_soon(job: dict) -> None:
         raise  # re-raise — runner retries; event_key idempotency prevents duplicate
 
 
+def _handle_message_email(job: dict) -> None:
+    """5.1c — the message is still unread → notify_message email (gate: preference · one email per
+    conversation per message_throttle_hours · caps — inside send_email). Read / gone → no-op."""
+    p = job.get("payload") or {}
+    if isinstance(p, str):
+        p = _json_mod.loads(p)
+    rid, sid, mid = int(p["receiver_id"]), int(p["sender_id"]), int(p["message_id"])
+    with db_conn() as conn:
+        msg = conn.run("SELECT is_read FROM messages WHERE id = :id AND receiver_id = :r AND sender_id = :s",
+                       id=mid, r=rid, s=sid)
+        sender = conn.run("SELECT full_name, tw_id FROM users WHERE id = :id", id=sid)
+    if not msg or msg[0][0] or not sender:
+        return
+    link = "/messages?with=" + str(sender[0][1]) if sender[0][1] else "/messages"
+    email_notify_user(rid, "notify_message", {"sender": sender[0][0] or "", "link": link},
+                      ref_key=f"msg:{rid}:{sid}")
+
+
 def _execute_scheduler_job(job: dict) -> None:
     """
     Dispatch a single scheduler job to the correct handler.
@@ -10377,6 +10589,8 @@ def _execute_scheduler_job(job: dict) -> None:
         _handle_appointment_missed(job); return
     if job_type == "job_expiring_soon":
         _handle_job_expiring_soon(job); return
+    if job_type == "message_email":
+        _handle_message_email(job); return
 
     raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
 
