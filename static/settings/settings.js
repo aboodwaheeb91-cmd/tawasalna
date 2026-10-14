@@ -6,7 +6,9 @@
 //   - KYC (SYSTEMS_INDEX §23): row «توثيق الهوية» → twAction('verify_identity') → steps
 //     (only while the action is on — off by default until plan 5.1; off → the row is removed)
 //     email OTP → phone OTP → ID (+ selfie) upload (TW.uploadImage) → admin review
-//   - email change hidden until plan 5.1 · account delete hidden until plan 5.5 (soft delete — F27)
+//   - email change (task 5.1b): new address + current password → POST /auth/email-change/request
+//     → link to the new address; the email changes only on /confirm-email (SYSTEMS_INDEX §1c)
+//   - account delete hidden until plan 5.5 (soft delete — F27)
 (function () {
   'use strict';
   var snap = twRequireAuth();
@@ -107,6 +109,36 @@
       if (!res.ok) { setErr(input, twApiMessage(res, twT('settings.phone_error'))); return false; }
       showToast(twT('settings.phone_saved'), 'success');
       loadAccount();
+    });
+  }
+
+  // ── email change — POST /auth/email-change/request (server: password check, format, taken,
+  //    rate limit); nothing changes until the link in the new inbox is opened ──
+  var EM_FIELD = { new_email: 'email', current_password: 'pw' };
+  function openEmail() {
+    var f = {
+      email: field('settings.email_change.new', { type: 'email', autocomplete: 'email', dir: 'ltr', spellcheck: 'false' }),
+      pw:    field('settings.email_change.password', { type: 'password', autocomplete: 'current-password' }),
+    };
+    var form = el('div', 'st-form');
+    form.appendChild(el('p', 'st-hint', twT('settings.email_change.hint')));
+    form.appendChild(f.email.wrap); form.appendChild(f.pw.wrap);
+    twModal({ title: twT('settings.email_change.title'), content: form, actions: [
+      { text: twT('common.cancel') },
+      { text: twT('settings.email_change.submit'), variant: 'primary', onClick: function () { return requestEmailChange(f); } },
+    ] });
+  }
+  function requestEmailChange(f) {
+    var email = f.email.input.value.trim(), pw = f.pw.input.value, ok = true;
+    if (!email) { setErr(f.email.input, twT('settings.email_change.new_required')); ok = false; }
+    if (!pw) { setErr(f.pw.input, twT('settings.email_change.password_required')); ok = false; }
+    if (!ok) return false;
+    return twApi('/auth/email-change/request', { method: 'POST', body: { new_email: email, current_password: pw } }).then(function (res) {
+      if (res.ok) { showToast(twT('settings.email_change.sent', { email: email }), 'success'); return; }
+      var fe = res.error && res.error.fieldErrors[0];
+      if (fe && EM_FIELD[fe.field]) { setErr(f[EM_FIELD[fe.field]].input, fe.message); return false; }
+      if (res.status !== 401) showToast(twApiMessage(res, twT('settings.email_change.error')), 'error');
+      return false;
     });
   }
 
@@ -246,6 +278,8 @@
     box.appendChild(el('p', 'st-hint', twT('settings.kyc.' + ch + '.hint')));
     var target = field('settings.kyc.' + ch + '.label', { type: ch === 'email' ? 'email' : 'tel', dir: 'ltr',
                                                          value: ch === 'email' ? acct.email : acct.phone });
+    // The email code goes to the account's own address only (server-enforced) — change it via «تغيير البريد»
+    if (ch === 'email') target.input.readOnly = true;
     var send = btn('settings.kyc.send_code');
     var code = field('settings.kyc.code', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '6', cls: 'st-code' });
     var verify = btn('settings.kyc.verify_code');
@@ -369,7 +403,7 @@
   else kycRow.remove();
 
   // ── wire up ──
-  var OPEN = { phone: openPhone, password: openPassword };
+  var OPEN = { email: openEmail, phone: openPhone, password: openPassword };
   document.querySelectorAll('[data-st-open]').forEach(function (b) {
     b.addEventListener('click', function () { OPEN[b.getAttribute('data-st-open')](); });
   });

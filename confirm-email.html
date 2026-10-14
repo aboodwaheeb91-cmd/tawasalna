@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head-->
+<!-- Unified app header (HEADER-NAV.md — guest view: logo · تسجيل الدخول · إنشاء حساب) -->
+<link rel="stylesheet" href="/static/app-header.css">
+<title></title>
+<meta name="robots" content="noindex">
+<!-- The confirm token lives in the URL fragment; never leak the page URL to another site -->
+<meta name="referrer" content="no-referrer">
+<style>
+/* Confirm new email — page styles (DS-COLOR --color-* tokens only) */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--color-surface-page);
+  color: var(--color-text-body);
+  font-family: 'Cairo', sans-serif;
+  min-height: 100vh;
+}
+.skip-link {
+  position: absolute; top: -40px; right: 0;
+  background: var(--color-brand-primary); color: var(--color-text-on-brand);
+  padding: 8px 16px; border-radius: 0 0 10px 0;
+  font-size: .78rem; font-weight: 700; text-decoration: none; transition: top .2s; z-index: 10000;
+}
+.skip-link:focus { top: 0; }
+.ce-main { max-width: 440px; margin: 0 auto; padding: 32px 16px 48px; }
+.ce-card { background: var(--color-surface-card); border: 1px solid var(--color-border-subtle); border-radius: 16px; padding: 24px 20px; }
+.ce-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 900; margin-bottom: 6px; }
+.ce-title svg { color: var(--color-brand-primary); }
+.ce-sub { font-size: .75rem; color: var(--color-text-muted); margin-bottom: 20px; line-height: 1.8; }
+.ce-submit { width: 100%; }
+.ce-msg { font-size: .78rem; line-height: 1.8; padding: 12px 14px; border-radius: 12px; margin-bottom: 14px;
+          background: var(--color-surface-page); border: 1px solid var(--color-border-subtle); }
+.ce-msg.is-error { border-color: var(--color-status-danger); color: var(--color-status-danger); }
+.ce-links { margin-top: 16px; text-align: center; font-size: .72rem; }
+.ce-links a { color: var(--color-brand-primary); font-weight: 700; text-decoration: none; }
+.ce-links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
+
+<header data-tw-header data-back="/settings"></header>
+
+<main class="ce-main" id="main-content">
+  <div class="ce-card">
+    <h1 class="ce-title"><i data-tw-icon="mail"></i><span data-tw-t="confirm_email.title"></span></h1>
+    <p class="ce-sub" id="ceSub" data-tw-t="confirm_email.sub"></p>
+    <div class="ce-msg" id="ceMsg" role="status" aria-live="polite" hidden></div>
+    <!-- An explicit click (not on load): mail scanners that open links must not consume the token -->
+    <button type="button" class="tw-btn ce-submit" id="ceBtn" data-tw-t="confirm_email.submit" hidden></button>
+    <div class="ce-links"><a href="/settings" data-tw-t="confirm_email.go_settings"></a></div>
+  </div>
+</main>
+
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/confirm-email/confirm-email.js"></script>
+</body>
+</html>

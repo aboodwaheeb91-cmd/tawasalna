@@ -113,16 +113,15 @@ button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outl
   <section class="st-sec">
     <h2 class="st-sec-title" data-tw-t="settings.sec.contact"></h2>
     <div class="st-card">
-      <!-- Email change hidden until FUTURE_ROADMAP 5.1 -->
-      <div class="st-row is-locked">
+      <!-- Email change (task 5.1b) — link to the new address; changes only after it is opened -->
+      <button type="button" class="st-row" data-st-open="email">
         <span class="st-ico"><i data-tw-icon="mail"></i></span>
         <span class="st-body">
           <span class="st-name" data-tw-t="settings.email"></span>
           <span class="st-val" id="dispEmail">—</span>
-          <span class="st-val" data-tw-t="settings.email_soon"></span>
         </span>
-        <span class="st-end"><i data-tw-icon="lock" data-tw-size="xs"></i></span>
-      </div>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </button>
       <button type="button" class="st-row" data-st-open="phone">
         <span class="st-ico"><i data-tw-icon="phone"></i></span>
         <span class="st-body">

@@ -641,26 +641,26 @@ def _test_group_j():
             "server.py: is_phone_otp_delivery_available helper not found"
 
     def j2_helpers_return_false_by_default():
-        src = _read("server.py")
-        import re as _re
-        # Both functions must contain 'return False'
-        email_fn = _re.search(
-            r'def is_email_otp_delivery_available\(\)[^#\n]*\n(.*?)(?=\ndef |\Z)',
-            src, _re.DOTALL)
-        phone_fn = _re.search(
-            r'def is_phone_otp_delivery_available\(\)[^#\n]*\n(.*?)(?=\ndef |\Z)',
-            src, _re.DOTALL)
-        assert email_fn and "return False" in email_fn.group(0), \
-            "is_email_otp_delivery_available does not return False by default"
-        assert phone_fn and "return False" in phone_fn.group(0), \
-            "is_phone_otp_delivery_available does not return False by default"
+        # Behaviour (task 5.1b): email = provider configured AND kyc_email_otp type on;
+        # no RESEND_API_KEY → False. Phone: no SMS provider → always False.
+        import os as _os
+        import server as _srv
+        saved = _os.environ.pop("RESEND_API_KEY", None)
+        try:
+            assert _srv.is_email_otp_delivery_available() is False, \
+                "is_email_otp_delivery_available must be False without an email provider"
+            assert _srv.is_phone_otp_delivery_available() is False, \
+                "is_phone_otp_delivery_available must be False (no SMS provider)"
+        finally:
+            if saved is not None:
+                _os.environ["RESEND_API_KEY"] = saved
 
     def j3_email_send_endpoint_checks_availability_before_generate():
         src = _read("server.py")
         # The 503 guard must appear before send_email_code call inside the endpoint
         ep_idx = src.find("def kyc_send_email(")
         assert ep_idx != -1, "server.py: kyc_send_email endpoint not found"
-        ep_body = src[ep_idx: ep_idx + 800]
+        ep_body = src[ep_idx: ep_idx + 1600]
         avail_idx = ep_body.find("is_email_otp_delivery_available")
         generate_idx = ep_body.find("send_email_code")
         assert avail_idx != -1, "kyc_send_email: availability check missing"
@@ -797,7 +797,9 @@ class TestKYCOTPMockProvider(unittest.TestCase):
         self._override_token(uid=10)
         mock_code = "123456"
         with patch.object(self.srv, "is_email_otp_delivery_available", return_value=True), \
+             patch.object(self.srv, "get_user_by_id", return_value={"email": "user@example.com", "full_name": "x"}), \
              patch.object(self.srv, "start_kyc", return_value=None), \
+             patch.object(self.srv.email_service, "send_email", return_value={"ok": True, "code": "sent"}), \
              patch.object(self.srv, "send_email_code", return_value=mock_code) as mock_send:
             r = self.client.post("/kyc/email/send", json={"email": "user@example.com"})
         self.assertEqual(r.status_code, 200,

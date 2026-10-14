@@ -1036,22 +1036,32 @@ def _migrate_password_changed_at():
         release_conn(conn)
 
 
-# ── Password reset tokens (task 5.1a · SYSTEMS_INDEX §1b) ──
-# Random 256-bit token, mailed once; only its HMAC is stored (like the KYC OTP). 30 minutes,
-# single use (consumed by one atomic DELETE … RETURNING), and issuing a new one deletes
-# every older token of that user. Times come from the DB clock (issue + check agree).
+# ── One-time email tokens (task 5.1a password reset · 5.1b email change — SYSTEMS_INDEX §1b) ──
+# One implementation for every emailed one-time link: random 256-bit token, mailed once; only
+# its HMAC is stored (like the KYC OTP — key per purpose, so a token never crosses purposes).
+# 30 minutes, single use (consumed by one atomic DELETE … RETURNING), and issuing a new one
+# deletes every older token of that user for the same purpose. Times come from the DB clock.
+# Table password_reset_tokens (name kept — F14) + purpose / payload columns since 5.1b.
 PASSWORD_RESET_TTL_MINUTES = 30
+EMAIL_TOKEN_TTL_MINUTES = PASSWORD_RESET_TTL_MINUTES
+_EMAIL_TOKEN_PURPOSES = ("password_reset", "email_change")
 _RESET_HASH_PREFIX = "v1$"
 
 
-def _password_reset_hash(token: str) -> str:
+def _email_token_hash(purpose: str, token: str) -> str:
     import hmac, hashlib
-    key = (os.environ.get("JWT_SECRET", "") + ":password-reset").encode()
+    if purpose not in _EMAIL_TOKEN_PURPOSES:
+        raise ValueError("unknown token purpose")
+    key = (os.environ.get("JWT_SECRET", "") + ":" + purpose.replace("_", "-")).encode()
     return _RESET_HASH_PREFIX + hmac.new(key, token.encode(), hashlib.sha256).hexdigest()
 
 
+def _password_reset_hash(token: str) -> str:
+    return _email_token_hash("password_reset", token)
+
+
 def _migrate_password_reset_tokens():
-    """Idempotent — one table, hash only (never the token)."""
+    """Idempotent — one table, hash only (never the token). purpose / payload: 5.1b."""
     with db_conn() as conn:
         conn.run("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -1061,7 +1071,44 @@ def _migrate_password_reset_tokens():
                 expires_at TIMESTAMPTZ NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )""")
+        conn.run("ALTER TABLE password_reset_tokens "
+                 "ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'password_reset'")
+        conn.run("ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS payload TEXT")
         conn.run("CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens (user_id)")
+
+
+def email_token_issue(purpose: str, user_id: int, payload: str = None) -> str:
+    """New token for (user, purpose); older tokens of this user for this purpose (and any
+    expired token) are deleted in the same statement. Returns the plain token — for the
+    email link only, never stored/logged."""
+    import secrets
+    token = secrets.token_urlsafe(32)
+    with db_conn() as conn:
+        conn.run(
+            "WITH old AS (DELETE FROM password_reset_tokens "
+            "WHERE (user_id = :uid AND purpose = :p) OR expires_at < NOW()) "
+            "INSERT INTO password_reset_tokens (user_id, purpose, payload, token_hash, expires_at) "
+            f"VALUES (:uid, :p, :pl, :h, NOW() + INTERVAL '{EMAIL_TOKEN_TTL_MINUTES} minutes')",
+            uid=user_id, p=purpose, pl=payload, h=_email_token_hash(purpose, token))
+    return token
+
+
+def email_token_consume(purpose: str, token: str) -> Optional[dict]:
+    """Valid + unexpired token of this purpose → deleted (single use) →
+    {id, email, full_name, payload}. Unknown / expired / used / other purpose → None."""
+    token = (token or "").strip()
+    if not token:
+        return None
+    with db_conn() as conn:
+        rows = conn.run(
+            "WITH t AS (DELETE FROM password_reset_tokens WHERE token_hash = :h AND purpose = :p "
+            "RETURNING user_id, expires_at, payload) "
+            "SELECT u.id, u.email, u.full_name, t.payload FROM t JOIN users u ON u.id = t.user_id "
+            "WHERE t.expires_at > NOW()",
+            h=_email_token_hash(purpose, token), p=purpose)
+    if not rows:
+        return None
+    return {"id": rows[0][0], "email": rows[0][1], "full_name": rows[0][2] or "", "payload": rows[0][3]}
 
 
 def get_user_for_password_reset(email: str) -> Optional[dict]:
@@ -1077,34 +1124,49 @@ def get_user_for_password_reset(email: str) -> Optional[dict]:
 
 
 def password_reset_issue(user_id: int) -> str:
-    """New token for the user; older tokens of this user (and any expired token) are deleted
-    in the same statement. Returns the plain token — for the email link only, never stored/logged."""
-    import secrets
-    token = secrets.token_urlsafe(32)
-    with db_conn() as conn:
-        conn.run(
-            "WITH old AS (DELETE FROM password_reset_tokens WHERE user_id = :uid OR expires_at < NOW()) "
-            "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) "
-            f"VALUES (:uid, :h, NOW() + INTERVAL '{PASSWORD_RESET_TTL_MINUTES} minutes')",
-            uid=user_id, h=_password_reset_hash(token))
-    return token
+    return email_token_issue("password_reset", user_id)
 
 
 def password_reset_consume(token: str) -> Optional[dict]:
-    """Valid + unexpired token → deleted (single use) → {id, email, full_name} of its user.
-    Unknown / expired / already used → None."""
-    token = (token or "").strip()
-    if not token:
+    """→ {id, email, full_name} or None (see email_token_consume)."""
+    row = email_token_consume("password_reset", token)
+    if not row:
         return None
+    row.pop("payload", None)
+    return row
+
+
+# ── Email change (task 5.1b · SYSTEMS_INDEX §1c) ──
+# users.email changes only when the link mailed to the NEW address is opened (token payload =
+# the new address). "Taken" is checked at request time and again by the UNIQUE index at apply
+# time (race) — both surface as EmailTakenError, never by reading error text.
+def email_change_request(user_id: int, new_email: str) -> str:
+    """Raises EmailTakenError when another account has new_email; else → plain token."""
+    new_email = (new_email or "").strip().lower()
     with db_conn() as conn:
-        rows = conn.run(
-            "WITH t AS (DELETE FROM password_reset_tokens WHERE token_hash = :h RETURNING user_id, expires_at) "
-            "SELECT u.id, u.email, u.full_name FROM t JOIN users u ON u.id = t.user_id "
-            "WHERE t.expires_at > NOW()",
-            h=_password_reset_hash(token))
-    if not rows:
+        rows = conn.run("SELECT 1 FROM users WHERE email = :e AND id <> :uid LIMIT 1",
+                        e=new_email, uid=user_id)
+    if rows:
+        raise EmailTakenError("البريد الإلكتروني مستخدم لحساب آخر")
+    return email_token_issue("email_change", user_id, new_email)
+
+
+def email_change_apply(token: str) -> Optional[dict]:
+    """Consume the token (single use) and set users.email = its payload.
+    → {id, full_name, old_email, new_email} · None = invalid / expired / used token.
+    Raises EmailTakenError when the address was taken meanwhile (UNIQUE violation)."""
+    row = email_token_consume("email_change", token)
+    if not row or not row.get("payload"):
         return None
-    return {"id": rows[0][0], "email": rows[0][1], "full_name": rows[0][2] or ""}
+    try:
+        with db_conn() as conn:
+            conn.run("UPDATE users SET email = :e WHERE id = :uid", e=row["payload"], uid=row["id"])
+    except Exception as e:
+        if _is_email_taken_error(e):
+            raise EmailTakenError("البريد الإلكتروني مستخدم لحساب آخر") from e
+        raise
+    return {"id": row["id"], "full_name": row["full_name"],
+            "old_email": row["email"], "new_email": row["payload"]}
 
 
 def get_user_by_id(user_id: int) -> Optional[dict]:

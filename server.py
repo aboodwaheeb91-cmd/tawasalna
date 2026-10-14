@@ -115,7 +115,8 @@ from auth import (
     search_schedule_people,
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     _migrate_password_reset_tokens, get_user_for_password_reset, password_reset_issue, password_reset_consume,
-    PASSWORD_RESET_TTL_MINUTES,
+    PASSWORD_RESET_TTL_MINUTES, EMAIL_TOKEN_TTL_MINUTES, email_change_request, email_change_apply,
+    _OTP_TTL_MINUTES,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
@@ -359,11 +360,10 @@ def _dev_otp_log(label: str, uid: int) -> None:
 
 
 def is_email_otp_delivery_available() -> bool:
-    """Returns True only when KYC email codes can really be delivered.
-    The email provider exists since 5.1a (email_service.send_email — Resend), but
-    the KYC email step is wired in 5.1b — until then this stays False.
-    DEV_OTP_LOG does NOT count as a delivery provider."""
-    return False
+    """True only when KYC email codes can really be delivered (task 5.1b): the email
+    provider is configured (RESEND_API_KEY) AND the kyc_email_otp type is switched on
+    (site_settings[email_settings].types). DEV_OTP_LOG does NOT count as a provider."""
+    return email_service.can_send("kyc_email_otp")
 
 
 def is_phone_otp_delivery_available() -> bool:
@@ -602,6 +602,7 @@ def _login_email_reset(email: str) -> None:
 _RATE_LIMITED_PATHS = frozenset({
     "/auth/login", "/auth/register", "/auth/password", "/tw-ctrl-login",
     "/auth/password-reset/request", "/auth/password-reset/confirm",
+    "/auth/email-change/request", "/auth/email-change/confirm",
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
 })
 
@@ -1578,6 +1579,9 @@ def settings_html(): return read_html("settings.html")
 # server / logs / Referer) the new-password form.
 @app.get("/reset-password", response_class=HTMLResponse)
 def reset_password_page(): return read_html("reset-password.html")
+
+@app.get("/confirm-email", response_class=HTMLResponse)
+def confirm_email_page(): return read_html("confirm-email.html")
 
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")
@@ -3790,6 +3794,85 @@ def password_reset_confirm(data: PasswordResetConfirmInput, background_tasks: Ba
     print(f"[password-reset] password reset user={uid} — all sessions invalidated")
     return api_ok({"reset": True})
 
+# ── Email change (task 5.1b · SYSTEMS_INDEX §1c) ──
+# request (JWT owner): new address + current password → link to the NEW address (one-time
+# token, same table / code as the password reset — auth.email_token_*). users.email changes
+# only on confirm; then the OLD address gets an «email changed» notice. "Taken" → EmailTakenError
+# at request time and again at confirm time (race — UNIQUE index).
+_EMAILCHANGE_USER_LIMIT, _EMAILCHANGE_USER_WINDOW = 5, 3600.0
+_EMAILCHANGE_INVALID_MSG = "رابط تأكيد البريد الإلكتروني غير صالح أو انتهت صلاحيته، اطلب تغيير البريد من جديد"
+_EMAILCHANGE_TAKEN_MSG = "البريد الإلكتروني مستخدم لحساب آخر"
+
+class EmailChangeRequestInput(BaseModel):
+    new_email: str = ""
+    current_password: str = ""
+
+class EmailChangeConfirmInput(BaseModel):
+    token: str = ""
+
+@app.post("/auth/email-change/request")
+def email_change_request_ep(data: EmailChangeRequestInput, token=Depends(verify_token)):
+    uid = int(token["user_id"])
+    new_email = (data.new_email or "").strip().lower()
+    if not new_email:
+        raise AccountFieldError("new_email", "required", "أدخل البريد الإلكتروني الجديد")
+    if not email_service.valid_address(new_email):
+        raise AccountFieldError("new_email", "invalid_email", "صيغة البريد الإلكتروني غير صحيحة")
+    if not data.current_password:
+        raise AccountFieldError("current_password", "required", "أدخل كلمة المرور الحالية")
+    if not email_service.can_send("email_change"):
+        return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
+    # Counted before the password check — also caps password guessing through this form.
+    if not _rate_hit(f"email-change-user:{uid}", _EMAILCHANGE_USER_LIMIT, _EMAILCHANGE_USER_WINDOW):
+        return api_error(429, "rate_limited", "طلبات كثيرة، حاول مرة أخرى لاحقاً")
+    try:
+        ok = check_user_password(uid, data.current_password)
+        if ok is None:
+            raise HTTPException(404, detail="المستخدم غير موجود")
+        if not ok:
+            raise AccountFieldError("current_password", "wrong_password", "كلمة المرور الحالية غير صحيحة")
+        user = get_user_by_id(uid) or {}
+        if (user.get("email") or "").strip().lower() == new_email:
+            raise AccountFieldError("new_email", "same_email", "هذا هو بريدك الإلكتروني الحالي")
+        link_token = email_change_request(uid, new_email)
+    except EmailTakenError:
+        raise AccountFieldError("new_email", "email_taken", _EMAILCHANGE_TAKEN_MSG)
+    except (HTTPException, AccountFieldError):
+        raise
+    except Exception as e:
+        raise _server_error("email_change_request", e)
+    link = email_service.get_settings()["site_url"] + "/confirm-email#token=" + link_token
+    res = email_service.send_email(new_email, "email_change",
+                                   {"name": user.get("full_name") or "", "link": link,
+                                    "minutes": EMAIL_TOKEN_TTL_MINUTES})
+    if not res.get("ok"):
+        return api_error(502, "email_failed", "تعذّر إرسال رابط التأكيد، حاول مرة أخرى لاحقاً")
+    print(f"[email-change] link sent user={uid}")
+    return api_ok({"sent": True})
+
+@app.post("/auth/email-change/confirm")
+def email_change_confirm(data: EmailChangeConfirmInput, background_tasks: BackgroundTasks):
+    """No JWT: the link may be opened on another device. The token is the proof (it reached
+    the new inbox). Single use — consumed even when the address turns out taken."""
+    tok = (data.token or "").strip()
+    if not tok or len(tok) > _PWRESET_TOKEN_MAX:
+        return api_error(400, "invalid_token", _EMAILCHANGE_INVALID_MSG)
+    try:
+        changed = email_change_apply(tok)
+    except EmailTakenError:
+        return api_error(409, "email_taken", _EMAILCHANGE_TAKEN_MSG)
+    except Exception as e:
+        raise _server_error("email_change_confirm", e)
+    if not changed:
+        return api_error(400, "invalid_token", _EMAILCHANGE_INVALID_MSG)
+    uid = int(changed["id"])
+    _cache_del('profile:' + str(uid))
+    _login_email_reset(changed["old_email"])
+    background_tasks.add_task(email_service.send_email, changed["old_email"], "email_changed",
+                              {"name": changed["full_name"]})
+    print(f"[email-change] email changed user={uid}")
+    return api_ok({"changed": True})
+
 # Display-name length cap — same 100-char limit as the other name input (/profession-suggestions).
 _FULL_NAME_MAX = 100
 
@@ -5062,6 +5145,7 @@ async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
 # ══ KYC Endpoints ══
 
 _KYC_ERR_MSG = "تعذّر إتمام طلب التحقق حالياً، حاول مرة أخرى لاحقاً"
+_KYC_EMAIL_MISMATCH_MSG = "رمز التحقق يُرسل إلى بريد حسابك فقط — لتغييره استخدم «تغيير البريد الإلكتروني» في الإعدادات"
 _OTP_UNAVAILABLE = {"detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}}
 
 
@@ -5098,8 +5182,22 @@ def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
         return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
+        user = get_user_by_id(uid)
+        if not user:
+            raise HTTPException(404, detail="المستخدم غير موجود")
+        # The code goes to the account's own address only (verify checks users.email) —
+        # never to an address typed in the request.
+        account_email = (user.get("email") or "").strip().lower()
+        if (data.email or "").strip().lower() != account_email:
+            raise HTTPException(400, detail=_KYC_EMAIL_MISMATCH_MSG)
         start_kyc(uid)
-        code = send_email_code(uid, data.email)
+        code = send_email_code(uid, account_email)
+        res = email_service.send_email(account_email, "kyc_email_otp",
+                                       {"name": user.get("full_name") or "", "code": code,
+                                        "minutes": _OTP_TTL_MINUTES})
+        code = None
+        if not res.get("ok"):
+            return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
         _dev_otp_log("KYC Email", uid)
         return {"status": "success", "message": "تم إرسال الرمز على بريدك الإلكتروني"}
     except HTTPException:
