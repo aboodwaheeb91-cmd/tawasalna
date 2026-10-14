@@ -40,14 +40,14 @@
     "no_shell": 0
   },
   "company-profile.html": {
-    "colors": 898,
-    "dialogs": 4,
-    "fetch": 52,
+    "colors": 897,
+    "dialogs": 3,
+    "fetch": 26,
     "forsa": 0,
     "helpers": 0,
-    "ls_session": 3,
-    "no_header": 1,
-    "no_shell": 1
+    "ls_session": 0,
+    "no_header": 0,
+    "no_shell": 0
   },
   "edu-profile.html": {
     "colors": 0,

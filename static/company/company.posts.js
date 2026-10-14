@@ -44,10 +44,10 @@
 
   function _addTag(tag) {
     if (_selectedTags.length >= 5) {
-      if (window.showToast) showToast('يمكن اختيار 5 وسوم كحد أقصى'); return;
+      if (window.showToast) showToast('يمكن اختيار 5 وسوم كحد أقصى', 'error'); return;
     }
     if (!window.TW || !Array.isArray(TW.POST_TAGS) || TW.POST_TAGS.indexOf(tag) === -1) {
-      if (window.showToast) showToast('اختر الوسم من القائمة المقترحة'); return;
+      if (window.showToast) showToast('اختر الوسم من القائمة المقترحة', 'error'); return;
     }
     if (_selectedTags.indexOf(tag) !== -1) return; // no duplicate
     _selectedTags.push(tag);
@@ -160,7 +160,7 @@
         var first = dd ? dd.querySelector('.ptc-option') : null;
         if (first) { _addTag(first.dataset.tag); }
         else if (this.value.trim().length >= 1) {
-          if (window.showToast) showToast('اختر الوسم من القائمة المقترحة');
+          if (window.showToast) showToast('اختر الوسم من القائمة المقترحة', 'error');
         }
       });
     }
@@ -267,7 +267,7 @@
 
   function createPost() {
     if (_isEditingPost) { updatePost(); return; }
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    if (!window._jwt || !_jwt()) { location.href = twLoginHref(location.pathname + location.search); return; }
     if (!window.companyState || !companyState.permissions.can_edit) {
       if (window.showToast) showToast('غير مصرح', 'error'); return;
     }
@@ -283,28 +283,23 @@
     var commentsEnabled = !(noComEl && noComEl.checked);
 
     isPostCreating = true;
-    fetch('/company/posts', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled }),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('create failed: ' + r.status);
-      return r.json();
-    })
-    .then(function () {
+    twApi('/company/posts', {
+      method: 'POST',
+      body:   { body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled },
+    }).then(function (res) {
+      isPostCreating = false;
+      if (!res.ok) {
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر نشر المنشور'), 'error');
+        return;
+      }
       _closePostOverlay();
       if (window.loadPosts) loadPosts(true);
-      if (window.showToast) showToast('تم نشر المنشور ✓');
-    })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر نشر المنشور', 'error');
-    })
-    .finally(function () { isPostCreating = false; });
+      if (window.showToast) showToast('تم نشر المنشور ✓', 'success');
+    });
   }
 
   function updatePost() {
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    if (!window._jwt || !_jwt()) { location.href = twLoginHref(location.pathname + location.search); return; }
     if (!window.companyState || !companyState.permissions.can_edit) {
       if (window.showToast) showToast('غير مصرح', 'error'); return;
     }
@@ -321,51 +316,50 @@
     var commentsEnabled = !(noComEl && noComEl.checked);
 
     isPostCreating = true;
-    fetch('/company/posts/' + _editingPostId, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled }),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('update failed: ' + r.status);
-      return r.json();
-    })
-    .then(function () {
+    twApi('/company/posts/' + encodeURIComponent(_editingPostId), {
+      method: 'PATCH',
+      body:   { body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled },
+    }).then(function (res) {
+      isPostCreating = false;
+      if (!res.ok) {
+        if (window.showToast) showToast(twApiMessage(res, 'تعذّر تعديل المنشور'), 'error');
+        return;
+      }
       _closePostOverlay();
       if (window.loadPosts) loadPosts(true);
-      if (window.showToast) showToast('تم تعديل المنشور ✓');
-    })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر تعديل المنشور', 'error');
-    })
-    .finally(function () { isPostCreating = false; });
+      if (window.showToast) showToast('تم تعديل المنشور ✓', 'success');
+    });
   }
 
   function deletePost(postId) {
-    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    if (!window._jwt || !_jwt()) { location.href = twLoginHref(location.pathname + location.search); return; }
     if (!window.companyState || !companyState.permissions.can_edit) {
       if (window.showToast) showToast('غير مصرح', 'error'); return;
     }
     if (isPostDeleting) return;
-    if (!confirm('هل تريد حذف هذا المنشور؟')) return;
+    if (typeof window.twConfirm !== 'function') {   // fail closed — never delete unconfirmed (DS-OVL)
+      console.error('[Company] deletePost needs tw-overlay.js (DS-OVL)');
+      return;
+    }
 
-    isPostDeleting = true;
-    fetch('/company/posts/' + postId, {
-      method:  'DELETE',
-      headers: { 'Authorization': 'Bearer ' + _jwt() },
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('delete failed: ' + r.status);
-      return r.json();
-    })
-    .then(function () {
-      if (window.loadPosts) loadPosts(true);
-      if (window.showToast) showToast('تم حذف المنشور ✓');
-    })
-    .catch(function () {
-      if (window.showToast) showToast('تعذّر حذف المنشور', 'error');
-    })
-    .finally(function () { isPostDeleting = false; });
+    twConfirm({
+      title:       twT('company.post.delete_title'),
+      message:     twT('company.post.delete_msg'),
+      confirmText: twT('company.post.delete_confirm'),
+      danger:      true,
+    }).then(function (ok) {
+      if (!ok || isPostDeleting) return;
+      isPostDeleting = true;
+      twApi('/company/posts/' + encodeURIComponent(postId), { method: 'DELETE' }).then(function (res) {
+        isPostDeleting = false;
+        if (!res.ok) {
+          if (window.showToast) showToast(twApiMessage(res, twT('company.post.delete_failed')), 'error');
+          return;
+        }
+        if (window.loadPosts) loadPosts(true);
+        if (window.showToast) showToast(twT('company.post.deleted'), 'success');
+      });
+    });
   }
 
   // ── Post share ────────────────────────────────────────────────
@@ -373,8 +367,8 @@
     var ta = document.createElement('textarea');
     ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط المنشور ✓'); }
-    catch (e) { if (window.showToast) showToast('تعذّر النسخ تلقائياً'); }
+    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط المنشور ✓', 'success'); }
+    catch (e) { if (window.showToast) showToast('تعذّر النسخ تلقائياً', 'error'); }
     document.body.removeChild(ta);
   }
 
@@ -391,7 +385,7 @@
       navigator.share({ title: 'منشور: ' + coName, text: shareText, url: url }).catch(function () {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(shareText)
-        .then(function () { if (window.showToast) showToast('تم نسخ رابط المنشور ✓'); })
+        .then(function () { if (window.showToast) showToast('تم نسخ رابط المنشور ✓', 'success'); })
         .catch(function () { _sharePostFallback(shareText); });
     } else {
       _sharePostFallback(shareText);
@@ -412,7 +406,9 @@
     var createPostBtn = q('createPostBtn'); if (createPostBtn) createPostBtn.addEventListener('click', createPost);
 
     var postCancelBtn = q('postCancelBtn');
-    if (postCancelBtn) postCancelBtn.addEventListener('click', _closePostOverlay);
+    // Wrapped: passing _closePostOverlay directly made the click Event its `fromPopstate`
+    // argument (truthy) → the modal's history entry was never popped.
+    if (postCancelBtn) postCancelBtn.addEventListener('click', function () { _closePostOverlay(); });
   }
 
   // ── Post View Tracking ────────────────────────────────────────────────────
@@ -439,15 +435,12 @@
 
   function _sendView(postId) {
     var jwt     = window._jwt ? window._jwt() : '';
-    var headers = { 'Content-Type': 'application/json' };
     var body    = {};
-    if (jwt) { headers['Authorization'] = 'Bearer ' + jwt; }
-    else      { body.visitor_key = _getOrCreateVisitorKey(); }
+    if (!jwt) body.visitor_key = _getOrCreateVisitorKey();
 
-    fetch('/company/posts/' + postId + '/view', {
-      method: 'POST', headers: headers, body: JSON.stringify(body)
-    }).then(function (r) { return r.json(); })
-      .then(function (d) {
+    twApi('/company/posts/' + encodeURIComponent(postId) + '/view', { method: 'POST', body: body })
+      .then(function (res) {
+        var d = res.ok ? res.data : null;   // best-effort — a failed view is not shown
         if (d && d.status === 'success' && d.recorded) {
           // Bump the displayed count +1 without a full reload
           var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -460,7 +453,7 @@
           var svg = vEl.querySelector('svg');
           vEl.innerHTML = (svg ? svg.outerHTML : '') + _fmtViewsCount(next);
         }
-      }).catch(function () { /* best-effort — ignore network errors */ });
+      });
   }
 
   function initPostViewTracking(container) {
@@ -525,14 +518,7 @@
 
     _saveInFlight[postId] = true;
 
-    fetch('/company/posts/' + postId + '/save', {
-      method:  'PUT',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ saved: desired })
-    })
-      .then(function (r) {
-        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
-      })
+    twApi('/company/posts/' + encodeURIComponent(postId) + '/save', { method: 'PUT', body: { saved: desired } })
       .then(function (res) {
         _saveInFlight[postId] = false;
         var btn  = _saveGetBtn(postId);
@@ -542,7 +528,7 @@
           if (btn && orig) _renderSaveButton(btn, orig.active);
           delete _saveDesired[postId];
           delete _saveOrigState[postId];
-          if (window.showToast) showToast('الرجاء التمهّل قليلاً');
+          if (window.showToast) showToast('الرجاء التمهّل قليلاً', 'error');
           return;
         }
 
@@ -550,7 +536,7 @@
           if (btn && orig) _renderSaveButton(btn, orig.active);
           delete _saveDesired[postId];
           delete _saveOrigState[postId];
-          if (window.showToast) showToast('تعذّر حفظ المنشور');
+          if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ المنشور'), 'error');
           return;
         }
 
@@ -566,22 +552,13 @@
         if (btn) _renderSaveButton(btn, srvActive);
         delete _saveDesired[postId];
         delete _saveOrigState[postId];
-      })
-      .catch(function () {
-        _saveInFlight[postId] = false;
-        var btn  = _saveGetBtn(postId);
-        var orig = _saveOrigState[postId];
-        if (btn && orig) _renderSaveButton(btn, orig.active);
-        delete _saveDesired[postId];
-        delete _saveOrigState[postId];
-        if (window.showToast) showToast('تعذّر حفظ المنشور');
       });
   }
 
   function _toggleSave(postId) {
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) {
-      if (window.showToast) showToast('سجّل دخولك لحفظ المنشور');
+      if (window.showToast) showToast('سجّل دخولك لحفظ المنشور', 'info');
       return;
     }
     var btn = _saveGetBtn(postId);
@@ -632,14 +609,7 @@
 
     _apprInFlight[postId] = true;
 
-    fetch('/company/posts/' + postId + '/appreciation', {
-      method:  'PUT',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ appreciated: desired })
-    })
-      .then(function (r) {
-        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
-      })
+    twApi('/company/posts/' + encodeURIComponent(postId) + '/appreciation', { method: 'PUT', body: { appreciated: desired } })
       .then(function (res) {
         _apprInFlight[postId] = false;
         var btn = _apprGetBtn(postId);
@@ -651,7 +621,7 @@
           delete _apprDesired[postId];
           delete _apprOrigState[postId];
           if (window.showToast) {
-            showToast(res.status === 403 ? 'لا يمكنك تقدير منشورك' : 'الرجاء التمهّل قليلاً');
+            showToast(res.status === 403 ? 'لا يمكنك تقدير منشورك' : 'الرجاء التمهّل قليلاً', 'error');
           }
           return;
         }
@@ -660,7 +630,7 @@
           if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
           delete _apprDesired[postId];
           delete _apprOrigState[postId];
-          if (window.showToast) showToast('تعذّر تسجيل التقدير');
+          if (window.showToast) showToast(twApiMessage(res, 'تعذّر تسجيل التقدير'), 'error');
           return;
         }
 
@@ -680,22 +650,13 @@
         if (btn) _renderAppreciationButton(btn, srvActive, srvCount);
         delete _apprDesired[postId];
         delete _apprOrigState[postId];
-      })
-      .catch(function () {
-        _apprInFlight[postId] = false;
-        var btn = _apprGetBtn(postId);
-        var orig = _apprOrigState[postId];
-        if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
-        delete _apprDesired[postId];
-        delete _apprOrigState[postId];
-        if (window.showToast) showToast('تعذّر تسجيل التقدير');
       });
   }
 
   function _toggleAppreciation(postId) {
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) {
-      if (window.showToast) showToast('سجّل دخولك لتقدّر هذا المنشور');
+      if (window.showToast) showToast('سجّل دخولك لتقدّر هذا المنشور', 'info');
       return;
     }
 
@@ -984,9 +945,10 @@
       // Small avatar circle
       var avaEl = document.createElement('span');
       avaEl.className = 'pc-cmt-mention-ava';
-      if (cand.avatar) {
+      var candAva = twSafeImageUrl(cand.avatar);
+      if (candAva) {
         var img = document.createElement('img');
-        img.src = cand.avatar;
+        img.src = candAva;
         img.alt = '';
         img.className = 'pc-cmt-mention-ava-img';
         avaEl.appendChild(img);
@@ -1123,14 +1085,14 @@
         _menu.appendChild(_ld);
       }
       var url = '/mention/search?q=' + encodeURIComponent(capturedQuery) + '&limit=8';
-      fetch(url, { headers: { 'Authorization': 'Bearer ' + jwt } })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
+      twApi(url)
+        .then(function (r) {
+          var res = r.data || {};
           // Second stale-response guard: re-verify after async gap
           if (!_cmtMentionState.open) return;
           var postEx = _cmtExtractMentionQuery(ta.value, ta.selectionStart);
           if (!postEx.active || postEx.start !== capturedStart || postEx.query !== capturedQuery) return;
-          if (!res.ok || !Array.isArray(res.candidates)) {
+          if (!r.ok || !Array.isArray(res.candidates)) {
             var _ldEl = document.getElementById('pc-cmt-mention-loading');
             if (_ldEl) _ldEl.remove();
             return;
@@ -1140,10 +1102,6 @@
           var newFiltered = _cmtFilterMentionCandidates(capturedQuery, merged);
           // _cmtOpenMentionMenu calls menu.replaceChildren() — removes loading item automatically
           _cmtOpenMentionMenu(ta, postId, newFiltered, capturedStart);
-        })
-        .catch(function () {
-          var _ldEl = document.getElementById('pc-cmt-mention-loading');
-          if (_ldEl) _ldEl.remove();
         });
     }, 100);
   }
@@ -1537,9 +1495,10 @@
     if (c.author_tw_id) {
       ava.href = '/u/' + c.author_tw_id; // safe: tw_id from API
     }
-    if (c.author_avatar) {
+    var authorAva = twSafeImageUrl(c.author_avatar);
+    if (authorAva) {
       var img = document.createElement('img');
-      img.src = c.author_avatar;
+      img.src = authorAva;
       img.alt = '';
       img.className = 'pc-cmt-ava-img';
       ava.appendChild(img);
@@ -1737,15 +1696,18 @@
     if (list)    list.innerHTML = '';
     if (loading) loading.style.display = 'block';
 
-    var jwt = window._jwt ? window._jwt() : '';
-    var headers = { 'Content-Type': 'application/json' };
-    if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-
-    fetch('/company/posts/' + postId + '/comments', { headers: headers })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
+    twApi('/company/posts/' + encodeURIComponent(postId) + '/comments')
+      .then(function (res) {
         if (loading) loading.style.display = 'none';
         if (!list) return;
+        if (!res.ok) {
+          var err = document.createElement('div');
+          err.className = 'pc-cmts-empty';
+          err.textContent = 'تعذّر تحميل التعليقات';
+          list.appendChild(err);
+          return;
+        }
+        var data = res.data;
         var comments = (data && data.comments) ? data.comments : [];
         if (!comments.length) {
           var empty = document.createElement('div');
@@ -1755,15 +1717,6 @@
           return;
         }
         _cmtRenderComments(comments, list);
-      })
-      .catch(function () {
-        if (loading) loading.style.display = 'none';
-        if (list) {
-          var err = document.createElement('div');
-          err.className = 'pc-cmts-empty';
-          err.textContent = 'تعذّر تحميل التعليقات';
-          list.appendChild(err);
-        }
       });
   }
 
@@ -1799,11 +1752,11 @@
     var ta  = panel.querySelector('.pc-cmts-ta');
     if (!ta) return;
     var body = ta.value.trim();
-    if (!body) { if (window.showToast) showToast('اكتب تعليقاً أولاً'); return; }
-    if (body.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)'); return; }
+    if (!body) { if (window.showToast) showToast('اكتب تعليقاً أولاً', 'error'); return; }
+    if (body.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)', 'error'); return; }
 
     var jwt = window._jwt ? window._jwt() : '';
-    if (!jwt) { if (window.showToast) showToast('سجّل دخولك للتعليق'); return; }
+    if (!jwt) { if (window.showToast) showToast('سجّل دخولك للتعليق', 'info'); return; }
 
     var sendBtn = panel.querySelector('.pc-cmts-send');
     if (sendBtn) sendBtn.disabled = true;
@@ -1824,17 +1777,12 @@
     if (replyToId)                payload.reply_to_comment_id = replyToId;
     if (mentionedTwIdsOut.length) payload.mentioned_tw_ids    = mentionedTwIdsOut;
 
-    fetch('/company/posts/' + postId + '/comments', {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload)
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    twApi('/company/posts/' + encodeURIComponent(postId) + '/comments', { method: 'POST', body: payload })
       .then(function (res) {
         if (sendBtn) sendBtn.disabled = false;
         if (!res.ok || !res.data || res.data.status !== 'success') {
-          var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر إرسال التعليق';
-          if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
+          var msg = twApiMessage(res, 'تعذّر إرسال التعليق');
+          if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg, 'error');
           return;
         }
         ta.value = '';
@@ -1865,10 +1813,6 @@
           }
         }
         _cmtUpdateCount(postId, 1);
-      })
-      .catch(function () {
-        if (sendBtn) sendBtn.disabled = false;
-        if (window.showToast) showToast('تعذّر إرسال التعليق');
       });
   }
 
@@ -1940,8 +1884,8 @@
     saveBtn.addEventListener('click', function () {
       if (_cmtEditInFlight[cmtId]) return; // already saving
       var newBody = editTa.value.trim();
-      if (!newBody) { if (window.showToast) showToast('التعليق لا يمكن أن يكون فارغاً'); return; }
-      if (newBody.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)'); return; }
+      if (!newBody) { if (window.showToast) showToast('التعليق لا يمكن أن يكون فارغاً', 'error'); return; }
+      if (newBody.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)', 'error'); return; }
       var jwt = window._jwt ? window._jwt() : '';
       if (!jwt) return;
 
@@ -1956,12 +1900,7 @@
       editWrap.remove();
       _cmtRefreshCollapse(item); // re-evaluate collapse for new body length
 
-      fetch('/company/posts/comments/' + cmtId, {
-        method:  'PATCH',
-        headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ body: newBody })
-      })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+      twApi('/company/posts/comments/' + encodeURIComponent(cmtId), { method: 'PATCH', body: { body: newBody } })
         .then(function (res) {
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
@@ -1971,8 +1910,8 @@
             _cmtRefreshCollapse(item);
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
-            var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
-            if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
+            var msg = twApiMessage(res, 'تعذّر تعديل التعليق');
+            if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg, 'error');
             return;
           }
           // Confirm with server body + mark as edited + re-evaluate collapse for confirmed text
@@ -1987,15 +1926,6 @@
             editedEl.textContent = '· تم التعديل';
             metaRow.appendChild(editedEl);
           }
-        })
-        .catch(function () {
-          _cmtEditInFlight[cmtId] = false;
-          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
-            itemMentions.length ? itemMentions : null); // XSS-safe rollback
-          _cmtRefreshCollapse(item);
-          if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
-          else item.classList.remove('pc-cmt-visual-reply');
-          if (window.showToast) showToast('تعذّر تعديل التعليق');
         });
     });
   }
@@ -2004,15 +1934,10 @@
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) return;
 
-    fetch('/company/posts/comments/' + cmtId, {
-      method:  'DELETE',
-      headers: { 'Authorization': 'Bearer ' + jwt }
-    })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+    twApi('/company/posts/comments/' + encodeURIComponent(cmtId), { method: 'DELETE' })
       .then(function (res) {
         if (!res.ok || !res.data || res.data.status !== 'success') {
-          var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر حذف التعليق';
-          if (window.showToast) showToast(msg);
+          if (window.showToast) showToast(twApiMessage(res, 'تعذّر حذف التعليق'), 'error');
           return;
         }
         var panel = _cmtGetPanel(postId);
@@ -2056,9 +1981,6 @@
           }
         }
         _cmtUpdateCount(postId, -1);
-      })
-      .catch(function () {
-        if (window.showToast) showToast('تعذّر حذف التعليق');
       });
   }
 

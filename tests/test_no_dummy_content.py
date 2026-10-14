@@ -12,12 +12,16 @@ CO_RENDER = open("static/company/company.render.js", encoding="utf-8").read()
 
 
 def test_company_verified_row_is_data_driven():
-    row = re.search(r'<div class="ac-item"[^>]*>(?:(?!</div></div></div>).)*جهة موثقة من تواصلنا', CO_HTML)
-    assert row, "verification row missing"
-    assert 'id="coAboutVerifiedRow"' in row.group(0)
-    assert 'style="display:none"' in row.group(0)
-    assert "verifiedRow.style.display = p.is_verified ? '' : 'none'" in CO_RENDER
+    # PR 4.3a: the verification card starts hidden and is shown only by renderProfile when the
+    # API says is_verified (behaviour: tests/test_company_profile_page_runtime.js B5).
+    card = re.search(r'<div[^>]*id="coAboutVerifiedRow"[^>]*>', CO_HTML)
+    assert card, "verification card missing"
+    assert " hidden" in card.group(0)
     assert "غير موثقة" not in CO_HTML
+    # no hard-coded About values / fake job cards (PR 4.3a)
+    assert re.search(r'<div id="jobsList">\s*</div>', CO_HTML), "jobs list must start empty (no fake job cards)"
+    assert "0 توثيق معتمد" not in CO_HTML
+    assert 'class="ac-val" id="aboutType">—' not in CO_HTML
 
 
 def test_edu_has_no_hardcoded_dummy_content():

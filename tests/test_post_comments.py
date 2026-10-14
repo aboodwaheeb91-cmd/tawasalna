@@ -207,9 +207,9 @@ check(
 )
 
 # ── 24. Edit UX: Optimistic UI — body rendered before fetch ──────────────
-# _renderCommentBody(bodyEl, newBody, ...) must appear before fetch(...)
+# _renderCommentBody(bodyEl, newBody, ...) must appear before the PATCH request (twApi — PR 4.3a)
 optimistic_pos = cmt_edit_fn.find("_renderCommentBody(bodyEl, newBody")
-fetch_pos      = cmt_edit_fn.find("fetch('/company/posts/comments/")
+fetch_pos      = cmt_edit_fn.find("twApi('/company/posts/comments/")
 check(
     "24. Optimistic UI: bodyEl updated before fetch call",
     optimistic_pos != -1 and fetch_pos != -1 and optimistic_pos < fetch_pos
@@ -1894,8 +1894,8 @@ check(
     "_cmtMentionDebounce = setTimeout(function" in posts_js and ", 100)" in posts_js
 )
 check(
-    "123f. _cmtHandleMentionInput fetches /mention/search with Authorization header",
-    "'/mention/search?q='" in posts_js and "'Authorization'" in posts_js and "Bearer" in posts_js
+    "123f. _cmtHandleMentionInput requests /mention/search through twApi (JWT added by twApi — PR 4.3a)",
+    "'/mention/search?q='" in posts_js and "twApi(url)" in posts_js
 )
 
 # Guard: abort if menu closed or caret moved
@@ -2001,9 +2001,9 @@ check(
     "'جاري البحث…'" in posts_js and "pc-cmt-mention-loading" in posts_js
 )
 check(
-    "124h. loading indicator removed on API error or stale abort",
+    "124h. loading indicator removed on API error (twApi never rejects — one !ok path, PR 4.3a)",
     "getElementById('pc-cmt-mention-loading')" in posts_js and
-    posts_js.count("_ldEl.remove()") >= 2  # error + stale paths
+    posts_js.count("_ldEl.remove()") >= 1
 )
 check(
     "124h2. loading indicator CSS defined in company.css",
@@ -2505,7 +2505,7 @@ check(
 # ── 136: iOS PWA meta tags for public profile pages ───────────────────────
 from page_shell import apply_shell as _apply_shell136   # Page Shell page (PR 4.2a) — served HTML
 _psh136  = _apply_shell136(open('profile-showcase.html', encoding='utf-8').read(), 'profile-showcase.html')
-_cph136  = open('company-profile.html',   encoding='utf-8').read()
+_cph136  = _apply_shell136(open('company-profile.html', encoding='utf-8').read(), 'company-profile.html')   # Page Shell (PR 4.3a)
 # edu-profile.html is a Page Shell page (PR 4.7) — the iOS tags come from the shell, checked as served
 from page_shell import apply_shell as _apply_shell136
 _edu136  = _apply_shell136(open('edu-profile.html', encoding='utf-8').read(), 'edu-profile.html')
@@ -3299,8 +3299,8 @@ check(
     'ah-bell--active' not in _ah_css
 )
 check(
-    "154g. company-profile.html bell has data-ah-notif-badge element",
-    'data-ah-notif-badge' in _co_html
+    "154g. company-profile.html bell = the unified header's (no page bell — PR 4.3a, HEADER-NAV.md)",
+    '<header data-tw-header></header>' in _co_html and 'data-ah-notif-badge' not in _co_html
 )
 check(
     "154h. company-profile.html no longer loads the deleted app-header.js (PR 3.9)",
@@ -6985,19 +6985,16 @@ try:
     with open('static/company/company.css', encoding='utf-8') as _f180c: _co_css180 = _f180c.read()
 except Exception: pass
 
-# 180-01: Hub button is inside sc-head-right wrapper (alongside home-btn), owner-only
-# sc-head-right must contain BOTH home-btn and coHubBtn so logo stays absolute-centered
-_right_pos   = _co_html180.find('sc-head-right')
-_right_end   = _co_html180.find('</div>', _right_pos) if _right_pos >= 0 else -1
-_hub_btn_pos = _co_html180.find('id="coHubBtn"')
-_hub_in_right = (_right_pos >= 0 and _hub_btn_pos >= 0
-                 and _right_pos < _hub_btn_pos < _right_end)
-_hub_ctx180  = _co_html180[max(0, _hub_btn_pos - 10):_hub_btn_pos + 120] if _hub_btn_pos >= 0 else ''
-check("180-01. Hub button #coHubBtn is inside sc-head-right wrapper, owner-only, sc-hicon-bare",
-      _hub_in_right
-      and 'owner-only' in _hub_ctx180
-      and 'sc-hicon-bare' in _hub_ctx180
-      and 'ownerActions' not in _co_html180)
+# 180-01: the page header is the unified one (PR 4.3a — HEADER-NAV.md: no page-specific header),
+# so the hub button lives in the owner-only actions row of the page body (same id → same wiring).
+import re as _re180
+_owner_row180 = _re180.search(r'<div[^>]*class="[^"]*owner-only[^"]*"[^>]*id="ownerActions"[^>]*>(.*?)</div>',
+                           _co_html180, _re180.S)
+check("180-01. Hub button #coHubBtn is in the owner-only actions row (unified header — PR 4.3a)",
+      _owner_row180 is not None
+      and 'id="coHubBtn"' in _owner_row180.group(1)
+      and '<header data-tw-header></header>' in _co_html180
+      and 'sc-head-right' not in _co_html180)
 
 # 180-02: Hub overlay links to /messages and /appointments; overlay uses standalone class (no .overlay base)
 _hub_ov_pos  = _co_html180.find('id="coHubOverlay"')
@@ -8264,8 +8261,8 @@ check("486-12. updateCandidateJobStatus() defined and exported in company.api.js
       and "window.updateCandidateJobStatus" in _api486)
 
 # 486-13: API function calls PATCH /company/saved-candidates/{cid}/jobs/{jid}
-check("486-13. updateCandidateJobStatus calls PATCH /company/saved-candidates/.../jobs/... with JWT",
-      "'/company/saved-candidates/' + candidateId + '/jobs/' + jobId" in _api486
+check("486-13. updateCandidateJobStatus calls PATCH /company/saved-candidates/.../jobs/... via twApi",
+      "twApi('/company/saved-candidates/' + encodeURIComponent(candidateId) + '/jobs/' + encodeURIComponent(jobId)" in _api486
       and "'PATCH'" in _api486
       and "candidate_status" in _api486)
 

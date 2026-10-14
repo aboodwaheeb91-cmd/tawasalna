@@ -10,18 +10,9 @@
     if (el) el.textContent = value;
   }
 
-  function _esc(str) {
-    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  function _escAttr(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
+  // Escaping = the shared twEscHtml / twEscAttr (tw_shared.js — §54); no local copy.
+  var _esc     = twEscHtml;
+  var _escAttr = twEscAttr;
 
   // Shorten job location to country + city only: "الأردن، عمان، ..." → "الأردن - عمان"
   function _shortLoc(str) {
@@ -120,12 +111,6 @@
     }, 60000);
   }
 
-  function _escapeHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = s == null ? '' : String(s);
-    return d.innerHTML;
-  }
-
   function _relativeTime(iso) {
     if (!iso) return '';
     var then = new Date(iso).getTime();
@@ -153,26 +138,41 @@
   }
 
   // ── Profile ──────────────────────────────────────────────────
+  // Public link of this company — /u/{tw_id} (Smart Router, F7), never location.href.
+  function _companyPublicUrl() {
+    var tw = companyState.profile && companyState.profile.tw_id;
+    return tw ? location.origin + '/u/' + encodeURIComponent(tw) : '';
+  }
+
+  function _copyText(text) {
+    if (!text) { if (window.showToast) showToast(twT('company.copy_failed'), 'error'); return; }
+    var done = function () { if (window.showToast) showToast(twT('company.link_copied'), 'success'); };
+    var fail = function () { if (window.showToast) showToast(twT('company.copy_failed'), 'error'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
+    else fail();
+  }
+
   function renderProfile() {
     var p    = companyState.profile;
-    var name = p.full_name || '—';
+    var name = p.full_name || '';
 
-    // Cover: show saved cover_url on top of the CSS fallback background
-    var coverUrl = companyState.company && companyState.company.cover_url;
+    // Cover: saved cover_url (validated) on top of the CSS fallback background
+    var coverUrl = twSafeImageUrl(companyState.company && companyState.company.cover_url);
     if (coverUrl && window.setCover) window.setCover(coverUrl);
 
     _setText('coName',   name);
-    _setText('coDesc',   p.bio || 'لا يوجد وصف بعد.');
+    _setText('coDesc',   p.bio || twT('company.desc_empty'));
 
     document.querySelectorAll('[id^="postCoName"]').forEach(function (el) {
       el.textContent = name;
     });
 
-    // Logo: use DOM createElement to avoid inline styles
-    var logoEl = document.getElementById('coLogo');
-    if (logoEl && p.avatar_url) {
+    // Logo: validated URL only (DS-IMAGE — twSafeImageUrl); DOM createElement, no inline styles
+    var logoEl  = document.getElementById('coLogo');
+    var logoUrl = twSafeImageUrl(p.avatar_url);
+    if (logoEl && logoUrl) {
       var img = document.createElement('img');
-      img.src       = p.avatar_url;
+      img.src       = logoUrl;
       img.alt       = name;
       img.className = 'co-logo-img';
       logoEl.innerHTML = '';
@@ -191,39 +191,31 @@
       logoBadge.style.display = p.is_verified ? 'flex' : 'none';
     }
 
-    // About → verification row (PR 1.7): shown only when the API says is_verified — no "unverified" text
+    // About → verification card (PR 1.7): shown only when the API says is_verified — no "unverified" text
     var verifiedRow = document.getElementById('coAboutVerifiedRow');
-    if (verifiedRow) {
-      verifiedRow.style.display = p.is_verified ? '' : 'none';
-    }
+    if (verifiedRow) verifiedRow.hidden = !p.is_verified;
 
     // Industry label (replaces generic type badge)
     var badge = document.getElementById('coTypeBadge');
     if (badge) {
-      var industry = companyState.company && companyState.company.industry;
-      badge.textContent = industry || 'تصنيف غير محدد';
+      var industry = companyState.company && (companyState.company.industry || companyState.company.company_type);
+      badge.textContent = industry || twT('company.type_unset');
     }
 
-    // Meta row: page URL (always the company's Tawasalna profile link, not p.website)
+    // Meta row: the company's public Tawasalna link (/u/{tw_id}) — not p.website, not location.href
     var websiteEl      = document.getElementById('coWebsite');
     var websiteLink    = document.getElementById('coWebsiteLink');
     var websiteCopyBtn = document.getElementById('coWebsiteCopyBtn');
-    var pageUrl  = window.location.href;
-    var locParts = [p.country || '', p.city || '', p.location || ''].filter(Boolean);
-    var locStr   = locParts.join(' - ');
+    var pageUrl  = _companyPublicUrl();
 
-    if (websiteEl) websiteEl.style.display = 'inline-flex';
-    if (websiteLink) {
+    if (websiteEl) websiteEl.style.display = pageUrl ? 'inline-flex' : 'none';
+    if (websiteLink && pageUrl) {
       websiteLink.href        = pageUrl;
       websiteLink.textContent = pageUrl.replace(/^https?:\/\//, '');
     }
-    if (websiteCopyBtn) {
-      websiteCopyBtn.onclick = function () {
-        navigator.clipboard.writeText(pageUrl).then(function () {
-          if (window.showToast) showToast('تم نسخ الرابط ✓');
-        }).catch(function () {});
-      };
-    }
+    if (websiteCopyBtn) websiteCopyBtn.onclick = function () { _copyText(_companyPublicUrl()); };
+
+    var locStr = _locationText(p, ' - ');
     var hqRow  = document.getElementById('coHqRow');
     var hqText = document.getElementById('coHqText');
     if (hqRow) hqRow.style.display = locStr ? 'flex' : 'none';
@@ -237,6 +229,123 @@
       hqSpan.textContent = locStr;
       hqText.appendChild(hqSpan);
     }
+
+    renderAbout();
+    renderVisitorActions();
+  }
+
+  // Location text (Company Profile rule 9): country + city; + district when given;
+  // nothing at all → ''.
+  function _locationText(p, sep) {
+    return [p.country || '', p.city || '', p.location || ''].filter(Boolean).join(sep);
+  }
+
+  // ── About tab — every row from the API; no data → the row is not shown ──
+  function _aboutRow(rowId, valId, text) {
+    var row = document.getElementById(rowId);
+    var val = document.getElementById(valId);
+    var has = text != null && String(text).trim() !== '';
+    if (val && has) val.textContent = String(text);
+    if (row) row.hidden = !has;
+    return has;
+  }
+
+  function renderAbout() {
+    var p = companyState.profile || {};
+    var c = companyState.company || {};
+    var shown = 0;
+
+    var desc = document.getElementById('aboutDesc');
+    var descText = p.bio || c.description || '';
+    if (desc) { desc.textContent = descText; desc.hidden = !descText; }
+    if (descText) shown++;
+
+    if (_aboutRow('aboutTypeRow',    'aboutType',    c.industry || c.company_type)) shown++;
+    if (_aboutRow('aboutLocRow',     'aboutLoc',     _locationText(p, '، '))) shown++;
+    if (_aboutRow('aboutFoundedRow', 'aboutFounded', c.founded_year)) shown++;
+    if (_aboutRow('aboutSizeRow',    'aboutSize',    c.company_size)) shown++;
+    if (_aboutRow('aboutEmailRow',   'aboutEmail',   c.contact_email)) shown++;
+    if (_aboutRow('aboutPhoneRow',   'aboutPhone',   p.phone)) shown++;   // owner only (server strips it for visitors)
+
+    // Website: a link only when twSafeLinkUrl accepts it; any other value → plain text (§54 4b)
+    var webRow = document.getElementById('aboutWebRow');
+    var webVal = document.getElementById('aboutWeb');
+    var web    = (p.website || '').trim();
+    if (webVal) {
+      webVal.textContent = '';
+      if (web) {
+        var safe = twSafeLinkUrl(web);
+        if (safe) {
+          var a = document.createElement('a');
+          a.href = safe; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          a.textContent = web;
+          webVal.appendChild(a);
+        } else {
+          webVal.textContent = web;
+        }
+      }
+    }
+    if (webRow) webRow.hidden = !web;
+    if (web) shown++;
+
+    var empty = document.getElementById('aboutEmpty');
+    if (empty) empty.hidden = shown > 0;
+  }
+
+  // ── Visitor actions — Actions Registry (twAction · BTN-19). The registry decides who sees
+  //    what (owner → share only · guest → login button); the page writes no visibility rule.
+  function _actMode() {
+    var vm = companyState.viewMode;
+    return vm === 'owner' ? 'owner' : (vm === 'public-user' ? 'registered' : 'guest');
+  }
+
+  function _shareCompany() {
+    var url = _companyPublicUrl();
+    if (!url) return;
+    var name = (companyState.profile && companyState.profile.full_name) || '';
+    if (navigator.share) {
+      navigator.share({ title: name, text: twT('company.share_text', { name: name }), url: url })
+        .catch(function () {});
+    } else {
+      _copyText(url);
+    }
+  }
+
+  function renderVisitorActions() {
+    var row = document.getElementById('visitorActions');
+    if (!row || typeof twAction !== 'function') return;
+    var p    = companyState.profile || {};
+    var mode = _actMode();
+    row.innerHTML = '';
+
+    var follow = twAction('follow', {
+      ownerId: p.id, mode: mode, className: 'nb nb-follow',
+      onClick: function () { if (window.toggleFollow) window.toggleFollow(); }
+    });
+    if (follow) { follow.id = 'followBtn'; row.appendChild(follow); }
+
+    var msg = twAction('message', {
+      ownerId: p.id, mode: mode, className: 'nb nb-outline',
+      onClick: function () {
+        if (!p.tw_id) { if (window.showToast) showToast(twT('profile.message_failed'), 'error'); return; }
+        location.href = '/messages?with=' + encodeURIComponent(p.tw_id);
+      }
+    });
+    if (msg) { msg.id = 'contactBtn'; row.appendChild(msg); }
+
+    var share = twAction('share', {
+      ownerId: p.id, mode: mode, className: 'nb nb-outline', onClick: _shareCompany
+    });
+    if (share) row.appendChild(share);
+
+    var report = twAction('report', {
+      ownerId: p.id, mode: mode, className: 'nb nb-outline',
+      onClick: function () { twReportDialog({ reportedId: p.id, reportedType: 'company' }); }
+    });
+    if (report) row.appendChild(report);
+
+    row.hidden = !row.children.length;
+    renderFollowBtn();
   }
 
   // ── Helpers ───────────────────────────────────────────────────
@@ -304,7 +413,7 @@
       var st  = eff; // use effective status for all UI decisions
 
       // ── Logo: company avatar or initial fallback ───────────────
-      var avatarUrl = companyState.profile && companyState.profile.avatar_url;
+      var avatarUrl = twSafeImageUrl(companyState.profile && companyState.profile.avatar_url);
       var logoInner = avatarUrl
         ? '<img src="' + _escAttr(avatarUrl) + '" alt="" loading="lazy">'
         : '<span class="job-card-logo-init">'
@@ -422,8 +531,11 @@
   function renderFollowBtn() {
     var btn = document.getElementById('followBtn');
     if (!btn || !window.companyState) return;
-    var following = !!companyState.permissions.is_following;
-    btn.textContent = following ? '✓ متابَع' : '+ متابعة';
+    var following = !!(companyState.permissions && companyState.permissions.is_following);
+    var lbl = btn.querySelector('.tw-act-lbl');
+    if (lbl) lbl.textContent = twT(following ? 'action.following' : 'action.follow');
+    var ico = btn.querySelector('svg');
+    if (ico && window.twIconEl) btn.replaceChild(twIconEl(following ? 'user-check' : 'user-plus', { size: 'sm' }), ico);
     btn.classList.toggle('following', following);
   }
 
@@ -462,8 +574,8 @@
   function _postCardHtml(post) {
     var coName    = (window.companyState && companyState.profile)
       ? (companyState.profile.full_name || 'الشركة') : 'الشركة';
-    var avatarUrl = (window.companyState && companyState.profile)
-      ? (companyState.profile.avatar_url || '') : '';
+    var avatarUrl = twSafeImageUrl((window.companyState && companyState.profile)
+      ? companyState.profile.avatar_url : '');
 
     // Resolve theme color — null/unknown → teal
     var colorKey = (post.theme_color && window.TW && TW.POST_THEME_COLORS && TW.POST_THEME_COLORS[post.theme_color])
@@ -780,17 +892,20 @@
     renderBranches(window.companyState ? (companyState.branches || []) : []);
     if (window.renderFollowBtn) renderFollowBtn();
     if (window.renderRating)    renderRating();
-    if (window.lucide) lucide.createIcons();
+    if (window.lucide) lucide.createIcons();   // icons still built as data-lucide by main / jobs
   }
+
+  // Static page icons (DS-ICON — <i data-tw-icon>) → SVG once at init (ICON-03.1).
+  if (window.twIcon && typeof twIcon.hydrate === 'function') twIcon.hydrate(document);
 
   // ── Expose ────────────────────────────────────────────────────
   window._setText        = _setText;
-  window._esc            = _esc;
-  window._escapeHtml     = _escapeHtml;
   window._relativeTime   = _relativeTime;
   window._starsString    = _starsString;
   window._paintRateStars = _paintRateStars;
   window.renderProfile   = renderProfile;
+  window.renderAbout     = renderAbout;
+  window.renderVisitorActions = renderVisitorActions;
   window.renderStats     = renderStats;
   window.renderJobs      = renderJobs;
   window.renderFollowBtn = renderFollowBtn;

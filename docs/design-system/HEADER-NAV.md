@@ -114,7 +114,7 @@
 |--------|--------|
 | `home-v2` · `notifications` · `messages` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail` | ✅ PR 3.2 |
 | `profile-showcase.html` | ✅ PR 4.2a — الهيدر الموحّد + الشريط السفلي؛ «المعاينة» طلعت من قائمة الهيدر لزر بالصفحة تحت الهيدر (`.sc-owner-bar` → `#scEyeWrap`) + شريط «وضع المعاينة» (`#scPreviewBar`) فيه «إنهاء المعاينة»؛ نسخة `.sc-header` / `.sc-menu-*` بـ `profile-v2.css` انحذفت؛ لوغو بطاقة QR = `TW_LOGO_SRC`. |
-| `company-profile.html` | 🔜 المرحلة 4 — `.co-hdr` فيه أزرار مالك + `coMenuDynamic`، و `company.main.js` بيعتمد عليه، ونفس الصفحة فيها منطق المتابعة. |
+| `company-profile.html` | ✅ PR 4.3a — الهيدر الموحّد + الشريط السفلي؛ `.co-hdr` انحذف — أزرار المالك («تعديل معلومات الشركة» `#editInfoBtn` + «التواصل والمواعيد» `#coHubBtn`) طلعت لصف بالصفحة `#ownerActions` (نفس الـ ids)؛ أزرار الزائر عبر `twAction`. |
 | `landing.html` | ✅ PR 4.1 — هيدر الزائر الموحّد (لوغو · تسجيل الدخول · إنشاء حساب) بدون شريط سفلي؛ روابط الأقسام الداخلية (`#who` …) انشالت من الهيدر (الهيدر تنقّل بس). |
 | `index.html` (login) · الأدمن | خارج النطاق — صفحة دخول / أدمن إلها هيدرها الخاص. |
 
