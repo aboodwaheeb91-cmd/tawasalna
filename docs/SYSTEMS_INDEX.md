@@ -417,9 +417,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `ARCHITECTURE.md §75` (التدفق + قاعدة الربط بالوظيفة) · `docs/APPOINTMENTS_PLAN.md §18` · القوانين: `docs/rules/schedule-interview.md`.
 - Backend: `candidate_id + job_id` بدون pipeline entry → إضافة بنفس الـ transaction عبر `_shortlist_candidate_in_tx` (نفس قلب «ترشيح للوظيفة» — ما في رجوع لورا `_CANDIDATE_STATUS_RANK`)؛ ربط جديد بيحتاج وظيفة فعّالة (`409 job_not_active`)؛ مرفوض / منسحب → `409 candidate_rejected` / `candidate_withdrawn`؛ موعد مفتوح → `409 appointment_exists`؛ وظيفة شركة تانية → 403؛ مش emp → 400. العقد `{ok, data}` / `{ok:false, error}` (§45b).
 - Frontend: نافذة `twModal` (DS-OVL) · DS-DATE DateTime dropdowns (`.ep-select` + `scSelectInit`) · أونلاين عبر `twSafeLinkUrl` (+ `https://`) / حضوري · كل الطلبات `twApi`. الزر بيطلع بس لحساب `co` على `emp` (مش نفسه) من `TwAuthSync`؛ موعد مفتوح → «فتح الموعد» → الغرفة (طلب واحد مجمّع لكل وظيفة). **مسودة (PR 4.0):** `GET /api/schedule/open` بيرجّع كمان `mode` / `online_url` / `location_text` → النافذة بتنفتح على نوع المسودة ورابطها / مكانها؛ `POST /api/appointments/{id}/send` بياخد `mode` اختياري → السيرفر بيحدّث نوع المسودة (حقل النوع التاني بينمسح؛ نوع غير معروف → 400).
-- التحميل: `appointments.html` · `company-profile.html` (PR 4.3a) · `profile-showcase.html` عبر `PAGE_ASSETS` (`tw-schedule.js` · `tw-select.js` · `tw-select.css`)؛ الصفحات غير المحوّلة للـ shell بـ `?v=sched-v2` يدوي.
+- **إعادة جدولة (PR 4.12):** `twScheduleInterview({candidateId, candidateName, reschedule: appt})` لموعد بحالة `reschedule_requested` → نفس النافذة («اقتراح موعد جديد»): نفس حقول التاريخ / الوقت (توقيت المستخدم المحلي → UTC ISO) + المهلة + الرابط / المكان؛ النوع ثابت (السيرفر ما بيغيّره) وبدون ممثل الشركة → `POST /api/appointments/{id}/reschedule`. نجاح → toast + الغرفة. غرفة الموعد بتفتح المسودة كمان عبر `draft: appt`.
+- التحميل: `appointments.html` · `appointment-room.html` (PR 4.12) · `company-profile.html` (PR 4.3a) · `profile-showcase.html` عبر `PAGE_ASSETS` (`tw-schedule.js` · `tw-select.js` · `tw-select.css`)؛ الصفحات غير المحوّلة للـ shell بـ `?v=sched-v2` يدوي.
 **Do not recreate:**
-- ❌ مودال موعد خاص بصفحة (انحذف `#coApptModal` / `_openApptModal` / `#newApptModal`) · ❌ حقل `application_id` يكتبه المستخدم · ❌ زر «تحديد موعد» مش عبر `twScheduleButton` / `twScheduleMount`.
+- ❌ مودال موعد خاص بصفحة (انحذف `#coApptModal` / `_openApptModal` / `#newApptModal` · وبـ PR 4.12 `#sendModal` / `#reschedModal` / `#reasonModal` + `datetime-local` من `appointment-room.html`) · ❌ حقل `application_id` يكتبه المستخدم · ❌ زر «تحديد موعد» مش عبر `twScheduleButton` / `twScheduleMount`.
 - ❌ إنشاء pipeline entry للموعد بغير `_shortlist_candidate_in_tx` · ❌ موعد بدون وظيفة · ❌ قرار إظهار الزر من `tw_user`.
 **Test:** `python -m pytest tests/test_schedule_interview.py -q` (`TW_TEST_DB_URL`) · `node tests/test_schedule_interview_runtime.js`.
 
@@ -1284,4 +1285,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-14 — PR 4.11 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-14 — PR 4.12 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

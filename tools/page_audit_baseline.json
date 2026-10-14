@@ -20,21 +20,21 @@
     "no_shell": 1
   },
   "appointment-room.html": {
-    "colors": 28,
+    "colors": 0,
     "dialogs": 0,
-    "fetch": 1,
+    "fetch": 0,
     "forsa": 0,
-    "helpers": 2,
+    "helpers": 0,
     "ls_session": 0,
     "no_header": 0,
     "no_shell": 0
   },
   "appointments.html": {
-    "colors": 16,
+    "colors": 0,
     "dialogs": 0,
     "fetch": 0,
     "forsa": 0,
-    "helpers": 1,
+    "helpers": 0,
     "ls_session": 0,
     "no_header": 0,
     "no_shell": 0

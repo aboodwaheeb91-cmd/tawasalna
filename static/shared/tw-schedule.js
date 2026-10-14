@@ -4,7 +4,7 @@
 //
 // Usage:
 //   twScheduleInterview({ candidateId?, candidateName?, jobId?, jobTitle?, applicationId?,
-//                         entryId?, navigate? }) → Promise<appointment | null>
+//                         entryId?, draft?, reschedule?, navigate? }) → Promise<appointment | null>
 //     The dialog (DS-OVL twModal): person (search when candidateId is missing) · job (picker
 //     of the company's active jobs when jobId is missing) · date + time (DS-DATE DateTime:
 //     day / month / year + hour / minute / ص-م dropdowns, DS-SEL engine) · type (أونلاين +
@@ -13,6 +13,10 @@
 //     job's pipeline when needed — never sends application_id) → POST /{id}/send.
 //     applicationId / entryId are context hints only — the server resolves the link.
 //     Success → toast + 'tw:appointment-scheduled' event + room page (navigate:false = stay).
+//     draft: an appointment in 'draft' → the dialog sends that draft (no new appointment).
+//     reschedule (PR 4.12): an appointment in 'reschedule_requested' → «اقتراح موعد جديد»:
+//     same date / time / deadline / link-or-place fields (type fixed to the appointment's own,
+//     no company-rep field) → POST /{id}/reschedule. Success → toast + room page.
 //   twScheduleButton({ candidateId, candidateName?, candidateType?, jobId?, jobTitle?,
 //                      className?, navigate? }) → HTMLButtonElement | null
 //     null unless the viewer is a company (TwAuthSync snapshot) looking at an emp account
@@ -289,12 +293,15 @@
       injectStyle();
 
       var draft = opts.draft && opts.draft.status === 'draft' ? opts.draft : null;
+      var resched = !draft && opts.reschedule && opts.reschedule.status === 'reschedule_requested'
+        ? opts.reschedule : null;
+      var base = draft || resched;   // an existing appointment the dialog works on
       var st = {
         cand: opts.candidateId ? { id: parseInt(opts.candidateId, 10), name: opts.candidateName || '' } : null,
-        jobId: draft ? draft.job_id : (parseInt(opts.jobId, 10) || null),
-        jobTitle: draft ? (draft.job_title || '') : (opts.jobTitle || ''),
+        jobId: base ? base.job_id : (parseInt(opts.jobId, 10) || null),
+        jobTitle: base ? (base.job_title || '') : (opts.jobTitle || ''),
         draftId: draft ? draft.id : null,
-        mode: draft && draft.mode === 'onsite' ? 'onsite' : 'online',   // a draft opens on its own mode
+        mode: base && base.mode === 'onsite' ? 'onsite' : 'online',   // opens on the appointment's own mode
         result: null,
       };
 
@@ -386,7 +393,9 @@
       var bOn = el('button', null, 'أونلاين'); bOn.type = 'button';
       var bOff = el('button', null, 'حضوري'); bOff.type = 'button';
       seg.appendChild(bOn); seg.appendChild(bOff);
-      form.appendChild(field('نوع المقابلة', seg));
+      var segF = field('نوع المقابلة', seg);
+      segF.hidden = !!resched;   // reschedule keeps the appointment's type (the server never changes it)
+      form.appendChild(segF);
       var url = el('input', 'tw-sch-in');
       url.type = 'url'; url.dir = 'ltr'; url.placeholder = 'https://meet.google.com/…';
       var urlF = field('رابط الاجتماع', url);
@@ -403,7 +412,7 @@
       }
       bOn.addEventListener('click', function () { setMode('online'); });
       bOff.addEventListener('click', function () { setMode('onsite'); });
-      if (draft) { url.value = draft.online_url || ''; loc.value = draft.location_text || ''; }
+      if (base) { url.value = base.online_url || ''; loc.value = base.location_text || ''; }
       setMode(st.mode);
 
       var dl = sel('tw-sch-dl', 'مهلة الرد', DEADLINES.map(function (h) {
@@ -413,7 +422,9 @@
       form.appendChild(field('مهلة رد المرشح', dl));
       var rep = el('input', 'tw-sch-in');
       rep.type = 'text'; rep.maxLength = 200; rep.placeholder = 'اسم مسؤول المقابلة (اختياري)';
-      form.appendChild(field('ممثل الشركة', rep));
+      var repF = field('ممثل الشركة', rep);
+      repF.hidden = !!resched;   // /reschedule has no company-rep field
+      form.appendChild(repF);
       var notes = el('textarea', 'tw-sch-in');
       notes.maxLength = 1000; notes.rows = 2; notes.placeholder = 'أي تفاصيل أو تعليمات إضافية…';
       form.appendChild(field('ملاحظات', notes));
@@ -445,6 +456,17 @@
           notes: notes.value.trim() || null,
           representative_name: rep.value.trim() || null,
         };
+        if (resched) {
+          return twApi('/api/appointments/' + encodeURIComponent(resched.id) + '/reschedule', {
+            method: 'POST', body: {
+              new_scheduled_at: when.toISOString(), deadline_hours: hours,
+              online_url: link, location_text: place, notes: extra.notes,
+            } }).then(function (r) {
+            if (!r.ok) return fail(twApiMessage(r, twT('appt.room.reschedule_failed')));
+            st.result = { id: resched.id, status: 'pending_response', job_id: jobId };
+            return true;
+          });
+        }
         var createP = st.draftId
           ? Promise.resolve({ ok: true, data: { id: st.draftId } })
           : twApi('/api/appointments', { method: 'POST', body: {
@@ -479,15 +501,18 @@
       }
 
       twModal({
-        title: 'تحديد موعد مقابلة',
+        title: resched ? twT('appt.room.propose') : 'تحديد موعد مقابلة',
         content: form,
         actions: [
           { text: 'إلغاء', variant: 'secondary' },
-          { text: 'إرسال الدعوة', variant: 'primary', onClick: submit },
+          { text: resched ? twT('appt.room.reschedule_submit') : 'إرسال الدعوة', variant: 'primary', onClick: submit },
         ],
         onClose: function () {
           var r = st.result;
-          if (r) {
+          if (r && resched) {
+            toast(twT('appt.room.reschedule_done'));
+            if (opts.navigate !== false) location.href = roomHref(r.id);
+          } else if (r) {
             toast('تم إرسال دعوة المقابلة ✓');
             try {
               document.dispatchEvent(new CustomEvent('tw:appointment-scheduled', { detail: {

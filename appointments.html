@@ -7,10 +7,11 @@
 <title></title>
 <meta name="tw-page" content="auth">
 <style>
-/* Appointments — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
+/* Appointments — page styles (DS-COLOR --color-* only — PR 4.12 · DS-SIZE tokens · local --ap-* = page aliases of tokens) */
 :root{
-  --ap-border:rgba(255,255,255,.07);
-  --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
+  --ap-border:var(--color-border-subtle);
+  --ap-text:var(--color-text-body);--ap-text-sub:var(--color-text-meta);
+  --ap-danger:var(--color-status-danger-strong);--ap-warn:var(--color-status-warning-strong);
   --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
 body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh}
@@ -27,7 +28,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 /* Cards */
 .appt-card{background:var(--color-surface-card);border:1px solid var(--ap-border);border-radius:var(--r);
   padding:var(--space-8);margin-bottom:var(--space-6);transition:.2s;cursor:pointer}
-.appt-card:hover{border-color:rgba(var(--color-brand-primary-rgb),.3);background:rgba(255,255,255,.05)}
+.appt-card:hover{border-color:rgba(var(--color-brand-primary-rgb),.3);background:rgba(var(--color-ink-rgb),.05)}
 .card-top{display:flex;align-items:flex-start;gap:var(--space-6);margin-bottom:var(--space-6)}
 .card-info{flex:1;min-width:0}
 .card-name{font-size:var(--size-font-xl);font-weight:700;color:var(--ap-text);margin-bottom:3px;
@@ -35,15 +36,15 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .card-job{font-size:var(--size-font-md);color:var(--ap-text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{display:inline-flex;align-items:center;gap:var(--space-2);padding:3px var(--space-5);border-radius:var(--radius-3xl);
   font-size:11px;font-weight:700}
-.badge-pending{background:rgba(245,158,11,.12);color:var(--ap-warn)}
+.badge-pending{background:rgba(var(--color-status-warning-strong-rgb),.12);color:var(--ap-warn)}
 .badge-confirmed{background:rgba(var(--color-brand-primary-rgb),.12);color:var(--color-brand-primary)}
-.badge-cancelled{background:rgba(239,68,68,.12);color:var(--ap-danger)}
-.badge-reschedule{background:rgba(139,92,246,.12);color:var(--color-brand-accent)}
-.badge-expired{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-cancelled{background:rgba(var(--color-status-danger-strong-rgb),.12);color:var(--ap-danger)}
+.badge-reschedule{background:rgba(var(--color-brand-accent-rgb),.12);color:var(--color-brand-accent)}
+.badge-expired{background:rgba(var(--color-status-danger-strong-rgb),.1);color:var(--color-status-danger)}
 .badge-completed{background:rgba(var(--color-brand-secondary-rgb),.12);color:var(--color-brand-secondary)}
-.badge-closed{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
-.badge-draft{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
-.badge-missed{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-closed{background:rgba(var(--color-ink-rgb),.06);color:var(--ap-text-sub)}
+.badge-draft{background:rgba(var(--color-ink-rgb),.06);color:var(--ap-text-sub)}
+.badge-missed{background:rgba(var(--color-status-danger-strong-rgb),.1);color:var(--color-status-danger)}
 .card-meta{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center}
 .meta-item{display:flex;align-items:center;gap:var(--space-2);font-size:var(--size-font-xs);color:var(--ap-text-sub)}
 .meta-item .tw-ico{flex-shrink:0}
@@ -65,7 +66,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .empty-icon .tw-ico{width:48px;height:48px}
 .empty-txt{font-size:var(--size-font-xl);margin-bottom:var(--space-3);color:var(--ap-text)}
 .empty-sub{font-size:var(--size-font-md)}
-.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
+.skeleton{background:linear-gradient(90deg,rgba(var(--color-ink-rgb),.04) 25%,rgba(var(--color-ink-rgb),.07) 50%,rgba(var(--color-ink-rgb),.04) 75%);
   background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm)}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
 .sk-card{height:120px;margin-bottom:var(--space-6);border-radius:var(--r)}
@@ -148,14 +149,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   // one result shape; 401 → TwAuthSync.invalidateSession → the page guard sends the visitor
   // to /login?next=. Error text via twApiMessage (FBK M15).
 
-  function formatDate(iso){
-    if (!iso) return '';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString('ar-JO', { dateStyle: 'medium', timeStyle: 'short' });
-    } catch(e){ return iso; }
-  }
-
   function metaItem(icon, text){
     const mi = document.createElement('div');
     mi.className = 'meta-item';
@@ -189,7 +182,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   function renderCard(a){
     const s = a.computed_status || a.status;
     const cls = STATUS_CLASS[s] || 'badge-draft';
-    const lbl = STATUS_CLASS[s] ? twT('appt.status.' + s) : s;
+    const lbl = twT(STATUS_CLASS[s] ? 'appt.status.' + s : 'appt.status.unknown');
 
     const card = document.createElement('div');
     card.className = 'appt-card';
@@ -228,8 +221,8 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 
     const meta = document.createElement('div');
     meta.className = 'card-meta';
-    if (a.scheduled_at) meta.appendChild(metaItem('clock', formatDate(a.scheduled_at)));
-    meta.appendChild(metaItem('calendar', a.mode === 'online' || a.mode === 'onsite' ? twT('appt.mode.' + a.mode) : a.mode));
+    if (a.scheduled_at) meta.appendChild(metaItem('clock', twFormatDateTime(a.scheduled_at)));   // DS date display (§59a)
+    if (a.mode === 'online' || a.mode === 'onsite') meta.appendChild(metaItem('calendar', twT('appt.mode.' + a.mode)));
     card.appendChild(meta);
 
     const footer = document.createElement('div');

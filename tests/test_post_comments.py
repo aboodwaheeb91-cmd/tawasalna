@@ -5566,16 +5566,18 @@ check(
 check(
     "171-70. appointment-room.html: loads room via /api/appointments/{id}",
     '/api/appointments/\'+APPT_ID' in _roomhtml or
-    '/api/appointments/"+APPT_ID' in _roomhtml
+    '/api/appointments/"+APPT_ID' in _roomhtml or
+    "twApi('/api/appointments/' + APPT_ID" in _roomhtml   # PR 4.12: apptApi → twApi
 )
 check(
     "171-71. appointment-room.html: no innerHTML for user data (safeText used)",
     # safeText is the shared helper in tw_shared.js (loaded by the page)
-    'safeText(' in _roomhtml and '.textContent' in _roomhtml and 'tw_shared.js' in _roomhtml
+    # PR 4.12: structure — text via safeText, innerHTML only ever cleared ('')
+    'safeText(' in _roomhtml and not __import__('re').search(r"innerHTML\s*=(?!\s*'';)", _roomhtml)
 )
 check(
     "171-72. appointment-room.html: event timeline tab exists",
-    'سجل الأحداث' in _roomhtml and '/events' in _roomhtml
+    "twT('appt.room.tab_events')" in _roomhtml and '/events' in _roomhtml   # PR 4.12: text via twT
 )
 check(
     "171-73. appointment-room.html: messages tab with send functionality",
@@ -5749,13 +5751,16 @@ check(
     "171-105. auth.py: reschedule_appointment uses effective_url from request OR existing appt",
     'effective_url = online_url or appt.get' in _resched_fn2
 )
+# PR 4.12: the room's own send / reschedule modals are gone — both go through the shared
+# schedule dialog (twScheduleInterview draft / reschedule mode — its link field is tested in
+# tests/test_schedule_interview_runtime.js D + E).
 check(
-    "171-106. appointment-room.html: send modal has online_url field (sendUrlGrp)",
-    'sendUrlGrp' in _roomhtml and 'sendUrl' in _roomhtml
+    "171-106. appointment-room.html: draft send → shared dialog (no page send modal)",
+    'draft: appt' in _roomhtml and 'id="sendModal"' not in _roomhtml
 )
 check(
-    "171-107. appointment-room.html: reschedule modal has online_url field (reschedUrlGrp)",
-    'reschedUrlGrp' in _roomhtml and 'reschedUrl' in _roomhtml
+    "171-107. appointment-room.html: reschedule → shared dialog reschedule mode (no page modal)",
+    'reschedule: appt' in _roomhtml and 'id="reschedModal"' not in _roomhtml
 )
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -5883,33 +5888,34 @@ check(
     'new_scheduled_at || ev.payload.scheduled_at' in _roomhtml2 or
     'ev.payload.new_scheduled_at ||' in _roomhtml2
 )
+# PR 4.12: every room request goes through twApi (never rejects) — success reloads, failure
+# shows the server's message as an error toast (doAction); the date pickers are the shared
+# dialog's (local time — tests/test_schedule_interview_runtime.js E).
+_room_doaction = _roomhtml2.split('function doAction')[1].split('\n  }\n')[0] if 'function doAction' in _roomhtml2 else ''
 check(
-    "172-22. BUG22 fixed: doAccept has .catch() handler",
-    '.catch(function(){ showToast(' in _roomhtml2.split('function doAccept')[1].split('function doComplete')[0]  # PR 3B: no alert()
-    if 'function doAccept' in _roomhtml2 and 'function doComplete' in _roomhtml2 else False
+    "172-22. BUG22 fixed: doAccept → doAction (error toast on failure)",
+    "doAction('/accept')" in _roomhtml2 and "showToast(twApiMessage(res" in _room_doaction
 )
 check(
-    "172-23. BUG22 fixed: doComplete has .catch() handler",
-    '.catch(function(){ showToast(' in _roomhtml2.split('function doComplete')[1].split('function doClose')[0]  # PR 3B: no alert()
-    if 'function doComplete' in _roomhtml2 and 'function doClose' in _roomhtml2 else False
+    "172-23. BUG22 fixed: doComplete → doAction (error toast on failure)",
+    "doAction('/complete')" in _roomhtml2 and "if (res.ok)" in _room_doaction
 )
 check(
-    "172-24. BUG22 fixed: doClose has .catch() handler",
-    '.catch(function(){ showToast(' in _roomhtml2.split('function doClose')[1].split('\n  function ')[0]
-    if 'function doClose' in _roomhtml2 else False  # PR 3B: no alert()
+    "172-24. BUG22 fixed: doClose → doAction (error toast on failure)",
+    "doAction('/close')" in _roomhtml2
 )
 check(
-    "172-25. BUG24 fixed: send modal sets min attribute on datetime-local input before open",
-    'sendSchedAt' in _roomhtml2 and 'sendSchedAt\').min' in _roomhtml2
+    "172-25. BUG24 fixed: no page datetime-local picker (send = shared dialog)",
+    'datetime-local' not in _roomhtml2 and 'twScheduleInterview(' in _roomhtml2
 )
 check(
-    "172-26. BUG24 fixed: reschedule modal sets min attribute on datetime-local before open",
-    'newSchedAt' in _roomhtml2 and 'newSchedAt\').min' in _roomhtml2
+    "172-26. BUG24 fixed: no UTC toISOString().slice min (reschedule = shared dialog)",
+    'toISOString().slice' not in _roomhtml2
 )
 check(
-    "172-27. appointment-room.html: doSendMsg already has .catch() (pre-existing, not regressed)",
-    '.catch(function(){ showToast(' in _roomhtml2.split('function doSendMsg')[1].split('function doAccept')[0]  # PR 3B
-    if 'function doSendMsg' in _roomhtml2 and 'function doAccept' in _roomhtml2 else False
+    "172-27. appointment-room.html: doSendMsg shows an error toast on failure",
+    'showToast(twApiMessage(res' in _roomhtml2.split('function doSendMsg')[1].split('function doAction')[0]
+    if 'function doSendMsg' in _roomhtml2 and 'function doAction' in _roomhtml2 else False
 )
 
 # ── Group 5: Frontend fixes — appointments.html (3 checks) ───────────────
@@ -7410,7 +7416,8 @@ check("184-17. dialog has day/month/year + hour/minute/ص-م dropdowns, type but
       all(c in _sched184 for c in ("'tw-sch-day'", "'tw-sch-mon'", "'tw-sch-yr'",
                                     "'tw-sch-hr'", "'tw-sch-min'", "'tw-sch-ap'"))
       and "'أونلاين'" in _sched184 and "'حضوري'" in _sched184
-      and "text: 'إرسال الدعوة'" in _sched184
+      # PR 4.12: submit text depends on the mode (send / reschedule) — structure: primary action = submit
+      and "variant: 'primary', onClick: submit" in _sched184
       and 'type="date"' not in _sched184 and "type = 'date'" not in _sched184)
 
 # 184-18: link row / place row shown by type

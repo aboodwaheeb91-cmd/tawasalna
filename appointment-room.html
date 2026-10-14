@@ -2,15 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <!--tw:shell-head-->
-<title>غرفة الموعد — تواصلنا</title>
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <link rel="stylesheet" href="/static/app-header.css">
+<title></title>
 <meta name="tw-page" content="auth">
 <style>
-/* Appointment room — page styles (Phase C: DS-COLOR --color-* · DS-SIZE tokens · local --ap-* = values with no matching token) */
+/* Appointment room — page styles (DS-COLOR --color-* only — PR 4.12 · DS-SIZE tokens · local --ap-* = page aliases of tokens) */
 :root{
-  --ap-border:rgba(255,255,255,.07);
-  --ap-text:#e8eaf0;--ap-text-sub:#8892a4;--ap-danger:#ef4444;--ap-warn:#f59e0b;
-  --ap-surface-modal:#0d1526;
+  --ap-border:var(--color-border-subtle);
+  --ap-text:var(--color-text-body);--ap-text-sub:var(--color-text-meta);
+  --ap-danger:var(--color-status-danger-strong);--ap-warn:var(--color-status-warning-strong);
   --r:var(--radius-xl);--font:'Cairo',sans-serif
 }
 body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(--font);min-height:100vh;
@@ -22,15 +23,15 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .room-head-sub{font-size:var(--size-font-xs);color:var(--ap-text-sub)}
 .badge{display:inline-flex;align-items:center;padding:var(--space-1) var(--space-5);border-radius:var(--radius-3xl);
   font-size:11px;font-weight:700}
-.badge-pending{background:rgba(245,158,11,.12);color:var(--ap-warn)}
+.badge-pending{background:rgba(var(--color-status-warning-strong-rgb),.12);color:var(--ap-warn)}
 .badge-confirmed{background:rgba(var(--color-brand-primary-rgb),.12);color:var(--color-brand-primary)}
-.badge-cancelled{background:rgba(239,68,68,.12);color:var(--ap-danger)}
-.badge-reschedule{background:rgba(139,92,246,.12);color:var(--color-brand-accent)}
-.badge-expired{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-cancelled{background:rgba(var(--color-status-danger-strong-rgb),.12);color:var(--ap-danger)}
+.badge-reschedule{background:rgba(var(--color-brand-accent-rgb),.12);color:var(--color-brand-accent)}
+.badge-expired{background:rgba(var(--color-status-danger-strong-rgb),.1);color:var(--color-status-danger)}
 .badge-completed{background:rgba(var(--color-brand-secondary-rgb),.12);color:var(--color-brand-secondary)}
-.badge-closed{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
-.badge-draft{background:rgba(255,255,255,.06);color:var(--ap-text-sub)}
-.badge-missed{background:rgba(239,68,68,.1);color:var(--color-status-danger)}
+.badge-closed{background:rgba(var(--color-ink-rgb),.06);color:var(--ap-text-sub)}
+.badge-draft{background:rgba(var(--color-ink-rgb),.06);color:var(--ap-text-sub)}
+.badge-missed{background:rgba(var(--color-status-danger-strong-rgb),.1);color:var(--color-status-danger)}
 /* Main layout: scrollable area above fixed bottom */
 .main{flex:1;overflow-y:auto;padding:var(--space-6) var(--space-8);padding-bottom:var(--space-4)}
 /* Info card */
@@ -51,7 +52,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .url-lbl{font-size:var(--size-font-xs);color:var(--ap-text-sub);margin-bottom:var(--space-1)}
 .url-link{font-size:var(--size-font-md);color:var(--color-brand-secondary);word-break:break-all}
 /* Onsite location */
-.loc-card{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:var(--radius-md);
+.loc-card{background:rgba(var(--color-status-warning-strong-rgb),.06);border:1px solid rgba(var(--color-status-warning-strong-rgb),.2);border-radius:var(--radius-md);
   padding:var(--space-5) var(--space-7);margin-bottom:var(--space-6);font-size:var(--size-font-md)}
 .loc-lbl{font-size:11px;color:var(--ap-text-sub);margin-bottom:3px}
 .loc-txt{color:var(--ap-text)}
@@ -62,10 +63,10 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3)}
 .btn-accept{background:rgba(var(--color-brand-primary-rgb),.15);border:1px solid rgba(var(--color-brand-primary-rgb),.3);color:var(--color-brand-primary)}
 .btn-accept:hover{background:rgba(var(--color-brand-primary-rgb),.25)}
-.btn-reschedule{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:var(--color-brand-accent)}
-.btn-cancel-act{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--ap-danger)}
+.btn-reschedule{background:rgba(var(--color-brand-accent-rgb),.12);border:1px solid rgba(var(--color-brand-accent-rgb),.25);color:var(--color-brand-accent)}
+.btn-cancel-act{background:rgba(var(--color-status-danger-strong-rgb),.1);border:1px solid rgba(var(--color-status-danger-strong-rgb),.2);color:var(--ap-danger)}
 .btn-complete{background:rgba(var(--color-brand-secondary-rgb),.12);border:1px solid rgba(var(--color-brand-secondary-rgb),.25);color:var(--color-brand-secondary)}
-.btn-close-room{background:rgba(255,255,255,.06);border:1px solid var(--ap-border);color:var(--ap-text-sub)}
+.btn-close-room{background:rgba(var(--color-ink-rgb),.06);border:1px solid var(--ap-border);color:var(--ap-text-sub)}
 .btn-propose{background:rgba(var(--color-brand-primary-rgb),.12);border:1px solid rgba(var(--color-brand-primary-rgb),.25);color:var(--color-brand-primary)}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid var(--ap-border);margin-bottom:var(--space-6)}
@@ -97,39 +98,23 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .msgs-older{align-self:center;background:none;border:1px solid var(--ap-border);border-radius:var(--radius-lg);color:var(--ap-text-sub);font-family:inherit;font-size:var(--size-font-xs);padding:var(--space-2) var(--space-5);cursor:pointer}
 .msgs-older:disabled{opacity:.6;cursor:default}
 /* Fixed bottom input */
-.msg-input-bar{position:sticky;bottom:0;background:rgba(7,11,24,.97);border-top:1px solid var(--ap-border);
+.msg-input-bar{position:sticky;bottom:0;background:var(--color-surface-glass);border-top:1px solid var(--ap-border);
   padding:var(--space-5) var(--space-8);display:flex;gap:var(--space-4);align-items:flex-end}
 .msg-input-bar.hidden{display:none}
 .msg-ta{flex:1;padding:9px var(--space-6);border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);
+  background:var(--color-surface-raised);color:var(--ap-text);font-family:var(--font);
   font-size:var(--size-font-lg);resize:none;min-height:38px;max-height:100px}
 .msg-ta:focus{outline:none;border-color:var(--color-brand-primary)}
 .msg-send-btn{padding:9px var(--space-8);border-radius:var(--radius-md);background:transparent;
   border:1.5px solid var(--color-brand-primary);color:var(--color-brand-primary);font-family:var(--font);font-size:var(--size-font-md);
   font-weight:700;cursor:pointer;flex-shrink:0;transition:.2s;height:38px}
 .msg-send-btn:hover{background:rgba(var(--color-brand-primary-rgb),.15)}
-/* Reschedule/reason modal */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
-  display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
-.modal-bg.open{opacity:1;pointer-events:all}
-.modal{background:var(--ap-surface-modal);border-radius:var(--radius-3xl) var(--radius-3xl) 0 0;padding:var(--space-11) var(--space-10) var(--space-13);
-  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
-.modal-bg.open .modal{transform:translateY(0)}
-.modal-title{font-size:var(--size-font-2xl);font-weight:700;margin-bottom:var(--space-8)}
-.form-group{margin-bottom:var(--space-7)}
-.form-label{font-size:var(--size-font-xs);color:var(--ap-text-sub);margin-bottom:5px;display:block}
-.form-input{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:rgba(255,255,255,.04);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
-.form-input:focus{outline:none;border-color:var(--color-brand-primary)}
-.form-select{width:100%;padding:var(--space-5) var(--space-7);border-radius:var(--radius-md);border:1px solid var(--ap-border);
-  background:var(--ap-surface-modal);color:var(--ap-text);font-family:var(--font);font-size:var(--size-font-lg)}
-.btn-submit{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-brand-primary);color:var(--color-text-primary);
-  border:none;font-size:var(--size-font-xl);font-weight:700;font-family:var(--font);cursor:pointer;margin-top:var(--space-2)}
-.btn-cancel-modal{width:100%;padding:var(--space-6);border-radius:var(--radius-lg);background:var(--color-surface-card);
-  color:var(--ap-text-sub);border:1px solid var(--ap-border);font-size:var(--size-font-xl);font-family:var(--font);
-  cursor:pointer;margin-top:var(--space-4)}
+/* Status note — every status has a visible line saying where the appointment stands (PR 4.12) */
+.status-note{display:flex;align-items:flex-start;gap:var(--space-3);background:var(--color-surface-raised);border:1px solid var(--ap-border);
+  border-radius:var(--radius-md);padding:var(--space-5) var(--space-7);margin-bottom:var(--space-6);font-size:var(--size-font-md);color:var(--ap-text)}
+.status-note .tw-ico{flex-shrink:0;color:var(--ap-text-sub);margin-top:var(--space-1)}
 /* closed overlay */
-.closed-banner{background:rgba(255,255,255,.04);border:1px solid var(--ap-border);
+.closed-banner{background:var(--color-surface-raised);border:1px solid var(--ap-border);
   border-radius:var(--radius-md);padding:var(--space-6) var(--space-8);color:var(--ap-text-sub);font-size:var(--size-font-md);
   margin-bottom:var(--space-6);display:flex;align-items:center;justify-content:center;gap:var(--space-3)}
 .error-page{text-align:center;padding:80px var(--space-10);color:var(--ap-text-sub)}
@@ -139,7 +124,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 .error-sub{font-size:var(--size-font-md);margin-top:var(--space-3)}
 .error-link{display:inline-block;margin-top:var(--space-10);color:var(--color-brand-primary);font-size:var(--size-font-md)}
 .error-fail{font-size:var(--size-font-md);color:var(--ap-danger)}
-.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
+.skeleton{background:linear-gradient(90deg,rgba(var(--color-ink-rgb),.04) 25%,rgba(var(--color-ink-rgb),.07) 50%,rgba(var(--color-ink-rgb),.04) 75%);
   background-size:200% 100%;animation:sk 1.4s infinite;border-radius:var(--radius-sm);margin-bottom:var(--space-5)}
 .sk-info{height:100px}.sk-url{height:60px}.sk-panel{height:200px}
 @keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
@@ -151,7 +136,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 <header data-tw-header data-back="/appointments"></header>
 <div class="room-head">
   <div class="room-head-info">
-    <div class="room-head-title" id="hdrTitle">غرفة الموعد</div>
+    <div class="room-head-title" id="hdrTitle" data-tw-t="appt.room.title"></div>
     <div class="room-head-sub" id="hdrSub"></div>
   </div>
   <span id="hdrBadge" class="badge"></span>
@@ -164,86 +149,15 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
 </div>
 
 <div class="msg-input-bar hidden" id="msgInputBar">
-  <textarea class="msg-ta" id="msgTa" rows="1" placeholder="اكتب رسالة..."></textarea>
-  <button class="msg-send-btn" id="msgSendBtn">إرسال</button>
-</div>
-
-<!-- Reason modal (cancel / request reschedule) -->
-<div class="modal-bg" id="reasonModal">
-  <div class="modal">
-    <div class="modal-title" id="reasonModalTitle">السبب</div>
-    <div class="form-group">
-      <label class="form-label">اكتب سبباً (اختياري)</label>
-      <input class="form-input" id="reasonInput" type="text" placeholder="السبب...">
-    </div>
-    <button class="btn-submit" id="btnConfirmReason">تأكيد</button>
-    <button class="btn-cancel-modal" id="btnCloseReason">إلغاء</button>
-  </div>
-</div>
-
-<!-- Reschedule proposal modal (company) -->
-<div class="modal-bg" id="reschedModal">
-  <div class="modal">
-    <div class="modal-title">اقتراح موعد جديد</div>
-    <div class="form-group">
-      <label class="form-label">التاريخ والوقت الجديد</label>
-      <input class="form-input" id="newSchedAt" type="datetime-local">
-    </div>
-    <div class="form-group">
-      <label class="form-label">مهلة الرد</label>
-      <select class="form-select" id="newDeadlineHrs">
-        <option value="24">24 ساعة</option>
-        <option value="48" selected>48 ساعة</option>
-        <option value="72">3 أيام</option>
-        <option value="168">7 أيام</option>
-      </select>
-    </div>
-    <div class="form-group" id="reschedUrlGrp" style="display:none">
-      <label class="form-label">رابط المقابلة (https://)</label>
-      <input class="form-input" id="reschedUrl" type="url" placeholder="https://meet.google.com/...">
-    </div>
-    <div class="form-group" id="reschedLocGrp" style="display:none">
-      <label class="form-label">موقع المقابلة</label>
-      <input class="form-input" id="reschedLoc" type="text" placeholder="العنوان أو الغرفة">
-    </div>
-    <button class="btn-submit" id="btnConfirmResched">اقتراح الموعد</button>
-    <button class="btn-cancel-modal" id="btnCloseResched">إلغاء</button>
-  </div>
-</div>
-
-<!-- Send appointment modal (draft state, company only) -->
-<div class="modal-bg" id="sendModal">
-  <div class="modal">
-    <div class="modal-title">إرسال الدعوة</div>
-    <div class="form-group">
-      <label class="form-label">التاريخ والوقت</label>
-      <input class="form-input" id="sendSchedAt" type="datetime-local">
-    </div>
-    <div class="form-group">
-      <label class="form-label">مهلة الرد</label>
-      <select class="form-select" id="sendDeadlineHrs">
-        <option value="24">24 ساعة</option>
-        <option value="48" selected>48 ساعة</option>
-        <option value="72">3 أيام</option>
-        <option value="168">7 أيام</option>
-      </select>
-    </div>
-    <div class="form-group" id="sendUrlGrp" style="display:none">
-      <label class="form-label">رابط المقابلة (https://)</label>
-      <input class="form-input" id="sendUrl" type="url" placeholder="https://meet.google.com/...">
-    </div>
-    <div class="form-group" id="sendLocGrp" style="display:none">
-      <label class="form-label">موقع المقابلة</label>
-      <input class="form-input" id="sendLoc" type="text" placeholder="العنوان أو الغرفة">
-    </div>
-    <button class="btn-submit" id="btnConfirmSend">إرسال الدعوة</button>
-    <button class="btn-cancel-modal" id="btnCloseSend">إلغاء</button>
-  </div>
+  <textarea class="msg-ta" id="msgTa" rows="1" data-tw-t-placeholder="appt.room.msg_placeholder"></textarea>
+  <button class="msg-send-btn" id="msgSendBtn" data-tw-t="appt.room.msg_send"></button>
 </div>
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
 <script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
 <script>
 (function(){
   'use strict';
@@ -254,51 +168,34 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   const APPT_ID = parseInt(params.get('id'));
   if (!APPT_ID) { location.href = '/appointments'; return; }
 
+  // All page text = Strings System keys (twT — SYSTEMS_INDEX §59); static markup via data-tw-*.
+  document.title = twT('page.title', { page: twT('appt.room.title') });
+  twTApply(document.body);
+
   let _appt = null;
   let _activeTab = 'events';
-  let _reasonAction = null; // 'cancel' | 'request-reschedule'
   let _msgPollTimer = null;
+  let _pollWarned = false;
 
-  const STATUS_LABEL = {
-    draft:'مسودة', pending_response:'بانتظار الرد',
-    reschedule_requested:'طلب تغيير موعد', confirmed:'مؤكَّد',
-    cancelled:'ملغي', expired:'انتهت المهلة', missed:'فائت',
-    completed:'مكتملة', closed:'مغلق'
-  };
+  // Status → badge class. Labels = twT('appt.status.<status>'); an unknown status still gets
+  // a label + note (appt.status.unknown / appt.room.note.unknown) — never a raw code.
   const STATUS_CLASS = {
     draft:'badge-draft', pending_response:'badge-pending',
     reschedule_requested:'badge-reschedule', confirmed:'badge-confirmed',
     cancelled:'badge-cancelled', expired:'badge-expired',
     missed:'badge-missed', completed:'badge-completed', closed:'badge-closed'
   };
-  const EVT_LABEL = {
-    appointment_created:'تم إنشاء الدعوة',
-    appointment_sent:'أُرسلت الدعوة للموظف',
-    appointment_accepted:'الموظف وافق على الموعد',
-    appointment_reschedule_requested:'الموظف طلب موعداً آخر',
-    appointment_rescheduled:'الشركة اقترحت موعداً جديداً',
-    appointment_confirmed:'تم تأكيد الموعد',
-    appointment_cancelled:'تم إلغاء الموعد',
-    appointment_completed:'تمت المقابلة',
-    appointment_closed:'تم إغلاق غرفة الموعد',
-    appointment_expired:'انتهت مهلة الرد',
-    message_sent:'رسالة في thread الموعد'
-  };
-  const MODE_LABEL = { online:'أونلاين', onsite:'حضوري' };
+  // Event types with a label (appt.event.<type>); anything else → appt.event.unknown
+  const EVT_TYPES = ['appointment_created', 'appointment_sent', 'appointment_accepted',
+    'appointment_reschedule_requested', 'appointment_rescheduled', 'appointment_confirmed',
+    'appointment_cancelled', 'appointment_completed', 'appointment_closed',
+    'appointment_expired', 'message_sent'];
 
-  // Authorization via getAuthHeaders (tw_shared.js). 401 → TwAuthSync.invalidateSession →
-  // the page guard sends the visitor to /login?next= (same path as an expired session).
-  function api(path, opts){
-    return fetch(path, Object.assign({ headers: getAuthHeaders(true) }, opts)).then(function(r){
-      if (r.status === 401 && window.TwAuthSync) TwAuthSync.invalidateSession('api_401');
-      return r.json();
-    });
-  }
-
-  // Error text from any API error shape (normalizeErrorResponse — FBK M15)
-  function errMsg(res, fallback){
-    const g = normalizeErrorResponse(res).generalError;
-    return (g && g.code !== 'unknown' && g.message) || fallback;
+  // API calls via twApi (tw_shared.js — API Client Rule): auth headers, JSON, timeout, never
+  // throws (network / timeout → ok:false + Arabic message); 401 → TwAuthSync.invalidateSession →
+  // the page guard sends the visitor to /login?next=. Error text via twApiMessage (FBK M15).
+  function apptApi(sub, opts){
+    return twApi('/api/appointments/' + APPT_ID + (sub || ''), opts);
   }
 
   // Action button: DS-ICON icon + label (no emoji — F37)
@@ -310,22 +207,14 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     return b;
   }
 
-  function formatDate(iso){
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleString('ar-JO',{dateStyle:'medium',timeStyle:'short'});
-    } catch(e){ return iso; }
-  }
-
   function countdown(iso){
-    if (!iso) return '';
     const diff = new Date(iso) - Date.now();
-    if (diff <= 0) return 'انتهى الوقت';
+    if (!(diff > 0)) return twT('appt.room.countdown.over');
     const h = Math.floor(diff/3600000);
     const m = Math.floor((diff%3600000)/60000);
-    if (h > 48) return Math.floor(h/24) + ' أيام';
-    if (h > 0) return h + ' ساعة و' + m + ' دقيقة';
-    return m + ' دقيقة';
+    if (h > 48) return twT('appt.room.countdown.days', { n: Math.floor(h/24) });
+    if (h > 0) return twT('appt.room.countdown.hours', { h: h, m: m });
+    return twT('appt.room.countdown.minutes', { m: m });
   }
 
   // DOM refs
@@ -336,24 +225,24 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   const hdrTitle    = document.getElementById('hdrTitle');
   const hdrSub      = document.getElementById('hdrSub');
   const hdrBadge    = document.getElementById('hdrBadge');
-  const reasonModal = document.getElementById('reasonModal');
-  const reschedModal= document.getElementById('reschedModal');
-  const sendModal   = document.getElementById('sendModal');
 
   twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
 
   function renderRoom(appt){
     _appt = appt;
     const s = appt.computed_status || appt.status;
+    const known = Object.prototype.hasOwnProperty.call(STATUS_CLASS, s);
     const isClosed = s === 'closed';
     const IS_CO = appt.viewer_role === 'company';
     const IS_EMP = appt.viewer_role === 'applicant';
+    const otherName = IS_CO ? (appt.applicant_name || twT('appt.room.applicant_fallback'))
+                            : (appt.company_name || twT('appt.room.company_fallback'));
 
     // Header
-    safeText(hdrTitle, IS_CO ? (appt.applicant_name||'الموظف') : (appt.company_name||'الشركة'));
-    safeText(hdrSub, appt.job_title || 'مقابلة');
-    hdrBadge.className = 'badge ' + (STATUS_CLASS[s]||'badge-draft');
-    safeText(hdrBadge, STATUS_LABEL[s]||s);
+    safeText(hdrTitle, otherName);
+    safeText(hdrSub, appt.job_title || twT('appt.room.interview'));
+    hdrBadge.className = 'badge ' + (known ? STATUS_CLASS[s] : 'badge-draft');
+    safeText(hdrBadge, twT(known ? 'appt.status.' + s : 'appt.status.unknown'));
 
     mainContent.innerHTML = '';
 
@@ -372,10 +261,10 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     names.className = 'ic-names';
     const mainName = document.createElement('div');
     mainName.className = 'ic-main';
-    safeText(mainName, IS_CO ? (appt.applicant_name||'الموظف') : (appt.company_name||'الشركة'));
+    safeText(mainName, otherName);
     const subName = document.createElement('div');
     subName.className = 'ic-sub';
-    safeText(subName, appt.job_title || 'مقابلة عامة');
+    safeText(subName, appt.job_title || twT('appt.general_interview'));
     names.appendChild(mainName);
     names.appendChild(subName);
     icRow.appendChild(ava);
@@ -396,13 +285,12 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       details.appendChild(d);
     }
 
+    // Dates shown in the viewer's local time (twFormatDateTime — SYSTEMS_INDEX §59a)
     addMeta('clock',
-            appt.scheduled_at ? formatDate(appt.scheduled_at) : 'لم يُحدَّد بعد');
-    addMeta('calendar',
-            MODE_LABEL[appt.mode]||appt.mode);
+            appt.scheduled_at ? twFormatDateTime(appt.scheduled_at) : twT('appt.room.not_scheduled'));
+    if (appt.mode === 'online' || appt.mode === 'onsite') addMeta('calendar', twT('appt.mode.' + appt.mode));
     if (appt.representative_name) {
-      addMeta('user',
-              'ممثل الشركة: ' + appt.representative_name);
+      addMeta('user', twT('appt.room.representative', { name: appt.representative_name }));
     }
 
     infoCard.appendChild(details);
@@ -411,17 +299,28 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     if (s === 'pending_response' && appt.response_deadline_at) {
       const cd = document.createElement('div');
       cd.className = 'countdown';
-      safeText(cd, 'المتبقي على المهلة: ' + countdown(appt.response_deadline_at));
+      safeText(cd, twT('appt.room.deadline_left', { time: countdown(appt.response_deadline_at) }));
       infoCard.appendChild(cd);
     }
     if (s === 'confirmed' && appt.scheduled_at) {
       const cd = document.createElement('div');
       cd.className = 'countdown';
-      safeText(cd, 'المتبقي على الموعد: ' + countdown(appt.scheduled_at));
+      safeText(cd, twT('appt.room.time_left', { time: countdown(appt.scheduled_at) }));
       infoCard.appendChild(cd);
     }
 
     mainContent.appendChild(infoCard);
+
+    // Status note — what this status means for this viewer (every status, incl. unknown)
+    if (!isClosed) {
+      const note = document.createElement('div');
+      note.className = 'status-note';
+      note.appendChild(twIconEl('info', { size: 'sm' }));
+      const nt = document.createElement('span');
+      safeText(nt, twT(known ? 'appt.room.note.' + s + '.' + (IS_CO ? 'co' : 'emp') : 'appt.room.note.unknown'));
+      note.appendChild(nt);
+      mainContent.appendChild(note);
+    }
 
     // Online URL (participants only — already verified server-side)
     if (appt.online_url && appt.mode === 'online' && !isClosed) {
@@ -431,7 +330,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       const info2 = document.createElement('div');
       const lbl2 = document.createElement('div');
       lbl2.className = 'url-lbl';
-      safeText(lbl2, 'رابط الاجتماع');
+      safeText(lbl2, twT('appt.room.meeting_link'));
       const _onlineSafe = twSafeLinkUrl(appt.online_url);   // §54 rule 4b — unsafe → plain text
       const urlA = document.createElement(_onlineSafe ? 'a' : 'span');
       urlA.className = 'url-link';
@@ -453,7 +352,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       locCard.className = 'loc-card';
       const ll = document.createElement('div');
       ll.className = 'loc-lbl';
-      safeText(ll, 'موقع المقابلة');
+      safeText(ll, twT('appt.room.location'));
       const lt = document.createElement('div');
       lt.className = 'loc-txt';
       safeText(lt, appt.location_text);
@@ -467,7 +366,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       const banner = document.createElement('div');
       banner.className = 'closed-banner';
       banner.appendChild(twIconEl('lock', { size: 'sm' }));
-      banner.appendChild(document.createTextNode('هذه الغرفة مغلقة — القراءة فقط'));
+      banner.appendChild(document.createTextNode(twT('appt.room.closed_banner')));
       mainContent.appendChild(banner);
     }
 
@@ -476,85 +375,51 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       const actDiv = document.createElement('div');
       actDiv.className = 'actions';
 
+      // Draft → the shared schedule dialog sends it (Schedule Interview rule 1/5 — one dialog)
       if (IS_CO && s === 'draft') {
-        const b = actBtn('btn-accept', 'send', 'إرسال الدعوة');
+        const b = actBtn('btn-accept', 'send', twT('appt.room.send_invite'));
         b.addEventListener('click', function(){
-          const m = (_appt && _appt.mode) || 'online';
-          document.getElementById('sendUrlGrp').style.display = m === 'online' ? '' : 'none';
-          document.getElementById('sendLocGrp').style.display = m === 'onsite' ? '' : 'none';
-          if (m === 'online' && _appt && _appt.online_url)
-            document.getElementById('sendUrl').value = _appt.online_url;
-          if (m === 'onsite' && _appt && _appt.location_text)
-            document.getElementById('sendLoc').value = _appt.location_text;
-          document.getElementById('sendSchedAt').min = new Date(Date.now() + 60000).toISOString().slice(0,16);
-          sendModal.classList.add('open');
+          twScheduleInterview({ candidateId: appt.applicant_id, candidateName: appt.applicant_name, draft: appt });
         });
         actDiv.appendChild(b);
       }
       if (IS_EMP && s === 'pending_response') {
-        const b1 = actBtn('btn-accept', 'check', 'موافق على الموعد');
+        const b1 = actBtn('btn-accept', 'check', twT('appt.room.accept'));
         b1.addEventListener('click', function(){ doAccept(); });
-        const b2 = actBtn('btn-reschedule', 'calendar-clock', 'طلب موعد آخر');
-        b2.addEventListener('click', function(){
-          _reasonAction = 'request-reschedule';
-          document.getElementById('reasonModalTitle').textContent = 'طلب تغيير الموعد';
-          document.getElementById('reasonInput').value = '';
-          reasonModal.classList.add('open');
-        });
-        const b3 = actBtn('btn-cancel-act', 'close', 'اعتذار / إلغاء');
-        b3.addEventListener('click', function(){
-          _reasonAction = 'cancel';
-          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
-          document.getElementById('reasonInput').value = '';
-          reasonModal.classList.add('open');
-        });
+        const b2 = actBtn('btn-reschedule', 'calendar-clock', twT('appt.room.request_reschedule'));
+        b2.addEventListener('click', function(){ openReason('request-reschedule'); });
+        const b3 = actBtn('btn-cancel-act', 'close', twT('appt.room.decline'));
+        b3.addEventListener('click', function(){ openReason('cancel'); });
         actDiv.appendChild(b1);
         actDiv.appendChild(b2);
         actDiv.appendChild(b3);
       }
+      // Reschedule request → the shared schedule dialog, reschedule mode (PR 4.12)
       if (IS_CO && s === 'reschedule_requested') {
-        const b = actBtn('btn-propose', 'calendar-clock', 'اقتراح موعد جديد');
+        const b = actBtn('btn-propose', 'calendar-clock', twT('appt.room.propose'));
         b.addEventListener('click', function(){
-          const m = (_appt && _appt.mode) || 'online';
-          document.getElementById('reschedUrlGrp').style.display = m === 'online' ? '' : 'none';
-          document.getElementById('reschedLocGrp').style.display = m === 'onsite' ? '' : 'none';
-          if (m === 'online' && _appt && _appt.online_url)
-            document.getElementById('reschedUrl').value = _appt.online_url;
-          if (m === 'onsite' && _appt && _appt.location_text)
-            document.getElementById('reschedLoc').value = _appt.location_text;
-          document.getElementById('newSchedAt').min = new Date(Date.now() + 60000).toISOString().slice(0,16);
-          reschedModal.classList.add('open');
+          twScheduleInterview({ candidateId: appt.applicant_id, candidateName: appt.applicant_name, reschedule: appt });
         });
-        const bc = actBtn('btn-cancel-act', 'close', 'إلغاء الموعد');
-        bc.addEventListener('click', function(){
-          _reasonAction = 'cancel';
-          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
-          document.getElementById('reasonInput').value = '';
-          reasonModal.classList.add('open');
-        });
+        const bc = actBtn('btn-cancel-act', 'close', twT('appt.room.cancel'));
+        bc.addEventListener('click', function(){ openReason('cancel'); });
         actDiv.appendChild(b);
         actDiv.appendChild(bc);
       }
       // PR 2B: missed is not final — the company can still complete or close it.
       if (IS_CO && (s === 'confirmed' || s === 'missed')) {
-        const b = actBtn('btn-complete', 'circle-check', 'إنهاء المقابلة');
+        const b = actBtn('btn-complete', 'circle-check', twT('appt.room.complete'));
         b.addEventListener('click', function(){ doComplete(); });
         actDiv.appendChild(b);
       }
       if (IS_CO && (s === 'completed' || s === 'cancelled' || s === 'missed' || s === 'expired')) {
-        const b = actBtn('btn-close-room', 'lock', 'إغلاق الغرفة');
+        const b = actBtn('btn-close-room', 'lock', twT('action.close_room'));
         b.addEventListener('click', function(){ doClose(); });
         actDiv.appendChild(b);
       }
       // Any participant can cancel confirmed/pending
       if (IS_EMP && (s === 'confirmed')) {
-        const b = actBtn('btn-cancel-act', 'close', 'إلغاء الموعد');
-        b.addEventListener('click', function(){
-          _reasonAction = 'cancel';
-          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
-          document.getElementById('reasonInput').value = '';
-          reasonModal.classList.add('open');
-        });
+        const b = actBtn('btn-cancel-act', 'close', twT('appt.room.cancel'));
+        b.addEventListener('click', function(){ openReason('cancel'); });
         actDiv.appendChild(b);
       }
 
@@ -566,7 +431,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     tabsDiv.className = 'tabs';
     const tEvents = document.createElement('div');
     tEvents.className = 'tab' + (_activeTab==='events'?' active':'');
-    safeText(tEvents, 'سجل الأحداث');
+    safeText(tEvents, twT('appt.room.tab_events'));
     tEvents.addEventListener('click', function(){
       _activeTab='events';
       tEvents.classList.add('active'); tMsgs.classList.remove('active');
@@ -574,7 +439,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     });
     const tMsgs = document.createElement('div');
     tMsgs.className = 'tab' + (_activeTab==='messages'?' active':'');
-    safeText(tMsgs, 'المحادثة');
+    safeText(tMsgs, twT('appt.room.tab_messages'));
     tMsgs.addEventListener('click', function(){
       _activeTab='messages';
       tMsgs.classList.add('active'); tEvents.classList.remove('active');
@@ -609,25 +474,30 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     }
   }
 
+  function panelLine(container, cls, text){
+    container.innerHTML = '';
+    const e = document.createElement('div');
+    e.className = cls;
+    safeText(e, text);
+    container.appendChild(e);
+  }
+
   function loadEvents(container){
-    container.innerHTML = '<div class="panel-note">جاري التحميل...</div>';
-    api('/api/appointments/'+APPT_ID+'/events').then(res => {
-      container.innerHTML = '';
-      if (!res.ok || !res.data || res.data.length === 0) {
-        const e = document.createElement('div');
-        e.className = 'panel-empty';
-        safeText(e, 'لا توجد أحداث بعد');
-        container.appendChild(e);
+    panelLine(container, 'panel-note', twT('appt.room.loading'));
+    apptApi('/events').then(res => {
+      if (!res.ok) { panelLine(container, 'panel-error', twApiMessage(res, twT('appt.room.events_error'))); return; }
+      if (!Array.isArray(res.data) || res.data.length === 0) {
+        panelLine(container, 'panel-empty', twT('appt.room.events_empty'));
         return;
       }
+      container.innerHTML = '';
       res.data.forEach(ev => container.appendChild(buildEvtItem(ev)));
-    }).catch(function(){
-      container.innerHTML = '<div class="panel-error">خطأ في تحميل الأحداث</div>';
     });
   }
 
   function buildEvtItem(ev){
-    const dotClass = ev.event_type.includes('cancel')||ev.event_type.includes('expired')
+    const type = String(ev.event_type || '');
+    const dotClass = type.includes('cancel')||type.includes('expired')
       ? 'evt-dot cancel' : ev.actor_id ? 'evt-dot' : 'evt-dot system';
     const item = document.createElement('div');
     item.className = 'evt-item';
@@ -637,24 +507,24 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     body.className = 'evt-body';
     const typeEl = document.createElement('div');
     typeEl.className = 'evt-type';
-    safeText(typeEl, EVT_LABEL[ev.event_type] || ev.event_type);
+    safeText(typeEl, twT(EVT_TYPES.indexOf(type) !== -1 ? 'appt.event.' + type : 'appt.event.unknown'));
     const metaEl = document.createElement('div');
     metaEl.className = 'evt-meta';
-    const who = ev.actor_name ? ev.actor_name : 'النظام';
-    safeText(metaEl, who + ' · ' + formatDate(ev.created_at));
+    const who = ev.actor_name ? ev.actor_name : twT('appt.room.system');
+    safeText(metaEl, who + ' · ' + twFormatDateTime(ev.created_at));
     body.appendChild(typeEl);
     body.appendChild(metaEl);
     if (ev.payload && ev.payload.reason) {
       const rEl = document.createElement('div');
       rEl.className = 'evt-reason';
-      safeText(rEl, 'السبب: ' + ev.payload.reason);
+      safeText(rEl, twT('appt.room.reason', { reason: ev.payload.reason }));
       body.appendChild(rEl);
     }
     const _evtDate = ev.payload && (ev.payload.new_scheduled_at || ev.payload.scheduled_at);
     if (_evtDate) {
       const rEl = document.createElement('div');
       rEl.className = 'evt-reason';
-      safeText(rEl, 'الموعد: ' + formatDate(_evtDate));
+      safeText(rEl, twT('appt.room.event_time', { time: twFormatDateTime(_evtDate) }));
       body.appendChild(rEl);
     }
     item.appendChild(dot);
@@ -665,16 +535,18 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   let _msgs = [];
   const MSG_PAGE = 50;   // server returns the newest MSG_PAGE; ?before_id= loads older pages
   function loadMessages(container){
-    api('/api/appointments/'+APPT_ID+'/messages').then(res => {
-      container.innerHTML = '';
-      if (!res.ok || !res.data || res.data.length === 0) {
-        const e = document.createElement('div');
-        e.className = 'msgs-empty';
-        safeText(e, 'لا رسائل بعد — ابدأ المحادثة');
-        container.appendChild(e);
+    apptApi('/messages').then(res => {
+      if (!res.ok) {
+        panelLine(container, 'panel-error', twApiMessage(res, twT('appt.room.msgs_error')));
         _msgs = [];
         return;
       }
+      if (!Array.isArray(res.data) || res.data.length === 0) {
+        panelLine(container, 'msgs-empty', twT('appt.room.msgs_empty'));
+        _msgs = [];
+        return;
+      }
+      container.innerHTML = '';
       _msgs = res.data;
       const list = document.createElement('div');
       list.className = 'msgs-list';
@@ -683,8 +555,6 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
       if (res.data.length >= MSG_PAGE) list.insertBefore(buildOlderBtn(), list.firstChild);
       container.appendChild(list);
       scrollMsgsToBottom();
-    }).catch(function(){
-      container.innerHTML = '<div class="panel-error">خطأ في تحميل الرسائل</div>';
     });
   }
 
@@ -692,7 +562,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'msgs-older';
-    safeText(b, 'عرض الرسائل الأقدم');
+    safeText(b, twT('appt.room.msgs_older'));
     b.addEventListener('click', function(){ loadOlderMessages(b); });
     return b;
   }
@@ -700,14 +570,19 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
   function loadOlderMessages(btn){
     if (!_msgs.length) return;
     btn.disabled = true;
-    api('/api/appointments/'+APPT_ID+'/messages?before_id='+encodeURIComponent(_msgs[0].id)).then(res => {
+    apptApi('/messages?before_id=' + encodeURIComponent(_msgs[0].id)).then(res => {
       const list = document.getElementById('msgsList');
-      if (!res.ok || !res.data || !list) { btn.disabled = false; return; }
+      if (!res.ok) {
+        btn.disabled = false;
+        showToast(twApiMessage(res, twT('appt.room.msgs_older_error')), 'error');
+        return;
+      }
+      if (!Array.isArray(res.data) || !list) { btn.disabled = false; return; }
       const older = res.data.filter(m => !_msgs.some(old => old.id === m.id));
       _msgs = older.concat(_msgs);
       older.slice().reverse().forEach(m => list.insertBefore(buildMsgItem(m), btn.nextSibling));
       if (res.data.length < MSG_PAGE) btn.remove(); else btn.disabled = false;
-    }).catch(function(){ btn.disabled = false; });
+    });
   }
 
   function buildMsgItem(m){
@@ -725,7 +600,7 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     item.appendChild(bodyEl);
     const timeEl = document.createElement('div');
     timeEl.className = 'msg-time';
-    safeText(timeEl, formatDate(m.created_at));
+    safeText(timeEl, twFormatDateTime(m.created_at));
     item.appendChild(timeEl);
     return item;
   }
@@ -736,27 +611,39 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     mainContent.scrollTop = mainContent.scrollHeight;
   }
 
+  function ensureMsgsList(){
+    let list = document.getElementById('msgsList');
+    const pMsgs = document.getElementById('pMsgs');
+    if (!list && pMsgs) {
+      pMsgs.innerHTML = '';
+      list = document.createElement('div');
+      list.className = 'msgs-list';
+      list.id = 'msgsList';
+      pMsgs.appendChild(list);
+    }
+    return list;
+  }
+
   function pollMessages(){
     if (_activeTab !== 'messages') return;
-    api('/api/appointments/'+APPT_ID+'/messages').then(res => {
-      if (!res.ok || !res.data) return;
+    apptApi('/messages').then(res => {
+      // Background refresh: a failed poll is retried in 5 s — logged once, no toast every 5 s
+      // (the visible load / send paths show their own error).
+      if (!res.ok) {
+        if (!_pollWarned) { _pollWarned = true; console.warn('[appointment-room] message poll failed', res.status); }
+        return;
+      }
+      _pollWarned = false;
+      if (!Array.isArray(res.data)) return;
       const newMsgs = res.data.filter(m => !_msgs.some(old => old.id === m.id));
       if (newMsgs.length === 0) return;
       _msgs = _msgs.concat(newMsgs);
-      let list = document.getElementById('msgsList');
-      const pMsgs = document.getElementById('pMsgs');
-      if (!list && pMsgs) {
-        pMsgs.innerHTML = '';
-        list = document.createElement('div');
-        list.className = 'msgs-list';
-        list.id = 'msgsList';
-        pMsgs.appendChild(list);
-      }
+      const list = ensureMsgsList();
       if (list) {
         newMsgs.forEach(m => list.appendChild(buildMsgItem(m)));
         scrollMsgsToBottom();
       }
-    }).catch(function(){});
+    });
   }
 
   function startMsgPoll(){
@@ -778,157 +665,108 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     const body = msgTa.value.trim();
     if (!body) return;
     msgSendBtn.disabled = true;
-    api('/api/appointments/'+APPT_ID+'/messages', {method:'POST',body:JSON.stringify({body})})
-      .then(res => {
-        if (res.ok) {
-          msgTa.value = '';
-          msgTa.style.height = '';
-          const msg = res.data;
-          let list = document.getElementById('msgsList');
-          const pMsgs = document.getElementById('pMsgs');
-          if (!list && pMsgs) {
-            pMsgs.innerHTML = '';
-            list = document.createElement('div');
-            list.className = 'msgs-list';
-            list.id = 'msgsList';
-            pMsgs.appendChild(list);
-          }
-          if (list) {
-            list.appendChild(buildMsgItem(msg));
-            _msgs.push(msg);
-            scrollMsgsToBottom();
-          }
-        } else {
-          showToast(errMsg(res, 'خطأ في إرسال الرسالة'), 'error');
-        }
-      }).catch(function(){ showToast('خطأ في الاتصال', 'error'); })
-      .finally(function(){ msgSendBtn.disabled = false; });
+    apptApi('/messages', { method: 'POST', body: { body: body } }).then(res => {
+      msgSendBtn.disabled = false;
+      if (!res.ok) { showToast(twApiMessage(res, twT('appt.room.msg_send_error')), 'error'); return; }
+      msgTa.value = '';
+      msgTa.style.height = '';
+      const list = ensureMsgsList();
+      if (list && res.data) {
+        list.appendChild(buildMsgItem(res.data));
+        _msgs.push(res.data);
+        scrollMsgsToBottom();
+      }
+    });
+  }
+
+  // One state change (accept / complete / close / cancel / request-reschedule): success → reload
+  // the room, failure → the server's message (or a fixed fallback) as an error toast.
+  function doAction(sub, body){
+    return apptApi(sub, { method: 'POST', body: body }).then(res => {
+      if (res.ok) { location.reload(); return true; }
+      showToast(twApiMessage(res, twT('common.error_retry')), 'error');
+      return false;
+    });
   }
 
   // Accept
   function doAccept(){
-    twConfirm({ title: 'قبول الموعد', message: 'هل تؤكد قبول الموعد؟', confirmText: 'قبول' }).then(function(ok){
-    if (!ok) return;
-    api('/api/appointments/'+APPT_ID+'/accept',{method:'POST'}).then(res => {
-      if (res.ok) location.reload();
-      else showToast(errMsg(res, 'خطأ'), 'error');
-    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+    twConfirm({ title: twT('appt.room.accept_title'), message: twT('appt.room.accept_msg'),
+                confirmText: twT('appt.room.accept_confirm') }).then(function(ok){
+      if (ok) doAction('/accept');
     });
   }
 
   // Complete
   function doComplete(){
-    twConfirm({ title: 'إنهاء المقابلة', message: 'هل تؤكد إنهاء المقابلة؟', confirmText: 'إنهاء المقابلة' }).then(function(ok){
-    if (!ok) return;
-    api('/api/appointments/'+APPT_ID+'/complete',{method:'POST'}).then(res => {
-      if (res.ok) location.reload();
-      else showToast(errMsg(res, 'خطأ'), 'error');
-    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+    twConfirm({ title: twT('appt.room.complete'), message: twT('appt.room.complete_msg'),
+                confirmText: twT('appt.room.complete') }).then(function(ok){
+      if (ok) doAction('/complete');
     });
   }
 
   // Close room
   function doClose(){
-    twConfirm({
-      title: 'إغلاق الغرفة نهائياً',
-      message: 'هل تريد إغلاق الغرفة نهائياً؟ لن يمكن إرسال رسائل بعد الإغلاق.',
-      confirmText: 'إغلاق الغرفة', danger: true,
-    }).then(function(ok){
-    if (!ok) return;
-    api('/api/appointments/'+APPT_ID+'/close',{method:'POST'}).then(res => {
-      if (res.ok) location.reload();
-      else showToast(errMsg(res, 'خطأ'), 'error');
-    }).catch(function(){ showToast('خطأ في الاتصال', 'error'); });
+    twConfirm({ title: twT('action.close_room_title'), message: twT('action.close_room_msg'),
+                confirmText: twT('action.close_room'), danger: true }).then(function(ok){
+      if (ok) doAction('/close');
     });
   }
 
-  // Reason modal
-  document.getElementById('btnCloseReason').addEventListener('click', function(){
-    reasonModal.classList.remove('open');
-  });
-  reasonModal.addEventListener('click', function(e){
-    if (e.target === reasonModal) reasonModal.classList.remove('open');
-  });
-  document.getElementById('btnConfirmReason').addEventListener('click', function(){
-    const reason = document.getElementById('reasonInput').value.trim();
-    reasonModal.classList.remove('open');
-    if (_reasonAction === 'cancel') {
-      api('/api/appointments/'+APPT_ID+'/cancel',{method:'POST',body:JSON.stringify({reason})})
-        .then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
-    } else if (_reasonAction === 'request-reschedule') {
-      api('/api/appointments/'+APPT_ID+'/request-reschedule',{method:'POST',body:JSON.stringify({reason})})
-        .then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
-    }
-  });
+  // Reason dialog (cancel / request reschedule) — DS-OVL twModal; failure keeps it open
+  function openReason(action){
+    const fieldEl = document.createElement('div');
+    fieldEl.className = 'tw-field';
+    const lbl = document.createElement('label');
+    lbl.htmlFor = 'apptReasonInput';
+    safeText(lbl, twT('appt.room.reason_label'));
+    const input = document.createElement('input');
+    input.className = 'tw-input';
+    input.id = 'apptReasonInput';
+    input.type = 'text';
+    input.maxLength = 500;
+    input.placeholder = twT('appt.room.reason_placeholder');
+    fieldEl.appendChild(lbl);
+    fieldEl.appendChild(input);
+    twModal({
+      title: twT(action === 'cancel' ? 'appt.room.cancel' : 'appt.room.request_reschedule_title'),
+      content: fieldEl,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT('appt.room.confirm'), variant: action === 'cancel' ? 'danger' : 'primary',
+          onClick: function(){ return doAction('/' + action, { reason: input.value.trim() }); } },
+      ],
+    });
+  }
 
-  // Reschedule modal
-  document.getElementById('btnCloseResched').addEventListener('click', function(){
-    reschedModal.classList.remove('open');
-  });
-  reschedModal.addEventListener('click', function(e){
-    if (e.target === reschedModal) reschedModal.classList.remove('open');
-  });
-  document.getElementById('btnConfirmResched').addEventListener('click', function(){
-    const newSched = document.getElementById('newSchedAt').value;
-    if (!newSched) { showToast('اختر التاريخ والوقت', 'warning'); return; }
-    const deadlineHrs = parseInt(document.getElementById('newDeadlineHrs').value);
-    const iso = new Date(newSched).toISOString();
-    const m = (_appt && _appt.mode) || 'online';
-    const urlVal = document.getElementById('reschedUrl').value.trim() || null;
-    const locVal = document.getElementById('reschedLoc').value.trim() || null;
-    if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
-      showToast('رابط المقابلة مطلوب للمواعيد الأونلاين', 'warning'); return;
-    }
-    if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
-      showToast('موقع المقابلة مطلوب للمواعيد الحضورية', 'warning'); return;
-    }
-    reschedModal.classList.remove('open');
-    api('/api/appointments/'+APPT_ID+'/reschedule',{
-      method:'POST',
-      body:JSON.stringify({new_scheduled_at:iso,deadline_hours:deadlineHrs,
-                           online_url:urlVal,location_text:locVal})
-    }).then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
-  });
+  // Load room — 403 / 404 / any other failure each get their own message (never a blank page)
+  function roomError(icon, title, sub){
+    msgInputBar.classList.add('hidden');
+    mainContent.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'error-page';
+    const ic = document.createElement('div');
+    ic.className = 'error-icon';
+    ic.appendChild(twIconEl(icon));
+    const t = document.createElement('div');
+    t.className = 'error-title';
+    safeText(t, title);
+    const st = document.createElement('div');
+    st.className = 'error-sub';
+    safeText(st, sub);
+    const back = document.createElement('a');
+    back.className = 'error-link';
+    back.href = '/appointments';
+    safeText(back, twT('appt.room.back'));
+    box.appendChild(ic); box.appendChild(t); box.appendChild(st); box.appendChild(back);
+    mainContent.appendChild(box);
+  }
 
-  // Send modal
-  document.getElementById('btnCloseSend').addEventListener('click', function(){
-    sendModal.classList.remove('open');
-  });
-  sendModal.addEventListener('click', function(e){
-    if (e.target === sendModal) sendModal.classList.remove('open');
-  });
-  document.getElementById('btnConfirmSend').addEventListener('click', function(){
-    const sched = document.getElementById('sendSchedAt').value;
-    if (!sched) { showToast('اختر التاريخ والوقت', 'warning'); return; }
-    const deadlineHrs = parseInt(document.getElementById('sendDeadlineHrs').value);
-    const iso = new Date(sched).toISOString();
-    const m = (_appt && _appt.mode) || 'online';
-    const urlVal = document.getElementById('sendUrl').value.trim() || null;
-    const locVal = document.getElementById('sendLoc').value.trim() || null;
-    if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
-      showToast('رابط المقابلة مطلوب للمواعيد الأونلاين', 'warning'); return;
-    }
-    if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
-      showToast('موقع المقابلة مطلوب للمواعيد الحضورية', 'warning'); return;
-    }
-    sendModal.classList.remove('open');
-    api('/api/appointments/'+APPT_ID+'/send',{
-      method:'POST',
-      body:JSON.stringify({scheduled_at:iso,deadline_hours:deadlineHrs,
-                           online_url:urlVal,location_text:locVal})
-    }).then(res => { if (res.ok) location.reload(); else showToast(errMsg(res, 'خطأ'), 'error'); });
-  });
-
-  // Load room
-  api('/api/appointments/'+APPT_ID).then(res => {
-    if (!res.ok) {
-      mainContent.innerHTML = '<div class="error-page"><div class="error-icon">' + twIcon('lock') + '</div><div class="error-title">غير مصرح</div><div class="error-sub">لا تملك صلاحية الوصول لهذه الغرفة</div><a class="error-link" href="/appointments">العودة للمواعيد</a></div>';
-      msgInputBar.classList.add('hidden');
-      return;
-    }
-    renderRoom(res.data);
-  }).catch(function(){
-    mainContent.innerHTML = '<div class="error-page"><div class="error-fail">خطأ في تحميل بيانات الغرفة</div></div>';
+  apptApi('').then(res => {
+    if (res.ok && res.data) { renderRoom(res.data); return; }
+    if (res.status === 403) roomError('lock', twT('appt.room.denied_title'), twT('appt.room.denied_sub'));
+    else if (res.status === 404) roomError('calendar', twT('appt.room.not_found'), twT('appt.room.not_found_sub'));
+    else roomError('alert', twT('appt.room.load_error'), twApiMessage(res, twT('common.check_connection')));
   });
 })();
 </script>

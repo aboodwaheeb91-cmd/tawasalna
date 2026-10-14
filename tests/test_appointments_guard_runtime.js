@@ -204,9 +204,10 @@ const sharedRoot = new Set([...read('tw_shared.css').matchAll(/^\s*(--[a-z0-9-]+
 });
 {
   const room = read('appointment-room.html');
+  // PR 4.12: titles come from twT — structure check (close-room confirm = the danger one)
   check('room C14 no native confirm() — 3 × twConfirm (DS-OVL), close room = danger',
     !/(^|[^\w.])confirm\(/.test(room) && (room.match(/\btwConfirm\(/g) || []).length === 3
-    && /twConfirm\(\{\s*title: 'إغلاق الغرفة نهائياً'[\s\S]*?danger: true/.test(room));
+    && /twConfirm\(\{\s*title: twT\('action\.close_room_title'\)[\s\S]*?danger: true/.test(room));
   check('room C15 participant avatar uses the room photo fields',
     /avatar_url: appt\.applicant_avatar/.test(room) && /avatar_url: appt\.company_avatar/.test(room));
   check('room C16 no WebSocket of its own (badge WS in tw_shared.js is the only socket)', !/WebSocket/.test(room));
