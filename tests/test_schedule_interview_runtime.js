@@ -8,6 +8,8 @@
  *   B  open appointment → «فتح الموعد» → room · draft keeps «تحديد موعد» · one batched request
  *   C  twScheduleMount replaces slots · old page-specific modal / application_id field are gone
  *   D  draft dialog (PR 4.0): opens on the draft's mode + place · switching to أونلاين sends mode on /send
+ *   E  reschedule mode (PR 4.12): appointment-room «اقتراح موعد جديد» = the same dialog → /reschedule
+ *      with the picked LOCAL time as UTC ISO · type fixed · no create / send · past time refused
  *
  * Run: node tests/test_schedule_interview_runtime.js
  */
@@ -178,6 +180,41 @@ const GUEST = { isAuthenticated: false, userType: null, userId: null };
   check('D4 /send carries the new mode + link (no place)', !!send && send.body.mode === 'online'
     && send.body.online_url === 'https://meet.example.com/abc' && send.body.location_text === null,
     JSON.stringify(send && send.body));
+
+  console.log('\nE — reschedule mode (PR 4.12)');
+  const e = ctxFor(CO);
+  const RS = { id: 12, status: 'reschedule_requested', job_id: 3, job_title: 'مطوّر', mode: 'online',
+    online_url: 'https://meet.example.com/old', location_text: null };
+  e.ctx.twScheduleInterview({ candidateId: 6, candidateName: 'سارة', reschedule: RS });
+  const eDlg = e.modals[0];
+  check('E0 reschedule opens the shared dialog with its own title + submit text',
+    !!eDlg && eDlg.title === STRINGS['appt.room.propose'] && eDlg.actions[1].text === STRINGS['appt.room.reschedule_submit']);
+  const eForm = eDlg.content;
+  const eSeg = eForm.find(n => n.className === 'tw-sch-seg');
+  const eUrl = eForm.find(n => n.type === 'url');
+  check('E1 type is fixed (no أونلاين / حضوري switch) and the current link is loaded',
+    eSeg.parentNode.hidden === true && eUrl.value === 'https://meet.example.com/old');
+  const ePick = (cls, v) => { eForm.find(n => (n.className || '').indexOf(cls) !== -1).value = String(v); };
+  // a past local time is refused before any request
+  ePick('tw-sch-yr', new Date().getFullYear()); ePick('tw-sch-mon', 1); ePick('tw-sch-day', 1);
+  ePick('tw-sch-hr', 12); ePick('tw-sch-min', 0); ePick('tw-sch-ap', 'am');
+  const past = new Date(new Date().getFullYear(), 0, 1, 0, 0, 0, 0);
+  if (past.getTime() < Date.now()) {
+    const r0 = await eDlg.actions[1].onClick();
+    check('E2 a past time (local) is refused — no request', r0 === false && e.posts.length === 0);
+  }
+  ePick('tw-sch-yr', new Date().getFullYear() + 1); ePick('tw-sch-mon', 6); ePick('tw-sch-day', 15);
+  ePick('tw-sch-hr', 3); ePick('tw-sch-min', 30); ePick('tw-sch-ap', 'pm');
+  const r1 = await eDlg.actions[1].onClick();
+  const rs = e.posts.find(p => p.url === '/api/appointments/12/reschedule');
+  const want = new Date(new Date().getFullYear() + 1, 5, 15, 15, 30, 0, 0).toISOString();
+  check('E3 submit → POST /reschedule with the picked local time as UTC ISO + deadline + link',
+    r1 === true && !!rs && rs.body.new_scheduled_at === want && rs.body.deadline_hours === 48
+    && rs.body.online_url === 'https://meet.example.com/old', JSON.stringify(rs && rs.body));
+  check('E4 no create / send for a reschedule', !e.posts.some(p => p.url === '/api/appointments' || /\/send$/.test(p.url)));
+  e.ctx.showToast = () => {};
+  eDlg.onClose();
+  check('E5 success → back to the room', e.ctx.location.href === '/appointment-room?id=12');
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

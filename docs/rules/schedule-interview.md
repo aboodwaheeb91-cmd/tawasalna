@@ -4,7 +4,7 @@
 
 ## Schedule Interview Rules (mandatory for all AI sessions)
 
-1. **زر واحد ونافذة وحدة:** أي «تحديد موعد» بأي صفحة = `twScheduleButton(opts)` (DOM) أو slot `<span data-tw-schedule-slot …>` + `twScheduleMount(root)` (HTML strings) من `static/shared/tw-schedule.js`. النافذة = `twScheduleInterview(opts)` فقط (DS-OVL `twModal`).
+1. **زر واحد ونافذة وحدة:** أي «تحديد موعد» بأي صفحة = `twScheduleButton(opts)` (DOM) أو slot `<span data-tw-schedule-slot …>` + `twScheduleMount(root)` (HTML strings) من `static/shared/tw-schedule.js`. النافذة = `twScheduleInterview(opts)` فقط (DS-OVL `twModal`) — بما فيها إرسال مسودة (`draft`) واقتراح موعد جديد (`reschedule`، PR 4.12) من غرفة الموعد.
 2. **كل موعد مربوط بوظيفة.** الواجهة بترسل `POST /api/appointments` بـ `{candidate_id, job_id}` بس. الشخص مش مرشح → السيرفر بيضيفه عبر `_shortlist_candidate_in_tx` (نفس قلب «ترشيح للوظيفة»، نفس الـ transaction، ما في رجوع لورا). ربط جديد → وظيفة فعّالة. مرفوض / منسحب → 409 برسالة عربية.
 3. **الإظهار:** الزر بيقرّر لحاله من `TwAuthSync.getSessionSnapshot()` — حساب `co` على `emp` مش نفسه. موعد مفتوح → «فتح الموعد» → `/appointment-room?id=`. الحماية الحقيقية بالسيرفر (F21).
 4. **التحميل:** بعد `tw-overlay.js` — صفحة shell عبر `PAGE_ASSETS` (`{{v:tw-schedule.js}}`)؛ صفحة غير محوّلة بـ `?v=` يدوي. مع `tw-select.js` / `.css` للـ dropdowns.
