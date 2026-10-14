@@ -379,6 +379,23 @@ function twFormatDate(value) {
 }
 window.twFormatDate = twFormatDate;
 
+// twFormatDateTime(value) → «8 أكتوبر 2026 · 3:05 م»: the date exactly as twFormatDate, then the
+// viewer's local time on a 12-hour clock (minutes 2 digits, Western digits, ص / م from
+// date.am / date.pm). Order from date.format.datetime / date.format.time (Strings System).
+// The ONE formatter for a date + time — never toLocaleString / toLocaleDateString('ar-…', {hour}).
+// Empty / invalid → ''.
+function twFormatDateTime(value) {
+  var date = twFormatDate(value);
+  if (!date) return '';
+  var d = new Date(value);
+  var h = d.getHours();
+  var m = d.getMinutes();
+  var time = twT('date.format.time', {
+    hour: (h % 12) || 12, minute: (m < 10 ? '0' : '') + m, ampm: twT(h < 12 ? 'date.am' : 'date.pm') });
+  return twT('date.format.datetime', { date: date, time: time });
+}
+window.twFormatDateTime = twFormatDateTime;
+
 // ── XSS Protection (§54 Safe Rendering — single canonical implementation) ──
 // twEscAttr: canonical escaping for attribute values and text content.
 // Handles null/undefined → ''; handles numeric 0 → "0" (correct; old sanitize returned '').

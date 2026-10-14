@@ -5,15 +5,9 @@
 
   var isRateLoading = false;
 
-  // Session = TwAuthSync snapshot only (never tw_jwt directly). Shared with company.main.js
-  // through the page namespace so both files ask the same question the same way.
-  function _signedIn() {
-    return !!(window.TwAuthSync && TwAuthSync.getSessionSnapshot().isAuthenticated);
-  }
-  // Guest → login, then back to this page (AUTH ?next= — twLoginHref)
-  function _toLogin() { location.href = twLoginHref(location.pathname + location.search); }
-  TwCompanyPage.signedIn = _signedIn;
-  TwCompanyPage.toLogin  = _toLogin;
+  // Session helpers live on the page namespace (company.state.js)
+  function _signedIn() { return TwCompanyPage.signedIn(); }
+  function _toLogin()  { TwCompanyPage.toLogin(); }
 
   // ── Visitor job card actions — share + save ────────────────────
   function _shareFallback(text) {

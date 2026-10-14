@@ -288,6 +288,10 @@
 
     "common.cancel": "إلغاء",
     "date.format.long": "{day} {month} {year}",
+    "date.format.datetime": "{date} · {time}",
+    "date.format.time": "{hour}:{minute} {ampm}",
+    "date.am": "ص",
+    "date.pm": "م",
     "date.month.1": "يناير",
     "date.month.2": "فبراير",
     "date.month.3": "مارس",

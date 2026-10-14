@@ -3885,14 +3885,6 @@
     if (tab === 'appointments' && !_apptsLoaded) _loadAppts();
   }
 
-  function _fmtDate(iso) {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('ar-EG',
-        { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return ''; }
-  }
-
   function _loadAppts() {
     var list = document.getElementById('coHubApptList');
     if (!list) return;
@@ -3925,7 +3917,7 @@
         nameEl.textContent = a.title || a.other_party_name || 'موعد';
         var dateEl  = document.createElement('div');
         dateEl.className = 'co-hub-appt-date';
-        dateEl.textContent = _fmtDate(a.scheduled_at);
+        dateEl.textContent = twFormatDateTime(a.scheduled_at);   // §59a
         var link    = document.createElement('a');
         link.href   = '/appointment-room?id=' + encodeURIComponent(a.id);
         link.className = 'co-hub-appt-link';

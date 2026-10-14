@@ -8,7 +8,7 @@
  *   C  copy link = /u/{tw_id} (never location.href) · logo through twSafeImageUrl
  *   D  visitor actions through twAction · report → twReportDialog({reportedType:'company'})
  *   E  post delete asks twConfirm (danger) first · cancel → no request · error toast type
- *   F  session from TwAuthSync only — _jwt() = TwAuthSync.getToken()
+ *   F  session from TwAuthSync only — TwCompanyPage.signedIn() follows the snapshot (_jwt() removed — PR 4.3c)
  *
  * Run: node tests/test_company_profile_page_runtime.js
  */
@@ -210,7 +210,9 @@ const PROFILE_OK = {
   console.log('\nF — session source');
   {
     const b = boot({ snap: OWNER });
-    check('F1 _jwt() = TwAuthSync.getToken() (no localStorage read)', b.ctx._jwt() === 'JWT-from-sync');
+    check('F1 TwCompanyPage.signedIn() = snapshot.isAuthenticated; _jwt() gone (PR 4.3c)',
+      b.ctx.TwCompanyPage.signedIn() === true && typeof b.ctx._jwt === 'undefined'
+      && boot({ snap: { isAuthenticated: false } }).ctx.TwCompanyPage.signedIn() === false);
     b.ctx._companyProfileIdFromRoute = null;
     b.ctx.location.search = '';
     b.ctx.loadData(); await tick();

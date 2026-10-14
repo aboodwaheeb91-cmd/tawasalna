@@ -859,7 +859,7 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 
 | الترتيب | الملف | المسؤولية |
 |---------|-------|-----------|
-| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` + `_jwt()` |
+| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` (`_jwt()` removed — PR 4.3c) |
 | 2 | `static/company/company.api.js` | `loadData` + `loadJobs` + `loadPosts` — JWT Bearer فقط |
 | 3 | `static/company/company.permissions.js` | `_applyLoadingState` + permission guards |
 | 4 | `static/company/company.render.js` | `renderProfile/Stats/Jobs/All` + `renderFollowBtn/Rating/Posts` + DOM helpers |
@@ -971,7 +971,7 @@ function saveEdit() {
 ### PR 4.3a — Page structure & display (Page Shell · unified header · twApi)
 
 - **Shell + chrome:** `company-profile.html` = Page Shell (`<!--tw:shell-head-->` / `<!--tw:shell-scripts-->`) + `<header data-tw-header>` + `<nav data-tw-bottom-nav>` (`twMountAppChrome`). The page-local `.co-hdr` (home / hub / bell / messages / menu) is gone; the owner buttons `#editInfoBtn` + `#coHubBtn` live in the owner-only row `#ownerActions` under the profile row (same ids → `company.main.js` wiring unchanged). Public page → **no `twRequireAuth`**; owner / visitor = `viewer_type` from the API (VM) + `TwAuthSync` only.
-- **Requests:** every call in `company.api.js` / `company.posts.js` goes through `twApi` (no `fetch`). The Talent Bank / ratings wrappers keep their old result shape for `company.main.js` via `_bodyShape(res)` → `{ok, status, data: <response body>, error}`. Session = `TwAuthSync` (`getSessionSnapshot` / `getToken`); `_jwt()` (`company.state.js`) = `TwAuthSync.getToken()` — kept only for `company.main.js` / `company.jobs.js` until they move to `twApi`.
+- **Requests:** every call in `company.api.js` / `company.posts.js` goes through `twApi` (no `fetch`). The Talent Bank / ratings wrappers keep their old result shape for `company.main.js` via `_bodyShape(res)` → `{ok, status, data: <response body>, error}`. Session = `TwAuthSync` (`getSessionSnapshot` / `getToken`); sign-in checks = `TwCompanyPage.signedIn()` (`company.state.js`); `_jwt()` was removed in PR 4.3c (no user left).
 - **Load failure:** `loadData()` checks the response — 404 → error state «الشركة غير موجودة» (no retry) · anything else (500 / network / bad body) → «تعذّر تحميل صفحة الشركة» + `#coRetryBtn` (listener in `company.api.js`, no inline handler). Never an empty profile full of «—».
 - **About tab (`renderAbout()` in `company.render.js`):** type (`industry` / `company_type`) · location (country، city، district — rule 9) · founded · size · website · contact email (`company_profiles.contact_email`) · phone (owner only — the server strips it for visitors) · description. A row whose value is missing stays `hidden`; nothing at all → «لم تُضف الشركة معلومات بعد». Website = `<a rel="noopener noreferrer">` only when `twSafeLinkUrl` accepts it, else plain text. Verification card `#coAboutVerifiedRow` shown only when `is_verified`.
 - **Public link:** the meta-row link and «نسخ الرابط» = `location.origin + '/u/' + tw_id` (F7) — never `location.href`. Logo / cover / post avatars through `twSafeImageUrl`.

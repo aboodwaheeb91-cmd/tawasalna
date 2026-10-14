@@ -876,7 +876,6 @@
     });
 
     overlayEl.classList.add('show');
-    if (window.lucide) lucide.createIcons({ nodes: [listEl] });
   }
 
   function closeAllBranchesModal() {
@@ -892,7 +891,6 @@
     renderBranches(window.companyState ? (companyState.branches || []) : []);
     if (window.renderFollowBtn) renderFollowBtn();
     if (window.renderRating)    renderRating();
-    if (window.lucide) lucide.createIcons();   // icons still built as data-lucide by main / jobs
   }
 
   // Static page icons (DS-ICON — <i data-tw-icon>) → SVG once at init (ICON-03.1).
