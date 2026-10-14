@@ -156,7 +156,8 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'home-v2.html', 'notifications.html', 'messages.html', 'edu-profile.html', 'settings.html',
   'index.html',   // index.html: PR 4.8 (Lucide → DS-ICON)
   'profile-showcase.html',   // PR 4.2a — unified header + error state / preview / twAction icons
-  'company-profile.html'];   // PR 4.3a — unified header + static page icons (data-tw-icon)
+  'company-profile.html',   // PR 4.3a — unified header + static page icons (data-tw-icon)
+  'reset-password.html'];   // task 5.1a — unified header + page icons (data-tw-icon)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {

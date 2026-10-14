@@ -282,9 +282,6 @@ document.querySelectorAll('[data-pass-eye]').forEach(function(eyeBtn){
       if(b.getAttribute('data-auth-go') === 'register') showRegister(); else showLogin();
     });
   });
-  // No reset flow yet (FUTURE_ROADMAP — phase 5) → honest notice, not a dead link.
-  var forgot = document.getElementById('forgotBtn');
-  if(forgot) forgot.addEventListener('click', function(){ showToast(twT('login.forgot_soon'), 'info'); });
   var google = document.getElementById('googleBtn');
   if(google) google.addEventListener('click', function(){ showToast(twT('login.google_soon'), 'info'); });
   // Native radio group: click / Space / arrow keys all fire 'change' → selectType.

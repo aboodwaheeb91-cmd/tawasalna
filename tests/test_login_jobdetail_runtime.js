@@ -325,7 +325,8 @@ function gateway(opts) {
     check('E1 account type = 3 real radios inside role="radiogroup"',
       radios.length === 3 && /id="typeRow"[^>]*role="radiogroup"/.test(IDX));
     check('E2 no inline onclick in index.html', !/onclick=/i.test(IDX));
-    check('E3 «نسيت كلمة السر» = a real <button>', /<button[^>]*id="forgotBtn"/.test(IDX));
+    check('E3 «نسيت كلمة السر» = a real link to /reset-password (task 5.1a)',
+      /<a href="\/reset-password"[^>]*id="forgotBtn"/.test(IDX));
     check('E4 personal account label from account.type.emp (no «موظف» card)',
       /data-tw-t="account\.type\.emp"/.test(IDX) && !/>موظف</.test(IDX));
     check('E5 no role="link" in job-detail.html', !/role="link"/.test(JD));
