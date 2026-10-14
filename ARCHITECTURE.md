@@ -8673,6 +8673,7 @@ Server composes: full_name = [first, middle?, last].join(' ')
 
 1. `INSERT INTO users` with composed `full_name` — `users.full_name` is the canonical display name, unchanged.
 2. For `emp` with structured parts: `INSERT INTO profiles (user_id, first_name, middle_name, last_name) ... ON CONFLICT (user_id) DO UPDATE SET ...`
+3. Errors (PR 5.0a): «البريد الإلكتروني مسجل مسبقاً» (`EmailTakenError` → 409) **only** for SQLSTATE `23505` on `users_email_key` (`_is_email_taken_error` reads pg8000's error fields `C` / `n` / `D`, never the message text). Any other error → logged + re-raised → `POST /auth/register` returns 500 via `_server_error("register", e)`. `ON CONFLICT (user_id)` needs UNIQUE on `profiles(user_id)` — guaranteed on old tables by the critical startup migration `profiles_user_unique` (SYSTEMS_INDEX §54f).
 
 #### Permanent constraints
 
@@ -8683,6 +8684,7 @@ Server composes: full_name = [first, middle?, last].join(' ')
 ✅ No backfill of old accounts — existing records unaffected
 ✅ Name parts are server-side trimmed + internal whitespace collapsed via _norm_name() before composition and storage
 ✅ users row + structured profiles row creation is atomic (single BEGIN/COMMIT transaction); profiles failure rolls back users INSERT — no orphan users
+❌ ممنوع: تحويل خطأ DB لـ «البريد مسجل مسبقاً» بمطابقة كلمة "unique" / "duplicate" بنص الخطأ (PR 5.0a)
 ❌ ممنوع: استخدام full_name كـ text input واحد لـ emp في UI الجديد
 ❌ ممنوع: Parsing/backfill تخميني لأسماء المستخدمين القدامى
 ❌ ممنوع: حذف users.full_name
