@@ -113,7 +113,7 @@ function saveCtx(answers) {
     const pending = [], rendered = [];
     const list = { innerHTML: '' };
     const ctx = vm.createContext({
-      String, parseInt, twEscHtml: s => String(s),
+      String, parseInt, twEscHtml: s => String(s), twT,   // PR 4.14: the loader text is twT (tw_shared.js on the page)
       TwCompanyPage: { signedIn: () => true },
       document: { getElementById: () => list },
       twApi: path => new Promise(r => pending.push({ path, r })),
