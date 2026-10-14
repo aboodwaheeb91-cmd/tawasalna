@@ -43,6 +43,7 @@ PY_PYTEST=(
   test_page_audit.py
   test_changelog_collect.py
   test_company_colors.py
+  test_ds_color_gap_tokens.py
   test_safe_link_url.py
   test_server_error_leak.py
   test_supabase_settings.py

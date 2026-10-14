@@ -71,13 +71,14 @@ class A_ButtonRename(unittest.TestCase):
     def test_04_nb_talent_bank_css_class_exists(self):
         """CSS: .nb-talent-bank rule is defined"""
         self.assertIn(".nb-talent-bank", CSS)
-        # Must NOT reuse teal color from nb-owner-action
-        # It must use indigo/purple spectrum
+        # Its own DS-COLOR token (PR 4.11 — indigo, admin-overridable), never the
+        # teal brand color of .nb-owner-action
         tb_block = re.search(
             r'\.nb-talent-bank\s*\{[^}]+\}', CSS
         )
         self.assertIsNotNone(tb_block)
-        self.assertIn("rgba(99,102,241", tb_block.group())
+        self.assertRegex(tb_block.group(), r"var\(--color-talent-bank(?:-text)?(?:-rgb)?\)")
+        self.assertNotIn("--color-brand-primary", tb_block.group())
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -41,11 +41,11 @@
 
   // Level color map
   var LEVEL_COLORS = {
-    'مبتدئ': {color:'#9ca3af', bg:'rgba(156,163,175,.15)'},
-    'متوسط': {color:'#60a5fa', bg:'rgba(96,165,250,.15)'},
-    'جيد':   {color:'#a78bfa', bg:'rgba(167,139,250,.15)'},
-    'متقدم': {color:'#00c896', bg:'rgba(0,200,150,.15)'},
-    'محترف': {color:'#fbbf24', bg:'rgba(251,191,36,.15)'},
+    'مبتدئ': {color:'var(--color-skill-level-1)', bg:'rgba(var(--color-skill-level-1-rgb), .15)'},
+    'متوسط': {color:'var(--color-skill-level-2)', bg:'rgba(var(--color-skill-level-2-rgb), .15)'},
+    'جيد':   {color:'var(--color-skill-level-3)', bg:'rgba(var(--color-skill-level-3-rgb), .15)'},
+    'متقدم': {color:'var(--color-skill-level-4)', bg:'rgba(var(--color-skill-level-4-rgb), .15)'},
+    'محترف': {color:'var(--color-skill-level-5)', bg:'rgba(var(--color-skill-level-5-rgb), .15)'},
   };
 
   // Words indicating merged skill+level (caught in validation)
@@ -298,7 +298,7 @@
       var name  = twEscHtml(s.skill || '');
       var level = s.level ? twEscHtml(s.level) : '';
       var note  = (s.note || '').trim();
-      var lv    = LEVEL_COLORS[s.level] || {color:'#9ca3af', bg:'rgba(156,163,175,.15)'};
+      var lv    = LEVEL_COLORS[s.level] || {color:'var(--color-skill-level-1)', bg:'rgba(var(--color-skill-level-1-rgb), .15)'};
       var lvSlug = LEVEL_CSS[s.level] || '';
 
       var badge = level
