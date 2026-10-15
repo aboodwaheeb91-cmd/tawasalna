@@ -1016,6 +1016,22 @@ def set_user_password(user_id: int, new_password: str) -> Optional[dict]:
     return {"changed": changed, "sv": int(rows[0][0])}
 
 
+def set_user_type(user_id: int, new_type: str) -> Optional[dict]:
+    """Admin account-type change (task 5.3b2). user_type lives inside the JWT, so the change
+    bumps users.session_version in the same statement (Session Invalidation 5.0b) — every
+    token of the user dies and the next login carries the new type.
+    Returns the new session state {changed, sv} (same shape as set_user_password); None = no such user."""
+    with db_conn() as conn:
+        rows = conn.run(
+            "UPDATE users SET user_type = :utype, session_version = session_version + 1 "
+            "WHERE id = :uid RETURNING EXTRACT(EPOCH FROM password_changed_at), session_version",
+            utype=new_type, uid=user_id)
+    if not rows:
+        return None
+    changed = rows[0][0]
+    return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1])}
+
+
 def get_session_state(user_id: int) -> Optional[dict]:
     """{changed: password_changed_at epoch seconds | None, sv: users.session_version};
     None = no such user. Read only through server._session_state (cached) — never per request."""
@@ -1040,7 +1056,7 @@ def _migrate_password_changed_at():
 
 def _migrate_session_version():
     """5.0b — idempotent: users.session_version (0 for every existing row). Bumped by
-    set_user_password; a JWT carrying claim sv is valid only while sv == this column."""
+    set_user_password / set_user_type; a JWT carrying claim sv is valid only while sv == this column."""
     with db_conn() as conn:
         conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0")
 
@@ -1341,6 +1357,7 @@ NOTIFICATION_EMAIL_TEMPLATES = {
     "appointment_cancelled":   "notify_appointment_cancelled",
     "application_hired":       "notify_application_hired",       # 5.1d — final result only
     "application_rejected":    "notify_application_rejected",
+    "admin_message":           "admin_message",                   # 5.3b2 — message from the admin
 }
 _EMAIL_POOL = None
 

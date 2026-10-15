@@ -113,7 +113,7 @@ from auth import (
     create_appointment_message,
     AppointmentRuleError, list_jobs_for_scheduling, get_open_appointments,
     search_schedule_people,
-    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at, _migrate_session_version,
+    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, set_user_type, _migrate_password_changed_at, _migrate_session_version,
     _migrate_password_reset_tokens, get_user_for_password_reset, password_reset_issue, password_reset_consume,
     PASSWORD_RESET_TTL_MINUTES, EMAIL_TOKEN_TTL_MINUTES, email_change_request, email_change_apply,
     _migrate_email_notify, email_notify_reserve, email_log_write, email_send_stats,
@@ -286,6 +286,14 @@ def _password_changed_cache_set(user_id: int, state) -> None:
     the new value is effective at once in this process."""
     import time
     _pwd_changed_cache[int(user_id)] = (state, time.monotonic())
+
+def _end_user_sessions(user_id: int, state, reason: str) -> None:
+    """After a session_version bump (set_user_password / set_user_type): every older JWT of the
+    user → 401 in this process at once + open sockets closed (4008). Admin paths use this one place."""
+    if state is None:
+        return
+    _password_changed_cache_set(user_id, state)
+    _ws_revoke_user(user_id, reason)
 
 def _jwt_revoked_by_password_change(payload: dict) -> bool:
     uid = payload.get("user_id")
@@ -6269,14 +6277,14 @@ def change_user_type(user_id: int, request: Request, data: dict = Body(...)):
     new_type = data.get("user_type","emp")
     if new_type not in ("emp","co","edu"):
         raise HTTPException(400, "نوع حساب غير صحيح")
-    conn = get_conn()
     try:
-        conn.run("UPDATE users SET user_type = :utype WHERE id = :uid", utype=new_type, uid=user_id)
-        return {"success": True}
+        state = set_user_type(user_id, new_type)   # also bumps session_version (type lives in the JWT)
     except Exception as e:
         raise _server_error("change_user_type", e)
-    finally:
-        release_conn(conn)
+    if state is None:
+        raise HTTPException(404, "المستخدم غير موجود")
+    _end_user_sessions(user_id, state, "admin_type_change")
+    return {"success": True}
 
 @app.put("/admin/user/{user_id}/verify")
 def verify_user(user_id: int, request: Request, data: dict = Body(...)):
@@ -6304,8 +6312,7 @@ def admin_reset_password(user_id: int, request: Request, data: dict = Body(...))
     try:
         # Same helper as PUT /auth/password → bumps session_version (user's sessions end)
         # and deletes the user's pending email tokens.
-        _password_changed_cache_set(user_id, set_user_password(user_id, pw))
-        _ws_revoke_user(user_id, "admin_password_reset")
+        _end_user_sessions(user_id, set_user_password(user_id, pw), "admin_password_reset")
         return {"success": True}
     except Exception as e:
         raise _server_error("admin_reset_password", e)
@@ -6346,11 +6353,34 @@ def admin_delete_course(course_id: int, request: Request):
     finally:
         release_conn(conn)
 
+ADMIN_MESSAGE_SUBJECT_MAX = 120
+ADMIN_MESSAGE_MAX = 2000
+
 @app.post("/admin/message")
 def admin_send_message(data: AdminMessageInput, request: Request):
+    """Message from the admin to one user (task 5.3b2): an in-site notification of type
+    admin_message (create_notification) — its mapped email (admin_message, category notification)
+    goes through the same hook → user preference + caps. ok only when the notification exists.
+    The text is stored as written; every renderer escapes it (textContent / email esc)."""
     check_admin(request)
-    print(f"[ADMIN MSG] To:{data.user_id} | {data.subject}: {data.message}")
-    return {"success": True}
+    subject = (data.subject or "").strip()[:ADMIN_MESSAGE_SUBJECT_MAX]
+    message = (data.message or "").strip()
+    if not message:
+        return api_error(422, "empty", "نص الرسالة مطلوب", field="message")
+    if len(message) > ADMIN_MESSAGE_MAX:
+        return api_error(422, "too_long", f"الرسالة أطول من {ADMIN_MESSAGE_MAX} حرف", field="message")
+    try:
+        if not get_user_by_id(data.user_id):
+            return api_error(404, "not_found", "المستخدم غير موجود")
+        created = create_notification(data.user_id, "admin_message", subject or "رسالة من الإدارة",
+                                      message, "/notifications", entity_type="admin_message")
+    except Exception as e:
+        raise _server_error("admin_send_message", e)
+    if not created or not created.get("id"):
+        print(f"[ADMIN MSG] notification not created user={data.user_id}")
+        return api_error(500, "not_delivered", "ما انبعتت الرسالة، حاول مرة أخرى")
+    print(f"[ADMIN MSG] user={data.user_id} notification={created['id']}")
+    return api_ok({"notification_id": created["id"]})
 
 @app.delete("/experience/{exp_id}")
 def delete_experience(exp_id: int, token=Depends(verify_token)):
