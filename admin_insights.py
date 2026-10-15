@@ -25,11 +25,16 @@ Users table (§25d — task 5.3a3) — read-only, check_admin:
   One SQL builder (_users_where) for both. Fields: id · tw_id · full_name · avatar_url (profiles, else the
   company logo in company_profiles — the existing image source) · user_type · email · verification
   (verified | pending | unverified) · created_at. Nothing else (no password hash, phone, tokens …).
+
+Jobs table (§25e — task 5.3j) — read-only, check_admin:
+  jobs_list()   = GET /admin/jobs  (every state: active · paused · closed · expired · archived — state from
+                  auth.job_eff_status_sql, the SQL twin of _eff_status · search title / company · status ·
+                  page / limit ≤ JOBS_PAGE_MAX · counts per state · applicant_count per job)
 """
 import csv
 import io
 
-from auth import db_conn
+from auth import db_conn, job_active_sql, job_eff_status_sql
 
 AUDIT_RESULTS = ("ok", "denied", "failed")
 AUDIT_PAGE_MAX = 100
@@ -160,7 +165,7 @@ def stats_summary() -> dict:
         out["verified_companies"] = card(one(
             "SELECT COUNT(*) FROM users u WHERE u.user_type = 'co' "
             "AND EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = u.id AND p.is_verified)"))
-        out["active_jobs"] = card(one("SELECT COUNT(*) FROM jobs WHERE status = 'active'"),
+        out["active_jobs"] = card(one("SELECT COUNT(*) FROM jobs j WHERE " + job_active_sql("j")),
                                   window("jobs", "created_at", 30), "month")
         out["applications"] = card(one("SELECT COUNT(*) FROM job_applications"),
                                    window("job_applications", "applied_at", 30), "month")
@@ -308,3 +313,62 @@ def users_csv(q: str = "", user_type: str = "", verification: str = "", sort: st
         it = _user_item(r)
         w.writerow([_csv_cell(it[f]) for f in _CSV_FIELDS])
     return "\ufeff" + buf.getvalue()   # BOM → Arabic names open correctly in Excel
+
+
+# ── jobs table (§25e — task 5.3j) ──
+# Every job in every state. The state is ONE value per row: 'archived' when archived_at is set, else the
+# effective status from auth.job_eff_status_sql (the SQL twin of _eff_status — never computed in the page).
+JOB_ADMIN_STATUSES = ("active", "paused", "closed", "expired", "archived")
+JOBS_PAGE_MAX = 100
+_JOB_STATE_SQL = "(CASE WHEN j.archived_at IS NOT NULL THEN 'archived' ELSE " + job_eff_status_sql("j") + " END)"
+_JOBS_FROM = " FROM jobs j LEFT JOIN users u ON u.id = j.company_id"
+JOBS_COLUMNS = ("id", "title", "company_id", "company_name", "company_tw_id", "company_type", "status",
+                "created_at", "expires_at", "closed_at", "paused_at", "archived_at", "duration_days", "views",
+                "applicant_count")
+
+
+def _iso(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def jobs_list(q: str = "", status: str = "", page: int = 1, limit: int = 20) -> dict:
+    """GET /admin/jobs. status MUST be '' or a JOB_ADMIN_STATUSES value (checked by server.py); q is a bound
+    parameter (title or company name). counts = jobs per state for the same search (the status tabs)."""
+    page = max(1, int(page))
+    limit = max(1, min(JOBS_PAGE_MAX, int(limit)))
+    conds, params = [], {}
+    q = (q or "").strip()
+    if q:
+        conds.append("(j.title ILIKE :q OR u.full_name ILIKE :q)")
+        params["q"] = _like(q)
+    search = (" WHERE " + " AND ".join(conds)) if conds else ""
+    where = search
+    if status:
+        where = (search + " AND " if search else " WHERE ") + _JOB_STATE_SQL + " = :st"
+        params_page = dict(params, st=status)
+    else:
+        params_page = params
+    with db_conn() as conn:
+        counts = {s: 0 for s in JOB_ADMIN_STATUSES}
+        counts["all"] = 0
+        for st, n in conn.run("SELECT " + _JOB_STATE_SQL + ", COUNT(*)" + _JOBS_FROM + search + " GROUP BY 1",
+                              **params):
+            counts["all"] += int(n)
+            if st in JOB_ADMIN_STATUSES:
+                counts[st] = int(n)
+        total = int(conn.run("SELECT COUNT(*)" + _JOBS_FROM + where, **params_page)[0][0] or 0)
+        rows = conn.run(
+            "SELECT j.id, j.title, j.company_id, u.full_name, u.tw_id, u.user_type, " + _JOB_STATE_SQL + ", "
+            "j.created_at, j.expires_at, j.closed_at, j.paused_at, j.archived_at, j.duration_days, "
+            "COALESCE(j.views, 0), (SELECT COUNT(*) FROM job_applications a WHERE a.job_id = j.id)"
+            + _JOBS_FROM + where +
+            " ORDER BY j.created_at DESC NULLS LAST, j.id DESC LIMIT :lim OFFSET :off",
+            lim=limit, off=(page - 1) * limit, **params_page)
+    items = []
+    for r in rows:
+        it = dict(zip(JOBS_COLUMNS, r))
+        for k in ("created_at", "expires_at", "closed_at", "paused_at", "archived_at"):
+            it[k] = _iso(it[k])
+        it["applicant_count"] = int(it["applicant_count"] or 0)
+        items.append(it)
+    return {"items": items, "total": total, "page": page, "limit": limit, "counts": counts}
