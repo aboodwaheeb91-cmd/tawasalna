@@ -96,6 +96,7 @@ PY_DB=(
   pytest:test_otp_rate_limit_security.py
   pytest:test_email_change_kyc_email.py
   pytest:test_email_notify.py
+  pytest:test_application_result_notify.py
   pytest:test_password_reset_email.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_register_profiles_unique.py

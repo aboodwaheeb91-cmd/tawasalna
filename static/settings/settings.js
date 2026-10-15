@@ -10,6 +10,8 @@
 //     → link to the new address; the email changes only on /confirm-email (SYSTEMS_INDEX §1c)
 //   - notification emails (task 5.1c): one switch per type → GET / PUT /my/email-notifications
 //     (section #notifications — the link + List-Unsubscribe target of every notification email)
+//   - company settings (task 5.1d, co only): «إبلاغ المتقدمين بالنتيجة النهائية» → GET / PUT
+//     /company/settings (section #companySettings)
 //   - account delete hidden until plan 5.5 (soft delete — F27)
 (function () {
   'use strict';
@@ -448,6 +450,34 @@
     if (e.target && e.target.hasAttribute('data-notify-type')) saveNotify(e.target);
   });
 
+  // ── company settings (task 5.1d) — co only; saved on change (optimistic, rolled back on failure) ──
+  function loadCompanySettings() {
+    var sw = $('coNotifyResult');
+    return twApi('/company/settings').then(function (res) {
+      if (!res.ok || !res.data) {
+        if (res.status !== 401) showToast(twApiMessage(res, twT('settings.company.load_error')), 'error');
+        return;
+      }
+      sw.checked = res.data.notify_applicant_result !== false;
+      sw.disabled = false;
+    });
+  }
+  function saveCompanySettings(sw) {
+    var on = sw.checked;
+    sw.disabled = true;
+    twApi('/company/settings', { method: 'PUT', body: { notify_applicant_result: on } }).then(function (res) {
+      sw.disabled = false;
+      if (res.ok) { showToast(twT('settings.company.saved'), 'success'); return; }
+      sw.checked = !on;
+      if (res.status !== 401) showToast(twApiMessage(res, twT('settings.company.error')), 'error');
+    });
+  }
+  var isCompany = snap.userType === 'co';
+  if (isCompany) {
+    $('companySettings').hidden = false;
+    $('coNotifyResult').addEventListener('change', function (e) { saveCompanySettings(e.target); });
+  }
+
   // verify_identity off (registry default until plan 5.1 — the OTP provider) or not for this
   // account → the KYC row never appears: no button, no text, no /kyc request.
   var kycOn = twActionState('verify_identity') !== 'hidden';
@@ -464,5 +494,6 @@
   if (kycOn) renderKycRow();
   loadAccount();
   loadNotify();
+  if (isCompany) loadCompanySettings();
   if (kycOn) loadKyc();
 }());

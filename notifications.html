@@ -422,7 +422,7 @@ body {
 
   /* Filter groups — maps tab data-filter to notification type values */
   var FILTER_GROUPS = {
-    job:     ['job', 'job_applied'],
+    job:     ['job', 'job_applied', 'application_hired', 'application_rejected'],
     comment: ['comment', 'reply', 'mention'],
     follow:  ['follow'],
     verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected']
@@ -435,6 +435,8 @@ body {
     mention:     { icon: 'at-sign',      tone: 'purple', filter: 'comment' },
     job:         { icon: 'briefcase',    tone: 'brand',  filter: 'job' },
     job_applied: { icon: 'briefcase',    tone: 'brand',  filter: 'job' },
+    application_hired:    { icon: 'briefcase', tone: 'brand', filter: 'job' },   /* 5.1d */
+    application_rejected: { icon: 'briefcase', tone: '',      filter: 'job' },
     follow:      { icon: 'user-plus',    tone: 'pink',   filter: 'follow' },
     verify:      { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     kyc:         { icon: 'shield-check', tone: 'brand',  filter: 'verify' },

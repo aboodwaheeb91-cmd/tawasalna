@@ -124,7 +124,7 @@ def test_security_email_goes_out_even_when_the_cap_is_used_up(env):
     _limits(daily_cap=0, monthly_cap=0)
     uid = _uid(A)
     assert client.put("/my/email-notifications", headers=_hdr(uid),
-                      json={"types": {k: False for k in email_service.NOTIFY_TYPES}}).status_code == 200
+                      json={"types": {k: False for k in email_service.PREF_TYPES}}).status_code == 200
     res = email_service.send_email(A, "password_reset", {"link": "https://tawasolna.com/reset-password#token=x"})
     assert res["code"] == "sent" and len(env.calls) == 1
     assert "headers" not in env.calls[0]                       # no List-Unsubscribe on security mail

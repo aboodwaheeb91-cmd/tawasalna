@@ -646,17 +646,18 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 | `accepted` | ❌ لا | حالة داخلية للشركة |
 | `contacted` | ❌ لا | حالة داخلية للشركة |
 | `interview` | ❌ لا | حالة داخلية للشركة — الإشعار عبر Appointments فقط |
-| `hired` | ❌ لا | حالة داخلية للشركة |
-| `rejected` | ❌ لا | حالة داخلية للشركة |
+| `hired` | ✅ نعم (task 5.1d) | النتيجة النهائية — إشعار + إيميل مرة وحدة لكل طلب |
+| `rejected` | ✅ نعم (task 5.1d) | النتيجة النهائية — رسالة عامة لطيفة بدون سبب أو مرحلة أو اسم |
 
-**القاعدة الدائمة (محدَّثة PR #479):**
-- جميع الحالات السبع داخلية للشركة — الموظف لا يتلقى أي إشعار لأي تصنيف.
-- التواصل الرسمي الوحيد مع الموظف يكون عبر نظام **Appointments / Interview Requests**.
+**القاعدة الدائمة (محدَّثة task 5.1d — بتلغي «السبع داخلية» تبع PR #479):**
+- المراحل الوسطية (`pending` / `viewed` / `accepted` / `contacted` / `interview`) داخلية للشركة — لا إشعار ولا إيميل للمتقدم.
+- النتيجة النهائية `hired` / `rejected` بس: إشعار داخل الموقع + إيميل notification، مرة وحدة لكل طلب ولكل حالة نهائية — `notify_application_result()` (SYSTEMS_INDEX §15).
+- التواصل الرسمي خلال المراحل يكون عبر نظام **Appointments / Interview Requests**.
 
 **التفاصيل التقنية:**
 - Actor: company (actor_id = JWT user_id), Recipient: applicant (employee)
 - Hook: `update_application_status(app_id, status, actor_id)` — `auth.py`
-- Guard: `_INTERNAL_STATUSES = {"pending", "viewed", "accepted", "rejected", "contacted", "interview", "hired"}` — جميع الحالات السبع في هذه المجموعة؛ block الإشعار لا يُنفَّذ أبداً
+- Guard (task 5.1d): `APPLICATION_RESULT_STAGES = {hired, rejected}` — أي مرحلة تانية بترجع بدون شي · `_INTERNAL_STATUSES` انحذف
 - Self-guard: `int(applicant_id) != int(actor_id)` — no self-notification
 - Aggregation: فردي — لا aggregation لهذا النوع
 - Exception: caught + logged `[NOTIF]` prefix — no silent failures (F9)

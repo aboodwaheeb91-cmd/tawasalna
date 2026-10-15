@@ -60,8 +60,19 @@ TEMPLATES = {
                                        "parts": ("subject", "body", "button")},
     "notify_appointment_cancelled":   {"category": NOTIFICATION, "vars": ("name", "title", "details", "link"),
                                        "parts": ("subject", "body", "button")},
+    # Final result of a job application (5.1d) — job title + company only; the rejection text
+    # carries no reason, no stage, no person.
+    "notify_application_hired":       {"category": NOTIFICATION, "vars": ("name", "job", "company", "link"),
+                                       "parts": ("subject", "body", "button")},
+    "notify_application_rejected":    {"category": NOTIFICATION, "vars": ("name", "job", "company", "link"),
+                                       "parts": ("subject", "body", "button")},
 }
 NOTIFY_TYPES = tuple(k for k, v in TEMPLATES.items() if v["category"] == NOTIFICATION)
+# User preference switch of a notification type — one switch may cover several types (5.1d:
+# «نتيجة طلبات التوظيف» = hired + rejected). Missing = the type is its own switch.
+PREF_GROUPS = {"notify_application_hired": "notify_application_result",
+               "notify_application_rejected": "notify_application_result"}
+PREF_TYPES = tuple(dict.fromkeys(PREF_GROUPS.get(k, k) for k in NOTIFY_TYPES))
 TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "kyc_email_otp") + NOTIFY_TYPES
 
 # Notification limits (email.notify.* — admin-editable): min / max of each.
@@ -141,6 +152,21 @@ def set_send_hooks(reserve=None, log=None) -> None:
 
 def category(template_key: str) -> str:
     return TEMPLATES.get(template_key, {}).get("category", SECURITY)
+
+
+def pref_key(template_key: str) -> str:
+    """The user preference switch that governs this notification type."""
+    return PREF_GROUPS.get(template_key, template_key)
+
+
+def pref_members(pref: str) -> tuple:
+    """Notification types governed by one user preference switch."""
+    return tuple(k for k in NOTIFY_TYPES if pref_key(k) == pref)
+
+
+def strings() -> dict:
+    """Merged {key: text} (defaults + admin override) — server-side text of notifications too."""
+    return (_strings_provider or _default_strings)()
 
 
 def notify_settings() -> dict:
@@ -260,11 +286,11 @@ def _no_newlines(s: str) -> str:
 def render(template_key: str, values: dict) -> dict:
     """→ {"subject", "html", "text"}. values are plain text; escaped here."""
     spec = TEMPLATES[template_key]
-    strings = (_strings_provider or _default_strings)()
+    texts = strings()
     vals = {k: str(values.get(k, "") if values.get(k) is not None else "") for k in spec["vars"]}
 
     def s(key):
-        return strings.get(key, "")
+        return texts.get(key, "")
 
     def part(p):
         return s(f"email.{template_key}.{p}") if p in spec["parts"] else ""
