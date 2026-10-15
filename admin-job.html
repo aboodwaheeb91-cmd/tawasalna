@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head:admin-->
+<!-- Admin — one job (task 5.3j phase 4 · docs/rules/admin-shell.md 21 · SYSTEMS_INDEX §25e).
+     Route: /admin-job?id=N (server.py → admin_job_page) — opened from the panel's jobs table (not a menu item).
+     Data: GET /admin/jobs/{id} · edit = PUT /admin/jobs/{id} (reason required) · state actions + delete =
+     TwAdminJobs (static/shared/admin-jobs.js — the same as the jobs list) · every change through TwAdminShell.run.
+     Logic: static/admin-job/admin-job.js · header / menu / session gate: static/shared/admin-shell.js. -->
+<link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<title></title>
+<style>
+.aj-btns { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.aj-btns .tw-act { gap: var(--space-2); }
+.aj-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); font-size: var(--size-font-xs); color: var(--color-text-muted); }
+.aj-meta a { color: var(--color-brand-primary); text-decoration: none; font-weight: 700; }
+.aj-note { font-size: var(--size-font-xs); color: var(--color-status-danger); font-weight: 700; overflow-wrap: anywhere; }
+.aj-form { display: grid; gap: var(--space-5); }
+.aj-row { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.aj-field { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--size-font-xs); color: var(--color-text-secondary); font-weight: 700; min-width: 0; }
+.aj-field .tw-input { width: 100%; }
+.aj-field textarea.tw-input { min-height: 120px; resize: vertical; }
+.aj-check { display: flex; align-items: center; gap: var(--space-3); font-size: var(--size-font-sm); color: var(--color-text-primary); }
+.aj-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.aj-chips .tw-act { gap: var(--space-2); }
+</style>
+</head>
+<body class="tw-adm-body-page">
+<header data-tw-header="admin" hidden></header>
+
+<main class="tw-adm-main" id="main-content">
+  <div id="ajRoot" aria-live="polite"><p class="tw-adm-msg" data-tw-t="common.loading"></p></div>
+</main>
+
+<!--tw:strings-->
+<!--tw:shell-scripts:admin-->
+<script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/admin-sections.js?v={{v:admin-sections.js}}"></script>
+<script src="/static/shared/admin-shell.js?v={{v:admin-shell.js}}"></script>
+<script src="/static/shared/admin-jobs.js?v={{v:admin-jobs.js}}"></script>
+<script src="/static/shared/tw-options-data.js?v={{v:tw-options-data.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/admin-job/admin-job.js?v={{v:admin-job.js}}"></script>
+</body>
+</html>

@@ -71,7 +71,7 @@
 |--------|---------|-------|
 | **app** — صفحات الحساب (محمية) | `shell-head` / `shell-scripts` | الكامل |
 | **entry** — `landing` · `/login` · الصفحات العامة | نفس markers الـ app | نفس الـ partials؛ الفرق بالـ guard (SHELL-09: صفحة محمية = `<meta name="tw-page" content="auth">` + `twRequireAuth()`) مش بالـ shell |
-| **admin** — `admin-view` · لوحة `/tw-ctrl-*` | `shell-head:admin` / `shell-scripts:admin` | بدون `manifest` · بدون `auth-sync.js` · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل الـ SW |
+| **admin** — `admin-view` · `admin-job` (5.3j) · لوحة `/tw-ctrl-*` | `shell-head:admin` / `shell-scripts:admin` | بدون `manifest` · بدون `auth-sync.js` · `<meta name="tw-sw" content="off">` → `tw_shared.js` ما بيسجّل الـ SW |
 
 ---
 

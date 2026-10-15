@@ -726,6 +726,11 @@
     };
     _fill('j-type',  TW.JOB_TYPES,      '— نوع الدوام —');
     _fill('j-wmode', TW.JOB_WORK_MODES, '— طبيعة العمل —');
+    var curEl = document.getElementById('j-cur');   // currencies = TW.JOB_CURRENCIES (no empty option, USD first)
+    if (curEl && !curEl.options.length && TW.JOB_CURRENCIES) {
+      TW.JOB_CURRENCIES.forEach(function (c) { curEl.appendChild(new Option(c, c)); });
+      curEl.value = 'USD';
+    }
     var expEl = document.getElementById('j-exp');
     if (expEl && expEl.options.length < 2 && TW.EXP_LEVELS) {
       expEl.innerHTML = '<option value="">— الخبرة المطلوبة —</option>';

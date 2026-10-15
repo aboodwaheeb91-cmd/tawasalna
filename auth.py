@@ -2734,20 +2734,44 @@ def job_active_sql(a: str = "j") -> str:
 _ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
 
 
+# The ONE set of job field rules (task 5.3j phase 4): company publish (add_job) and admin edit
+# (admin_update_job) both turn the request into column values here — never a second copy.
+JOB_EDIT_COLUMNS = ("title", "description", "location", "job_type", "salary_min", "salary_max", "currency",
+                    "experience_years", "skills", "category", "work_mode", "salary_hidden", "profession_id",
+                    "accepts_all_professions")
+
+
+def _job_columns_from_input(conn, data: dict):
+    """→ (columns dict for JOB_EDIT_COLUMNS, accepted profession ids). Raises ValueError (Arabic / descriptive).
+    Rules: hidden salary → salary_min / max NULL · accepts_all_professions → no individual targets · targets
+    validated by _validate_accepted_profession_ids (max 5, active, not the primary) · defaults as on publish."""
+    skills      = data.get("skills") or []
+    sal_hidden  = bool(data.get("salary_hidden", False))
+    prof_id     = data.get("profession_id") or None
+    accepts_all = bool(data.get("accepts_all_professions") or False)
+    # When accepts_all_professions=True, individual targets are cleared (empty list)
+    raw_accepted = [] if accepts_all else (data.get("accepted_profession_ids") or [])
+    accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
+    cols = {
+        "title": data.get("title", ""), "description": data.get("description", ""),
+        "location": data.get("location", ""), "job_type": data.get("job_type", "دوام كامل"),
+        "salary_min": None if sal_hidden else data.get("salary_min"),
+        "salary_max": None if sal_hidden else data.get("salary_max"),
+        "currency": data.get("currency", "USD"), "experience_years": data.get("experience_years", 0),
+        "skills": skills if skills else None, "category": data.get("category"),
+        "work_mode": data.get("work_mode", "في الموقع"), "salary_hidden": sal_hidden,
+        "profession_id": prof_id, "accepts_all_professions": accepts_all,
+    }
+    return cols, accepted_pids
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
     result = None
     try:
-        skills      = data.get("skills") or []
-        sal_hidden  = bool(data.get("salary_hidden", False))
-        prof_id     = data.get("profession_id") or None
-        accepts_all = bool(data.get("accepts_all_professions") or False)
-
-        # Validate accepted_profession_ids BEFORE any mutation — fail fast
-        # When accepts_all_professions=True, individual targets are cleared (empty list)
-        raw_accepted = [] if accepts_all else (data.get("accepted_profession_ids") or [])
-        accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
+        # Validate BEFORE any mutation — fail fast (the one rule set — _job_columns_from_input)
+        cols_in, accepted_pids = _job_columns_from_input(conn, data)
 
         # Validate and apply listing duration (default 7 days)
         raw_dur = data.get("duration_days")
@@ -2770,19 +2794,19 @@ def add_job(company_id: int, data: dict) -> dict:
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
             "expires_at, duration_days, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
-            cid=company_id, title=data.get("title",""),
-            desc=data.get("description",""), loc=data.get("location",""),
-            jtype=data.get("job_type","دوام كامل"),
-            smin=None if sal_hidden else data.get("salary_min"),
-            smax=None if sal_hidden else data.get("salary_max"),
-            cur=data.get("currency","USD"),
-            exp=data.get("experience_years",0),
-            skills=skills if skills else None,
-            cat=data.get("category"),
-            wmode=data.get("work_mode","في الموقع"),
-            shide=sal_hidden,
-            profid=prof_id,
-            accall=accepts_all,
+            cid=company_id, title=cols_in["title"],
+            desc=cols_in["description"], loc=cols_in["location"],
+            jtype=cols_in["job_type"],
+            smin=cols_in["salary_min"],
+            smax=cols_in["salary_max"],
+            cur=cols_in["currency"],
+            exp=cols_in["experience_years"],
+            skills=cols_in["skills"],
+            cat=cols_in["category"],
+            wmode=cols_in["work_mode"],
+            shide=cols_in["salary_hidden"],
+            profid=cols_in["profession_id"],
+            accall=cols_in["accepts_all_professions"],
             dur=dur,
         )
         cols = [c["name"] for c in conn.columns]
@@ -3862,6 +3886,89 @@ def set_job_status(job_id: int, company_id, new_status: str) -> dict:
         schedule_job_expiry_reminder(job_id, new_expires)
     return {"id": int(job_id), "title": title or "", "company_id": int(owner_id), "status": new_status,
             "expires_at": new_expires}
+
+
+def admin_update_job(job_id: int, data: dict, reason: str) -> dict:
+    """Admin edit of a published job (task 5.3j phase 4 — owner decision: after publishing only the admin edits).
+    Same field rules as publishing (_job_columns_from_input). The duration is not edited here (extend / reactivate).
+    reason required (≤ JOB_HIDE_REASON_MAX) — sent to the company. Nothing changed → JobActionError.
+    One transaction, row FOR UPDATE. → {id, title, company_id, changed: [column…], reason, edit_key}."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("اكتب سبب التعديل")
+    if len(reason) > JOB_HIDE_REASON_MAX:
+        raise ValueError(f"السبب أطول من {JOB_HIDE_REASON_MAX} حرف")
+
+    def fn(conn, job):
+        cols, accepted = _job_columns_from_input(conn, data)
+        cur = conn.run("SELECT " + ", ".join(JOB_EDIT_COLUMNS) + " FROM jobs WHERE id=:id", id=job["id"])[0]
+        cur = dict(zip(JOB_EDIT_COLUMNS, cur))
+        cur_acc = [int(r[0]) for r in conn.run(
+            "SELECT profession_id FROM job_profession_targets WHERE job_id=:id ORDER BY display_order", id=job["id"])]
+
+        def norm(v):   # "" / None / [] / False / 0 = empty (NULL vs default is not an edit)
+            return None if (v is None or v == "" or v == [] or v is False or v == 0) else v
+
+        def same(a, b):
+            return norm(a) == norm(b)
+        changed = [c for c in JOB_EDIT_COLUMNS if not same(cols[c], cur[c])]
+        if accepted != cur_acc:
+            changed.append("accepted_profession_ids")
+        if not changed:
+            raise JobActionError("ما في أي تغيير على الوظيفة")
+        conn.run("UPDATE jobs SET " + ", ".join(f"{c}=:{c}" for c in JOB_EDIT_COLUMNS) + " WHERE id=:id",
+                 id=job["id"], **cols)
+        if "accepted_profession_ids" in changed:
+            conn.run("DELETE FROM job_profession_targets WHERE job_id=:id", id=job["id"])
+            for i, pid in enumerate(accepted):
+                conn.run("INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                         "VALUES (:jid, :pid, :ord)", jid=job["id"], pid=pid, ord=i)
+        edit_key = conn.run("SELECT CAST(EXTRACT(EPOCH FROM clock_timestamp()) * 1000000 AS BIGINT)")[0][0]
+        return {"changed": changed, "reason": reason, "new_title": cols["title"] or job["title"],
+                "edit_key": str(edit_key)}
+    out = _job_action(job_id, fn)
+    out["title"] = out.pop("new_title")
+    return out
+
+
+def notify_job_applicants_updated(job_id: int, title: str, edit_key: str) -> int:
+    """Every applicant of the job gets ONE in-app notice per admin edit (event_key job_updated:{id}:{edit}) —
+    never the internal reason (owner decision 5.3j phase 4). Non-fatal per person. → notices created."""
+    with db_conn() as conn:
+        users = [int(r[0]) for r in conn.run(
+            "SELECT DISTINCT user_id FROM job_applications WHERE job_id=:id AND user_id IS NOT NULL", id=job_id)]
+    sent = 0
+    for uid in users:
+        try:
+            if create_notification(
+                    user_id=uid, type_="job_updated", title="الوظيفة التي تقدّمت عليها تعدّلت",
+                    body=f"تم تعديل تفاصيل «{str(title or '')[:80]}». راجعها من صفحة الوظيفة.",
+                    link=f"/job-detail?id={int(job_id)}", entity_id=int(job_id), entity_type="job",
+                    event_key=f"job_updated:{int(job_id)}:{edit_key}"):
+                sent += 1
+        except Exception as e:
+            print(f"[job_updated] notify user={uid} job={job_id} failed: {type(e).__name__}: {e}")
+    return sent
+
+
+def admin_job_delete_preview(job_id: int) -> dict:
+    """What a hard delete removes / detaches (task 5.3j phase 4) — the counts the delete confirm shows.
+    applicants + pipeline_entries (+ their stage events) are deleted; appointments stay but lose the job link
+    (job_id / pipeline_entry_id → NULL). LookupError when the job does not exist."""
+    with db_conn() as conn:
+        rows = conn.run("SELECT title FROM jobs WHERE id=:id", id=job_id)
+        if not rows:
+            raise LookupError("الوظيفة غير موجودة")
+
+        def n(sql):
+            return int(conn.run(sql, id=job_id)[0][0] or 0)
+        return {
+            "id": int(job_id), "title": rows[0][0] or "",
+            "applicants": n("SELECT COUNT(*) FROM job_applications WHERE job_id=:id"),
+            "pipeline_entries": n("SELECT COUNT(*) FROM job_pipeline_entries WHERE job_id=:id"),
+            "appointments": n("SELECT COUNT(*) FROM appointments a WHERE a.job_id=:id OR a.pipeline_entry_id IN "
+                              "(SELECT e.id FROM job_pipeline_entries e WHERE e.job_id=:id)"),
+        }
 
 
 def admin_unarchive_job(job_id: int) -> dict:

@@ -46,6 +46,9 @@ PAGE_ASSETS = {
     "admin-shell.css": os.path.join("static", "shared", "admin-shell.css"),
     "tw-chart.js": os.path.join("static", "shared", "tw-chart.js"),   # task 5.3a2 — dashboard charts
     "admin.js": os.path.join("static", "admin", "admin.js"),
+    "admin-jobs.js": os.path.join("static", "shared", "admin-jobs.js"),   # task 5.3j phase 4 — job actions
+    "admin-job.js": os.path.join("static", "admin-job", "admin-job.js"),  # the admin job page
+    "tw-options-data.js": os.path.join("static", "shared", "tw-options-data.js"),
 }
 
 _PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")

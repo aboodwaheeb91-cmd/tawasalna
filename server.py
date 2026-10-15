@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -144,6 +144,7 @@ from auth import (
     _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security,
     job_active_sql, admin_hard_delete_job,
     admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError, admin_unarchive_job, JOB_HIDE_REASON_MAX,
+    admin_update_job, notify_job_applicants_updated, admin_job_delete_preview,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -1637,6 +1638,10 @@ def job_detail(): return read_html("job-detail.html")
 
 @app.get("/job-detail.html", response_class=HTMLResponse)
 def job_detail_html(): return read_html("job-detail.html")
+
+@app.get("/admin-job", response_class=HTMLResponse)
+@app.get("/admin-job.html", response_class=HTMLResponse)
+def admin_job_page(): return read_html("admin-job.html")   # one job for the admin (task 5.3j phase 4)
 
 @app.get("/admin-view", response_class=HTMLResponse)
 @app.get("/admin-view.html", response_class=HTMLResponse)
@@ -6107,6 +6112,7 @@ _JOB_ADMIN_NOTICE = {
     "resumed":     ("استأنفت الإدارة التقديم على وظيفتك", "«{title}» تستقبل الطلبات من جديد."),
     "closed":      ("أغلقت الإدارة وظيفتك", "«{title}» أُغلقت. السبب: {reason}"),
     "unarchived":  ("ألغت الإدارة أرشفة وظيفتك", "«{title}» رجعت إلى قائمة وظائفك."),
+    "edited":      ("عدّلت الإدارة وظيفتك", "تم تعديل «{title}». السبب: {reason}"),
 }
 _ADMIN_JOB_STATUS = {"paused": "paused", "active": "resumed", "closed": "closed"}   # body status → notice
 
@@ -6203,6 +6209,48 @@ def admin_job_status(job_id: int, request: Request, data: dict = Body(default={}
         return api_ok({**_job_out(info), "status": st,
                        "notified": _notify_company_job_admin(info, _ADMIN_JOB_STATUS[st])})
     return _admin_job_action("admin_job_status", run)
+
+
+@app.get("/admin/jobs/{job_id}")
+def admin_job_detail(job_id: int, request: Request):
+    """One job for the admin job page (task 5.3j phase 4): every field + state + applicants (read only)."""
+    check_admin(request)
+    try:
+        d = admin_insights.job_detail(job_id)
+    except Exception as e:
+        raise _server_error("admin_job_detail", e)
+    if d is None:
+        return api_error(404, "not_found", "الوظيفة غير موجودة")
+    return api_ok(d)
+
+
+@app.put("/admin/jobs/{job_id}")
+def admin_update_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+    """Admin edit (owner decision 5.3j: after publishing only the admin edits). Body = the publish fields
+    (JobInput — same model) + reason (required, sent to the company). Every applicant gets one notice per edit
+    (without the reason). The duration is not edited here (/extend · /reactivate)."""
+    check_admin(request)
+    def run():
+        body = dict(data or {})
+        reason = str(body.pop("reason", "") or "")
+        body.pop("duration_days", None)
+        try:
+            fields = JobInput(**body).dict()
+        except ValidationError as e:
+            loc = (e.errors() or [{}])[0].get("loc") or ["body"]
+            raise ValueError("قيمة غير صالحة: " + str(loc[-1]))
+        info = admin_update_job(job_id, fields, reason)
+        return api_ok({"id": info["id"], "changed": info["changed"],
+                       "notified": _notify_company_job_admin(info, "edited"),
+                       "applicants_notified": notify_job_applicants_updated(info["id"], info["title"], info["edit_key"])})
+    return _admin_job_action("admin_update_job", run)
+
+
+@app.get("/admin/jobs/{job_id}/delete-preview")
+def admin_job_delete_preview_endpoint(job_id: int, request: Request):
+    """What DELETE /admin/jobs/{id} removes / detaches — shown in the delete confirm (task 5.3j phase 4)."""
+    check_admin(request)
+    return _admin_job_action("admin_job_delete_preview", lambda: api_ok(admin_job_delete_preview(job_id)))
 
 
 @app.post("/admin/jobs/{job_id}/unarchive")

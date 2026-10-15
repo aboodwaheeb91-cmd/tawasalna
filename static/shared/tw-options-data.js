@@ -131,6 +131,9 @@
     'في الموقع','عن بُعد','هجين'
   ];
 
+  // ── Job salary currencies (job post form · admin job page — task 5.3j phase 4) ──
+  TW.JOB_CURRENCIES = ['USD', 'JOD', 'SAR', 'AED', 'EGP', 'IQD'];
+
   // ── Experience levels ──────────────────────────────────────────
   TW.EXPERIENCE_LEVELS = [
     'لا يشترط خبرة','أقل من سنة','1–3 سنوات','3–5 سنوات','أكثر من 5 سنوات'

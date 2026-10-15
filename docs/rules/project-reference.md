@@ -27,7 +27,8 @@ tawasalna/
 ├── notifications.html     # User notifications
 ├── settings.html          # Account settings
 ├── admin.html             # Admin control panel
-└── admin-view.html        # Admin analytics dashboard
+├── admin-view.html        # Admin — one user (task 5.3b)
+└── admin-job.html         # Admin — one job (task 5.3j phase 4)
 ```
 
 ---

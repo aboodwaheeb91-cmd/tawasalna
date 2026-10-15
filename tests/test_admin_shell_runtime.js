@@ -64,6 +64,7 @@ function shell(opts) {
     twEscAttr: s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'),
     twEscHtml: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'),
     twIcon: n => '<svg data-i="' + n + '"></svg>',
+    twFormatNumber: n => String(n),
     showToast: (m, t) => rec.toasts.push([m, t]),
     twConfirm: o => { rec.confirms.push(o); return Promise.resolve(!!opts.confirmAnswer); },
     twModal: o => {
@@ -78,16 +79,21 @@ function shell(opts) {
       const st = (method === 'GET' && opts.getStatus) || opts.status || 200;
       // POST /admin/message answers like the server (task 5.3b2): {ok, data: {notification_id}} ·
       // the admin job actions (task 5.3j) answer {ok: true, data} like api_ok
-      const jobAct = /^\/admin\/jobs\/\d+\/(hide|unhide|reactivate|extend|status|unarchive)$/.test(url);
+      const jobAct = /^\/admin\/jobs\/\d+\/(hide|unhide|reactivate|extend|status|unarchive)$/.test(url)
+        || (method === 'PUT' && /^\/admin\/jobs\/\d+$/.test(url));
+      // GET …/delete-preview answers like the server (task 5.3j phase 4)
+      const preview = /^\/admin\/jobs\/\d+\/delete-preview$/.test(url);
       const body = opts.json || (st < 300 && url === '/admin/message' ? { ok: true, data: { notification_id: 1 } }
-        : st < 300 && jobAct ? { ok: true, data: { id: 3 } } : {});
+        : st < 300 && jobAct ? { ok: true, data: { id: 3 } }
+        : st < 300 && preview ? { ok: true, data: { id: 3, title: 'T', applicants: 4, pipeline_entries: 4, appointments: 1 } } : {});
       return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(body),
                                blob: () => Promise.resolve({ size: 3, type: 'text/csv' }) });
     },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
-  ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js']
+  ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js',
+   'static/shared/admin-jobs.js']
     .concat(opts.page ? [opts.page === true ? 'static/admin/admin.js' : opts.page] : []).concat(opts.chart ? ['static/shared/tw-chart.js'] : [])
     .forEach(f => vm.runInContext(read(f), ctx, { filename: f }));
   return { ctx, rec, store };
@@ -127,7 +133,8 @@ const tick = () => new Promise(r => setImmediate(r));
 
   console.log('\nB — no panel prefix in admin files the browser gets');
   {
-    const files = ['admin.html', 'admin-email.html', 'admin-view.html', 'static/shared/admin-session.js',
+    const files = ['admin.html', 'admin-email.html', 'admin-view.html', 'admin-job.html', 'static/shared/admin-jobs.js',
+      'static/admin-job/admin-job.js', 'static/shared/admin-session.js',
       'static/shared/admin-sections.js', 'static/shared/admin-shell.js', 'static/shared/admin-shell.css',
       'static/admin/admin.js', 'static/admin-email/admin-email.js', 'static/admin-view/admin-view.js'];
     const bad = files.filter(f => read(f).indexOf('tw-ctrl') !== -1);
@@ -377,6 +384,20 @@ const tick = () => new Promise(r => setImmediate(r));
     check('G1c job actions: hidden + closed → unhide · reactivate · delete',
       acts({ status: 'hidden', effective_status: 'closed', admin_hidden_at: '2026-01-01' }) === 'unhide,reactivate,delete');
     check('G1d job actions: archived → unarchive · delete', acts({ status: 'archived', effective_status: 'active' }) === 'unarchive,delete');
+    // task 5.3j phase 4 — delete asks the server what goes first; its counts reach the typed-word confirm
+    {
+      const s = shell({ page: true, token: LIVE, confirmAnswer: false });
+      s.ctx.TwAdminJobs.confirmDelete({ id: 3, title: 'T' }, {});   // the typed-word dialog stays open
+      await tick(); await tick(); await tick();
+      check('G1f delete: the preview (GET …/delete-preview) comes first, then the typed-word confirm — no DELETE yet',
+        s.rec.requests.length === 1 && s.rec.requests[0][0] === '/admin/jobs/3/delete-preview'
+        && s.rec.modals.length === 1, JSON.stringify(s.rec.requests));
+      const f = shell({ page: true, token: LIVE, getStatus: 500 });
+      await f.ctx.TwAdminJobs.confirmDelete({ id: 3, title: 'T' }, {});
+      await tick();
+      check('G1g delete: no preview → no confirm, no delete (and an error toast)',
+        !f.rec.requests.some(r => r[1] === 'DELETE') && f.rec.modals.length === 0 && f.rec.toasts.some(t => t[1] === 'error'));
+    }
     check('G1e job query: hidden is a status tab', D.jobsQuery({ q: '', status: 'hidden', page: 1 }) === 'status=hidden&page=1&limit=20');
     check('G3 page numbers: first · around current · last, gaps as 0',
       D.pageList(5, 20).join() === '1,0,4,5,6,0,20' && D.pageList(1, 3).join() === '1,2,3' && D.pageList(1, 1).join() === '1');
