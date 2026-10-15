@@ -5955,6 +5955,7 @@ check(
 import os as _os175
 
 _auth175   = open('auth.py',   encoding='utf-8').read()
+import re as _re175
 _server175 = open('server.py', encoding='utf-8').read()
 
 # ── auth.py: migration function exists ────────────────────────────────────────
@@ -6091,8 +6092,8 @@ check(
 check(
     "175-29. server.py: no appointment hooks calling schedule_job added (hooks are S4)",
     # schedule_job calls inside accept_appointment/create_appointment are S4
-    # server.py must not contain schedule_job calls until S4
-    'schedule_job' not in _server175
+    # server.py must not call schedule_job( directly (structure — 5.3j: it may call the job reminder helper)
+    _re175.search(r'\bschedule_job\(', _server175) is None
 )
 check(
     "175-30. No cron config file added; SCHEDULER_SECRET env var used in S3",
@@ -6516,6 +6517,9 @@ _resched178 = (_auth178.split('def reschedule_appointment')[1].split('\ndef ')[0
                if 'def reschedule_appointment' in _auth178 else '')
 _addjob178 = (_auth178.split('def add_job')[1].split('\ndef ')[0]
               if 'def add_job' in _auth178 else '')
+# 5.3j #13: the job_expiring_soon scheduling lives in one helper that add_job (and resume / reactivate) call
+_jobremind178 = (_auth178.split('def schedule_job_expiry_reminder')[1].split('\ndef ')[0]
+                 if 'def schedule_job_expiry_reminder' in _auth178 else '')
 
 # AST check for bare except:pass in handler functions
 import ast as _ast178
@@ -6649,11 +6653,12 @@ check(
 check(
     "178-17. hooks carry epoch-seconds in payload and dedupe key for all 4 job types",
     'scheduled_at_ts' in _accept178 and 'response_deadline_at_ts' in _send178
-    and 'response_deadline_at_ts' in _resched178 and 'expected_expires_at_ts' in _addjob178
+    and 'response_deadline_at_ts' in _resched178 and 'expected_expires_at_ts' in _jobremind178
+    and 'schedule_job_expiry_reminder(' in _addjob178
     and 'f"appointment_reminder:' in _accept178
     and '_appt_missed_dedupe_key(' in _accept178   # PR 2B: missed key via shared helper
     and 'f"appointment_deadline_expire:' in _send178
-    and 'f"job_expiring_soon:' in _addjob178
+    and 'f"job_expiring_soon:' in _jobremind178
 )
 
 # 178-18: All 4 handlers use _ts_from_db_val for stale-detection comparison
