@@ -4482,66 +4482,18 @@ check(
 )
 
 # ── Status → Notification Map (checks g–n) ──
+# Task 5.1d replaced the «all 7 statuses internal» guard (PR #479) with the final-result
+# policy — behaviour (intermediate → nothing, hired / rejected → once) is tested in
+# tests/test_application_result_notify.py. Structure only here.
+_fn51d = (_auth165.split('def update_application_status')[1].split('\ndef ')[0]
+          if 'def update_application_status' in _auth165 else '')
 check(
-    "165g. accepted status is now an internal state — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
-    '_INTERNAL_STATUSES' in _auth165 and '"accepted"' in _auth165
+    "165g. update_application_status hands the new stage to notify_application_result (5.1d)",
+    'def notify_application_result(' in _auth165 and 'notify_application_result(' in _fn51d
 )
 check(
-    "165h. rejected status is now an internal state — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
-    '_INTERNAL_STATUSES' in _auth165 and '"rejected"' in _auth165
-)
-check(
-    "165i. viewed status has a notification title",
-    '"viewed"' in _auth165 and 'مراجعة' in _auth165
-)
-check(
-    "165j. fallback notification title exists for unmapped statuses",
-    'تحديث على طلبك' in _auth165
-)
-check(
-    "165k. accepted body no longer in _labels — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
-    '_INTERNAL_STATUSES' in _auth165 and 'status not in _INTERNAL_STATUSES' in _auth165
-)
-check(
-    "165l. rejected body no longer in _labels — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
-    '_INTERNAL_STATUSES' in _auth165 and 'status not in _INTERNAL_STATUSES' in _auth165
-)
-check(
-    "165m. viewed body mentions job_title",
-    'job_title' in _auth165 and 'مراجعة طلبك' in _auth165
-)
-check(
-    "165n. fallback body mentions job_title",
-    'job_title' in _auth165 and 'تم تحديث حالة طلبك' in _auth165
-)
-
-# ── Self-Guard (checks o–q) ──
-check(
-    "165o. self-guard: notification only fires when applicant_id is truthy",
-    'if applicant_id' in _auth165
-)
-check(
-    "165p. self-guard: blocks when applicant_id equals actor_id",
-    'int(applicant_id) != int(actor_id)' in _auth165
-)
-check(
-    "165q. self-guard: notification still fires when actor_id is None",
-    'actor_id is None' in _auth165
-)
-
-# ── Event-Key Idempotency (checks r–t) ──
-check(
-    "165r. event_key uses application_status prefix",
-    'application_status:' in _auth165
-)
-check(
-    "165s. event_key includes app_id",
-    'application_status:{app_id}' in _auth165 or
-    "f\"application_status:{app_id}" in _auth165
-)
-check(
-    "165t. event_key includes status (so each status change is a separate idempotent event)",
-    ':{status}' in _auth165 or ":{status}\"" in _auth165
+    "165h. the removed _INTERNAL_STATUSES guard / application_status_changed notification did not come back",
+    '_INTERNAL_STATUSES' not in _auth165 and 'type_="application_status_changed"' not in _auth165
 )
 
 # ── Link (checks u–w) ──
@@ -4592,20 +4544,10 @@ check(
 
 # ── create_notification usage (checks ad–af) ──
 check(
-    "165ad. create_notification called with type_='application_status_changed'",
-    "type_=\"application_status_changed\"" in _auth165 or
-    "type_='application_status_changed'" in _auth165
-)
-check(
     "165ae. create_notification called with entity_type='job_application'",
     "entity_type=\"job_application\"" in _auth165 or
     "entity_type='job_application'" in _auth165
 )
-check(
-    "165af. create_notification called with entity_id=app_id",
-    'entity_id=app_id' in _auth165
-)
-
 # ── Documentation (checks ag–al) ──
 
 # ── Forbidden Patterns (checks am–ar) ──
@@ -4659,62 +4601,10 @@ _fn166 = (
     if 'def update_application_status' in _auth166 else ''
 )
 
-# ── Policy in auth.py (checks a–d) ──
+# ── Policy (5.1d — replaces checks a–k of PR #456 / #479) ──
 check(
-    "166a. auth.py: _INTERNAL_STATUSES set includes 'accepted'",
-    '_INTERNAL_STATUSES' in _fn166 and '"accepted"' in _fn166
-)
-check(
-    "166b. auth.py: _INTERNAL_STATUSES set includes 'rejected'",
-    '_INTERNAL_STATUSES' in _fn166 and '"rejected"' in _fn166
-)
-check(
-    "166c. auth.py: notification block guarded by 'status not in _INTERNAL_STATUSES'",
-    'status not in _INTERNAL_STATUSES' in _fn166
-)
-_fn166_labels_body = (
-    _fn166.split('_labels = {')[1].split('}')[0]
-    if '_labels = {' in _fn166 else ''
-)
-check(
-    "166d. auth.py: accepted and rejected keys absent from _labels dict (only 'viewed' + fallback remain)",
-    '"accepted"' not in _fn166_labels_body and '"rejected"' not in _fn166_labels_body
-    if _fn166_labels_body else '_INTERNAL_STATUSES' in _fn166
-)
-
-# ── Allowed notifications still work (checks e–h) ──
-check(
-    "166e. auth.py: 'viewed' notification label still present",
-    '"viewed"' in _fn166 and 'مراجعة' in _fn166
-)
-check(
-    "166f. auth.py: fallback notification still present for non-final statuses",
-    'تحديث على طلبك' in _fn166
-)
-check(
-    "166g. auth.py: create_notification still called inside update_application_status",
-    'create_notification(' in _fn166
-)
-check(
-    "166h. auth.py: self-guard (applicant_id != actor_id) still present",
-    'int(applicant_id) != int(actor_id)' in _fn166
-)
-
-# ── Forbidden patterns (checks i–p) ──
-check(
-    "166i. auth.py: 'قُبل طلبك' (accepted title) no longer used as notification",
-    'قُبل طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
-    if '_INTERNAL_STATUSES' in _fn166 else True
-)
-check(
-    "166j. auth.py: 'تم قبول طلبك' (accepted body) no longer used as notification",
-    'تم قبول طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
-    if '_INTERNAL_STATUSES' in _fn166 else True
-)
-check(
-    "166k. auth.py: rejected body no longer used as notification",
-    'لم يُقبل طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
-    if '_INTERNAL_STATUSES' in _fn166 else True
+    "166a. update_application_status creates no notification itself (one hook: notify_application_result)",
+    'create_notification(' not in _fn166 and 'notify_application_result(' in _fn166
 )
 check(
     "166l. auth.py: no schema changes in this PR (no ALTER TABLE in update_application_status)",
@@ -4922,12 +4812,8 @@ check(
 
 # ── System isolation — no regressions (checks af–ah) ──
 check(
-    "167af. application_status_changed _INTERNAL_STATUSES guard still present",
-    '_INTERNAL_STATUSES' in _auth167 and '"accepted"' in _auth167 and '"rejected"' in _auth167
-)
-check(
-    "167ag. update_application_status still has self-guard for actor_id",
-    'actor_id is None or int(applicant_id) != int(actor_id)' in _auth167
+    "167af. application result hook still wired (5.1d)",
+    'def notify_application_result(' in _auth167
 )
 check(
     "167ah. create_notification helper signature unchanged",
@@ -7717,11 +7603,9 @@ _allowed187 = (_srv187.split('allowed_statuses = {')[1][:200]
 check("187-01. server.py allowed_statuses includes contacted, interview, hired",
       'contacted' in _allowed187 and 'interview' in _allowed187 and 'hired' in _allowed187)
 
-# 187-02: _INTERNAL_STATUSES in auth.py includes contacted, interview, hired
-check("187-02. _INTERNAL_STATUSES includes contacted, interview, hired",
-      'contacted' in _auth187.split('_INTERNAL_STATUSES')[1][:200]
-      and 'interview' in _auth187.split('_INTERNAL_STATUSES')[1][:200]
-      and 'hired' in _auth187.split('_INTERNAL_STATUSES')[1][:200])
+# 187-02: final statuses are the only ones that reach the applicant (5.1d)
+check("187-02. APPLICATION_RESULT_STAGES = hired + rejected only",
+      'APPLICATION_RESULT_STAGES = {"hired"' in _auth187 and '"rejected": "notify_application_rejected"}' in _auth187)
 
 # 187-03: _APP_STATUS_LABEL has all 7 statuses
 _asl187 = _main187.split('_APP_STATUS_LABEL')[1][:400] if '_APP_STATUS_LABEL' in _main187 else ''
@@ -7869,21 +7753,17 @@ check("187-24. catch manual rollback (_applyClassifyBadge + classifyBtn) is in t
       '_applyClassifyBadge' in _else187 and 'classifyBtn' in _else187)
 
 # ════════════════════════════════════════════════════════════════
-# §188 — viewed is fully internal: no notification for "للمراجعة"
+# §188 — viewed is fully internal: no notification for "للمراجعة" (5.1d: only hired / rejected notify)
 # ════════════════════════════════════════════════════════════════
 
-_auth188 = open('auth.py', encoding='utf-8').read()
-_ias188  = (_auth188.split('_INTERNAL_STATUSES')[1].split('\n')[0]
-            if '_INTERNAL_STATUSES' in _auth188 else '')
-
-# 188-01: viewed is in _INTERNAL_STATUSES so no notification fires for "للمراجعة"
-check("188-01. viewed is in _INTERNAL_STATUSES (no notification for للمراجعة)",
-      'viewed' in _ias188)
-
-# 188-02: all 7 classify statuses are internal — notification block can never fire for any of them
-_seven = ['pending', 'viewed', 'accepted', 'rejected', 'contacted', 'interview', 'hired']
-check("188-02. all 7 pipeline statuses are in _INTERNAL_STATUSES",
-      all(s in _ias188 for s in _seven))
+# Task 5.1d: intermediate stages (incl. viewed / «للمراجعة») stay internal — behaviour, no DB:
+# notify_application_result returns before any lookup for every non-final stage.
+import auth as _auth188
+_mid188 = ['new', 'reviewing', 'shortlisted', 'contacted', 'interview', None]
+check("188-01. viewed / every intermediate stage → no notification (returns False, no DB)",
+      all(_auth188.notify_application_result(1, st) is False for st in _mid188))
+check("188-02. only hired / rejected are final result stages",
+      set(_auth188.APPLICATION_RESULT_STAGES) == {'hired', 'rejected'})
 
 
 # ════════════════════════════════════════════════════════════════

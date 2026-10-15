@@ -1260,8 +1260,9 @@ def email_notify_reserve(template_key: str, user_id: int, ref_key, limits: dict)
         try:
             conn.run("SELECT pg_advisory_xact_lock(:k)", k=_EMAIL_NOTIFY_LOCK)
             status = "ok"
+            import email_service
             pref = conn.run("SELECT enabled FROM email_notify_prefs WHERE user_id = :u AND type = :t",
-                            u=int(user_id), t=template_key)
+                            u=int(user_id), t=email_service.pref_key(template_key))
             if pref and not pref[0][0]:
                 status = "skipped_pref"
             if status == "ok" and ref_key and template_key == "notify_message":
@@ -1329,6 +1330,8 @@ NOTIFICATION_EMAIL_TEMPLATES = {
     "appointment_invited":     "notify_appointment_invited",
     "appointment_rescheduled": "notify_appointment_rescheduled",
     "appointment_cancelled":   "notify_appointment_cancelled",
+    "application_hired":       "notify_application_hired",       # 5.1d — final result only
+    "application_rejected":    "notify_application_rejected",
 }
 _EMAIL_POOL = None
 
@@ -1342,7 +1345,8 @@ def _email_submit(fn, *args):
     return _EMAIL_POOL.submit(fn, *args)
 
 
-def _notification_email(user_id: int, type_: str, title: str, body: str, link: str) -> None:
+def _notification_email(user_id: int, type_: str, title: str, body: str, link: str,
+                        extra: dict = None, ref_key: str = None) -> None:
     """Hook of create_notification — a new in-site notification of a mapped type → its email."""
     template = NOTIFICATION_EMAIL_TEMPLATES.get(type_)
     if not template:
@@ -1351,8 +1355,9 @@ def _notification_email(user_id: int, type_: str, title: str, body: str, link: s
         import email_service
         if not email_service.can_send(template):
             return
-        _email_submit(email_notify_user, int(user_id), template,
-                      {"title": title or "", "details": body or "", "link": link or ""})
+        values = {"title": title or "", "details": body or "", "link": link or ""}
+        values.update(extra or {})
+        _email_submit(email_notify_user, int(user_id), template, values, ref_key)
     except Exception as e:
         print(f"[email] notification email not queued type={type_}: {type(e).__name__}")
 
@@ -3372,33 +3377,9 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
     finally:
         release_conn(conn)
 
-    # Notification block — runs after connection is released.
-    # All pipeline classification statuses are internal to the company — no notification to applicant.
-    # The only applicant-visible action is a formal appointment invitation (Appointments system).
-    _INTERNAL_STATUSES = {"pending", "viewed", "accepted", "rejected", "contacted", "interview", "hired"}
-    if applicant_id and status not in _INTERNAL_STATUSES and (actor_id is None or int(applicant_id) != int(actor_id)):
-        _labels = {
-            "viewed": ("بدأت مراجعة طلبك", f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),
-        }
-        title, body = _labels.get(
-            status,
-            ("تحديث على طلبك", f"تم تحديث حالة طلبك على وظيفة «{job_title}»")
-        )
-        link = f"/job-detail?id={job_id_int}" if job_id_int else ""
-        try:
-            create_notification(
-                user_id=int(applicant_id),
-                type_="application_status_changed",
-                title=title,
-                body=body,
-                link=link,
-                actor_id=actor_id,
-                entity_id=app_id,
-                entity_type="job_application",
-                event_key=f"application_status:{app_id}:{status}",
-            )
-        except Exception as e:
-            print(f"[NOTIF] application_status_changed failed for app {app_id}: {e}")
+    # Notification — runs after the connection is released (task 5.1d). Intermediate statuses
+    # stay internal to the company; only the final result (hired / rejected) reaches the applicant.
+    notify_application_result(app_id, LEGACY_APP_STATUS_TO_PIPELINE_STAGE.get(status))
 
     return {
         "success":            True,
@@ -3409,6 +3390,98 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         "candidate_status":   candidate_status,
         "general_status":     None,
     }
+
+# ── Final result of an application → the applicant (task 5.1d) ─────────────────
+# Only the two final stages reach the applicant (in-site notification + notification email);
+# every intermediate stage stays internal to the company. Once per application per final
+# stage: event_key on notifications (UNIQUE user_id + event_key) — moving back to an
+# intermediate stage and forward again never repeats it.
+APPLICATION_RESULT_STAGES = {"hired": "notify_application_hired",
+                             "rejected": "notify_application_rejected"}
+
+
+def _migrate_company_settings():
+    """Idempotent — company_settings (5.1d): one row per company only when changed; missing = defaults."""
+    with db_conn() as conn:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_settings (
+                company_id              INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                notify_applicant_result BOOLEAN NOT NULL DEFAULT TRUE,
+                updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""")
+
+
+COMPANY_SETTINGS_DEFAULTS = {"notify_applicant_result": True}
+
+
+def get_company_settings(company_id: int) -> dict:
+    with db_conn() as conn:
+        rows = conn.run("SELECT notify_applicant_result FROM company_settings WHERE company_id = :c",
+                        c=int(company_id))
+    out = dict(COMPANY_SETTINGS_DEFAULTS)
+    if rows:
+        out["notify_applicant_result"] = bool(rows[0][0])
+    return out
+
+
+def set_company_settings(company_id: int, settings: dict) -> dict:
+    """settings = {notify_applicant_result: bool} — already validated by the caller (server.py)."""
+    with db_conn() as conn:
+        conn.run("INSERT INTO company_settings (company_id, notify_applicant_result) VALUES (:c, :n) "
+                 "ON CONFLICT (company_id) DO UPDATE SET notify_applicant_result = EXCLUDED.notify_applicant_result, "
+                 "updated_at = NOW()",
+                 c=int(company_id), n=bool(settings["notify_applicant_result"]))
+    return get_company_settings(company_id)
+
+
+def _tw_text(key: str, values: dict) -> str:
+    """Server-side twT: Strings text (defaults + admin override) with {var} filled."""
+    import email_service
+    text = email_service.strings().get(key, "")
+    return re.sub(r"\{([a-z0-9_]+)\}", lambda m: str(values.get(m.group(1), m.group(0))), text)
+
+
+def notify_application_result(app_id: int, stage: str) -> bool:
+    """After the commit that moved application app_id to `stage`. Sends only for hired / rejected,
+    only while the admin type switch and the company setting are on; the user's own switch gates
+    the email (email_notify_reserve). Never raises → True when a notification was created."""
+    template = APPLICATION_RESULT_STAGES.get(stage)
+    if not template:
+        return False                                  # intermediate stage — internal to the company
+    try:
+        import email_service
+        if not email_service.type_enabled(template):
+            return False                              # admin switch (site_settings email_settings.types)
+        with db_conn() as conn:
+            rows = conn.run(
+                "SELECT ja.user_id, ja.job_id, COALESCE(j.title, ''), j.company_id, COALESCE(u.full_name, ''), "
+                "COALESCE(cs.notify_applicant_result, TRUE) "
+                "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = j.company_id "
+                "LEFT JOIN company_settings cs ON cs.company_id = j.company_id WHERE ja.id = :id",
+                id=int(app_id))
+        if not rows:
+            return False
+        applicant_id, job_id, job, company_id, company, company_on = rows[0]
+        if not company_on or int(applicant_id) == int(company_id):
+            return False                              # company setting off
+        vals = {"job": job, "company": company}
+        created = create_notification(
+            user_id=int(applicant_id),
+            type_=f"application_{stage}",
+            title=_tw_text(f"notif.application_result.{stage}.title", vals),
+            body=_tw_text(f"notif.application_result.{stage}.body", vals),
+            link=f"/job-detail?id={int(job_id)}",
+            actor_id=int(company_id),
+            entity_id=int(app_id),
+            entity_type="job_application",
+            event_key=f"application_result:job_application:{int(app_id)}:{stage}",
+            email_values=vals,
+        )
+        return created is not None
+    except Exception as e:
+        print(f"[NOTIF] application result not sent app={app_id} stage={stage}: {type(e).__name__}: {e}")
+        return False
+
 
 def archive_job(job_id: int, company_id: int, archived_by: int) -> dict:
     """
@@ -4083,9 +4156,10 @@ def _migrate_notifications_schema_v2_1():
 def create_notification(
     user_id: int, type_: str, title: str, body: str, link: str = "",
     actor_id: int = None, entity_id: int = None, entity_type: str = None,
-    event_key: str = None
+    event_key: str = None, email_values: dict = None
 ):
-    """Create a notification. Returns the created row dict, or None if event_key already exists (idempotent)."""
+    """Create a notification. Returns the created row dict, or None if event_key already exists (idempotent).
+    email_values = extra template variables of the mapped email (5.1d) — never stored."""
     conn = get_conn()
     try:
         rows = conn.run(
@@ -4102,7 +4176,7 @@ def create_notification(
         created = _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
-    _notification_email(user_id, type_, title, body, link)   # 5.1c — mapped types only
+    _notification_email(user_id, type_, title, body, link, email_values, event_key)   # 5.1c — mapped types only
     return created
 
 
@@ -6672,6 +6746,8 @@ def update_candidate_job_status(
 
     conn = get_conn()
     committed = False
+    updated = False
+    result_app_id = None   # 5.1d — application that reached a final stage in this call
     try:
         conn.run("BEGIN")
 
@@ -6790,9 +6866,9 @@ def update_candidate_job_status(
                     changed_by=actor_id,
                     reason="candidate_job_status_changed",
                 )
+                result_app_id = app_id
         conn.run("COMMIT")
         committed = True
-        return updated
     except (ValueError,):
         if not committed:
             try:
@@ -6810,6 +6886,11 @@ def update_candidate_job_status(
         raise RuntimeError("فشل تحديث حالة المرشح في الوظيفة") from _e
     finally:
         release_conn(conn)
+
+    # Final result → the applicant (task 5.1d) — after commit + release; intermediate stages stay internal.
+    if result_app_id:
+        notify_application_result(result_app_id, LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE.get(candidate_status))
+    return updated
 
 
 # Application statuses below 'accepted' — the only ones the shortlist core moves forward.

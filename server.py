@@ -118,6 +118,7 @@ from auth import (
     PASSWORD_RESET_TTL_MINUTES, EMAIL_TOKEN_TTL_MINUTES, email_change_request, email_change_apply,
     _migrate_email_notify, email_notify_reserve, email_log_write, email_send_stats,
     get_email_prefs, set_email_prefs, schedule_message_email,
+    _migrate_company_settings, get_company_settings, set_company_settings,
     _OTP_TTL_MINUTES,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
@@ -756,6 +757,7 @@ def _startup_migrations():
         ("password_changed_at",               _migrate_password_changed_at,        True),
         ("password_reset_tokens",             _migrate_password_reset_tokens,      True),
         ("email_notify",                      _migrate_email_notify,               True),
+        ("company_settings",                  _migrate_company_settings,           False),
         ("kyc_otp_security",                  _migrate_kyc_otp_security,           True),
         ("jobs_v2",                           _migrate_jobs_v2,                    True),
         ("job_lifecycle",                     _migrate_job_lifecycle,              True),
@@ -3527,9 +3529,11 @@ def admin_put_email(request: Request, data: dict = Body(...)):
 
 # ── Notification email preferences — the signed-in user's own (task 5.1c) ──
 def _email_prefs_payload(uid: int) -> dict:
-    prefs = get_email_prefs(uid, email_service.NOTIFY_TYPES)
-    return {"types": [{"key": k, "enabled": prefs[k], "available": email_service.can_send(k)}
-                      for k in email_service.NOTIFY_TYPES]}
+    """One switch per preference key — a key may cover several types (PREF_GROUPS, 5.1d)."""
+    prefs = get_email_prefs(uid, email_service.PREF_TYPES)
+    return {"types": [{"key": k, "enabled": prefs[k],
+                       "available": any(email_service.can_send(m) for m in email_service.pref_members(k))}
+                      for k in email_service.PREF_TYPES]}
 
 
 @app.get("/my/email-notifications")
@@ -3553,7 +3557,7 @@ def my_email_prefs_save(data: dict = Body(...), token=Depends(verify_token)):
     if not isinstance(t, dict) or not t:
         return api_error(422, "invalid_body", "صيغة الإعدادات غير صحيحة", "types")
     for k, v in t.items():
-        if k not in email_service.NOTIFY_TYPES:
+        if k not in email_service.PREF_TYPES:
             return api_error(422, "unknown_type", "نوع إشعار غير معروف", k)
         if not isinstance(v, bool):
             return api_error(422, "invalid_value", "القيمة لازم تكون تشغيل / إيقاف", k)
@@ -3562,6 +3566,32 @@ def my_email_prefs_save(data: dict = Body(...), token=Depends(verify_token)):
         return api_ok(_email_prefs_payload(uid))
     except Exception as e:
         raise _server_error("my_email_prefs_save", e)
+
+
+# ── Company settings — the signed-in company's own (task 5.1d) ──
+@app.get("/company/settings")
+def company_settings_get(token=Depends(verify_token)):
+    """{notify_applicant_result} — company accounts only (403 otherwise)."""
+    if token.get("user_type") != "co":
+        return api_error(403, "forbidden", "هذا الإعداد لحسابات الشركات فقط")
+    try:
+        return api_ok(get_company_settings(int(token.get("user_id") or 0)))
+    except Exception as e:
+        raise _server_error("company_settings_get", e)
+
+
+@app.put("/company/settings")
+def company_settings_put(data: dict = Body(...), token=Depends(verify_token)):
+    """{notify_applicant_result: bool} — «إبلاغ المتقدمين بالنتيجة النهائية» (default on)."""
+    if token.get("user_type") != "co":
+        return api_error(403, "forbidden", "هذا الإعداد لحسابات الشركات فقط")
+    v = data.get("notify_applicant_result") if isinstance(data, dict) else None
+    if not isinstance(v, bool) or set(data) - {"notify_applicant_result"}:
+        return api_error(422, "invalid_body", "صيغة الإعدادات غير صحيحة", "notify_applicant_result")
+    try:
+        return api_ok(set_company_settings(int(token.get("user_id") or 0), {"notify_applicant_result": v}))
+    except Exception as e:
+        raise _server_error("company_settings_put", e)
 
 
 @app.post("/admin/email/test")
