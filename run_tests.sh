@@ -106,6 +106,7 @@ PY_DB=(
   pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
   pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
+  pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────

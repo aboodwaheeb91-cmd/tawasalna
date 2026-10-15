@@ -436,6 +436,13 @@
       var statusBadge = !canApply
         ? '<span class="job-logo-status job-logo-status--' + _escAttr(badgeCls) + '">' + stLblBadge + '</span>'
         : '';
+      // Hidden by the admin (task 5.3j) — the owner sees it with the reason (never sent to visitors)
+      var hiddenNote = '';
+      if (!canApply && j.admin_hidden_at) {
+        statusBadge = '<span class="job-logo-status job-logo-status--closed">' + _esc(twT('company.job.admin_hidden')) + '</span>';
+        hiddenNote = '<div class="job-card-admin-note">'
+          + _esc(twT('company.job.admin_hidden_reason', { reason: j.admin_hidden_reason || '' })) + '</div>';
+      }
       var logoHtml = '<div class="job-logo-col"><div class="job-card-logo">' + logoInner + '</div>' + statusBadge + '</div>';
 
       // ── Profession sub-title (green, no chip) ─────────────────
@@ -513,6 +520,7 @@
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
           + subHtml
+          + hiddenNote
           + (metaRow ? '<div class="job-meta-row">' + metaRow + '</div>' : '')
         + '</div>'
         + rightHtml

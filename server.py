@@ -142,7 +142,8 @@ from auth import (
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
     _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _eff_status, _ALLOWED_DURATIONS,
-    job_active_sql, admin_hard_delete_job,
+    job_active_sql, admin_hard_delete_job, schedule_job_expiry_reminder,
+    admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -5838,6 +5839,7 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried PUT /company/jobs/{job_id}")
         raise HTTPException(403, "شركات وجهات فقط")
     cid = int(user_id)
+    new_expires = None
     conn = get_conn()
     try:
         raw_fields = data.dict()
@@ -5891,12 +5893,14 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
             dur = int(duration_days)
             if dur not in _ALLOWED_DURATIONS:
                 raise HTTPException(422, "مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
-            conn.run(
+            # paused: the new duration counts from now, frozen until resume (paused_at = now — 5.3j #7)
+            new_expires = conn.run(
                 f"UPDATE jobs SET duration_days={dur}, "
-                f"expires_at=NOW() + INTERVAL '{dur} days' "
-                "WHERE id=:id AND company_id=:cid",
+                f"expires_at=NOW() + INTERVAL '{dur} days', "
+                "paused_at = CASE WHEN status = 'paused' THEN NOW() ELSE paused_at END "
+                "WHERE id=:id AND company_id=:cid RETURNING expires_at, status",
                 id=job_id, cid=cid
-            )
+            )[0]
 
         # ── Step 4: snapshot-replace accepted professions ─────────────────────
         if accepted_pids is not None:
@@ -5908,9 +5912,13 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
                     jid=job_id, pid=pid, ord=i
                 )
 
-        return {"status": "success"}
     finally:
         release_conn(conn)
+    _cache_del('jobs:')
+    # a new expires_at → a new job_expiring_soon reminder (5.3j #13 — paused ones wait for resume)
+    if new_expires is not None and new_expires[1] == 'active':
+        schedule_job_expiry_reminder(job_id, new_expires[0])
+    return {"status": "success"}
 
 @app.delete("/company/jobs/{job_id}")
 def remove_job(job_id: int, token=Depends(verify_token)):
@@ -6166,6 +6174,89 @@ def admin_list_jobs(request: Request, q: str = "", status: str = "", page: str =
         return api_ok(admin_insights.jobs_list(q=q, status=status, page=int(page), limit=int(limit)))
     except Exception as e:
         raise _server_error("admin_list_jobs", e)
+
+# ── admin job actions (task 5.3j phase 2 — SYSTEMS_INDEX §25e). Each one tells the company (in-app
+#    notification type job_admin). Audit rows come from admin_audit_middleware (writes under /admin/). ──
+_JOB_ADMIN_NOTICE = {
+    "hidden":      ("أخفت الإدارة وظيفتك", "«{title}» لم تعد تظهر للزوار. السبب: {reason}"),
+    "unhidden":    ("أعادت الإدارة إظهار وظيفتك", "«{title}» تظهر في الموقع من جديد."),
+    "reactivated": ("أعادت الإدارة تفعيل وظيفتك", "«{title}» نشطة الآن لمدة {days} يوماً."),
+    "extended":    ("مدّدت الإدارة مدة وظيفتك", "أُضيف {days} يوماً إلى مدة «{title}»."),
+}
+
+
+def _notify_company_job_admin(info: dict, kind: str, days: int = 0) -> bool:
+    """In-app notification to the job's company — non-fatal (the action already happened)."""
+    title, body = _JOB_ADMIN_NOTICE[kind]
+    try:
+        tw = _tw_id_for_user_id(info["company_id"])
+        create_notification(
+            user_id=info["company_id"], type_="job_admin", title=title,
+            body=body.format(title=str(info.get("title") or "")[:80], reason=info.get("reason") or "", days=days),
+            link=("/u/" + tw) if tw else "", entity_id=info["id"], entity_type="job")
+        return True
+    except Exception as e:
+        print(f"[admin job] notify {kind} job={info.get('id')} failed: {type(e).__name__}: {e}")
+        return False
+
+
+def _admin_job_action(name: str, fn):
+    try:
+        return fn()
+    except LookupError as e:
+        return api_error(404, "not_found", str(e))
+    except JobActionError as e:
+        return api_error(409, "invalid_state", str(e))
+    except ValueError as e:
+        return api_error(422, "invalid_input", str(e))
+    except Exception as e:
+        raise _server_error(name, e)
+
+
+def _job_out(info: dict) -> dict:
+    exp = info.get("expires_at")
+    return {"id": info["id"], "expires_at": exp.isoformat() if hasattr(exp, "isoformat") else exp}
+
+
+@app.post("/admin/jobs/{job_id}/hide")
+def admin_hide_job(job_id: int, request: Request, data: dict = Body(default={})):
+    check_admin(request)
+    def run():
+        info = admin_set_job_hidden(job_id, True, str((data or {}).get("reason") or ""))
+        return api_ok({"id": info["id"], "hidden": True,
+                       "notified": _notify_company_job_admin(info, "hidden")})
+    return _admin_job_action("admin_hide_job", run)
+
+
+@app.post("/admin/jobs/{job_id}/unhide")
+def admin_unhide_job(job_id: int, request: Request):
+    check_admin(request)
+    def run():
+        info = admin_set_job_hidden(job_id, False)
+        return api_ok({"id": info["id"], "hidden": False,
+                       "notified": _notify_company_job_admin(info, "unhidden")})
+    return _admin_job_action("admin_unhide_job", run)
+
+
+@app.post("/admin/jobs/{job_id}/reactivate")
+def admin_reactivate_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+    check_admin(request)
+    def run():
+        info = admin_reactivate_job(job_id, (data or {}).get("duration_days"))
+        return api_ok({**_job_out(info), "status": "active",
+                       "notified": _notify_company_job_admin(info, "reactivated", info["duration_days"])})
+    return _admin_job_action("admin_reactivate_job", run)
+
+
+@app.post("/admin/jobs/{job_id}/extend")
+def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+    check_admin(request)
+    def run():
+        days = (data or {}).get("duration_days")
+        info = admin_extend_job(job_id, days)
+        return api_ok({**_job_out(info), "notified": _notify_company_job_admin(info, "extended", int(days))})
+    return _admin_job_action("admin_extend_job", run)
+
 
 @app.delete("/admin/jobs/{job_id}")
 def admin_delete_job(job_id: int, request: Request):

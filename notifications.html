@@ -425,7 +425,7 @@ body {
 
   /* Filter groups — maps tab data-filter to notification type values */
   var FILTER_GROUPS = {
-    job:     ['job', 'job_applied', 'application_hired', 'application_rejected'],
+    job:     ['job', 'job_applied', 'application_hired', 'application_rejected', 'job_admin'],
     comment: ['comment', 'reply', 'mention'],
     follow:  ['follow'],
     verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected'],
@@ -445,6 +445,7 @@ body {
     verify:      { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     kyc:         { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     admin_message: { icon: 'mail',       tone: 'brand',  filter: 'admin' },   /* 5.3b2 */
+    job_admin:   { icon: 'briefcase',    tone: 'brand',  filter: 'job' },     /* 5.3j — admin hid / unhid / reactivated / extended a job */
     system:      { icon: 'notifications', tone: '',      filter: 'system' }
   };
 

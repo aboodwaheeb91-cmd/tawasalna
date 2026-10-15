@@ -6365,6 +6365,10 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
 | PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
 | GET | `/admin/jobs` | `admin_list_jobs` | Every job in every state — `?q=&status=active\|paused\|closed\|expired\|archived&page=&limit≤100` → `{ok, data:{items, total, page, limit, counts}}` (task 5.3j · SYSTEMS_INDEX §25e) |
+| POST | `/admin/jobs/{job_id}/hide` | `admin_hide_job` | Hide from every public place — body `{reason}` (required, ≤ 500) → `{ok, data:{id, hidden, notified}}` · 404 · 409 already hidden · 422 no reason (task 5.3j phase 2 · §25e) |
+| POST | `/admin/jobs/{job_id}/unhide` | `admin_unhide_job` | Back to its own state → `{ok, data}` · 409 not hidden |
+| POST | `/admin/jobs/{job_id}/reactivate` | `admin_reactivate_job_endpoint` | closed / expired → active, `{duration_days}` ∈ 3 · 7 · 14 · 30 → `expires_at = NOW() + days` · 409 other state / archived · 422 bad duration |
+| POST | `/admin/jobs/{job_id}/extend` | `admin_extend_job_endpoint` | active / paused → `expires_at + days` · 409 other state / archived · 422 bad duration |
 | DELETE | `/admin/jobs/{job_id}` | `admin_delete_job` | Hard delete — pipeline entries + job in one transaction → `{success, removed:{applicants, pipeline_entries}}` · 404 unknown (task 5.3j — #1) |
 | GET | `/admin/reports` | `admin_get_reports` | List content reports (§58) |
 | PUT | `/admin/reports/{report_id}/resolve` | `resolve_report` | Resolve report |
@@ -9881,6 +9885,8 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE;
 ```
+
+**`jobs` admin hide (task 5.3j phase 2)** — `_migrate_job_lifecycle` (critical, idempotent): `admin_hidden_at TIMESTAMPTZ NULL` + `admin_hidden_reason TEXT NULL`. Set / cleared only by `auth.admin_set_job_hidden`; any value = not public (`job_active_sql` · `get_jobs` · `get_job` · `apply_job`) — SYSTEMS_INDEX §25e.
 
 ### Backend Source of Truth
 

@@ -27,14 +27,14 @@ Users table (§25d — task 5.3a3) — read-only, check_admin:
   (verified | pending | unverified) · created_at. Nothing else (no password hash, phone, tokens …).
 
 Jobs table (§25e — task 5.3j) — read-only, check_admin:
-  jobs_list()   = GET /admin/jobs  (every state: active · paused · closed · expired · archived — state from
+  jobs_list()   = GET /admin/jobs  (every state: active · paused · closed · expired · hidden · archived — state from
                   auth.job_eff_status_sql, the SQL twin of _eff_status · search title / company · status ·
                   page / limit ≤ JOBS_PAGE_MAX · counts per state · applicant_count per job)
 """
 import csv
 import io
 
-from auth import db_conn, job_active_sql, job_eff_status_sql
+from auth import db_conn, job_active_sql, job_eff_status_sql, _ALLOWED_DURATIONS
 
 AUDIT_RESULTS = ("ok", "denied", "failed")
 AUDIT_PAGE_MAX = 100
@@ -316,15 +316,18 @@ def users_csv(q: str = "", user_type: str = "", verification: str = "", sort: st
 
 
 # ── jobs table (§25e — task 5.3j) ──
-# Every job in every state. The state is ONE value per row: 'archived' when archived_at is set, else the
-# effective status from auth.job_eff_status_sql (the SQL twin of _eff_status — never computed in the page).
-JOB_ADMIN_STATUSES = ("active", "paused", "closed", "expired", "archived")
+# Every job in every state. The state is ONE value per row: 'archived' when archived_at is set, else 'hidden'
+# when the admin hid it (5.3j phase 2), else the effective status from auth.job_eff_status_sql (the SQL twin
+# of _eff_status — never computed in the page). effective_status is returned too (for archived / hidden rows
+# it tells which actions fit: reactivate = closed / expired · extend = active / paused).
+JOB_ADMIN_STATUSES = ("active", "paused", "closed", "expired", "hidden", "archived")
 JOBS_PAGE_MAX = 100
-_JOB_STATE_SQL = "(CASE WHEN j.archived_at IS NOT NULL THEN 'archived' ELSE " + job_eff_status_sql("j") + " END)"
+_JOB_STATE_SQL = ("(CASE WHEN j.archived_at IS NOT NULL THEN 'archived' WHEN j.admin_hidden_at IS NOT NULL "
+                  "THEN 'hidden' ELSE " + job_eff_status_sql("j") + " END)")
 _JOBS_FROM = " FROM jobs j LEFT JOIN users u ON u.id = j.company_id"
 JOBS_COLUMNS = ("id", "title", "company_id", "company_name", "company_tw_id", "company_type", "status",
                 "created_at", "expires_at", "closed_at", "paused_at", "archived_at", "duration_days", "views",
-                "applicant_count")
+                "applicant_count", "effective_status", "admin_hidden_at", "admin_hidden_reason")
 
 
 def _iso(v):
@@ -360,15 +363,18 @@ def jobs_list(q: str = "", status: str = "", page: int = 1, limit: int = 20) -> 
         rows = conn.run(
             "SELECT j.id, j.title, j.company_id, u.full_name, u.tw_id, u.user_type, " + _JOB_STATE_SQL + ", "
             "j.created_at, j.expires_at, j.closed_at, j.paused_at, j.archived_at, j.duration_days, "
-            "COALESCE(j.views, 0), (SELECT COUNT(*) FROM job_applications a WHERE a.job_id = j.id)"
+            "COALESCE(j.views, 0), (SELECT COUNT(*) FROM job_applications a WHERE a.job_id = j.id), "
+            + job_eff_status_sql("j") + ", j.admin_hidden_at, j.admin_hidden_reason"
             + _JOBS_FROM + where +
             " ORDER BY j.created_at DESC NULLS LAST, j.id DESC LIMIT :lim OFFSET :off",
             lim=limit, off=(page - 1) * limit, **params_page)
     items = []
     for r in rows:
         it = dict(zip(JOBS_COLUMNS, r))
-        for k in ("created_at", "expires_at", "closed_at", "paused_at", "archived_at"):
+        for k in ("created_at", "expires_at", "closed_at", "paused_at", "archived_at", "admin_hidden_at"):
             it[k] = _iso(it[k])
         it["applicant_count"] = int(it["applicant_count"] or 0)
         items.append(it)
-    return {"items": items, "total": total, "page": page, "limit": limit, "counts": counts}
+    # durations = the only allowed listing durations (auth._ALLOWED_DURATIONS) — the page's reactivate / extend choices
+    return {"items": items, "total": total, "page": page, "limit": limit, "counts": counts,
+            "durations": sorted(_ALLOWED_DURATIONS)}

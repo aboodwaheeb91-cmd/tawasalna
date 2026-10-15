@@ -2105,6 +2105,9 @@ def _migrate_job_lifecycle():
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_days SMALLINT DEFAULT 7")
+        # admin hide (task 5.3j) — separate from the company's own states; hidden = never public
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS admin_hidden_at TIMESTAMPTZ NULL")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS admin_hidden_reason TEXT NULL")
         # Back-fill expires_at for active/paused jobs that predate the lifecycle system
         conn.run("""
             UPDATE jobs
@@ -2668,9 +2671,11 @@ def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
     """Compute effective lifecycle status — never stored in DB, always derived at request time.
 
     Transitions:
-      active/paused + expires_at elapsed       → 'closed' (auto-expired by duration)
+      active + expires_at elapsed               → 'closed' (auto-expired by duration)
       closed or auto-closed + ref + 30d         → 'expired' (viewer window closed)
-      active/paused within window               → status unchanged
+      paused                                    → 'paused' always — the duration is frozen while paused
+                                                  (task 5.3j #7); resume adds the paused time to expires_at
+      active within window                      → 'active'
     """
     now = datetime.utcnow()
 
@@ -2689,7 +2694,10 @@ def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
             return 'expired'
         return 'closed'
 
-    # active or paused: check if listing duration elapsed (auto-close)
+    if status == 'paused':
+        return 'paused'
+
+    # active: check if listing duration elapsed (auto-close)
     if expires_at_dt and now > expires_at_dt:
         if (now - expires_at_dt).days >= 30:
             return 'expired'
@@ -2709,6 +2717,7 @@ def job_eff_status_sql(a: str = "j") -> str:
         f"(CASE WHEN {a}.status = 'closed' THEN "
         f"CASE WHEN COALESCE({a}.closed_at, {a}.expires_at) <= NOW() - INTERVAL '30 days' "
         f"THEN 'expired' ELSE 'closed' END "
+        f"WHEN {a}.status = 'paused' THEN 'paused' "
         f"WHEN {a}.expires_at IS NOT NULL AND {a}.expires_at < NOW() THEN "
         f"CASE WHEN {a}.expires_at <= NOW() - INTERVAL '30 days' THEN 'expired' ELSE 'closed' END "
         f"ELSE {a}.status END)"
@@ -2716,9 +2725,10 @@ def job_eff_status_sql(a: str = "j") -> str:
 
 
 def job_active_sql(a: str = "j") -> str:
-    """Public «active» = not archived + effective status 'active'. `status = 'active'` first is implied by
-    the CASE (paused / closed never become active) — it is there so the status index can be used."""
-    return f"({a}.status = 'active' AND {a}.archived_at IS NULL AND {job_eff_status_sql(a)} = 'active')"
+    """Public «active» = not archived + not hidden by the admin + effective status 'active'. `status = 'active'`
+    first is implied by the CASE (paused / closed never become active) — it is there so the status index can be used."""
+    return (f"({a}.status = 'active' AND {a}.archived_at IS NULL AND {a}.admin_hidden_at IS NULL "
+            f"AND {job_eff_status_sql(a)} = 'active')")
 
 
 _ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
@@ -2794,25 +2804,33 @@ def add_job(company_id: int, data: dict) -> dict:
         release_conn(conn)
     # S4: schedule job_expiring_soon 48h before expiry — non-fatal
     if result:
-        _expires_str = result.get("expires_at")
-        if _expires_str:
-            try:
-                from datetime import datetime as _dt_j, timezone as _tz_j, timedelta as _td_j
-                _expires = _dt_j.fromisoformat(str(_expires_str).replace('Z', '+00:00'))
-                if _expires.tzinfo is None:
-                    _expires = _expires.replace(tzinfo=_tz_j.utc)
-                _hook_at = _expires - _td_j(hours=48)
-                _exp_ts = int(_expires.timestamp())
-                if _hook_at > _dt_j.now(_tz_j.utc):
-                    schedule_job(
-                        "job_expiring_soon",
-                        {"job_id": result["id"], "expected_expires_at_ts": _exp_ts},
-                        _hook_at,
-                        f"job_expiring_soon:{result['id']}:{_exp_ts}",
-                    )
-            except Exception as _sje:
-                print(f"[add_job] schedule_job(job_expiring_soon) failed: {_sje}")
+        schedule_job_expiry_reminder(result["id"], result.get("expires_at"))
     return result
+
+
+def schedule_job_expiry_reminder(job_id: int, expires_at) -> bool:
+    """job_expiring_soon 48 h before expires_at (S4). The ONE place that schedules it — every write that sets
+    a new expires_at calls it (create · resume · duration change · admin reactivate / extend — task 5.3j #13).
+    A reminder for an older expires_at turns itself into a no-op (stale check in _handle_job_expiring_soon);
+    paused jobs are skipped there too. Non-fatal: False (+ log) when nothing was scheduled or it failed."""
+    if not expires_at:
+        return False
+    try:
+        from datetime import datetime as _dt_j, timezone as _tz_j, timedelta as _td_j
+        _expires = expires_at if isinstance(expires_at, _dt_j) else \
+            _dt_j.fromisoformat(str(expires_at).replace('Z', '+00:00'))
+        if _expires.tzinfo is None:
+            _expires = _expires.replace(tzinfo=_tz_j.utc)
+        _hook_at = _expires - _td_j(hours=48)
+        _exp_ts = int(_expires.timestamp())
+        if _hook_at <= _dt_j.now(_tz_j.utc):
+            return False
+        schedule_job("job_expiring_soon", {"job_id": int(job_id), "expected_expires_at_ts": _exp_ts},
+                     _hook_at, f"job_expiring_soon:{int(job_id)}:{_exp_ts}")
+        return True
+    except Exception as _sje:
+        print(f"[schedule_job_expiry_reminder] job={job_id} failed: {type(_sje).__name__}: {_sje}")
+        return False
 
 def get_jobs(filters: dict = None) -> list:
     # Company-profile visitor view: show active + paused jobs + closed_count.
@@ -2827,7 +2845,7 @@ def get_jobs(filters: dict = None) -> list:
     try:
         if has_company_id:
             # Visitor company-profile: active + paused (visitor cannot apply to paused)
-            where = "WHERE j.status IN ('active','paused') AND j.archived_at IS NULL"
+            where = "WHERE j.status IN ('active','paused') AND j.archived_at IS NULL AND j.admin_hidden_at IS NULL"
         else:
             # Global public feed: active only (also exclude auto-expired via expires_at)
             where = "WHERE " + job_active_sql("j")
@@ -2878,7 +2896,8 @@ def get_jobs(filters: dict = None) -> list:
             # 2. Count manually-closed jobs (status='closed' in DB)
             cid = filters["company_id"]
             cnt_rows = conn.run(
-                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed' AND archived_at IS NULL",
+                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed' AND archived_at IS NULL "
+                "AND admin_hidden_at IS NULL",
                 cid=cid
             )
             db_closed_cnt = cnt_rows[0][0] if cnt_rows else 0
@@ -2900,7 +2919,7 @@ def get_jobs(filters: dict = None) -> list:
 def get_job(job_id: int) -> dict:
     conn = get_conn()
     try:
-        # Archived jobs are invisible to the public — treated as not found (returns None).
+        # Archived or admin-hidden jobs (5.3j) are invisible to the public — treated as not found (returns None).
         rows = conn.run(
             "SELECT j.*, "
             "u.full_name AS company_name, u.tw_id AS company_tw_id, "
@@ -2915,7 +2934,7 @@ def get_job(job_id: int) -> dict:
             "JOIN users u ON u.id=j.company_id "
             "LEFT JOIN profiles cp ON j.company_id=cp.user_id "
             "LEFT JOIN profession_categories pc ON j.profession_id=pc.id "
-            "WHERE j.id=:id AND j.archived_at IS NULL", id=job_id
+            "WHERE j.id=:id AND j.archived_at IS NULL AND j.admin_hidden_at IS NULL", id=job_id
         )
         if not rows: return None
         cols = [c["name"] for c in conn.columns]   # capture before the UPDATE changes conn.columns
@@ -2941,7 +2960,7 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     try:
         conn.run("BEGIN")
         job_rows = conn.run(
-            "SELECT status, closed_at, expires_at, company_id, title, archived_at "
+            "SELECT status, closed_at, expires_at, company_id, title, archived_at, admin_hidden_at "
             "FROM jobs WHERE id=:jid FOR UPDATE",
             jid=job_id
         )
@@ -2950,7 +2969,7 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         if job_rows[0][5] is not None:
             raise JobArchivedError()
         eff = _eff_status(job_rows[0][0], job_rows[0][1], job_rows[0][2])
-        if eff != 'active':
+        if eff != 'active' or job_rows[0][6] is not None:   # hidden by the admin (5.3j) = not open
             raise ValueError("التقديم على هذه الوظيفة غير متاح حالياً")
         job_company_id = int(job_rows[0][3])
         job_title = job_rows[0][4] or ""
@@ -3624,6 +3643,112 @@ def admin_hard_delete_job(job_id: int) -> dict:
     return {"applicants": applicants, "pipeline_entries": entries}
 
 
+# ── admin job control (task 5.3j phase 2 — SYSTEMS_INDEX §25e) ──
+# Each runs in one transaction with the job row locked, and returns what the endpoint needs to notify
+# the company: {id, title, company_id, expires_at?}. LookupError = no such job · JobActionError = the
+# action does not fit the job's state (→ 409, Arabic message).
+JOB_HIDE_REASON_MAX = 500
+
+
+class JobActionError(ValueError):
+    pass
+
+
+def _job_action(job_id: int, fn) -> dict:
+    with db_conn() as conn:
+        committed = False
+        try:
+            conn.run("BEGIN")
+            rows = conn.run(
+                "SELECT id, title, company_id, status, closed_at, expires_at, paused_at, archived_at, "
+                "admin_hidden_at FROM jobs WHERE id=:id FOR UPDATE", id=job_id)
+            if not rows:
+                raise LookupError("الوظيفة غير موجودة")
+            r = rows[0]
+            job = {"id": int(r[0]), "title": r[1] or "", "company_id": int(r[2]), "status": r[3],
+                   "eff": _eff_status(r[3], r[4], r[5], r[6]), "archived": r[7] is not None,
+                   "hidden": r[8] is not None}
+            out = fn(conn, job) or {}
+            conn.run("COMMIT")
+            committed = True
+        finally:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception as e:
+                    print(f"[admin job action] rollback failed job={job_id}: {type(e).__name__}")
+    _cache_del('jobs:')
+    return {"id": job["id"], "title": job["title"], "company_id": job["company_id"], **out}
+
+
+def admin_set_job_hidden(job_id: int, hidden: bool, reason: str = "") -> dict:
+    """Hide (reason required) / unhide. Hidden = out of every public place (job_active_sql · get_jobs ·
+    get_job · apply_job); the company still sees it with the reason. Independent of the company's states."""
+    reason = (reason or "").strip()
+    if hidden and not reason:
+        raise ValueError("اكتب سبب الإخفاء")
+    if len(reason) > JOB_HIDE_REASON_MAX:
+        raise ValueError(f"السبب أطول من {JOB_HIDE_REASON_MAX} حرف")
+
+    def fn(conn, job):
+        if hidden == job["hidden"]:
+            raise JobActionError("الوظيفة مخفية من الإدارة أصلاً" if hidden else "الوظيفة مش مخفية")
+        if hidden:
+            conn.run("UPDATE jobs SET admin_hidden_at=NOW(), admin_hidden_reason=:r WHERE id=:id",
+                     r=reason, id=job["id"])
+        else:
+            conn.run("UPDATE jobs SET admin_hidden_at=NULL, admin_hidden_reason=NULL WHERE id=:id", id=job["id"])
+        return {"reason": reason if hidden else ""}
+    return _job_action(job_id, fn)
+
+
+def _duration(dur) -> int:
+    try:
+        d = int(dur)
+    except (TypeError, ValueError):
+        d = 0
+    if d not in _ALLOWED_DURATIONS:
+        raise ValueError("المدة يجب أن تكون: 3، 7، 14، أو 30 يوماً")
+    return d
+
+
+def admin_reactivate_job(job_id: int, duration_days) -> dict:
+    """closed / expired → active with a new duration from now (expires_at = NOW() + days). Not for archived jobs."""
+    dur = _duration(duration_days)
+
+    def fn(conn, job):
+        if job["archived"]:
+            raise JobActionError("الوظيفة مؤرشفة — لا يمكن إعادة تفعيلها")
+        if job["eff"] not in ("closed", "expired"):
+            raise JobActionError("إعادة التفعيل للوظائف المغلقة أو المنتهية بس")
+        exp = conn.run(
+            f"UPDATE jobs SET status='active', closed_at=NULL, paused_at=NULL, duration_days={dur}, "
+            f"expires_at=NOW() + INTERVAL '{dur} days' WHERE id=:id RETURNING expires_at", id=job["id"])[0][0]
+        return {"expires_at": exp, "duration_days": dur}
+    out = _job_action(job_id, fn)
+    schedule_job_expiry_reminder(out["id"], out["expires_at"])
+    return out
+
+
+def admin_extend_job(job_id: int, duration_days) -> dict:
+    """active / paused → expires_at + days (a paused job keeps its frozen remaining time + days)."""
+    dur = _duration(duration_days)
+
+    def fn(conn, job):
+        if job["archived"]:
+            raise JobActionError("الوظيفة مؤرشفة — لا يمكن تمديدها")
+        if job["eff"] not in ("active", "paused"):
+            raise JobActionError("التمديد للوظائف النشطة أو الموقوفة بس — المغلقة بتنعاد تفعيلها")
+        exp = conn.run(
+            f"UPDATE jobs SET expires_at = COALESCE(expires_at, NOW()) + INTERVAL '{dur} days' "
+            "WHERE id=:id RETURNING expires_at", id=job["id"])[0][0]
+        return {"expires_at": exp, "paused": job["eff"] == "paused"}
+    out = _job_action(job_id, fn)
+    if not out["paused"]:   # paused: the reminder is scheduled on resume
+        schedule_job_expiry_reminder(out["id"], out["expires_at"])
+    return out
+
+
 def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
     """
     Return jobs for the authenticated owner.
@@ -3646,7 +3771,7 @@ def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
             "j.profession_id, j.work_mode, "
             "COALESCE(j.salary_hidden, false) AS salary_hidden, "
             "u.full_name AS company_name, "
-            "j.archived_at, j.archived_by "
+            "j.archived_at, j.archived_by, j.admin_hidden_at, j.admin_hidden_reason "
             f"FROM jobs j JOIN users u ON u.id=j.company_id "
             f"WHERE j.company_id=:cid {archive_filter} ORDER BY j.created_at DESC LIMIT 100",
             cid=company_id
@@ -3671,6 +3796,7 @@ def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
     if new_status not in _ALLOWED:
         raise ValueError(f"Invalid status '{new_status}'. Allowed: {_ALLOWED}")
 
+    new_expires = None
     conn = get_conn()
     try:
         rows = conn.run(
@@ -3700,12 +3826,13 @@ def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
             )
         elif new_status == 'active' and eff == 'paused' and cur_paused_at:
             # Resume: extend expires_at by the paused duration so the timer doesn't count paused time
-            conn.run(
+            # (the duration is frozen while paused — _eff_status, #7) → a new reminder (#13)
+            new_expires = conn.run(
                 "UPDATE jobs SET status='active', paused_at=NULL, "
                 "expires_at = expires_at + (NOW() - paused_at) "
-                "WHERE id=:id AND company_id=:cid",
+                "WHERE id=:id AND company_id=:cid RETURNING expires_at",
                 id=job_id, cid=company_id
-            )
+            )[0][0]
         elif new_status == 'active' and eff == 'paused':
             # paused_at was NULL (edge case) — just resume without extending
             conn.run(
@@ -3727,6 +3854,8 @@ def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
     finally:
         release_conn(conn)
     _cache_del('jobs:')  # Invalidate public listings immediately
+    if new_expires is not None:
+        schedule_job_expiry_reminder(job_id, new_expires)
 
 
 # ══ KYC System ══

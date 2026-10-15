@@ -137,3 +137,8 @@ body.tw-adm-body-page { background: var(--color-surface-page); color: var(--colo
 .tw-adm-typed { padding-top: var(--space-5); }
 .tw-adm-typed-label { display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--size-font-sm);
   color: var(--color-text-secondary); font-weight: 700; }
+/* value dialog (TwAdminShell.formDialog — admin-view · admin jobs, task 5.3j) */
+.tw-adm-form { display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--size-font-xs);
+  color: var(--color-text-secondary); font-weight: 700; }
+.tw-adm-form .tw-input { width: 100%; }
+.tw-adm-form textarea.tw-input { min-height: 96px; resize: vertical; }

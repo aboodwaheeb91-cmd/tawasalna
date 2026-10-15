@@ -398,6 +398,40 @@
     });
   }
 
+  // ── dialog that collects one value (task 5.3j — was admin-view's own) — the send button calls
+  //    onSend(value); it usually runs an action whose confirm stacks on top. false / a falsy promise
+  //    keeps the dialog open. kind: text | password | textarea | select (options = [[value, labelKey], …]) ──
+  function formDialog(o) {
+    var form = document.createElement('label'), input;
+    form.className = 'tw-adm-form';
+    form.textContent = twT(o.labelKey);
+    if (o.kind === 'select') {
+      input = document.createElement('select');
+      input.className = 'tw-input ep-select';
+      (o.options || []).forEach(function (op) { input.appendChild(new Option(twT(op[1]), op[0])); });
+    } else {
+      input = document.createElement(o.kind === 'textarea' ? 'textarea' : 'input');
+      input.className = 'tw-input';
+      if (o.kind !== 'textarea') input.type = o.kind || 'text';
+      input.autocomplete = o.kind === 'password' ? 'new-password' : 'off';
+    }
+    if (o.value != null) input.value = o.value;
+    form.appendChild(input);
+    if (o.hintKey) {
+      var h = document.createElement('span');
+      h.className = 'tw-adm-hint';
+      h.textContent = twT(o.hintKey, o.vars);
+      form.appendChild(h);
+    }
+    return twModal({
+      title: twT(o.titleKey, o.vars), content: form,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT(o.sendKey), variant: o.danger ? 'danger' : 'primary', onClick: function () { return o.onSend(input.value); } },
+      ],
+    });
+  }
+
   // ── card with an ⓘ hint (hidden until asked) ──
   var _cid = 0;
   function card(parent, opts) {
@@ -439,7 +473,7 @@
   window.TwAdminShell = {
     base: base, page: page, hrefFor: hrefFor, currentKey: currentKey, items: items, navHtml: navHtml,
     start: start, mount: mount, setCurrent: setCurrent, setBadge: setBadge, refreshBadges: refreshBadges,
-    wasExpired: wasExpired, logout: logout, confirm: confirm, run: run, card: card,
+    wasExpired: wasExpired, logout: logout, confirm: confirm, run: run, card: card, formDialog: formDialog,
     openMenu: openMenu, searchResults: searchResults, health: health, healthState: healthState,
   };
 }());
