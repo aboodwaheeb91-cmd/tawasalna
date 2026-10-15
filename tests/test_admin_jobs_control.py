@@ -15,6 +15,8 @@ real startup migrations:
     wrong state / archived → 409 · unarchive (not archived → 409)
   - 5.3j4 (owner decision): the company cannot reopen a closed / expired job (422, nothing changes) — the admin
     reactivates it (expires_at = now + days, reminder) · the removed company reopen button does not come back
+  - 5.3j5 (owner decision): PUT /company/jobs/{id} → 403 for the company, nothing changes · pause / resume / close /
+    archive still work · the removed company edit mode does not come back
 Run: python -m pytest tests/test_admin_jobs_control.py -q
 """
 import os
@@ -269,3 +271,36 @@ def test_company_reopen_button_is_gone():
     src = open("static/company/company.jobs.js", encoding="utf-8").read() \
         + open("static/company/company.render.js", encoding="utf-8").read()
     assert "function reopenJob" not in src and "owner-reopen-btn" not in src
+
+
+# ── 5.3j5 (owner decision): a published job cannot be edited by the company ──
+def test_company_cannot_edit_a_published_job(db):
+    co, emp = _user(), _user("emp")
+    jid = _job(co)
+    before = tuple(_sql("SELECT title, description, expires_at, duration_days FROM jobs WHERE id=:j", j=jid)[0])
+    body = {"title": "عنوان جديد", "description": "وصف جديد", "duration_days": 30}
+    r = client.put(f"/company/jobs/{jid}", json=body, headers=_h(co))
+    assert r.status_code == 403 and "لا يمكن تعديل الوظيفة بعد نشرها" in r.text
+    assert client.put(f"/company/jobs/{jid}", json=body, headers=_h(emp, "emp")).status_code == 403
+    assert client.put(f"/company/jobs/{jid}", json=body).status_code in (401, 403)
+    after = tuple(_sql("SELECT title, description, expires_at, duration_days FROM jobs WHERE id=:j", j=jid)[0])
+    assert after == before                                                                    # nothing changed
+
+
+def test_company_still_pauses_closes_and_archives(db):
+    co = _user()
+    a, b = _job(co), _job(co)
+    url = lambda j: f"/company/jobs/{j}/status"
+    assert client.patch(url(a), json={"status": "paused"}, headers=_h(co)).status_code == 200
+    assert _status(a)[1] == "paused"
+    assert client.patch(url(a), json={"status": "active"}, headers=_h(co)).status_code == 200
+    assert client.patch(url(a), json={"status": "closed"}, headers=_h(co)).status_code == 200
+    assert _status(a)[1] == "closed"
+    r = client.delete(f"/company/jobs/{b}", headers=_h(co))
+    assert r.status_code == 200 and r.json()["archived"] is True
+
+
+def test_company_job_edit_mode_is_gone():
+    """The removed company edit flow does not come back (functions absent)."""
+    src = open("static/company/company.jobs.js", encoding="utf-8").read()
+    assert "function openEditJob" not in src and "function hydrateEditJobForm" not in src

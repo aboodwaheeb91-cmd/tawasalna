@@ -883,8 +883,8 @@ Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
 ### أزرار «حفظ كمرشح» (الاقتراحات) — PR 2C
 - listener واحد delegated على `_body` (`_onSuggSaveClick` → `_saveSuggestion(btn)`)، `_wireSaveButtons()` بيعمل remove+add فبيضل واحد بعد «عرض المزيد». الزر `disabled` (طلب شغّال) أو `.co-sugg-manage-mode` → تجاهل.
 
-### وضع موقع الوظيفة بالتعديل — PR 2C
-- `hydrateEditJobForm(job)` بيرجّع `j-loc-mode` من `_detectJobLocMode(location, companyState.profile, companyState.branches)` (عكس `_resolveJobLocation`): `عن بُعد` → remote · يطابق المقر → hq · يطابق قيمة فرع → branch (+ اختيار الفرع) · غير هيك / فاضي → custom (تفكيك دولة/مدينة).
+### وضع موقع الوظيفة بالتعديل — PR 2C (انحذف بـ 5.3j5)
+- `hydrateEditJobForm` + `_detectJobLocMode` انحذفوا مع تعديل الشركة لوظيفتها (task 5.3j5) — نموذج النشر صار للإنشاء بس.
 
 ---
 
@@ -9888,6 +9888,8 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE;
 ```
 
+**Company job edit (task 5.3j5)** — `PUT /company/jobs/{id}` → 403 for the company (owner decision: a published job stays as the applicants saw it); the company keeps pause / resume / close (`PATCH …/status`) and archive (`DELETE`).
+
 **Job status change (task 5.3j phase 3 · 5.3j4)** — `PATCH /company/jobs/{id}/status {status}` and `POST /admin/jobs/{id}/status` both call `auth.set_job_status`; closed / expired → active is refused there (company 422 · admin 409) — reopening is the admin's only, via `POST /admin/jobs/{id}/reactivate` (`auth._reopen_job`, owner decision 5.3j4); no-op / wrong state / archived → 422 (company) · 409 (admin) — SYSTEMS_INDEX §25e.
 
 **`jobs` admin hide (task 5.3j phase 2)** — `_migrate_job_lifecycle` (critical, idempotent): `admin_hidden_at TIMESTAMPTZ NULL` + `admin_hidden_reason TEXT NULL`. Set / cleared only by `auth.admin_set_job_hidden`; any value = not public (`job_active_sql` · `get_jobs` · `get_job` · `apply_job`) — SYSTEMS_INDEX §25e.
@@ -9903,7 +9905,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAUL
 | `auth.py` → `get_job()` | Attaches `accepted_professions` to single job dict |
 | `auth.py` → `_validate_accepted_profession_ids(conn, primary_pid, accepted_ids)` | Server-side validation helper — raises `ValueError` on any rule violation |
 | `server.py` → `JobInput.accepted_profession_ids` | `Optional[List[int]] = None` |
-| `server.py` → `PUT /company/jobs/{job_id}` | Pops field before SQL UPDATE; fetches current `profession_id` from DB when not in payload; validates with `_validate_accepted_profession_ids` before any write, then snapshot-replace (DELETE + INSERT) inline; catches `ValueError` → HTTP 422 (the duplicate `_save_accepted_professions` helper was removed in PR 3.9b) |
+| `server.py` → `PUT /company/jobs/{job_id}` | **Company edit removed (task 5.3j5):** always 403 «لا يمكن تعديل الوظيفة بعد نشرها» for `co` / `edu` (401 no token · 403 other types) — nothing is written. Accepted professions are set only at creation (`add_job`); editing a published job = admin only |
 | `server.py` → `POST /company/jobs` | `add_job()` raises `ValueError` on validation failure; endpoint catches → HTTP 422 |
 
 ### Scoring Update (`_taxonomy_score`)

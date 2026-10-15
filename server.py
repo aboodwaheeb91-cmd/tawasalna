@@ -141,13 +141,12 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
-    _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _eff_status, _ALLOWED_DURATIONS,
-    job_active_sql, admin_hard_delete_job, schedule_job_expiry_reminder,
+    _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security,
+    job_active_sql, admin_hard_delete_job,
     admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError, admin_unarchive_job, JOB_HIDE_REASON_MAX,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
-    _validate_accepted_profession_ids,
     rate_company,
     get_company_ratings_detail,
     get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, set_company_post_appreciation, set_company_post_save,
@@ -5829,7 +5828,9 @@ def post_job(data: JobInput, token=Depends(verify_token)):
 
 @app.put("/company/jobs/{job_id}")
 def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)):
-    # Rule #1, #20: JWT + DB ownership check
+    # Owner decision (task 5.3j5): once published, a job cannot be edited by the company — the
+    # applicants applied to what they saw. Status changes (pause / resume / close) and archive stay
+    # (PATCH …/status · DELETE). Editing a published job = admin only (planned admin job page).
     user_id   = token.get("user_id")
     user_type = token.get("user_type")
     if not user_id:
@@ -5838,87 +5839,7 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
     if user_type not in ("co", "edu"):
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried PUT /company/jobs/{job_id}")
         raise HTTPException(403, "شركات وجهات فقط")
-    cid = int(user_id)
-    new_expires = None
-    conn = get_conn()
-    try:
-        raw_fields = data.dict()
-        # Extract non-column fields before building SQL SET clause
-        accepted_pids  = raw_fields.pop("accepted_profession_ids", None)
-        accepts_all    = raw_fields.get("accepts_all_professions")
-        # duration_days needs special handling (also updates expires_at)
-        duration_days  = raw_fields.pop("duration_days", None)
-        fields = {k: v for k, v in raw_fields.items() if v is not None}
-
-        # ── Step 1: ownership check + lifecycle guard (SELECT only — no mutation yet) ──
-        current_rows = conn.run(
-            "SELECT id, profession_id, status, closed_at, expires_at "
-            "FROM jobs WHERE id=:id AND company_id=:cid",
-            id=job_id, cid=cid
-        )
-        if not current_rows:
-            print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
-            raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
-        # Block editing an expired job (30 days after closure)
-        eff = _eff_status(current_rows[0][2], current_rows[0][3], current_rows[0][4])
-        if eff == 'expired':
-            raise HTTPException(403, "لا يمكن تعديل إعلان انتهت صلاحيته")
-        # Block duration change on closed/expired jobs
-        if duration_days is not None and eff in ('closed', 'expired'):
-            raise HTTPException(403, "لا يمكن تعديل مدة إعلان منتهٍ")
-
-        # ── Step 2: validate accepted_profession_ids BEFORE any mutation ─────
-        # When accepts_all_professions=True, targets are cleared (empty list)
-        if accepts_all:
-            accepted_pids = []
-        if accepted_pids is not None:
-            effective_primary = raw_fields.get("profession_id") or current_rows[0][1]
-            try:
-                accepted_pids = _validate_accepted_profession_ids(
-                    conn, effective_primary, accepted_pids
-                )
-            except ValueError as e:
-                raise HTTPException(status_code=422, detail=str(e))
-
-        # ── Step 3: mutate only after all validation passed ───────────────────
-        if fields:
-            set_clause = ", ".join(f"{k}=:{k}" for k in fields)
-            conn.run(
-                f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
-                id=job_id, cid=cid, **fields
-            )
-
-        # ── Step 3b: duration change — validate + reset clock ────────────────
-        if duration_days is not None:
-            dur = int(duration_days)
-            if dur not in _ALLOWED_DURATIONS:
-                raise HTTPException(422, "مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
-            # paused: the new duration counts from now, frozen until resume (paused_at = now — 5.3j #7)
-            new_expires = conn.run(
-                f"UPDATE jobs SET duration_days={dur}, "
-                f"expires_at=NOW() + INTERVAL '{dur} days', "
-                "paused_at = CASE WHEN status = 'paused' THEN NOW() ELSE paused_at END "
-                "WHERE id=:id AND company_id=:cid RETURNING expires_at, status",
-                id=job_id, cid=cid
-            )[0]
-
-        # ── Step 4: snapshot-replace accepted professions ─────────────────────
-        if accepted_pids is not None:
-            conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
-            for i, pid in enumerate(accepted_pids):
-                conn.run(
-                    "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
-                    "VALUES (:jid, :pid, :ord)",
-                    jid=job_id, pid=pid, ord=i
-                )
-
-    finally:
-        release_conn(conn)
-    _cache_del('jobs:')
-    # a new expires_at → a new job_expiring_soon reminder (5.3j #13 — paused ones wait for resume)
-    if new_expires is not None and new_expires[1] == 'active':
-        schedule_job_expiry_reminder(job_id, new_expires[0])
-    return {"status": "success"}
+    raise HTTPException(403, "لا يمكن تعديل الوظيفة بعد نشرها")
 
 @app.delete("/company/jobs/{job_id}")
 def remove_job(job_id: int, token=Depends(verify_token)):
