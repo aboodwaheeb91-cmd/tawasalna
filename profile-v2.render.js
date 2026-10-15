@@ -1579,6 +1579,7 @@ window._scShowLoadError = _scShowLoadError;
             if(window.renderProfile) window.renderProfile(res);
           })
           .catch(function(err){
+            if(_verGen !== window._scOwnerHydrationGeneration) return;   // stale 401 of a previous session (5.0d)
             var _msg = (err && err.message) ? String(err.message) : '';
             if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){
               TwAuthSync.invalidateSession('api_401');
@@ -1621,6 +1622,7 @@ window._scShowLoadError = _scShowLoadError;
           if(window.renderProfile) window.renderProfile(res);
         })
         .catch(function(err){
+          if(_revGen !== window._scOwnerHydrationGeneration) return;   // stale 401 of a previous session (5.0d)
           var _msg = (err && err.message) ? String(err.message) : '';
           if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){
             TwAuthSync.invalidateSession('api_401');

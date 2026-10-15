@@ -17,6 +17,7 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACH
 4. **`window._scOwnerHydrationGeneration` is a numeric counter, not a boolean.** It is incremented by `renderProfile` (on each new hydration including non-owner results) AND by the session revoke handler. Both `.then()` AND `.catch()` callbacks must guard with `if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;` before modifying any owner state.
 
 4b. **Every `getProfile` request in `profile-v2.render.js` is generation-guarded (5.0b).** The initial `_loadProfile` and both `onSessionChange` re-verify paths capture `_scOwnerHydrationGeneration` before sending and drop the reply (`.then` and `.catch`) when it changed — a reply that lands after a logout / account switch never calls `renderProfile` (no stale `viewer_type: owner`). Same counter, no second mechanism. Test: `node tests/test_session_change_stale_runtime.js`.
+   - **5.0d:** the generation check is the **first line of `.catch`** in both re-verify paths — a late 401 of a previous session's request never calls `TwAuthSync.invalidateSession('api_401')` (would log out the account that signed in after it); a 401 of the current generation still does.
 
 5. **`renderProfile` with a non-owner response must immediately discard private owner state.** When `_vt !== 'owner'`, increment `_scOwnerHydrationGeneration`, clear `_scOwnerProfile`, clear `_scOwnerProfilePromise`. This runs on every renderProfile call, including background re-verify results.
 
