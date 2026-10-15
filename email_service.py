@@ -66,6 +66,9 @@ TEMPLATES = {
                                        "parts": ("subject", "body", "button")},
     "notify_application_rejected":    {"category": NOTIFICATION, "vars": ("name", "job", "company", "link"),
                                        "parts": ("subject", "body", "button")},
+    # Message from the admin (5.3b2) — {title} = subject, {details} = the admin's text (escaped by render).
+    "admin_message":                  {"category": NOTIFICATION, "vars": ("name", "title", "details", "link"),
+                                       "parts": ("subject", "body", "button")},
 }
 NOTIFY_TYPES = tuple(k for k, v in TEMPLATES.items() if v["category"] == NOTIFICATION)
 # User preference switch of a notification type — one switch may cover several types (5.1d:

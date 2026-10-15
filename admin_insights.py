@@ -163,8 +163,8 @@ def stats_summary() -> dict:
 
         out["users"] = card(one("SELECT COUNT(*) FROM users"), window("users", "created_at", 30), "month")
         out["verified_companies"] = card(one(
-            "SELECT COUNT(*) FROM users u WHERE u.user_type = 'co' AND (COALESCE(u.is_verified, FALSE) "
-            "OR EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = u.id AND p.is_verified))"))
+            "SELECT COUNT(*) FROM users u WHERE u.user_type = 'co' "
+            "AND EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = u.id AND p.is_verified)"))
         out["active_jobs"] = card(one("SELECT COUNT(*) FROM jobs j WHERE " + job_active_sql("j")),
                                   window("jobs", "created_at", 30), "month")
         out["applications"] = card(one("SELECT COUNT(*) FROM job_applications"),
@@ -232,9 +232,9 @@ def activity(page: int = 1, limit: int = ACTIVITY_LIMIT) -> dict:
 
 
 # ── users table (§25d — task 5.3a3) ──
-# verification of one account — the same rule as the dashboard card (users.is_verified or
-# profiles.is_verified); "pending" = not verified + a KYC submission in review.
-_VERIFIED_SQL = "(COALESCE(u.is_verified, FALSE) OR COALESCE(p.is_verified, FALSE))"
+# verification of one account — profiles.is_verified, the one badge source (task 5.0c —
+# auth.set_user_verified); "pending" = not verified + a KYC submission in review.
+_VERIFIED_SQL = "COALESCE(p.is_verified, FALSE)"
 _PENDING_SQL = "EXISTS (SELECT 1 FROM kyc_submissions k WHERE k.user_id = u.id AND k.step = 'review')"
 _USERS_FROM = (" FROM users u LEFT JOIN profiles p ON p.user_id = u.id"
                " LEFT JOIN company_profiles cp ON cp.user_id = u.id")

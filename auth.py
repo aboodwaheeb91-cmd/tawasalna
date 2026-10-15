@@ -1016,6 +1016,22 @@ def set_user_password(user_id: int, new_password: str) -> Optional[dict]:
     return {"changed": changed, "sv": int(rows[0][0])}
 
 
+def set_user_type(user_id: int, new_type: str) -> Optional[dict]:
+    """Admin account-type change (task 5.3b2). user_type lives inside the JWT, so the change
+    bumps users.session_version in the same statement (Session Invalidation 5.0b) — every
+    token of the user dies and the next login carries the new type.
+    Returns the new session state {changed, sv} (same shape as set_user_password); None = no such user."""
+    with db_conn() as conn:
+        rows = conn.run(
+            "UPDATE users SET user_type = :utype, session_version = session_version + 1 "
+            "WHERE id = :uid RETURNING EXTRACT(EPOCH FROM password_changed_at), session_version",
+            utype=new_type, uid=user_id)
+    if not rows:
+        return None
+    changed = rows[0][0]
+    return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1])}
+
+
 def get_session_state(user_id: int) -> Optional[dict]:
     """{changed: password_changed_at epoch seconds | None, sv: users.session_version};
     None = no such user. Read only through server._session_state (cached) — never per request."""
@@ -1040,7 +1056,7 @@ def _migrate_password_changed_at():
 
 def _migrate_session_version():
     """5.0b — idempotent: users.session_version (0 for every existing row). Bumped by
-    set_user_password; a JWT carrying claim sv is valid only while sv == this column."""
+    set_user_password / set_user_type; a JWT carrying claim sv is valid only while sv == this column."""
     with db_conn() as conn:
         conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0")
 
@@ -1341,6 +1357,7 @@ NOTIFICATION_EMAIL_TEMPLATES = {
     "appointment_cancelled":   "notify_appointment_cancelled",
     "application_hired":       "notify_application_hired",       # 5.1d — final result only
     "application_rejected":    "notify_application_rejected",
+    "admin_message":           "admin_message",                   # 5.3b2 — message from the admin
 }
 _EMAIL_POOL = None
 
@@ -3267,6 +3284,20 @@ def get_job_applicants(
     finally:
         release_conn(conn)
 
+# task 5.0c (decision #17) — the applicant sees 3 states only. The company's internal stages
+# (viewed / accepted / contacted / interview) are never sent to the applicant.
+_APPLICANT_VISIBLE_STATUS = {
+    "pending": "in_review", "viewed": "in_review", "accepted": "in_review",
+    "contacted": "in_review", "interview": "in_review",
+    "hired": "hired", "rejected": "rejected",
+}
+
+
+def applicant_visible_status(status) -> str:
+    """Internal job_applications.status → in_review / hired / rejected (unknown → in_review)."""
+    return _APPLICANT_VISIBLE_STATUS.get(status, "in_review")
+
+
 def get_user_applications(user_id: int) -> list:
     conn = get_conn()
     try:
@@ -3281,7 +3312,10 @@ def get_user_applications(user_id: int) -> list:
             uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        apps = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        for a in apps:
+            a["status"] = applicant_visible_status(a.get("status"))
+        return apps
     finally:
         release_conn(conn)
 
@@ -3880,22 +3914,27 @@ def verify_phone_code(user_id: int, code: str) -> bool:
     finally:
         release_conn(conn)
 
+class KycStateError(Exception):
+    """KYC action not allowed in the submission's current state (task 5.0c) → 409 with this message."""
+
+
+# task 5.0c — documents only after email + phone are verified (step id_upload), or a retry
+# after a rejection. Anything else (no submission / review / approved / earlier step) → 409.
+_KYC_DOCS_STEPS = ("id_upload", "rejected")
+
+
 def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
-    """Save uploaded ID and selfie"""
-    conn = get_conn()
-    try:
-        conn.run(
-            "UPDATE kyc_submissions SET id_front_url=:id_url, selfie_url=:selfie, step='review', submitted_at=NOW() WHERE user_id=:uid",
-            id_url=id_url, selfie=selfie_url, uid=user_id
-        )
-        # Create admin review request
+    """Save uploaded ID and selfie → step review, status pending (one UPDATE, step checked)."""
+    with db_conn() as conn:
         rows = conn.run(
-            "SELECT u.full_name FROM users u WHERE u.id=:uid",
-            uid=user_id
-        )
+            "UPDATE kyc_submissions SET id_front_url=:id_url, selfie_url=:selfie, step='review', "
+            "status='pending', submitted_at=NOW() "
+            "WHERE user_id=:uid AND step = ANY(:steps) "
+            "AND COALESCE(email_verified, FALSE) AND COALESCE(phone_verified, FALSE) RETURNING id",
+            id_url=id_url, selfie=selfie_url, uid=user_id, steps=list(_KYC_DOCS_STEPS))
+        if not rows:
+            raise KycStateError("أكمل توثيق البريد الإلكتروني ورقم الجوال أولاً")
         return {"status": "submitted", "step": "review"}
-    finally:
-        release_conn(conn)
 
 def get_kyc_status(user_id: int) -> dict:
     """Get current KYC status — explicit field allowlist, never returns OTP or document columns."""
@@ -3903,8 +3942,8 @@ def get_kyc_status(user_id: int) -> dict:
     try:
         rows = conn.run(
             "SELECT ks.step, ks.status, ks.email_verified, ks.phone_verified, "
-            "ks.submitted_at, ks.reviewed_at, u.is_verified "
-            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id WHERE ks.user_id=:uid",
+            "ks.submitted_at, ks.reviewed_at, COALESCE(p.is_verified, FALSE) AS is_verified "
+            "FROM kyc_submissions ks LEFT JOIN profiles p ON p.user_id=ks.user_id WHERE ks.user_id=:uid",
             uid=user_id
         )
         if not rows:
@@ -3914,30 +3953,49 @@ def get_kyc_status(user_id: int) -> dict:
     finally:
         release_conn(conn)
 
+def set_user_verified(user_id: int, verified: bool, conn) -> None:
+    """The ONLY writer of the public «موثّق» badge — profiles.is_verified (task 5.0c).
+
+    Callers: KYC approve (TRUE) · KYC reject (FALSE) · PUT /admin/user/{id}/verify (both).
+    Runs on the caller's connection (same transaction). users.is_verified is legacy —
+    no writer, no reader."""
+    conn.run(
+        "INSERT INTO profiles (user_id, is_verified) VALUES (:uid, :v) "
+        "ON CONFLICT (user_id) DO UPDATE SET is_verified = EXCLUDED.is_verified",
+        uid=user_id, v=bool(verified))
+
+
+def _kyc_review(user_id: int, approve: bool, note: str) -> dict:
+    """Approve / reject one KYC submission that is in review (step review + status pending).
+    No submission, or not in review → KycStateError (409). Badge written in the same transaction."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            rows = conn.run(
+                "UPDATE kyc_submissions SET status=:st, step=:st, admin_note=:note, reviewed_at=NOW() "
+                "WHERE user_id=:uid AND step='review' AND status='pending' RETURNING id",
+                st="approved" if approve else "rejected", note=note or "", uid=user_id)
+            if not rows:
+                conn.run("ROLLBACK")
+                raise KycStateError("لا يوجد طلب توثيق بانتظار المراجعة لهذا الحساب")
+            set_user_verified(user_id, approve, conn)
+            conn.run("COMMIT")
+        except KycStateError:
+            raise
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return {"success": True}
+
+
 def admin_approve_kyc(user_id: int, note: str = "") -> dict:
-    """Admin approves KYC"""
-    conn = get_conn()
-    try:
-        conn.run(
-            "UPDATE kyc_submissions SET status='approved', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
-            note=note, uid=user_id
-        )
-        conn.run("UPDATE users SET is_verified=TRUE WHERE id=:uid", uid=user_id)
-        return {"success": True}
-    finally:
-        release_conn(conn)
+    """Admin approves KYC → step/status approved + the public badge (task 5.0c)."""
+    return _kyc_review(user_id, True, note)
+
 
 def admin_reject_kyc(user_id: int, note: str = "") -> dict:
-    """Admin rejects KYC"""
-    conn = get_conn()
-    try:
-        conn.run(
-            "UPDATE kyc_submissions SET status='rejected', step='rejected', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
-            note=note, uid=user_id
-        )
-        return {"success": True}
-    finally:
-        release_conn(conn)
+    """Admin rejects KYC → step/status rejected + the badge removed (task 5.0c)."""
+    return _kyc_review(user_id, False, note)
 
 # PR-7c — explicit allowlist for GET /admin/kyc (never SELECT ks.*).
 # Never returned: email_code / phone_code (OTP — Tier 4), phone, document paths
@@ -4393,24 +4451,71 @@ def ensure_site_settings_table():
     except Exception as e:
         print(f"[DB] site_settings: {e}")
 
-def ensure_reports_table():
-    try:
-        with db_conn() as conn:
-            conn.run('''
-                CREATE TABLE IF NOT EXISTS reports (
-                    id SERIAL PRIMARY KEY,
-                    reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                    reported_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                    reported_type TEXT DEFAULT 'user',
-                    report_type TEXT NOT NULL,
-                    reason TEXT,
-                    target_url TEXT,
-                    status TEXT DEFAULT 'pending',
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            ''')
-    except Exception as e:
-        print(f"[DB] reports table: {e}")
+# ══ Reports — target by type (task 5.0c) ══
+# reported_type: 'user' / 'company' → reported_id (users, SET NULL) · 'job' → job_id (jobs, SET NULL).
+# Deleting the reported account / job never deletes the report (the evidence stays).
+REPORT_TARGET_TYPES = ("user", "company", "job")
+
+
+def _migrate_reports_targets():
+    """reports table + job_id column + reported_id FK → ON DELETE SET NULL + old job reports
+    (job id stored in reported_id) moved to job_id. Idempotent; errors raise to the runner."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run(
+                "CREATE TABLE IF NOT EXISTS reports ("
+                " id SERIAL PRIMARY KEY,"
+                " reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+                " reported_id INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+                " reported_type TEXT DEFAULT 'user',"
+                " report_type TEXT NOT NULL,"
+                " reason TEXT,"
+                " target_url TEXT,"
+                " status TEXT DEFAULT 'pending',"
+                " created_at TIMESTAMPTZ DEFAULT NOW())")
+            conn.run("ALTER TABLE reports ADD COLUMN IF NOT EXISTS "
+                     "job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL")
+            # reported_id FK: CASCADE (old schema) → SET NULL
+            fks = conn.run(
+                "SELECT c.conname, c.confdeltype FROM pg_constraint c "
+                "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey) "
+                "WHERE c.conrelid = 'reports'::regclass AND c.contype = 'f' AND a.attname = 'reported_id'")
+            if not any(t == "n" for _, t in fks):
+                for name, _ in fks:
+                    conn.run(f'ALTER TABLE reports DROP CONSTRAINT "{name}"')
+                conn.run("ALTER TABLE reports ADD CONSTRAINT reports_reported_id_fkey "
+                         "FOREIGN KEY (reported_id) REFERENCES users(id) ON DELETE SET NULL")
+            # old job reports: the job id sat in reported_id (pointing at an unrelated account)
+            conn.run(
+                "UPDATE reports r SET job_id = j.id FROM jobs j "
+                "WHERE r.reported_type = 'job' AND r.job_id IS NULL AND j.id = r.reported_id")
+            conn.run("UPDATE reports SET reported_id = NULL "
+                     "WHERE reported_type = 'job' AND reported_id IS NOT NULL")
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+
+
+def _migrate_verified_source():
+    """task 5.0c — profiles.is_verified is the only badge source. One-time carry-over of KYC
+    approvals that only reached users.is_verified, and approved submissions still at step review
+    (they were counted as «بانتظار المراجعة»). Idempotent."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run(
+                "INSERT INTO profiles (user_id, is_verified) "
+                "SELECT u.id, TRUE FROM users u JOIN kyc_submissions k ON k.user_id = u.id "
+                "WHERE COALESCE(u.is_verified, FALSE) AND k.status = 'approved' "
+                "ON CONFLICT (user_id) DO UPDATE SET is_verified = TRUE")
+            conn.run("UPDATE kyc_submissions SET step = 'approved' "
+                     "WHERE status = 'approved' AND step = 'review'")
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
 
 
 # ══ Phase 2: Company Profile System Tables (Rule #18) ══

@@ -366,6 +366,9 @@ body {
       <button class="notif-tab" data-filter="verify" role="tab" aria-selected="false">
         <i data-tw-icon="shield-check" data-tw-size="xs"></i><span data-tw-t="notif.tab.verify"></span>
       </button>
+      <button class="notif-tab" data-filter="admin" role="tab" aria-selected="false">
+        <i data-tw-icon="mail" data-tw-size="xs"></i><span data-tw-t="notif.tab.admin"></span>
+      </button>
     </div>
   </div>
 
@@ -425,7 +428,8 @@ body {
     job:     ['job', 'job_applied', 'application_hired', 'application_rejected'],
     comment: ['comment', 'reply', 'mention'],
     follow:  ['follow'],
-    verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected']
+    verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected'],
+    admin:   ['admin_message']   /* 5.3b2 */
   };
 
   /* Type → icon (DS-ICON) + tone (CSS data-tone → DS-COLOR tokens) + label key */
@@ -440,6 +444,7 @@ body {
     follow:      { icon: 'user-plus',    tone: 'pink',   filter: 'follow' },
     verify:      { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     kyc:         { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
+    admin_message: { icon: 'mail',       tone: 'brand',  filter: 'admin' },   /* 5.3b2 */
     system:      { icon: 'notifications', tone: '',      filter: 'system' }
   };
 

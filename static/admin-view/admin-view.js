@@ -56,6 +56,7 @@
       confirm: { title: 'admin.view.msg.confirm.title', message: 'admin.view.msg.confirm.message', confirm: 'admin.msg.send' },
       request: function (c) { return { url: '/admin/message', method: 'POST',
                                        body: { user_id: uid(c), subject: twT('admin.msg.subject'), message: c.text } }; },
+      ok: function (d) { return !!(d && d.ok && d.data && d.data.notification_id); },   // «تم» only when the notification exists (5.3b2)
       done: 'admin.done.sent' },
   };
   var TYPES = ['emp', 'co', 'edu'];
@@ -148,7 +149,8 @@
   }
   function openPassword() {
     formDialog('admin.view.password.title', 'admin.view.password.label', 'password', '', 'admin.view.password.confirm', function (v) {
-      if (!v || v.trim().length < 6) { showToast(twT('admin.view.password.short'), 'error'); return false; }
+      // length rule = the server's _password_policy_error (task 5.0c) — its message is shown by run()
+      if (!v) { showToast(twT('admin.view.password.required'), 'error'); return false; }
       return run('user.password', { password: v }).then(function (res) { return !!(res && res.ok); });
     });
   }

@@ -89,7 +89,7 @@ def test_every_get_conn_released_in_finally(fname):
 # ── static 2: no async def runs a DB connection / known sync DB helper directly ──
 
 _SYNC_DB = {"get_conn", "db_conn", "release_conn", "get_messages", "set_site_setting",
-            "get_site_setting", "ensure_site_settings_table", "ensure_reports_table",
+            "get_site_setting", "ensure_site_settings_table",
             "_current_image_urls", "_mig_run", "set_user_password"}
 
 

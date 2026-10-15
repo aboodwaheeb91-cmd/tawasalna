@@ -366,7 +366,8 @@
   }
 
   // action = { confirm?: {title, message, confirm, danger?, typeWord?} (twT keys) | fn(ctx) → same,
-  //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key, as?: 'blob' }
+  //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key, as?: 'blob',
+  //            ok?: fn(body) → true only when the body proves the change (task 5.3b2) }
   // → Promise<{ok, status, data} | null>  (null = not confirmed → no request was sent)
   function run(action, ctx) {
     ctx = ctx || {};
@@ -383,9 +384,11 @@
         // as: 'blob' (a download — task 5.3a3) → data = the Blob on success; errors stay JSON
         var body = action.as === 'blob' && r.ok ? r.blob() : r.json();
         return body.catch(function () { return {}; }).then(function (d) {
-          if (r.ok) { if (action.done) showToast(twT(action.done), 'success'); }
+          // action.ok(d) = the body proves the change happened (e.g. a notification id) — 2xx alone is not enough
+          var ok = r.ok && (typeof action.ok !== 'function' || !!action.ok(d));
+          if (ok) { if (action.done) showToast(twT(action.done), 'success'); }
           else if (r.status !== 401 && r.status !== 403) showToast(_errText(d) || twT(action.fail || 'admin.action.error'), 'error');
-          return { ok: r.ok, status: r.status, data: d };
+          return { ok: ok, status: r.status, data: d };
         });
       }).catch(function (e) {
         console.error('[TwAdminShell] run:', e);

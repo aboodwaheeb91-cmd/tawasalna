@@ -99,10 +99,12 @@ PY_DB=(
   pytest:test_application_result_notify.py
   pytest:test_password_reset_email.py
   pytest:test_session_version_tokens.py
+  pytest:test_admin_user_actions.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py
   pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
+  pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
 )
 

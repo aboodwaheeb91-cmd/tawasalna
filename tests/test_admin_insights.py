@@ -74,7 +74,6 @@ def env(monkeypatch):
     admin_insights.migrate_admin_audit_log()
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-53a2-" + "s" * 32)
-    monkeypatch.setattr(srv, "ensure_reports_table", lambda: None)
     srv._rate_store.clear()
     yield
     srv._rate_store.clear()
@@ -129,7 +128,8 @@ def test_summary_reads_the_real_tables():
     _sql("INSERT INTO users (full_name, email, user_type, is_verified, created_at) VALUES "
          "('co1','c1@x','co', TRUE, NOW()), ('co2','c2@x','co', FALSE, NOW()), ('co3','c3@x','co', FALSE, NOW()), "
          "('e1','e1@x','emp', FALSE, NOW() - INTERVAL '45 days')")
-    _sql("INSERT INTO profiles (user_id, is_verified) VALUES (2, TRUE)")
+    # badge source = profiles.is_verified only (task 5.0c) — users.is_verified (co1) is legacy, not counted
+    _sql("INSERT INTO profiles (user_id, is_verified) VALUES (2, TRUE), (3, TRUE)")
     _sql("INSERT INTO jobs (company_id, title, status) VALUES (1,'j1','active'), (1,'j2','active'), (1,'j3','closed')")
     _sql("INSERT INTO job_applications (job_id, user_id) VALUES (1, 4)")
     _sql("INSERT INTO kyc_submissions (user_id, step) VALUES (3, 'review'), (4, 'approved')")
@@ -231,10 +231,10 @@ def test_activity_pages():
 def _seed_users():
     _sql("INSERT INTO users (full_name, email, user_type, is_verified, tw_id, created_at) VALUES "
          "('سارة أحمد','sara@x.com','emp', FALSE, 'U100', NOW() - INTERVAL '3 days'), "      # 1 pending (KYC)
-         "('شركة النور','info@noor.co','co', TRUE, 'C200', NOW() - INTERVAL '2 days'), "     # 2 verified (users)
+         "('شركة النور','info@noor.co','co', TRUE, 'C200', NOW() - INTERVAL '2 days'), "     # 2 verified (profile)
          "('=HYPERLINK(1)','evil@x.com','co', FALSE, 'C300', NOW() - INTERVAL '1 days'), "   # 3 verified (profile)
          "('معهد 100%','edu@x.com','edu', FALSE, 'T400', NOW())")                            # 4 unverified
-    _sql("INSERT INTO profiles (user_id, is_verified, avatar_url) VALUES (1, FALSE, 'https://cdn.x/a.png'), (3, TRUE, NULL)")
+    _sql("INSERT INTO profiles (user_id, is_verified, avatar_url) VALUES (1, FALSE, 'https://cdn.x/a.png'), (2, TRUE, NULL), (3, TRUE, NULL)")
     _sql("INSERT INTO company_profiles (user_id, avatar_url) VALUES (2, 'https://cdn.x/logo.png')")
     _sql("INSERT INTO kyc_submissions (user_id, step) VALUES (1, 'review'), (4, 'rejected')")
 
