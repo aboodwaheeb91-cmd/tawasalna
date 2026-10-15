@@ -33,6 +33,7 @@
 - `twMountAppChrome()` بيشتغل لحاله عند `DOMContentLoaded` (مرة وحدة — `data-tw-mounted`).
 - الهيدر بيحمل **تنقّل بس**. أزرار خاصة بالصفحة (تعديل، حفظ، عنوان) بتنحط بالصفحة نفسها تحت الهيدر — مثال: زر «تعديل الملف» بـ `edu-profile` (`#ownerActions` بكرت الجهة) وسطر عنوان الغرفة `.room-head` بـ `appointment-room`.
 - الهيدر `position: sticky; top: 0` — الصفحة ما بتحط `padding-top` / `margin-top` تعويض.
+- **صفحات الأدمن (task 5.3a):** `<header data-tw-header="admin">` = هيدر الـ Admin Shell (`TwAdminShell.mount()` — `docs/rules/admin-shell.md`)؛ `twMountAppChrome` بيتجاهله. نفس المبدأ: هيدر واحد لكل صفحات الأدمن، مش هيدر لكل صفحة.
 
 ---
 

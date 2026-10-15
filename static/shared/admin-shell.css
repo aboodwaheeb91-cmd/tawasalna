@@ -1,0 +1,84 @@
+/* static/shared/admin-shell.css — Admin Shell (task 5.3a · docs/rules/admin-shell.md).
+   Header + menu (TwAdminShell.mount) and the shared admin building blocks (cards with ⓘ, rows,
+   stats, pills) used by every admin page. Mobile first. Colors: DS-COLOR tokens only (F35). */
+
+body.tw-adm-body-page { background: var(--color-surface-page); color: var(--color-text-body); font-family: 'Cairo', sans-serif; min-height: 100vh; }
+
+/* ── header + menu ── */
+.tw-adm-hdr { position: sticky; top: 0; z-index: 100; background: var(--color-surface-page);
+  border-bottom: 1px solid var(--color-border-subtle); }
+.tw-adm-bar { display: flex; align-items: center; gap: var(--space-4); max-width: 960px; margin: 0 auto;
+  padding: var(--space-4) var(--space-6); }
+.tw-adm-logo { height: 26px; width: auto; display: block; }
+.tw-adm-title { flex: 1; font-size: var(--size-font-sm); font-weight: 800; color: var(--color-brand-primary); }
+.tw-adm-logout { gap: var(--space-2); }
+.tw-adm-nav { display: flex; gap: var(--space-2); overflow-x: auto; max-width: 960px; margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-4); scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tw-adm-nav::-webkit-scrollbar { display: none; }
+.tw-adm-link { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); flex-shrink: 0;
+  min-height: var(--size-control-sm); padding: 0 var(--space-5); border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); text-decoration: none;
+  font-size: var(--size-font-sm); font-weight: 700; white-space: nowrap; }
+.tw-adm-link:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.tw-adm-link.is-current { color: var(--color-brand-primary); border-color: var(--color-brand-primary);
+  background: rgba(var(--color-brand-primary-rgb), .1); }
+.tw-adm-link:focus-visible, .tw-adm-info:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.tw-adm-badge { min-width: 18px; padding: 0 var(--space-2); border-radius: var(--radius-pill); text-align: center;
+  background: var(--color-status-danger); color: var(--color-text-on-fill); font-size: var(--size-font-2xs); line-height: 18px; }
+.tw-adm-badge[hidden] { display: none; }
+
+/* ── page body ── */
+.tw-adm-main { max-width: 760px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-13); }
+.tw-adm-section[hidden] { display: none; }
+.tw-adm-msg { font-size: var(--size-font-sm); color: var(--color-text-muted); line-height: 1.8; padding: var(--space-8) 0; text-align: center; }
+
+/* ── card with ⓘ ── */
+.tw-adm-card { background: var(--color-surface-card); border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2xl); padding: var(--space-7); margin-bottom: var(--space-7); }
+.tw-adm-card-hdr { display: flex; align-items: center; gap: var(--space-3); }
+.tw-adm-card-ico { display: inline-flex; color: var(--color-brand-primary); }
+.tw-adm-card-title { flex: 1; margin: 0; font-size: var(--size-font-md); font-weight: 800; color: var(--color-text-primary); }
+.tw-adm-info { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: var(--size-control-icon-sm); height: var(--size-control-icon-sm); border-radius: var(--radius-circle);
+  border: 1px solid var(--color-border-subtle); background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.tw-adm-info[aria-expanded="true"] { color: var(--color-brand-primary); border-color: var(--color-brand-primary); }
+.tw-adm-hint { font-size: var(--size-font-xs); color: var(--color-text-muted); line-height: 1.8; margin: var(--space-4) 0 0; }
+.tw-adm-body { margin-top: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* ── stats ── */
+.tw-adm-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.tw-adm-stat { border-radius: var(--radius-lg); border: 1px solid var(--color-border-subtle); background: var(--color-surface-raised);
+  padding: var(--space-5) var(--space-3); text-align: center; }
+.tw-adm-stat-num { font-size: var(--size-font-3xl); font-weight: 900; color: var(--color-text-primary); }
+.tw-adm-stat-lbl { font-size: var(--size-font-xs); color: var(--color-text-muted); }
+.tw-adm-stat.is-wide { grid-column: 1 / -1; }
+.tw-adm-stat.is-wide .tw-adm-stat-num { color: var(--color-brand-primary); }
+@media (min-width: 560px) { .tw-adm-stats { grid-template-columns: repeat(3, 1fr); } }
+
+/* ── list rows ── */
+.tw-adm-tools { display: flex; gap: var(--space-4); }
+.tw-adm-tools .tw-input { flex: 1; }
+.tw-adm-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--color-border-subtle); }
+.tw-adm-row:last-child { border-bottom: none; }
+.tw-adm-row-main { flex: 1; min-width: 160px; }
+.tw-adm-row-main.is-link { cursor: pointer; }
+.tw-adm-row-title { font-size: var(--size-font-md); font-weight: 700; color: var(--color-text-primary); overflow-wrap: anywhere; }
+.tw-adm-row-sub { font-size: var(--size-font-xs); color: var(--color-text-muted); overflow-wrap: anywhere; margin-top: var(--space-1); }
+.tw-adm-row-acts { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.tw-adm-row-acts .tw-act { gap: var(--space-2); }
+.tw-adm-pill { display: inline-flex; align-items: center; padding: 0 var(--space-4); border-radius: var(--radius-pill);
+  font-size: var(--size-font-2xs); font-weight: 700; line-height: 20px; border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary); }
+.tw-adm-pill.is-ok { color: var(--color-status-success); border-color: rgba(var(--color-status-success-rgb), .4); }
+.tw-adm-pill.is-warn { color: var(--color-status-warning); border-color: rgba(var(--color-status-warning-rgb), .4); }
+.tw-adm-pill.is-danger { color: var(--color-status-danger); border-color: rgba(var(--color-status-danger-rgb), .4); }
+.tw-adm-pill.is-co { color: var(--color-brand-secondary-text); }
+.tw-adm-pill.is-edu { color: var(--color-categorical-purple); }
+.tw-adm-pag { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; padding-top: var(--space-4); }
+.tw-adm-pag .tw-act.is-current { border-color: var(--color-brand-primary); color: var(--color-brand-primary); }
+
+/* ── typed-word confirm (TwAdminShell.confirm) ── */
+.tw-adm-typed { padding-top: var(--space-5); }
+.tw-adm-typed-label { display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--size-font-sm);
+  color: var(--color-text-secondary); font-weight: 700; }

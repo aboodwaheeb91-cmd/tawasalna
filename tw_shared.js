@@ -1302,7 +1302,8 @@ function _twChromeNavClick(e) {
 
 var _twChromeBound = false;
 function twMountAppChrome() {
-  var hdr = document.querySelector('[data-tw-header]');
+  // data-tw-header="admin" = the Admin Shell header (static/shared/admin-shell.js · task 5.3a) — not this one.
+  var hdr = document.querySelector('[data-tw-header]:not([data-tw-header="admin"])');
   var nav = document.querySelector('[data-tw-bottom-nav]');
   if (hdr && !hdr.hasAttribute('data-tw-mounted')) {
     hdr.setAttribute('data-tw-mounted', '');
