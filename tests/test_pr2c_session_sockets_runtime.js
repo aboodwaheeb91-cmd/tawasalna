@@ -2,7 +2,7 @@
 // Runs REAL production code via Node.js vm (+ @vm-extract markers where needed):
 //   auth-sync.js (focus/visibility no longer force) · tw_shared.js badge WS ·
 //   messages.ws.js session handler · messages.render.js poll controller ·
-//   company.main.js suggestion save delegation · company.jobs.js job location mode.
+//   company.main.js suggestion save delegation (6. job location mode on edit — removed with the company job edit, task 5.3j5).
 // Run: node tests/test_pr2c_session_sockets_runtime.js
 'use strict';
 
@@ -252,25 +252,6 @@ console.log('\n5. company suggestions save + namespace');
     && !/typeof _openNotesPanel/.test(main) && !/openApptModal/.test(main));
   assert('namespace created in company.state.js',
     /window\.TwCompanyPage = window\.TwCompanyPage \|\| \{\}/.test(fs.readFileSync('./static/company/company.state.js', 'utf8')));
-}
-
-// ════════════════════════════════════════════════════════════════════════
-// 6. company.jobs.js — job location mode detected on edit
-// ════════════════════════════════════════════════════════════════════════
-console.log('\n6. job location mode');
-{
-  const src = extract(fs.readFileSync('./static/company/company.jobs.js', 'utf8'), 'job-loc-mode');
-  const ctx = vm.createContext({ String });
-  vm.runInContext(src, ctx);
-  const d = (loc, p, b) => ctx._detectJobLocMode(loc, p, b);
-  const prof = { country: 'الأردن', city: 'عمّان' };
-  const br = [{ branch_name: 'فرع', country: 'السعودية', city: 'الرياض', district: 'العليا' }];
-  assert('remote', d('عن بُعد', prof, br).mode === 'remote');
-  assert('hq', d('الأردن، عمّان', prof, br).mode === 'hq');
-  const r = d('السعودية، الرياض، العليا', prof, br);
-  assert('branch (+ option value)', r.mode === 'branch' && r.value === 'السعودية، الرياض، العليا');
-  assert('custom', d('مصر، القاهرة', prof, br).mode === 'custom');
-  assert('empty → custom (nothing invented)', d('', prof, br).mode === 'custom');
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

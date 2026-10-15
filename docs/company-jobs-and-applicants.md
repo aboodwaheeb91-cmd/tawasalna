@@ -132,14 +132,14 @@ def _eff_status(status, closed_at, expires_at) -> str:
 | `closed` | ❌ | ❌ | — |
 | `expired` | ❌ | ❌ | ❌ |
 
-الحجب يحدث server-side في `set_job_status()` + `apply_job()` + `update_job_endpoint`.
+الحجب يحدث server-side في `set_job_status()` + `apply_job()`. تعديل الوظيفة بعد نشرها ممنوع على الشركة كلياً (task 5.3j5 — `PUT /company/jobs/{id}` → 403).
 
 ### حماية server-side (ممنوعات)
 
 ```
 ❌ التقديم على وظيفة موقوفة أو منتهية أو انتهت صلاحيتها
 ❌ إعادة فتح وظيفة منتهية أو انتهت صلاحيتها
-❌ تعديل وظيفة انتهت صلاحيتها (PUT /company/jobs/{id})
+❌ تعديل أي وظيفة منشورة من الشركة — `PUT /company/jobs/{id}` → 403 «لا يمكن تعديل الوظيفة بعد نشرها» (قرار صاحب المشروع 5.3j5: مصداقية الوظيفة للمتقدمين؛ التعديل للأدمن بس)
 ```
 
 ### ما يراه الزائر (company-profile)
@@ -179,8 +179,7 @@ def _eff_status(status, closed_at, expires_at) -> str:
 - القيم المسموحة: **3، 7، 14، 30** يوماً فقط.
 - الافتراضي: **7 أيام** (يُطبَّق server-side إذا لم تُرسَل قيمة أو كانت القيمة غير مسموحة).
 - عند الإنشاء: `expires_at = NOW() + duration_days days`.
-- عند التعديل (active/paused فقط): تعيين قيمة جديدة يُعيد ضبط `expires_at = NOW() + duration_days days` (reset للساعة).
-- ممنوع تعديل `duration_days` على إعلان `closed` أو `expired`.
+- بعد النشر: الشركة ما بتقدر تغيّر المدة (ولا أي حقل — 5.3j5). تغيير المدة = الأدمن بس (`/admin/jobs/{id}/extend` · `/reactivate` — SYSTEMS_INDEX §25e).
 - الوظائف القديمة (بدون `duration_days`) تُعامَل كـ 7 أيام بفضل `DEFAULT 7` — لا reset لـ `expires_at` الموجود.
 
 ### القاعدة الذهبية
@@ -188,13 +187,13 @@ def _eff_status(status, closed_at, expires_at) -> str:
 ```
 ✅ effective_status يُحسب server-side في كل طلب
 ✅ لا cron job — الانتهاء التلقائي computed في _eff_status()
-✅ الحجب يحدث في auth.py: set_job_status + apply_job + update_job_endpoint
+✅ الحجب يحدث في auth.py: set_job_status + apply_job · تعديل الشركة لوظيفة منشورة مرفوض كلياً (`PUT /company/jobs/{id}` → 403 — 5.3j5)
 ✅ Frontend يعتمد على j.effective_status فقط (لا j.status مباشرة)
 ✅ expired يعيد استخدام --closed CSS class (لا CSS جديد)
 
 ❌ تخزين 'expired' في DB كـ status value
 ❌ فتح إعلان منتهٍ
-❌ تعديل إعلان انتهت صلاحيته
+❌ تعديل وظيفة منشورة من الشركة (أي حالة — 5.3j5) · ❌ زر «تعديل الإعلان» / وضع تعديل بنموذج النشر
 ❌ إضافة cron job لتغيير status تلقائياً
 ```
 
@@ -205,7 +204,7 @@ def _eff_status(status, closed_at, expires_at) -> str:
 ### المصدر الرسمي للبيانات
 
 - `TW.fillCountries()` و`TW.fillCities()` من `static/shared/tw-options-data.js`.
-- لا نستخدم input نص حر لحقل الموقع في نشر وظيفة أو تعديلها.
+- لا نستخدم input نص حر لحقل الموقع في نشر وظيفة.
 
 ### بنية الحقول داخل الـ modal
 
@@ -411,7 +410,7 @@ def _eff_status(status, closed_at, expires_at) -> str:
 □ لا backend / API / DB changes في PR التوثيق
 □ لا زر حذف داخل كرت الوظيفة
 □ الحالة تظهر كشارة أسفل صورة الشركة داخل الكرت
-□ نموذج نشر/تعديل الوظيفة يستخدم قائمة بلد + قائمة محافظة (لا input نص حر)
+□ نموذج نشر الوظيفة يستخدم قائمة بلد + قائمة محافظة (لا input نص حر)
 □ الوظيفة المنتهية (closed) تعرض "مشاهدة المتقدمين" فقط لمدة 30 يوم
 □ الوظيفة منتهية الصلاحية (expired) لا أزرار — سجل فقط
 □ زر "إنهاء الإعلان" يظهر فقط للوظائف النشطة أو الموقوفة

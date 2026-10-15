@@ -98,16 +98,6 @@
     var drop = document.createElement('div');
     drop.className = 'co-jmgmt-float';
 
-    var editOpt = document.createElement('button');
-    editOpt.type = 'button';
-    editOpt.className = 'co-jmgmt-opt';
-    editOpt.textContent = 'تعديل الإعلان';
-    editOpt.addEventListener('click', function (e) {
-      e.stopPropagation();
-      _closeJobMgmtDrop();
-      openEditJob(jobId);
-    });
-
     var pauseOpt = document.createElement('button');
     pauseOpt.type = 'button';
     pauseOpt.className = 'co-jmgmt-opt';
@@ -128,7 +118,6 @@
       closeJob(jobId);
     });
 
-    drop.appendChild(editOpt);
     drop.appendChild(pauseOpt);
     drop.appendChild(closeOpt);
     document.body.appendChild(drop);
@@ -305,9 +294,8 @@
 
   // ── Profession picker ──────────────────────────────────────────
   var _professions  = [];
-  var _editJobId    = null;  // null = create mode, int = edit mode
   var _pendingProfId = null; // profession_id to select after async professions load
-  var _postJobHistoryPushed = false; // true after pushState for postJob/editJob modal
+  var _postJobHistoryPushed = false; // true after pushState for the postJob modal
 
   function _rebuildProfSelect() {
     var sel = document.getElementById('j-prof');
@@ -653,29 +641,6 @@
     if (salRow) salRow.style.display = (show && show.checked) ? '' : 'none';
   }
 
-  // @vm-extract-begin: job-loc-mode
-  // Inverse of _resolveJobLocation (PR 2C): which j-loc-mode a stored job.location
-  // came from — 'remote' · 'hq' · 'branch' (value = branch option value) · 'custom'.
-  // Pure: profile + branches passed in. Empty / unknown → 'custom' (country/city parse).
-  function _detectJobLocMode(loc, profile, branches) {
-    loc = String(loc || '').trim();
-    if (loc === 'عن بُعد') return { mode: 'remote', value: loc };
-    if (!loc) return { mode: 'custom', value: '' };
-    var p = profile || null;
-    if (p) {
-      var hq = [p.country, p.city].filter(Boolean).join('، ') || p.location || '';
-      if (hq && String(hq).trim() === loc) return { mode: 'hq', value: loc };
-    }
-    var list = branches || [];
-    for (var i = 0; i < list.length; i++) {
-      var b = list[i] || {};
-      var bv = [b.country, b.city, b.district].filter(Boolean).join('، ');
-      if (bv && bv === loc) return { mode: 'branch', value: bv };
-    }
-    return { mode: 'custom', value: loc };
-  }
-  // @vm-extract-end: job-loc-mode
-
   function _resolveJobLocation() {
     var mode = (document.getElementById('j-loc-mode') || {}).value || 'hq';
     if (mode === 'remote') return 'عن بُعد';
@@ -737,7 +702,6 @@
     var accSec = document.getElementById('j-acc-prof-section');
     if (accSec) accSec.style.display = '';
     _jHideDrop();
-    _editJobId     = null;
     _pendingProfId = null;
     var pBtn = document.getElementById('publishJobBtn');
     if (pBtn) { pBtn.disabled = false; pBtn.textContent = twT('company.job_form.publish'); }
@@ -867,12 +831,10 @@
       duration_days:           parseInt(val('j-dur')) || 7,
     };
 
-    var isEdit  = !!_editJobId;
-    var url     = isEdit ? '/company/jobs/' + _editJobId : '/company/jobs';
-    var method  = isEdit ? 'PUT' : 'POST';
-    var btnOrigText = twT(isEdit ? 'common.save_changes' : 'company.job_form.publish');
+    // create only — a published job cannot be edited by the company (owner decision, task 5.3j5)
+    var btnOrigText = twT('company.job_form.publish');
 
-    twApi(url, { method: method, body: payload }).then(function (res) {
+    twApi('/company/jobs', { method: 'POST', body: payload }).then(function (res) {
       var data = res.raw || {};
       if (!res.ok || data.status !== 'success') {
         if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = btnOrigText; }
@@ -882,151 +844,21 @@
 
       // ── Confirmed Immediate Update ────────────────────────────
       _closePostJobOverlay();
-      if (window.showToast) showToast(isEdit ? 'تم تحديث الوظيفة ✓' : 'تم نشر الوظيفة ✓');
+      if (window.showToast) showToast('تم نشر الوظيفة ✓');
 
-      if (isEdit) {
-        // Update existing job in state in-place
-        companyState.jobs = companyState.jobs.map(function (j) {
-          if (String(j.id) === String(_editJobId)) {
-            var overrides = { id: j.id, status: j.status, applicant_count: j.applicant_count };
-            // Optimistically update expires_at so the countdown tab reflects new duration
-            if (payload.duration_days) {
-              overrides.expires_at = new Date(Date.now() + payload.duration_days * 86400000).toISOString();
-            }
-            return Object.assign({}, j, payload, overrides);
-          }
-          return j;
-        });
-      } else {
-        var newJob = data.job || {};
-        if (!newJob.id) newJob = Object.assign(
-          { id: 0, status: 'active', created_at: new Date().toISOString() }, payload);
-        companyState.jobs = [newJob].concat(companyState.jobs || []);
-        if (window.companyState && companyState.stats)
-          companyState.stats.jobs_count = (companyState.stats.jobs_count || 0) + 1;
-        if (window.renderStats) renderStats();
-      }
+      var newJob = data.job || {};
+      if (!newJob.id) newJob = Object.assign(
+        { id: 0, status: 'active', created_at: new Date().toISOString() }, payload);
+      companyState.jobs = [newJob].concat(companyState.jobs || []);
+      if (window.companyState && companyState.stats)
+        companyState.stats.jobs_count = (companyState.stats.jobs_count || 0) + 1;
+      if (window.renderStats) renderStats();
       if (window.renderJobs) renderJobs();
       _resetPostJobModal();
     });
   }
 
-  // ── Job management — edit ──────────────────────────────────────
-  // hydrateEditJobForm(job) — complete prefill of ALL edit-form fields from a job object.
-  // job must be a full owner-endpoint record (from /company/jobs which includes
-  // profession_id, work_mode, salary_hidden, accepted_professions).
-  function hydrateEditJobForm(job) {
-    _resetPostJobModal();
-    _editJobId = job.id;
-
-    var s = function (id, v) {
-      var el = document.getElementById(id);
-      if (el && v !== undefined && v !== null) el.value = String(v);
-    };
-
-    // ── Text / simple select fields ──────────────────────────────
-    s('j-title', job.title || '');
-    s('j-desc',  job.description || '');
-    s('j-type',  job.job_type  || 'دوام كامل');
-    s('j-wmode', job.work_mode || 'في الموقع');
-    s('j-exp',   String(job.experience_years || 0));
-    s('j-cur',   job.currency || 'USD');
-    s('j-dur',   String(job.duration_days || 7));
-
-    // ── Location: restore the mode it was saved with (PR 2C) ─────
-    // remote / hq / branch / custom — forcing 'custom' left the dropdowns empty for
-    // the first three and saving wiped the job location.
-    var locStr   = (job.location || '').trim();
-    var det = _detectJobLocMode(locStr,
-      window.companyState && companyState.profile,
-      window.companyState && companyState.branches);
-    var locMode = document.getElementById('j-loc-mode');
-    if (locMode) { locMode.value = det.mode; _onJobLocModeChange(); }
-    if (det.mode === 'branch') {
-      var brSel = document.getElementById('j-branch-sel');
-      if (brSel) { brSel.value = det.value; if (window.scSelectInit) scSelectInit(); }
-    }
-    if (det.mode !== 'custom') locStr = '';
-    var locParts = locStr.split(/،\s*| - /).map(function (p) { return p.trim(); }).filter(Boolean);
-    var locCountry = locParts[0] || '';
-    var locCity    = locParts[1] || '';
-    var countrySel = document.getElementById('j-loc-country');
-    var citySel    = document.getElementById('j-loc-city');
-    if (countrySel && locCountry && window.TW && TW.countryEntry) {
-      var entry = TW.countryEntry(locCountry);
-      if (entry) {
-        countrySel.value = entry.name_ar;
-        TW.fillCities(citySel, entry.name_ar, locCity);
-        if (window.scSelectInit) scSelectInit();
-      }
-      // If country not in catalog, dropdowns stay at placeholder — user re-selects
-    }
-
-    // ── Salary ──────────────────────────────────────────────────
-    var showSal = !job.salary_hidden && !!(job.salary_min || job.salary_max);
-    var salShow = document.getElementById('j-sal-show');
-    if (salShow) { salShow.checked = showSal; _onSalShowChange(); }
-    if (showSal) {
-      s('j-sal1', job.salary_min || '');
-      s('j-sal2', job.salary_max || '');
-    }
-
-    // ── Skills ──────────────────────────────────────────────────
-    if (Array.isArray(job.skills)) {
-      job.skills.forEach(function (sk) {
-        _jAddSkill(typeof sk === 'string' ? sk : (sk.name_ar || sk.name_en || ''));
-      });
-    }
-
-    // ── Accepts-all toggle ───────────────────────────────────────
-    var accAllCb = document.getElementById('j-acc-all');
-    if (accAllCb) {
-      accAllCb.checked = !!job.accepts_all_professions;
-      _onAccAllChange(); // shows / hides j-acc-prof-section
-    }
-
-    // ── Additional accepted professions chips ────────────────────
-    // Backend returns full profession objects in accepted_professions[].
-    // Only hydrate when accepts_all is false — _onAccAllChange() already cleared chips.
-    if (!job.accepts_all_professions && Array.isArray(job.accepted_professions)) {
-      job.accepted_professions.forEach(function (prof) {
-        _jAccAddProf(prof);
-      });
-    }
-
-    // ── Profession (primary) — async-safe via _pendingProfId ─────
-    // _rebuildProfSelect() sets sel.value and calls scSelectInit() once catalog loads.
-    // If catalog is already cached, it runs synchronously here.
-    if (job.profession_id) {
-      _pendingProfId = job.profession_id;
-    }
-    _loadProfessions(); // no-op if already loading; sets value when ready
-
-    // ── Switch modal to edit mode ────────────────────────────────
-    var pBtn = document.getElementById('publishJobBtn');
-    if (pBtn) pBtn.textContent = twT('common.save_changes');
-    var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
-    if (modalTitle) modalTitle.textContent = twT('company.job_form.edit_title');
-    if (window.scSelectInit) scSelectInit();
-  }
-
-  function openEditJob(jobId) {
-    if (!window.companyState || !companyState.permissions.can_post_jobs) return;
-    var job = companyState.jobs.find(function (j) { return String(j.id) === String(jobId); });
-    if (!job) return;
-    _fillStaticSelects(); // ensure static options exist before hydration sets values
-    _jBindSkillAC();
-    _jAccBindAC();
-    hydrateEditJobForm(job);
-    var el = document.getElementById('postJobOverlay');
-    if (el) el.classList.add('show');
-    if (window.history && !_postJobHistoryPushed) {
-      history.pushState({ modal: 'editJob' }, '', location.href);
-      _postJobHistoryPushed = true;
-    }
-  }
-
-  // ── Close postJob/editJob overlay (Rule #17) ───────────────────
+  // ── Close postJob overlay (Rule #17) ───────────────────
   // fromPopstate=true means popstate already moved back; skip history.back().
   function _closePostJobOverlay(fromPopstate) {
     var el = document.getElementById('postJobOverlay');
@@ -1158,8 +990,6 @@
   window.openPostJob           = openPostJob;
   window._openPostJobFromUrl   = _openPostJobFromUrl;
   window.publishJob            = publishJob;
-  window.hydrateEditJobForm    = hydrateEditJobForm;
-  window.openEditJob           = openEditJob;
   window._closePostJobOverlay  = _closePostJobOverlay;
   window.toggleJobStatus       = toggleJobStatus;
   window.closeJob              = closeJob;
