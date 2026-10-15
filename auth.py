@@ -3932,11 +3932,13 @@ def admin_update_job(job_id: int, data: dict, reason: str) -> dict:
 
 
 def notify_job_applicants_updated(job_id: int, title: str, edit_key: str) -> int:
-    """Every applicant of the job gets ONE in-app notice per admin edit (event_key job_updated:{id}:{edit}) —
-    never the internal reason (owner decision 5.3j phase 4). Non-fatal per person. → notices created."""
+    """Every applicant still in review (applicant_visible_status → 'in_review'; hired / rejected get nothing —
+    owner decision 5.3j7) gets ONE in-app notice per admin edit (event_key job_updated:{id}:{edit}) — never the
+    internal reason (owner decision 5.3j phase 4). Non-fatal per person. → notices created."""
     with db_conn() as conn:
-        users = [int(r[0]) for r in conn.run(
-            "SELECT DISTINCT user_id FROM job_applications WHERE job_id=:id AND user_id IS NOT NULL", id=job_id)]
+        rows = conn.run(
+            "SELECT user_id, status FROM job_applications WHERE job_id=:id AND user_id IS NOT NULL", id=job_id)
+    users = sorted({int(r[0]) for r in rows if applicant_visible_status(r[1]) == "in_review"})
     sent = 0
     for uid in users:
         try:

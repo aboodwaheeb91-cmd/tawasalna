@@ -20,6 +20,8 @@ real startup migrations:
   - phase 4 (owner decisions): GET /admin/jobs/{id} (job + applicants) · PUT /admin/jobs/{id} = the publish rules +
     a required reason → company notice with the reason · ONE notice per applicant per edit (without the reason) ·
     no change → 409 · GET …/delete-preview counts applicants / pipeline / appointments (kept, detached) · 401 without admin
+  - 5.3j7 (owner decision): the edit notice reaches only applicants still in review (applicant_visible_status →
+    in_review) — hired / rejected get nothing
 Run: python -m pytest tests/test_admin_jobs_control.py -q
 """
 import os
@@ -385,3 +387,18 @@ def test_delete_preview_counts_then_delete(db):
     r = client.delete(f"/admin/jobs/{jid}", headers=h)
     assert r.status_code == 200 and r.json()["removed"] == {"applicants": 2, "pipeline_entries": 1}
     assert _sql("SELECT COUNT(*) FROM appointments WHERE company_id=:c AND job_id IS NULL", c=co)[0][0] == 1   # kept, detached
+
+
+# ── 5.3j7 (owner decision): the edit notice goes only to applicants still in review ──
+def test_edit_notice_only_for_applicants_in_review(db):
+    co = _user()
+    pending, interview, rejected, hired = _user("emp"), _user("emp"), _user("emp"), _user("emp")
+    jid = _job(co)
+    for uid, st in ((pending, "pending"), (interview, "interview"), (rejected, "rejected"), (hired, "hired")):
+        _sql("INSERT INTO job_applications (job_id, user_id, status) VALUES (:j, :u, :s)", j=jid, u=uid, s=st)
+    body = {"title": "عنوان معدّل", "description": "d", "reason": "تصحيح"}
+    r = client.put(f"/admin/jobs/{jid}", json=body, headers=_admin())
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["applicants_notified"] == 2
+    assert len(_notices(pending, "job_updated")) == 1 and len(_notices(interview, "job_updated")) == 1
+    assert _notices(rejected, "job_updated") == [] and _notices(hired, "job_updated") == []
