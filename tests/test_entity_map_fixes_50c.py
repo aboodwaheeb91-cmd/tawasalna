@@ -67,6 +67,8 @@ def env(monkeypatch):
     auth._migrate_profiles_user_unique()
     auth._migrate_jobs_v2()
     auth._migrate_job_lifecycle()
+    with auth.db_conn() as c:   # jobs.archived_at — same column as auth._migrate_pipeline_schema_v1 (job-status SQL reads it, 5.3j)
+        c.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL")
     auth._migrate_password_changed_at()
     auth._migrate_session_version()
     auth._migrate_password_reset_tokens()
