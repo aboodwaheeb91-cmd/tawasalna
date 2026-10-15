@@ -138,18 +138,19 @@
     return ctl;
   }
 
-  // ── unified search: users · companies · jobs (existing admin endpoints, filtered here) ──
-  var SEARCH_MAX = 5, _searchData = null;
-  function loadSearch() {
-    if (_searchData) return _searchData;
-    var get = function (url, key) {
-      return TwAdminSession.fetch(url, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; })
-        .then(function (d) { return (d && d[key]) || []; })
-        .catch(function (e) { console.error('[TwAdminShell] search ' + url + ':', e); return []; });
-    };
-    _searchData = Promise.all([get('/auth/users', 'users'), get('/admin/jobs', 'jobs')])
-      .then(function (r) { return { users: r[0], jobs: r[1] }; });
-    return _searchData;
+  // ── unified search: users · companies (GET /admin/users?q= — searched on the server, task 5.3a3) ·
+  //    jobs (GET /admin/jobs, loaded once and filtered here) ──
+  var SEARCH_MAX = 5, SEARCH_DELAY = 300, _jobsData = null;
+  function _getList(url, key) {
+    return TwAdminSession.fetch(url, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (d) { return (key ? d && d[key] : d && d.data && d.data.items) || []; })
+      .catch(function (e) { console.error('[TwAdminShell] search ' + url + ':', e); return []; });
+  }
+  function loadSearch(q) {
+    if (!_jobsData) _jobsData = _getList('/admin/jobs', 'jobs');
+    q = String(q || '').trim();
+    var users = q ? _getList('/admin/users?limit=' + (SEARCH_MAX * 2) + '&q=' + encodeURIComponent(q)) : Promise.resolve([]);
+    return Promise.all([users, _jobsData]).then(function (r) { return { users: r[0], jobs: r[1] }; });
   }
   function _has(v, q) { return String(v == null ? '' : v).toLowerCase().indexOf(q) !== -1; }
   // Pure (tests read it): data + query → [{key, items:[{title, sub, href, section?, q?}]}] (empty groups dropped)
@@ -189,15 +190,17 @@
     var render = function () {
       var q = input.value;
       if (!q.trim()) { close(); return; }
-      loadSearch().then(function (data) {
+      loadSearch(q).then(function (data) {
         if (input.value !== q) return;
         box.innerHTML = searchHtml(searchResults(data, q));
         box.hidden = false;
         input.setAttribute('aria-expanded', 'true');
       });
     };
-    input.addEventListener('focus', function () { loadSearch(); });
-    input.addEventListener('input', render);
+    var timer = null;
+    input.addEventListener('focus', function () { loadSearch(''); });
+    // wait until typing stops before asking the server (task 5.3a3)
+    input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(render, SEARCH_DELAY); });
     input.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); } });
     box.addEventListener('click', function (e) {
       var a = e.target && e.target.closest ? e.target.closest('[data-adm-pick]') : null;
@@ -361,7 +364,7 @@
   }
 
   // action = { confirm?: {title, message, confirm, danger?, typeWord?} (twT keys) | fn(ctx) → same,
-  //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key }
+  //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key, as?: 'blob' }
   // → Promise<{ok, status, data} | null>  (null = not confirmed → no request was sent)
   function run(action, ctx) {
     ctx = ctx || {};
@@ -375,7 +378,9 @@
       var init = { method: req.method || 'GET' };
       if (req.body !== undefined) init.body = JSON.stringify(req.body);
       return TwAdminSession.fetch(req.url, init).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (d) {
+        // as: 'blob' (a download — task 5.3a3) → data = the Blob on success; errors stay JSON
+        var body = action.as === 'blob' && r.ok ? r.blob() : r.json();
+        return body.catch(function () { return {}; }).then(function (d) {
           if (r.ok) { if (action.done) showToast(twT(action.done), 'success'); }
           else if (r.status !== 401 && r.status !== 403) showToast(_errText(d) || twT(action.fail || 'admin.action.error'), 'error');
           return { ok: r.ok, status: r.status, data: d };

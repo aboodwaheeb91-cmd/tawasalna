@@ -6347,7 +6347,6 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Same handler under the panel path (task 5.3a) — what admin pages call (relative to their own path, no panel prefix in served files); rate-limited |
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
-| GET | `/auth/users` | `get_all_users` | List all users |
 | GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` |
 | PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
@@ -6372,8 +6371,10 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/admin/errors` | `admin_errors` | JS error logs |
 | GET | `/admin/stats/summary` | `admin_stats_summary` | Dashboard cards (task 5.3a2 · SYSTEMS_INDEX §25c) — `{ok, data:{users, verified_companies, active_jobs, applications, open_reports, pending_kyc, messages_today, emails_today}}`, each `{value, change, period}`: `change` = % new in the last 30 days vs the 30 before (`period: "month"`) or today vs yesterday (`"day"`); `null` when there is no timestamp or nothing to compare |
 | GET | `/admin/stats/timeseries` | `admin_stats_timeseries` | `?metric=users\|jobs\|applications&days=1..90` — daily counts, aggregated in SQL (`generate_series` + `GROUP BY day`, empty days = 0) → `{ok, data:{metric, days, points:[{date, count}], in_range, total}}`. Metric outside the allowlist (`admin_insights.TIMESERIES_METRICS`) → 422 `invalid_metric`; bad days → 422 `invalid_days` |
-| GET | `/admin/activity` | `admin_activity` | Latest 15 events from the existing tables (registrations · jobs · KYC in review · reports) → `{ok, data:[{kind, at, title, sub, ref}]}` — names / titles only (no email, no report text) |
+| GET | `/admin/activity` | `admin_activity` | Latest events from the existing tables (registrations · jobs · KYC in review · reports), newest first, **paged** (task 5.3a3) — `?page=1..&limit=1..50` (default 8 = the dashboard card) → `{ok, data:{items:[{kind, at, title, sub, ref}], total, page, limit}}` — names / titles only (no email, no report text); bad page / limit → 422. «عرض الكل» = `admin.html#activity` |
 | GET | `/admin/audit` | `admin_audit` | Admin audit log (SYSTEMS_INDEX §25b) — `?page=1..&limit=1..100&action=` → `{ok, data:{items:[{id, created_at, actor, action, target, result, status, ip}], total, page, limit, actions}}`; bad page / limit → 422 |
+| GET | `/admin/users` | `admin_users` | Users / companies table (task 5.3a3 · SYSTEMS_INDEX §25d — replaces the deleted unpaged `GET /auth/users`) — `?q=` (name · email · tw_id, ILIKE, wildcards literal, ≤ 100) `&type=emp\|co\|edu&status=verified\|pending\|unverified&sort=newest\|oldest&page=1..&limit=1..100` → `{ok, data:{items:[{id, tw_id, full_name, avatar_url, user_type, email, verification, created_at}], total, page, limit}}`. `verification`: `verified` = `users.is_verified` or `profiles.is_verified` · `pending` = not verified + a `kyc_submissions` row in `review` · else `unverified`. `avatar_url` = `profiles.avatar_url`, else `company_profiles.avatar_url`. No other field. Bad value → 422 (`invalid_q` / `invalid_type` / `invalid_status` / `invalid_sort` / `invalid_page` / `invalid_limit`) |
+| GET | `/admin/users/export` | `admin_users_export` | Same filters as `/admin/users` (no page) → `text/csv` (UTF-8 + BOM, `attachment; filename="users.csv"`, `no-store`, ≤ 50 000 rows) — columns `id, tw_id, full_name, user_type, email, verification, created_at` (no image, nothing else); a cell starting with `= + - @` gets a leading `'` (formula injection). **Recorded in the audit log** (`AUDIT_READ_ROUTES`) |
 | GET | `/admin/news` | `admin_list_news` | List official news |
 | POST | `/admin/news` | `admin_create_news` | Create news post |
 | PUT | `/admin/news/{news_id}` | `admin_update_news` | Update news post |
@@ -6403,7 +6404,7 @@ Table `admin_audit_log` — critical startup migration `admin_audit_log` (`admin
 | `status` | INTEGER | HTTP status |
 | `ip` | TEXT | `get_client_ip(request)` only |
 
-Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited). Reads (`GET`) are not recorded. ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
+Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited). Reads (`GET`) are not recorded — except the routes in `AUDIT_READ_ROUTES` (data leaving the site: `admin_users_export` — task 5.3a3). ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
 
 ### Rules
 
@@ -6557,7 +6558,7 @@ CREATE TABLE reports (
 
 ```javascript
 // لا توجد API calls على هذه الصفحة — جميع المحتوى ثابت
-// السبب: /auth/users يتطلب X-Admin-Token (ممنوع من الصفحة العامة)
+// السبب: قائمة المستخدمين (/admin/users) أدمن بس (ممنوعة من الصفحة العامة)
 //         /jobs يعيد 0 لعدم وجود بيانات كافية حالياً
 
 // الزائر المسجّل: twEntryDestination() (tw_shared.js) من TwAuthSync.getSessionSnapshot() فقط
@@ -6568,7 +6569,7 @@ CREATE TABLE reports (
 
 ### Forbidden Patterns (Landing Page)
 
-- **ممنوع** استدعاء `/auth/users` من `landing.html` — يتطلب `X-Admin-Token`
+- **ممنوع** استدعاء `/admin/users` (أو أي endpoint أدمن) من `landing.html` — يتطلب جلسة أدمن (`/auth/users` القديم انحذف — task 5.3a3)
 - **ممنوع** الرجوع إلى `/profile?id=`، `company-profile.html?id=`، `edu-profile.html?id=` — استخدم `twAccountHref()` (`/u/{tw_id}`)
 - **ممنوع** قراءة `tawasalna_user` من `localStorage` — المفتاح الصحيح هو `tw_user`
 - **ممنوع** وضع stat counters ديناميكية إلا إذا كان الـ endpoint عاماً ويعيد بيانات حقيقية

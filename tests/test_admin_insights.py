@@ -7,6 +7,8 @@ Behaviour only — real FastAPI app + real PostgreSQL (TW_TEST_DB_URL — run_te
   - the audit log records admin writes + admin logins (ok / denied) with the client IP, and never
     a password, a token or a body · GET /admin/audit filters + pages
   - /health reports storage (configured | missing) · the audit table is a critical startup migration
+  - (task 5.3a3) GET /admin/users: search · type · verification · sort · server pages · no sensitive field ·
+    GET /admin/users/export: same filters → CSV, recorded in the audit log · GET /admin/activity pages
 Run: python -m pytest tests/test_admin_insights.py -q
 """
 import os
@@ -29,7 +31,7 @@ client = TestClient(srv.app)
 PASSWORD = "p" * 40
 LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"   # the panel login path (slug from the env, never in a file)
 NEW_ENDPOINTS = ("/admin/stats/summary", "/admin/stats/timeseries?metric=users&days=30",
-                 "/admin/activity", "/admin/audit")
+                 "/admin/activity", "/admin/audit", "/admin/users", "/admin/users/export")
 
 
 def _sql(q, **kw):
@@ -45,11 +47,14 @@ def env(monkeypatch):
         pytest.skip(f"test PostgreSQL unavailable: {e}")
     try:
         for t in ("admin_audit_log", "reports", "email_send_log", "messages", "kyc_submissions",
-                  "job_applications", "jobs", "profiles", "users"):
+                  "job_applications", "jobs", "company_profiles", "profiles", "users"):
             c.run(f"DROP TABLE IF EXISTS {t} CASCADE")
         c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, full_name TEXT, email TEXT, user_type TEXT DEFAULT 'emp', "
-              "is_verified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())")
-        c.run("CREATE TABLE profiles (id SERIAL PRIMARY KEY, user_id INTEGER, is_verified BOOLEAN DEFAULT FALSE)")
+              "is_verified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW(), tw_id TEXT, "
+              "password_hash TEXT DEFAULT 'HASH-SECRET', phone TEXT DEFAULT '0790000000')")
+        c.run("CREATE TABLE profiles (id SERIAL PRIMARY KEY, user_id INTEGER, is_verified BOOLEAN DEFAULT FALSE, "
+              "avatar_url TEXT)")
+        c.run("CREATE TABLE company_profiles (id SERIAL PRIMARY KEY, user_id INTEGER, avatar_url TEXT)")
         c.run("CREATE TABLE jobs (id SERIAL PRIMARY KEY, company_id INTEGER, title TEXT, status TEXT DEFAULT 'active', "
               "created_at TIMESTAMP DEFAULT NOW())")
         c.run("CREATE TABLE job_applications (id SERIAL PRIMARY KEY, job_id INTEGER, user_id INTEGER, "
@@ -149,7 +154,7 @@ def test_activity_lists_latest_events_without_private_fields():
     _sql("INSERT INTO reports (reported_id, report_type, reason) VALUES (2, 'spam', 'private reason text')")
     r = client.get("/admin/activity", headers=_admin())
     assert r.status_code == 200
-    items = r.json()["data"]
+    items = r.json()["data"]["items"]
     assert {i["kind"] for i in items} == {"register", "job", "kyc", "report"}
     job = [i for i in items if i["kind"] == "job"][0]
     assert job["title"] == "مطور" and job["sub"] == "شركة"
@@ -205,3 +210,98 @@ def test_health_storage_and_critical_migration():
     assert body["storage"] in ("configured", "missing")
     crit = {n: c for n, _, c in srv._startup_migrations()}
     assert crit.get("admin_audit_log") is True
+
+
+# ── activity pages (task 5.3a3 — the dashboard shows 8, «عرض الكل» pages through all) ──
+def test_activity_pages():
+    for i in range(12):
+        _sql("INSERT INTO users (full_name, email, created_at) VALUES (:n, :e, NOW() - make_interval(mins => :m))",
+             n=f"u{i}", e=f"u{i}@x", m=i)
+    h = _admin()
+    d = client.get("/admin/activity", headers=h).json()["data"]
+    assert d["limit"] == 8 and len(d["items"]) == 8 and d["total"] == 12 and d["items"][0]["title"] == "u0"
+    d2 = client.get("/admin/activity?page=2&limit=5", headers=h).json()["data"]
+    assert [i["title"] for i in d2["items"]] == ["u5", "u6", "u7", "u8", "u9"]
+    assert client.get("/admin/activity?limit=500", headers=h).status_code == 422
+    assert client.get("/admin/activity?page=0", headers=h).status_code == 422
+
+
+# ── users table (task 5.3a3 · SYSTEMS_INDEX §25d) ──
+def _seed_users():
+    _sql("INSERT INTO users (full_name, email, user_type, is_verified, tw_id, created_at) VALUES "
+         "('سارة أحمد','sara@x.com','emp', FALSE, 'U100', NOW() - INTERVAL '3 days'), "      # 1 pending (KYC)
+         "('شركة النور','info@noor.co','co', TRUE, 'C200', NOW() - INTERVAL '2 days'), "     # 2 verified (users)
+         "('=HYPERLINK(1)','evil@x.com','co', FALSE, 'C300', NOW() - INTERVAL '1 days'), "   # 3 verified (profile)
+         "('معهد 100%','edu@x.com','edu', FALSE, 'T400', NOW())")                            # 4 unverified
+    _sql("INSERT INTO profiles (user_id, is_verified, avatar_url) VALUES (1, FALSE, 'https://cdn.x/a.png'), (3, TRUE, NULL)")
+    _sql("INSERT INTO company_profiles (user_id, avatar_url) VALUES (2, 'https://cdn.x/logo.png')")
+    _sql("INSERT INTO kyc_submissions (user_id, step) VALUES (1, 'review'), (4, 'rejected')")
+
+
+def _users(h, **params):
+    r = client.get("/admin/users", params=params, headers=h)
+    assert r.status_code == 200, r.text
+    return r.json()["data"]
+
+
+def test_admin_users_fields_filters_search_pages():
+    _seed_users()
+    h = _admin()
+    d = _users(h)
+    assert d["total"] == 4 and d["page"] == 1 and d["limit"] == 20
+    assert [u["id"] for u in d["items"]] == [4, 3, 2, 1]                       # newest first
+    assert set(d["items"][0]) == {"id", "tw_id", "full_name", "avatar_url", "user_type", "email",
+                                  "verification", "created_at"}
+    by_id = {u["id"]: u for u in d["items"]}
+    assert {i: u["verification"] for i, u in by_id.items()} == {1: "pending", 2: "verified", 3: "verified", 4: "unverified"}
+    assert by_id[1]["avatar_url"] == "https://cdn.x/a.png" and by_id[2]["avatar_url"] == "https://cdn.x/logo.png"
+    assert "HASH-SECRET" not in client.get("/admin/users", headers=h).text
+    assert "0790000000" not in client.get("/admin/users", headers=h).text
+    # filters
+    assert [u["id"] for u in _users(h, type="co")["items"]] == [3, 2]
+    assert [u["id"] for u in _users(h, status="verified")["items"]] == [3, 2]
+    assert [u["id"] for u in _users(h, status="pending")["items"]] == [1]
+    assert [u["id"] for u in _users(h, status="unverified")["items"]] == [4]
+    assert [u["id"] for u in _users(h, type="co", status="verified", sort="oldest")["items"]] == [2, 3]
+    # search: name · email · tw_id, case-insensitive; LIKE wildcards are literal
+    assert [u["id"] for u in _users(h, q="سارة")["items"]] == [1]
+    assert [u["id"] for u in _users(h, q="NOOR.CO")["items"]] == [2]
+    assert [u["id"] for u in _users(h, q="t400")["items"]] == [4]
+    assert [u["id"] for u in _users(h, q="100%")["items"]] == [4]
+    assert _users(h, q="%")["total"] == 1 and _users(h, q="_")["total"] == 0
+    # pages
+    p2 = _users(h, page="2", limit="3")
+    assert p2["total"] == 4 and [u["id"] for u in p2["items"]] == [1]
+    # bad input → 422 (allowlists — nothing from the request reaches SQL text)
+    for bad in ({"type": "admin"}, {"status": "x"}, {"sort": "created_at; DROP TABLE users"}, {"limit": "101"},
+                {"page": "0"}, {"limit": "abc"}, {"q": "x" * 101}):
+        assert client.get("/admin/users", params=bad, headers=h).status_code == 422, bad
+    assert _sql("SELECT COUNT(*) FROM users")[0][0] == 4
+
+
+def test_admin_users_export_csv_same_filters_and_audited():
+    _seed_users()
+    h = _admin()
+    r = client.get("/admin/users/export", params={"type": "co"}, headers=h)
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"]
+    text = r.content.decode("utf-8")
+    assert text.startswith("\ufeff")
+    import csv as _csv
+    rows = list(_csv.reader(text.lstrip("\ufeff").splitlines()))
+    assert rows[0] == ["id", "tw_id", "full_name", "user_type", "email", "verification", "created_at"]
+    assert [x[0] for x in rows[1:]] == ["3", "2"]
+    assert rows[1][2] == "'=HYPERLINK(1)"                                     # formula injection neutralised
+    assert "HASH-SECRET" not in text and "0790000000" not in text and "logo.png" not in text
+    assert client.get("/admin/users/export", params={"status": "nope"}, headers=h).status_code == 422
+    # the export is recorded (a read, but data leaves the site); plain list reads are not
+    client.get("/admin/users", headers=h)
+    acts = [x[1] for x in _audit_rows()]
+    assert acts.count("admin_users_export") == 2 and "admin_users" not in acts
+    assert client.get("/admin/users/export").status_code == 401
+    assert [x[3] for x in _audit_rows() if x[1] == "admin_users_export"][-1] == "denied"
+
+
+def test_old_unpaged_users_list_is_gone():
+    h = _admin()
+    assert client.get("/auth/users", headers=h).status_code in (404, 405)

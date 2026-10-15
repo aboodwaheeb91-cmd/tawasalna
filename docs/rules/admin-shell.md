@@ -1,4 +1,4 @@
-# Admin Shell (task 5.3a · 5.3b)
+# Admin Shell (task 5.3a · 5.3b · 5.3a3)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس صفحة أدمن (`admin.html` · `admin-email.html` · `admin-view.html` — 5.3b).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25a · جلسة الأدمن: §25 + `docs/rules/auth-identity.md → Admin Authentication`.
@@ -25,7 +25,7 @@
 
 10. **صفحة مستخدم واحد (`admin-view.html` — 5.3b):** رابطها من قائمة المستخدمين بس (مش سطر بالـ registry). كتاباتها كلها بـ `TwAdminUserView.ACTIONS` (`static/admin-view/admin-view.js`) عبر `TwAdminShell.run`: تغيير نوع الحساب = `danger` + `typeWord` «تغيير» ورسالة بتشرح شو بيتغيّر · تغيير كلمة السر = `danger` (خروج المستخدم من كل أجهزته + إلغاء روابط الإيميل المعلّقة) · حذف الحساب = `typeWord` «حذف» · حذف خبرة / شهادة / دورة · تعديل البروفايل · إلغاء التوثيق · الرسالة (`/admin/message`) = تأكيد بيشرح. نافذة بتجمع قيمة (`twModal`) زرّها بينادي `run` (التأكيد فوقها). النتيجة بتنفحص قبل «تم».
 
-11. **الإطار (task 5.3a2):** ديسكتوب (≥ 1024px) = قائمة جانبية ثابتة يمين بلون `--color-brand-primary` + شريط علوي · موبايل = الشريط العلوي + زر القائمة → `TwAdminShell.openMenu()` = نفس روابط الـ registry جوّا `twModal` (DS-OVL — ما في drawer preset بالـ runtime) وبتسكّر لما تختار رابط. الشريط العلوي: بحث موحّد (`searchResults` — مستخدمين / شركات / وظائف من `GET /auth/users` + `GET /admin/jobs`) · حالة النظام (`TwAdminShell.health()` من `/health`) · اختصارات الشارات · خروج. ❌ قائمة / بحث / مؤشر حالة تاني بصفحة أدمن.
+11. **الإطار (task 5.3a2):** ديسكتوب (≥ 1024px) = قائمة جانبية ثابتة يمين بلون `--color-brand-primary` + شريط علوي · موبايل = الشريط العلوي + زر القائمة → `TwAdminShell.openMenu()` = نفس روابط الـ registry جوّا `twModal` (DS-OVL — ما في drawer preset بالـ runtime) وبتسكّر لما تختار رابط. الشريط العلوي: بحث موحّد (`searchResults` — مستخدمين / شركات من `GET /admin/users?q=` بالسيرفر بعد ما يوقف الكتابة (5.3a3) + وظائف من `GET /admin/jobs`) · حالة النظام (`TwAdminShell.health()` من `/health`) · اختصارات الشارات · خروج. ❌ قائمة / بحث / مؤشر حالة تاني بصفحة أدمن.
 
 12. **الشركات = نفس جدول المستخدمين بفلتر نوع ثابت** (`VIEWS.companies` بـ `admin.js`). ❌ كود جدول تاني لنوع حساب.
 
@@ -33,4 +33,10 @@
 
 14. **السجل الأمني (SYSTEMS_INDEX §25b):** كل كتابة أدمن (`POST/PUT/PATCH/DELETE` تحت `/admin/`) + كل محاولة دخول أدمن (ناجحة / فاشلة) بتتسجّل من مكان واحد: `admin_audit_middleware` بـ `server.py`. ❌ تسجيل body / كلمة سر / توكن / نص رسالة · ❌ نداء تسجيل بكل endpoint · endpoint جديد للكتابة تحت `/admin/` بيتسجّل لحاله (ما في شي تعمله).
 
-Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول · E: admin-view برّا اللوحة + تغيير النوع بدون الكلمة ما بيمرق · F: قائمة جانبية / نافذة موبايل · بحث · حالة · رسم) · `python -m pytest tests/test_admin_session_security.py -q` (دخول `<panel>/login` 401 / 429 · القديم 404). · `python -m pytest tests/test_admin_insights.py -q` (endpoints + السجل الأمني).
+15. **جدول المستخدمين والشركات (task 5.3a3 — SYSTEMS_INDEX §25d):** البيانات من `GET /admin/users` بس — البحث (اسم / إيميل / tw_id) والفلاتر (النوع · التوثيق: موثّق / معلّق / غير موثّق · الترتيب) والصفحات كلها بالسيرفر؛ البحث بينبعت بعد ما يوقف الكتابة. الحقول: id · tw_id · الاسم · الصورة · النوع · الإيميل · التوثيق · تاريخ التسجيل — ❌ أي حقل تاني. ديسكتوب جدول · صندوق ضيق (< 720px) صفوف مضغوطة بدون سكرول أفقي. الإجراءات: عرض · تعديل (`admin-view?id=N#edit`) · حذف (`run('user.delete')`). ❌ تحميل كل الحسابات للمتصفح · ❌ `GET /auth/users` (انحذف).
+
+16. **التصدير CSV:** `GET /admin/users/export` بنفس الفلاتر وبنفس الأعمدة (بدون الصورة) — عبر `TwAdminShell.run(ACTIONS['users.export'])` (تأكيد قبل التحميل، `as: 'blob'`)، وبينسجّل بالسجل الأمني لأنه بـ `AUDIT_READ_ROUTES` (`server.py`). قراءة تانية بتطلع بيانات من الموقع = سطر بـ `AUDIT_READ_ROUTES`. ❌ رابط تحميل مباشر بدون تأكيد.
+
+17. **النشاط المباشر:** كرت الرئيسية = آخر 8 (`GET /admin/activity?limit=8`) + «عرض الكل» → قسم `#activity` (سطر بالـ registry) بصفحات من نفس الـ endpoint. ❌ قائمة بدون حد. الأعداد المعروضة عبر `twFormatNumber` (SYSTEMS_INDEX §59a).
+
+Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول · E: admin-view برّا اللوحة + تغيير النوع بدون الكلمة ما بيمرق · F: قائمة جانبية / نافذة موبايل · بحث · حالة · رسم) · `python -m pytest tests/test_admin_session_security.py -q` (دخول `<panel>/login` 401 / 429 · القديم 404). · `python -m pytest tests/test_admin_insights.py -q` (endpoints + السجل الأمني + جدول المستخدمين / التصدير / صفحات النشاط — 5.3a3) · G بـ `test_admin_shell_runtime.js` (استعلام الجدول · أرقام الصفحات · التصدير بتأكيد · البحث بعد التوقف).

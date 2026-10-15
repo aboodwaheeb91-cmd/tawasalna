@@ -16,6 +16,7 @@ window.TW_ADMIN_SECTIONS = [
   { key: 'jobs',      icon: 'briefcase',        labelKey: 'admin.nav.jobs',      path: '#jobs' },
   { key: 'kyc',       icon: 'id-card',          labelKey: 'admin.nav.kyc',       path: '#kyc', badge: 'kyc' },
   { key: 'reports',   icon: 'report',           labelKey: 'admin.nav.reports',   path: '#reports', badge: 'reports' },
+  { key: 'activity',  icon: 'activity',         labelKey: 'admin.nav.activity',  path: '#activity' },
   { key: 'audit',     icon: 'shield',           labelKey: 'admin.nav.audit',     path: '#audit' },
   { key: 'errors',    icon: 'alert',            labelKey: 'admin.nav.errors',    path: '#errors' },
   { key: 'email',     icon: 'mail',             labelKey: 'admin.nav.email',     path: 'email' },

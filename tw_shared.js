@@ -396,6 +396,20 @@ function twFormatDateTime(value) {
 }
 window.twFormatDateTime = twFormatDateTime;
 
+// ── Number display (task 5.3a3 · SYSTEMS_INDEX §59a) ──
+// twFormatNumber(n) → «12,345» / «-1,234.5»: thousands separator «,» and Western digits — the same
+// digits as twFormatDate. The ONE formatter for showing a count — never toLocaleString('ar-…')
+// (ar-EG = Eastern digits). n: number or numeric string. Empty / not a number → ''.
+function twFormatNumber(n) {
+  if (n === null || n === undefined || n === '' || typeof n === 'boolean') return '';
+  var v = Number(n);
+  if (!isFinite(v)) return '';
+  var parts = String(Math.abs(v)).split('.');
+  if (/e/i.test(parts[0])) return String(v);   // beyond 1e21 — shown as JS writes it
+  return (v < 0 ? '-' : '') + parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] ? '.' + parts[1] : '');
+}
+window.twFormatNumber = twFormatNumber;
+
 // ── XSS Protection (§54 Safe Rendering — single canonical implementation) ──
 // twEscAttr: canonical escaping for attribute values and text content.
 // Handles null/undefined → ''; handles numeric 0 → "0" (correct; old sanitize returned '').

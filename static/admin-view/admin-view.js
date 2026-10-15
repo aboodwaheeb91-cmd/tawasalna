@@ -201,6 +201,7 @@
     ty.appendChild(b2);
 
     var info = TwAdminShell.card(root, { titleKey: 'admin.view.info', hintKey: 'admin.view.info.hint', icon: 'id-card' });
+    info.parentNode.id = 'edit';   // «تعديل» in the users table links here (/admin-view?id=N#edit — task 5.3a3)
     Object.keys(FIELDS).forEach(function (f) {
       var r = row(P[f] || twT('admin.view.empty_field'), [twT(FIELDS[f][0])]);
       r.main.insertBefore(r.main.lastChild, r.main.firstChild);   // label above the value
@@ -234,10 +235,19 @@
     });
   }
 
+  // #edit (from the users table) → scroll to the editable fields once, after the first render
+  var jumped = false;
+  function jumpOnce() {
+    if (jumped) return;
+    jumped = true;
+    var t = location.hash === '#edit' && document.getElementById('edit');
+    if (t && t.scrollIntoView) t.scrollIntoView();
+  }
+
   function load() {
     TwAdminSession.fetch('/admin/profile/' + userId, { cache: 'no-store' })
       .then(function (r) {
-        if (r.ok) return r.json().then(function (j) { P = j.profile || j; render(); });
+        if (r.ok) return r.json().then(function (j) { P = j.profile || j; render(); jumpOnce(); });
         if (r.status === 401 || r.status === 403) return;   // TwAdminShell → panel login
         message(r.status === 404 ? 'admin.view.not_found' : 'admin.view.load_error');
       })

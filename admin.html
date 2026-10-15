@@ -59,6 +59,38 @@
 .adm-sys { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); font-size: var(--size-font-sm); }
 .adm-sys-lbl { color: var(--color-text-secondary); }
 .adm-pag-txt { align-self: center; font-size: var(--size-font-xs); color: var(--color-text-muted); }
+/* users / companies table (task 5.3a3) — table when its box is wide, compact rows when narrow (no horizontal scroll) */
+.adm-utools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }
+.adm-usearch { flex: 2 1 220px; min-width: 0; }
+.adm-usearch .tw-input { width: 100%; }
+.adm-utools .adm-field { flex: 1 1 140px; min-width: 0; }
+.adm-ucount { margin: 0 0 var(--space-3); }
+.adm-uwrap { container-type: inline-size; }
+.adm-utable { width: 100%; border-collapse: collapse; font-size: var(--size-font-sm); }
+.adm-utable th { text-align: start; font-size: var(--size-font-xs); font-weight: 700; color: var(--color-text-muted);
+  padding: var(--space-3) var(--space-3); border-bottom: 1px solid var(--color-border-subtle); }
+.adm-utable td { padding: var(--space-4) var(--space-3); border-bottom: 1px solid var(--color-border-subtle); vertical-align: middle; }
+.adm-utable tbody tr:last-child td { border-bottom: none; }
+.adm-u-link { display: flex; align-items: center; gap: var(--space-4); min-width: 0; text-decoration: none; }
+.adm-u-name { display: flex; flex-direction: column; min-width: 0; }
+.adm-u-title { font-weight: 700; color: var(--color-text-primary); overflow-wrap: anywhere; }
+.adm-u-link:hover .adm-u-title { color: var(--color-brand-primary); }
+.adm-u-sub { font-size: var(--size-font-2xs); color: var(--color-text-muted); }
+.adm-u-email { color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.adm-u-date { color: var(--color-text-muted); white-space: nowrap; }
+.adm-u-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.adm-u-btns .tw-act { gap: var(--space-2); }
+@container (max-width: 719px) {
+  .adm-utable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .adm-utable, .adm-utable tbody { display: block; }
+  .adm-utable tr { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3);
+    padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .adm-utable tbody tr:last-child { border-bottom: none; }
+  .adm-utable td { display: block; padding: 0; border: none; min-width: 0; }
+  .adm-u-who, .adm-u-email, .adm-u-acts { flex: 1 1 100%; }
+  .adm-u-email { font-size: var(--size-font-xs); }
+  .adm-u-date { font-size: var(--size-font-2xs); }
+}
 @media (min-width: 640px) { .adm-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } .adm-queues { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 900px) { .adm-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .adm-dash { grid-template-columns: minmax(0, 1fr) 340px; } }
@@ -89,6 +121,7 @@
   <div class="tw-adm-section" data-adm-section="kyc" id="sec-kyc" hidden></div>
   <div class="tw-adm-section" data-adm-section="reports" id="sec-reports" hidden></div>
   <div class="tw-adm-section" data-adm-section="audit" id="sec-audit" hidden></div>
+  <div class="tw-adm-section" data-adm-section="activity" id="sec-activity" hidden></div>
   <div class="tw-adm-section" data-adm-section="errors" id="sec-errors" hidden></div>
   <div class="tw-adm-section" data-adm-section="system" id="sec-system" hidden></div>
 </main>

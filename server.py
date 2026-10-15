@@ -643,6 +643,8 @@ async def rate_limit_middleware(request, call_next):
 import admin_insights
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# Reads that are still recorded (task 5.3a3): data leaving the site — route names under /admin/.
+AUDIT_READ_ROUTES = frozenset({"admin_users_export"})
 
 
 def _admin_audit_entry(request, status: int):
@@ -651,10 +653,12 @@ def _admin_audit_entry(request, status: int):
     if path in _ADMIN_LOGIN_PATHS and request.method == "POST":
         return {"actor": "owner" if status < 400 else "-", "action": "admin_login", "target": None,
                 "status": status, "ip": get_client_ip(request)}
-    if request.method not in _AUDIT_WRITE_METHODS or not path.startswith("/admin/"):
+    if not path.startswith("/admin/"):
         return None
     route = request.scope.get("route")
     if route is None:            # no matching endpoint (404 / 405) — nothing ran
+        return None
+    if request.method not in _AUDIT_WRITE_METHODS and getattr(route, "name", "") not in AUDIT_READ_ROUTES:
         return None
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     params = request.scope.get("path_params") or {}
@@ -3344,13 +3348,67 @@ def admin_stats_timeseries(request: Request, metric: str = "", days: str = "30")
         raise _server_error("admin_stats_timeseries", e)
 
 
+def _admin_int(v: str, lo: int, hi: int) -> bool:
+    return v.isascii() and v.isdigit() and lo <= int(v) <= hi
+
+
 @app.get("/admin/activity")
-def admin_activity(request: Request):
+def admin_activity(request: Request, page: str = "1", limit: str = str(admin_insights.ACTIVITY_LIMIT)):
     check_admin(request)
+    if not _admin_int(page, 1, 100000):
+        return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
+    if not _admin_int(limit, 1, admin_insights.ACTIVITY_PAGE_MAX):
+        return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
     try:
-        return api_ok(admin_insights.activity())
+        return api_ok(admin_insights.activity(int(page), int(limit)))
     except Exception as e:
         raise _server_error("admin_activity", e)
+
+
+# ── Admin users table (task 5.3a3 · SYSTEMS_INDEX §25d) — replaces the old unpaged GET /auth/users ──
+def _admin_users_filters(q: str, type: str, status: str, sort: str):
+    """Validated filters → dict, or an api_error response (422). Allowlists only."""
+    if len(q) > admin_insights.USERS_Q_MAX:
+        return api_error(422, "invalid_q", "نص البحث طويل", field="q")
+    if type and type not in admin_insights.USER_TYPES:
+        return api_error(422, "invalid_type", "نوع الحساب غير معروف", field="type")
+    if status and status not in admin_insights.USER_VERIFICATION:
+        return api_error(422, "invalid_status", "حالة التوثيق غير معروفة", field="status")
+    if sort not in admin_insights.USER_SORTS:
+        return api_error(422, "invalid_sort", "الترتيب غير معروف", field="sort")
+    return {"q": q, "user_type": type, "verification": status, "sort": sort}
+
+
+@app.get("/admin/users")
+def admin_users(request: Request, q: str = "", type: str = "", status: str = "", sort: str = "newest",
+                page: str = "1", limit: str = "20"):
+    check_admin(request)
+    f = _admin_users_filters(q, type, status, sort)
+    if isinstance(f, JSONResponse):
+        return f
+    if not _admin_int(page, 1, 100000):
+        return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
+    if not _admin_int(limit, 1, admin_insights.USERS_PAGE_MAX):
+        return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
+    try:
+        return api_ok(admin_insights.users_list(page=int(page), limit=int(limit), **f))
+    except Exception as e:
+        raise _server_error("admin_users", e)
+
+
+@app.get("/admin/users/export")
+def admin_users_export(request: Request, q: str = "", type: str = "", status: str = "", sort: str = "newest"):
+    """Same filters as GET /admin/users → CSV (UTF-8 + BOM). Recorded in the audit log (AUDIT_READ_ROUTES)."""
+    check_admin(request)
+    f = _admin_users_filters(q, type, status, sort)
+    if isinstance(f, JSONResponse):
+        return f
+    try:
+        body = admin_insights.users_csv(**f)
+    except Exception as e:
+        raise _server_error("admin_users_export", e)
+    return Response(content=body.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="users.csv"', "Cache-Control": "no-store"})
 
 
 @app.get("/admin/audit")
@@ -6120,26 +6178,6 @@ def admin_login(data: AdminLoginInput):
 # ══════════════════════════════════════════
 # Admin API - all require X-Admin-Token header
 # ══════════════════════════════════════════
-@app.get("/auth/users")
-def get_all_users(request: Request):
-    check_admin(request)
-    conn = get_conn()
-    try:
-        rows = conn.run(
-            "SELECT id, full_name, email, user_type, created_at FROM users ORDER BY created_at DESC"
-        )
-        cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
-        users = [dict(zip(cols, r)) for r in rows]
-        for u in users:
-            if u.get("created_at"):
-                u["created_at"] = str(u["created_at"])[:10]
-        return {"users": users, "total": len(users)}
-    except Exception as e:
-        print(f"get_all_users error: {e}")
-        raise _server_error("get_all_users", e)
-    finally:
-        release_conn(conn)
-
 @app.get("/admin/profile/{user_id}")
 def admin_get_profile(user_id: int, request: Request):
     check_admin(request)
