@@ -515,7 +515,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
 | Actions Registry — كل زر إجراء (متابعة، مراسلة، تحديد موعد…) من `twAction(id, ctx)` + `tw_actions.json` · ممنوع شرط ظهور زر بالصفحة (PR 3.7) | `docs/design-system/BUTTONS.md` BTN-19 · SYSTEMS_INDEX §60 |
 | Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
-| Unified Email System — `email_service.send_email` المرسل الوحيد (Resend) · نسيت كلمة المرور (رد واحد · توكن hash · 30 دقيقة · مرة وحدة) (task 5.1a) · تغيير الإيميل (رابط للجديد + تنبيه للقديم — نفس كود التوكن) + OTP التوثيق بالإيميل (task 5.1b) | `docs/rules/email.md` |
+| Unified Email System — `email_service.send_email` المرسل الوحيد (Resend) · نسيت كلمة المرور (رد واحد · توكن hash · 30 دقيقة · مرة وحدة) (task 5.1a) · تغيير الإيميل (رابط للجديد + تنبيه للقديم — نفس كود التوكن) + OTP التوثيق بالإيميل (task 5.1b) · إيميلات الإشعارات: تصنيف security / notification · بوابة واحدة (تفضيل · throttle · حد يومي / شهري) · عداد `email_send_log` (task 5.1c) | `docs/rules/email.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |

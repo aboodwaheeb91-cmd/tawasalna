@@ -129,8 +129,11 @@ for name in sorted(glob.glob("*.html")):
         continue
     check(f"H01 {name}: no hand-copied mobile-web-app meta", "mobile-web-app" not in raw_p)
     served = apply_shell(raw_p, name)
-    check(f"H02 {name}: each PWA meta exactly once when served",
-          all(served.count(m) == 1 for m in APP_META))
+    if "<!--tw:shell-head:admin-->" in raw_p:   # admin shell: no manifest / PWA meta (rule 6)
+        check(f"H02 {name}: admin page served without PWA meta", all(served.count(m) == 0 for m in APP_META))
+    else:
+        check(f"H02 {name}: each PWA meta exactly once when served",
+              all(served.count(m) == 1 for m in APP_META))
 
 print("\nG — server.read_html wiring (static)")
 srv = read("server.py")

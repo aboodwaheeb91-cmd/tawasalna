@@ -13,6 +13,8 @@
  *   H  strings — every twT key used exists in tw_strings.json (+ the verify_identity action)
  *   K  verify_identity off by default (until plan 5.1) → no KYC row, no /kyc request · admin
  *      override enabled:true → row back (action states from the REAL tw_actions.py merged registry)
+ *   L  notification emails (5.1c) — one switch per type from GET /my/email-notifications · change →
+ *      PUT {types:{key:bool}} · failure → switch rolled back + error toast · admin-off type disabled
  *
  * Run: node tests/test_settings_edu_runtime.js
  */
@@ -162,11 +164,13 @@ const PROFILE = OK({ profile: { user_type: 'edu', tw_id: 'T123', full_name: 'ج�
 
 async function runSettings(opts) {
   opts = opts || {};
+  // the notification switches (5.1c) load on every run — default: no types (sections A–K unaffected)
+  opts.api = Object.assign({ 'GET /my/email-notifications': OK({ types: [] }) }, opts.api || {});
   const rec = newRec();
   const rows = ['phone', 'password'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
   const kycRow = new El('div'); kycRow.id = 'kycRow'; kycRow.hidden = true;
   ['kycState', 'kycAction'].forEach(id => { const e = new El('span'); e.id = id; kycRow.appendChild(e); });
-  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID'], rows.concat([kycRow]));
+  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList'], rows.concat([kycRow]));
   const ctx = baseCtx(rec, opts, document);
   ctx.twRequireAuth = () => (opts.guest ? null : { isAuthenticated: true, userId: 7, userType: 'edu' });
   ctx.TwAuthSync = { getToken: () => 'JWT', renewToken: t => { rec.renewed = t; return true; }, invalidateSession: r => { rec.invalidated = r; } };
@@ -415,6 +419,38 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     check('H1 every key used exists in tw_strings.json', missing.length === 0, missing);
     const a = ACTIONS.verify_identity;
     check('H2 verify_identity action: label key exists + shield-check icon', !!a && a.labelKey in STRINGS && a.icon === 'shield-check');
+  }
+
+  // ── L — notification email switches (5.1c) ──
+  console.log('\nL — notification email switches');
+  {
+    const TYPES = OK({ types: [
+      { key: 'notify_message', enabled: true, available: true },
+      { key: 'notify_appointment_invited', enabled: false, available: true },
+      { key: 'notify_appointment_cancelled', enabled: true, available: false },
+    ] });
+    let putOk = true;
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE, 'GET /my/email-notifications': TYPES,
+      'PUT /my/email-notifications': () => (putOk ? TYPES : FAIL(500, { fieldErrors: [], generalError: { code: 'unknown', message: 'x' } })) } });
+    const sw = p.$('notifyList').find(e => e.hasAttribute('data-notify-type'));
+    const byKey = k => sw.find(e => e.getAttribute('data-notify-type') === k);
+    check('L1 one switch per type, state from the API', sw.length === 3 && byKey('notify_message').checked === true
+          && byKey('notify_appointment_invited').checked === false);
+    check('L2 type switched off by the admin → disabled', byKey('notify_appointment_cancelled').disabled === true
+          && byKey('notify_message').disabled === false);
+    const m = byKey('notify_message');
+    m.checked = false;
+    p.$('notifyList').fire('change', { target: m });
+    await flush();
+    const put = p.rec.api.filter(a => a.key === 'PUT /my/email-notifications');
+    check('L3 change → PUT {types:{notify_message:false}}', put.length === 1
+          && JSON.stringify(put[0].body) === JSON.stringify({ types: { notify_message: false } }), put);
+    check('L4 saved → success toast', p.rec.toasts.some(t => t.type === 'success' && t.msg === 'settings.notify.saved'));
+    putOk = false;
+    m.checked = true;
+    p.$('notifyList').fire('change', { target: m });
+    await flush();
+    check('L5 save failed → switch rolled back + error toast', m.checked === false && p.rec.toasts.some(t => t.type === 'error'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

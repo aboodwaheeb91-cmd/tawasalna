@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head:admin-->
+<!-- Admin — email settings + usage (task 5.1c · docs/rules/email.md → Notification Emails).
+     Route: the admin panel path + /email (server.py → admin_email_page) · data: GET / PUT /admin/email via TwAdminSession. -->
+<link rel="stylesheet" href="/static/app-header.css">
+<title></title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--color-surface-page); color: var(--color-text-body); font-family: 'Cairo', sans-serif; min-height: 100vh; }
+.ae-main { max-width: 680px; margin: 0 auto; padding: 20px 16px 48px; }
+.ae-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 900; margin-bottom: 6px; }
+.ae-title svg { color: var(--color-brand-primary); }
+.ae-back { display: inline-block; font-size: .72rem; color: var(--color-brand-primary); margin-bottom: 20px; }
+.ae-msg { font-size: .78rem; color: var(--color-text-muted); line-height: 1.8; padding: 16px 0; }
+.ae-card { background: var(--color-surface-card); border: 1px solid var(--color-border-subtle); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+.ae-card-hdr { display: flex; align-items: center; gap: 8px; }
+.ae-card-title { flex: 1; font-size: .85rem; font-weight: 800; }
+.ae-info { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--color-border-subtle); background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.ae-info[aria-expanded="true"] { color: var(--color-brand-primary); border-color: var(--color-brand-primary); }
+.ae-info:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.ae-hint { font-size: .7rem; color: var(--color-text-muted); line-height: 1.8; margin-top: 8px; }
+.ae-body { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ae-row { display: flex; align-items: center; gap: 10px; font-size: .78rem; }
+.ae-row-name { flex: 1; }
+.ae-switch { width: 20px; height: 20px; accent-color: var(--color-brand-primary); cursor: pointer; }
+.ae-field label { display: block; font-size: .72rem; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px; }
+.ae-field .tw-input { width: 100%; direction: ltr; text-align: left; }
+.ae-range { font-size: .62rem; color: var(--color-text-muted); margin-top: 2px; }
+.ae-ok { color: var(--color-status-success); font-weight: 700; }
+.ae-bad { color: var(--color-status-danger); font-weight: 700; }
+.ae-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.ae-table th, .ae-table td { padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--color-border-subtle); }
+.ae-table th:first-child, .ae-table td:first-child { text-align: start; }
+.ae-save { width: 100%; }
+</style>
+</head>
+<body>
+<header data-tw-header></header>
+
+<main class="ae-main" id="main-content">
+  <h1 class="ae-title"><i data-tw-icon="mail"></i><span data-tw-t="admin.email.title"></span></h1>
+  <a class="ae-back" id="aeBack" href="/" data-tw-t="admin.email.back"></a>
+  <div id="aeRoot" aria-live="polite"><p class="ae-msg" data-tw-t="common.loading"></p></div>
+</main>
+
+<!--tw:strings-->
+<!--tw:shell-scripts:admin-->
+<script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/admin-email/admin-email.js"></script>
+</body>
+</html>

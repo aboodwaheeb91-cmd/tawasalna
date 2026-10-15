@@ -116,6 +116,8 @@ from auth import (
     create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
     _migrate_password_reset_tokens, get_user_for_password_reset, password_reset_issue, password_reset_consume,
     PASSWORD_RESET_TTL_MINUTES, EMAIL_TOKEN_TTL_MINUTES, email_change_request, email_change_apply,
+    _migrate_email_notify, email_notify_reserve, email_log_write, email_send_stats,
+    get_email_prefs, set_email_prefs, schedule_message_email,
     _OTP_TTL_MINUTES,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
@@ -753,6 +755,7 @@ def _startup_migrations():
         ("candidate_status_per_job",          _migrate_candidate_status_per_job,   True),
         ("password_changed_at",               _migrate_password_changed_at,        True),
         ("password_reset_tokens",             _migrate_password_reset_tokens,      True),
+        ("email_notify",                      _migrate_email_notify,               True),
         ("kyc_otp_security",                  _migrate_kyc_otp_security,           True),
         ("jobs_v2",                           _migrate_jobs_v2,                    True),
         ("job_lifecycle",                     _migrate_job_lifecycle,              True),
@@ -879,6 +882,8 @@ def _strings_load_overrides() -> None:
 # settings (sender, site URL, per-type on/off) live in site_settings, loaded at startup + on save.
 import email_service
 email_service.set_strings_provider(lambda: tw_strings.merged(_STRINGS_OVERRIDES))
+# 5.1c — every attempt → email_send_log; notification emails pass the gate (prefs · throttle · caps).
+email_service.set_send_hooks(reserve=email_notify_reserve, log=email_log_write)
 
 
 def _email_load_settings() -> None:
@@ -1585,6 +1590,10 @@ def confirm_email_page(): return read_html("confirm-email.html")
 
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")
+
+# Admin — email settings + usage (task 5.1c). Same secret path; data via check_admin endpoints.
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/email", response_class=HTMLResponse)
+def admin_email_page(): return read_html("admin-email.html")
 
 # ══════════════════════════════════════════
 # Schemas
@@ -3483,15 +3492,25 @@ _EMAIL_UNAVAILABLE_MSG = "خدمة البريد الإلكتروني غير مت
 def admin_get_email(request: Request):
     """Provider status (configured | missing — never the key) + settings + template string keys."""
     check_admin(request)
+    try:
+        stats = email_send_stats()
+    except Exception as e:   # the counter must never hide the settings (F9: logged)
+        print(f"[email] stats unavailable: {type(e).__name__}")
+        stats = None
     return api_ok({"status": email_service.status(), "settings": email_service.get_settings(),
                    "defaults": email_service.DEFAULTS, "types": list(email_service.TYPES),
+                   "categories": {k: v["category"] for k, v in email_service.TEMPLATES.items()},
+                   "notify_types": list(email_service.NOTIFY_TYPES),
+                   "notify_limits": {k: list(v) for k, v in email_service.NOTIFY_LIMITS.items()},
+                   "stats": stats,
                    "templates": {k: [f"email.{k}.{p}" for p in v["parts"]]
                                  for k, v in email_service.TEMPLATES.items()}})
 
 
 @app.put("/admin/email")
 def admin_put_email(request: Request, data: dict = Body(...)):
-    """Partial update: {from_address?, from_name?, site_url?, types?: {key: bool}} (all-or-nothing)."""
+    """Partial update: {from_address?, from_name?, site_url?, types?: {key: bool},
+    notify?: {daily_cap?, monthly_cap?, message_delay_minutes?, message_throttle_hours?}} (all-or-nothing)."""
     claims = check_admin(request)
     try:
         clean = email_service.validate_settings(data, email_service.get_settings())
@@ -3501,8 +3520,48 @@ def admin_put_email(request: Request, data: dict = Body(...)):
     if not set_site_setting(email_service.SETTING_KEY, json.dumps(clean, ensure_ascii=False, sort_keys=True)):
         return api_error(500, "save_failed", "تعذّر حفظ إعدادات البريد، حاول مرة أخرى")
     email_service.set_settings(clean)
-    print(f"[email] settings saved by admin sub={claims.get('sub')!r} types={json.dumps(clean['types'], sort_keys=True)}")
+    print(f"[email] settings saved by admin sub={claims.get('sub')!r} types={json.dumps(clean['types'], sort_keys=True)} "
+          f"notify={json.dumps(clean['notify'], sort_keys=True)}")
     return api_ok({"settings": clean})
+
+
+# ── Notification email preferences — the signed-in user's own (task 5.1c) ──
+def _email_prefs_payload(uid: int) -> dict:
+    prefs = get_email_prefs(uid, email_service.NOTIFY_TYPES)
+    return {"types": [{"key": k, "enabled": prefs[k], "available": email_service.can_send(k)}
+                      for k in email_service.NOTIFY_TYPES]}
+
+
+@app.get("/my/email-notifications")
+def my_email_prefs(token=Depends(verify_token)):
+    uid = int(token.get("user_id") or 0)
+    if not uid:
+        return api_error(401, "unauthorized", "غير مصرح")
+    try:
+        return api_ok(_email_prefs_payload(uid))
+    except Exception as e:
+        raise _server_error("my_email_prefs", e)
+
+
+@app.put("/my/email-notifications")
+def my_email_prefs_save(data: dict = Body(...), token=Depends(verify_token)):
+    """{types: {notify_*: bool}} — security emails are not a choice (always sent)."""
+    uid = int(token.get("user_id") or 0)
+    if not uid:
+        return api_error(401, "unauthorized", "غير مصرح")
+    t = data.get("types") if isinstance(data, dict) else None
+    if not isinstance(t, dict) or not t:
+        return api_error(422, "invalid_body", "صيغة الإعدادات غير صحيحة", "types")
+    for k, v in t.items():
+        if k not in email_service.NOTIFY_TYPES:
+            return api_error(422, "unknown_type", "نوع إشعار غير معروف", k)
+        if not isinstance(v, bool):
+            return api_error(422, "invalid_value", "القيمة لازم تكون تشغيل / إيقاف", k)
+    try:
+        set_email_prefs(uid, t)
+        return api_ok(_email_prefs_payload(uid))
+    except Exception as e:
+        raise _server_error("my_email_prefs_save", e)
 
 
 @app.post("/admin/email/test")
@@ -4770,6 +4829,8 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
             background_tasks.add_task(
                 _bg_cold_path_update, data.receiver_id, msg_id, bool(was_delivered), unread or 0
             )
+            # 5.1c — still unread after N minutes → one email (scheduler job; sync DB → threadpool)
+            background_tasks.add_task(schedule_message_email, data.receiver_id, sender_id, msg_id)
 
         _t_end = time.perf_counter()
         _timing = {
