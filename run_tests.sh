@@ -99,6 +99,7 @@ PY_DB=(
   pytest:test_application_result_notify.py
   pytest:test_password_reset_email.py
   pytest:test_session_version_tokens.py
+  pytest:test_admin_user_actions.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py

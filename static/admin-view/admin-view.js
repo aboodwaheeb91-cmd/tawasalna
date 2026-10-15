@@ -56,6 +56,7 @@
       confirm: { title: 'admin.view.msg.confirm.title', message: 'admin.view.msg.confirm.message', confirm: 'admin.msg.send' },
       request: function (c) { return { url: '/admin/message', method: 'POST',
                                        body: { user_id: uid(c), subject: twT('admin.msg.subject'), message: c.text } }; },
+      ok: function (d) { return !!(d && d.ok && d.data && d.data.notification_id); },   // «تم» only when the notification exists (5.3b2)
       done: 'admin.done.sent' },
   };
   var TYPES = ['emp', 'co', 'edu'];
