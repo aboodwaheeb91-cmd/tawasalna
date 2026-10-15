@@ -325,7 +325,7 @@ def verify_token(request: Request):
 
 
 # ── Admin session JWT (PR 1.5) ──
-# /tw-ctrl-login checks the ADMIN_TOKEN password and returns THIS token — the raw
+# The admin login (<panel>/login) checks the ADMIN_TOKEN password and returns THIS token — the raw
 # ADMIN_TOKEN never reaches the browser and is never accepted as a session.
 # Claims shape is fixed so plan 5.3 (staff accounts) adds values, not fields:
 #   iss "tawasalna" · aud "tw-admin" · sub "owner" (later "staff:<id>")
@@ -616,8 +616,8 @@ def _login_email_reset(email: str) -> None:
 
 
 _RATE_LIMITED_PATHS = frozenset({
-    "/auth/login", "/auth/register", "/auth/password", "/tw-ctrl-login",
-    "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login",   # same admin login, under the panel path (task 5.3a)
+    "/auth/login", "/auth/register", "/auth/password",
+    "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login",   # admin login, under the panel path (task 5.3a; old /tw-ctrl-login removed 5.3b)
     "/auth/password-reset/request", "/auth/password-reset/confirm",
     "/auth/email-change/request", "/auth/email-change/confirm",
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
@@ -641,7 +641,7 @@ async def rate_limit_middleware(request, call_next):
 # password, rate limited). Stored: actor (admin JWT sub) · route name · path params · result · IP
 # (get_client_ip). Never the body, the password, the token or any message text.
 import admin_insights
-_ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-login", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
+_ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
@@ -969,7 +969,7 @@ def _read_html_cached(name: str) -> str:
         raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
 
 def check_admin(request: Request, perm: str = None) -> dict:
-    """Admin gate — accepts ONLY a valid admin JWT (from /tw-ctrl-login) in X-Admin-Token.
+    """Admin gate — accepts ONLY a valid admin JWT (from the admin login, <panel>/login) in X-Admin-Token.
     The raw ADMIN_TOKEN is the login password, never a session token.
     503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
     (admin pages send the admin back to the login screen) · 403 = valid token without
@@ -6103,10 +6103,9 @@ def stats():
 # ══════════════════════════════════════════
 # Admin Login - returns token
 # ══════════════════════════════════════════
-# Task 5.3a: the same handler also answers under the panel path (<panel>/login) so no served
-# file carries the panel prefix (the page posts relative to its own path — docs/rules/admin-shell.md).
-# /tw-ctrl-login stays (backward compatible, F14); both are in _RATE_LIMITED_PATHS.
-@app.post("/tw-ctrl-login")
+# Task 5.3a: the login answers under the panel path (<panel>/login) so no served file carries the
+# panel prefix (the page posts relative to its own path — docs/rules/admin-shell.md). In _RATE_LIMITED_PATHS.
+# Task 5.3b: the old fixed /tw-ctrl-login route is deleted (no page used it any more) → 404.
 @app.post("/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")
 def admin_login(data: AdminLoginInput):
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:

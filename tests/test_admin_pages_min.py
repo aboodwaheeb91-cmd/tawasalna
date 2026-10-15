@@ -7,8 +7,8 @@ Structure / absence checks (the pages are rebuilt in 5.3):
   D. no raw fetch( — admin calls go through TwAdminSession.fetch (login via twApi)
   E. local helpers duplicated by tw_shared.js are gone
   F. every twT('admin.…') key used exists in tw_strings.json
-  G. every delete / migrate twConfirm is danger:true (admin-view.html — admin.html confirms through
-     TwAdminShell.run: behaviour test node tests/test_admin_shell_runtime.js, task 5.3a)
+  G. (both pages confirm through TwAdminShell.run since 5.3a / 5.3b — behaviour test
+     node tests/test_admin_shell_runtime.js: no request without confirm, typed word for the most dangerous)
 Page JS = inline <script> + the page's own script files (tools/page_audit.page_files).
 Run: python tests/test_admin_pages_min.py
 """
@@ -65,12 +65,7 @@ for page in PAGES:
     # 'admin.x.' + value → a dynamic key: at least one key with that prefix must exist
     missing = [k for k in keys if (not any(x.startswith(k) for x in STRINGS) if k.endswith(".") else k not in STRINGS)]
     check(f"F {page} admin.* keys exist", bool(keys) and not missing, str(missing))
-
-    if page == "admin.html":
-        continue   # G: confirms run through TwAdminShell.run — node tests/test_admin_shell_runtime.js
-    calls = re.findall(r"twConfirm\(\{[^}]*\}\)", js)
-    risky = [c for c in calls if re.search(r"admin\.(delete|migrate)", c) and "danger:true" not in c]
-    check(f"G {page} delete/migrate confirms are danger", bool(calls) and not risky, str(risky))
+    # G: confirms run through TwAdminShell.run — node tests/test_admin_shell_runtime.js (C · E)
 
 print(f"\n{'FAILED' if _fail else 'OK'} ({_fail} failure(s))")
 sys.exit(1 if _fail else 0)

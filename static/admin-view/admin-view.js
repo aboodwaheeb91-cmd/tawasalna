@@ -1,0 +1,248 @@
+// static/admin-view/admin-view.js — admin: one user's account (admin-view.html · task 5.3b · docs/rules/admin-shell.md)
+//   - route /admin-view?id=N sits outside the panel path: header / menu / session gate =
+//     TwAdminShell.start({outside: true}) — panel root = the one this tab saved (TwAdminSession.panelHref)
+//   - GET /admin/profile/{id} → account · actions · basic info · experience · education · courses
+//     (each a TwAdminShell.card with ⓘ)
+//   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
+//     account type change / account delete), the result is checked before «تم» (run → res.ok)
+//   - text: twT (admin.view.* / admin.*) · icons: twIcon · colors: --color-* tokens · dialogs: DS-OVL
+(function () {
+  'use strict';
+
+  // ── actions (the only writes on this page) ──
+  function uid(c) { return Number(c.id); }
+  var ACTIONS = {
+    'user.type': {
+      confirm: { title: 'admin.view.type.title', message: 'admin.view.type.message', confirm: 'admin.view.type.confirm',
+                 danger: true, typeWord: 'admin.confirm.word.type' },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/type', method: 'PUT', body: { user_type: c.type } }; },
+      done: 'admin.done.type' },
+    'user.password': {
+      confirm: { title: 'admin.view.password.title', message: 'admin.view.password.message',
+                 confirm: 'admin.view.password.confirm', danger: true },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/password', method: 'PUT', body: { password: c.password } }; },
+      done: 'admin.done.password' },
+    'user.verify': {
+      confirm: { title: 'admin.verify.title', message: 'admin.verify.message', confirm: 'admin.verify.confirm' },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/verify', method: 'PUT', body: { is_verified: true } }; },
+      done: 'admin.done.verified' },
+    'user.unverify': {
+      confirm: { title: 'admin.view.unverify.title', message: 'admin.view.unverify.message',
+                 confirm: 'admin.view.unverify.confirm', danger: true },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/verify', method: 'PUT', body: { is_verified: false } }; },
+      done: 'admin.done.unverified' },
+    'user.delete': {
+      confirm: { title: 'admin.delete_user.title', message: 'admin.delete_user.message', confirm: 'admin.delete.confirm',
+                 danger: true, typeWord: 'admin.confirm.word.delete' },
+      request: function (c) { return { url: '/admin/user/' + uid(c), method: 'DELETE' }; },
+      done: 'admin.done.deleted' },
+    'profile.edit': {
+      confirm: { title: 'admin.view.edit.title', message: 'admin.view.edit.message', confirm: 'admin.view.edit.confirm' },
+      request: function (c) { var b = {}; b[c.field] = c.value; return { url: '/admin/profile/' + uid(c), method: 'PUT', body: b }; },
+      done: 'admin.done.saved' },
+    'exp.delete': {
+      confirm: { title: 'admin.delete_exp.title', message: 'admin.delete_exp.message', confirm: 'admin.delete.confirm', danger: true },
+      request: function (c) { return { url: '/admin/experience/' + Number(c.item), method: 'DELETE' }; },
+      done: 'admin.done.deleted' },
+    'edu.delete': {
+      confirm: { title: 'admin.delete_edu.title', message: 'admin.delete_edu.message', confirm: 'admin.delete.confirm', danger: true },
+      request: function (c) { return { url: '/admin/education/' + Number(c.item), method: 'DELETE' }; },
+      done: 'admin.done.deleted' },
+    'course.delete': {
+      confirm: { title: 'admin.delete_course.title', message: 'admin.delete_course.message', confirm: 'admin.delete.confirm', danger: true },
+      request: function (c) { return { url: '/admin/course/' + Number(c.item), method: 'DELETE' }; },
+      done: 'admin.done.deleted' },
+    'message.send': {
+      confirm: { title: 'admin.view.msg.confirm.title', message: 'admin.view.msg.confirm.message', confirm: 'admin.msg.send' },
+      request: function (c) { return { url: '/admin/message', method: 'POST',
+                                       body: { user_id: uid(c), subject: twT('admin.msg.subject'), message: c.text } }; },
+      done: 'admin.done.sent' },
+  };
+  var TYPES = ['emp', 'co', 'edu'];
+  var TYPE_ICON = { emp: 'user', co: 'building', edu: 'graduation-cap' };
+  // editable profile fields → [label key, input kind]
+  var FIELDS = { full_name: ['admin.view.f.name', 'text'], headline: ['admin.view.f.headline', 'text'],
+                 location: ['admin.view.f.location', 'text'], bio: ['admin.view.f.bio', 'textarea'] };
+  window.TwAdminUserView = { ACTIONS: ACTIONS };
+
+  var root = document.getElementById('avRoot');
+  var raw = new URLSearchParams(location.search).get('id') || '';
+  var userId = /^[0-9]{1,18}$/.test(raw) ? raw : '';
+  var P = null;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function message(key) {
+    if (!root) return;
+    root.textContent = '';
+    root.appendChild(el('p', 'tw-adm-msg', twT(key)));
+  }
+
+  // Admin Shell (task 5.3b): page outside the panel path — panel root from this tab, menu marks «users».
+  if (!TwAdminShell.start({ outside: true, current: 'users' })) {
+    if (!TwAdminSession.panelHref()) message('admin.view.open_panel');
+    return;
+  }
+  document.title = twT('page.title', { page: twT('admin.view.title') });
+  TwAdminShell.mount();
+  twTApply(document.body);
+  if (!userId) { message('admin.view.no_user'); return; }
+
+  function ctx(extra) {
+    var c = { id: userId, name: (P && P.full_name) || twT('admin.user.unnamed') };
+    Object.keys(extra || {}).forEach(function (k) { c[k] = extra[k]; });
+    return c;
+  }
+  function run(name, extra) { return TwAdminShell.run(ACTIONS[name], ctx(extra)); }
+  function reloadIfOk(res) { if (res && res.ok) load(); return !!(res && res.ok); }
+
+  function btn(variant, icon, labelKey, onClick) {
+    var b = el('button', 'tw-act tw-act-' + variant);
+    b.type = 'button';
+    if (icon) b.appendChild(twIconEl(icon, { size: 'xs' }));
+    b.appendChild(el('span', null, twT(labelKey)));
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function pill(text, mod) { return el('span', 'tw-adm-pill' + (mod ? ' is-' + mod : ''), text); }
+  function row(title, sub, extra) {
+    var r = el('div', 'tw-adm-row'), main = el('div', 'tw-adm-row-main');
+    main.appendChild(el('div', 'tw-adm-row-title', title || '—'));
+    (sub || []).forEach(function (s) { if (s) main.appendChild(el('div', 'tw-adm-row-sub', s)); });
+    r.appendChild(main);
+    if (extra) r.appendChild(extra);
+    var acts = el('div', 'tw-adm-row-acts');
+    r.appendChild(acts);
+    return { row: r, main: main, acts: acts };
+  }
+  function typeLabel(t) { return twT('admin.user.type.' + (TYPES.indexOf(t) === -1 ? 'emp' : t)); }
+
+  // ── dialogs that collect a value — the form's button runs the action (its confirm stacks on top) ──
+  function formDialog(titleKey, labelKey, kind, value, sendKey, onSend) {
+    var form = el('label', 'av-form', twT(labelKey));
+    var input = el(kind === 'textarea' ? 'textarea' : 'input', 'tw-input');
+    if (kind !== 'textarea') input.type = kind;
+    if (kind === 'password') input.autocomplete = 'new-password';
+    else input.autocomplete = 'off';
+    input.value = value || '';
+    form.appendChild(input);
+    twModal({
+      title: twT(titleKey), content: form,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT(sendKey), variant: 'primary', onClick: function () { return onSend(input.value); } },
+      ],
+    });
+  }
+  function editField(field) {
+    var f = FIELDS[field];
+    formDialog('admin.view.edit.dialog', f[0], f[1], P[field], 'common.save', function (v) {
+      v = String(v || '').trim();
+      if (!v) { showToast(twT('admin.view.edit.empty'), 'error'); return false; }
+      return run('profile.edit', { field: field, value: v, label: twT(f[0]) }).then(reloadIfOk);
+    });
+  }
+  function openPassword() {
+    formDialog('admin.view.password.title', 'admin.view.password.label', 'password', '', 'admin.view.password.confirm', function (v) {
+      if (!v || v.trim().length < 6) { showToast(twT('admin.view.password.short'), 'error'); return false; }
+      return run('user.password', { password: v }).then(function (res) { return !!(res && res.ok); });
+    });
+  }
+  function openMessage() {
+    formDialog('admin.msg.title', 'admin.msg.body', 'textarea', '', 'admin.msg.send', function (v) {
+      v = String(v || '').trim();
+      if (!v) { showToast(twT('admin.msg.empty'), 'error'); return false; }
+      return run('message.send', { text: v, to: P.email || '' }).then(function (res) { return !!(res && res.ok); });
+    });
+  }
+  function changeType(to) {
+    run('user.type', { type: to, from: typeLabel(P.user_type), to: typeLabel(to) }).then(reloadIfOk);
+  }
+  function deleteUser() {
+    run('user.delete').then(function (res) {
+      if (res && res.ok) location.href = TwAdminShell.base() + '#users';
+    });
+  }
+
+  // ── render ──
+  function render() {
+    root.textContent = '';
+    var t = TYPES.indexOf(P.user_type) === -1 ? 'emp' : P.user_type;
+
+    var acc = TwAdminShell.card(root, { titleKey: 'admin.view.account', hintKey: 'admin.view.account.hint', icon: TYPE_ICON[t] });
+    var pills = el('span', 'av-btns');
+    pills.appendChild(pill(typeLabel(t), t === 'emp' ? '' : t));
+    pills.appendChild(pill(twT(P.is_verified ? 'admin.view.verified' : 'admin.view.unverified'), P.is_verified ? 'ok' : ''));
+    acc.appendChild(row(P.full_name, [P.email, P.tw_id], pills).row);
+    if (P.created_at) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.since', { date: twFormatDate(P.created_at) })));
+
+    var act = TwAdminShell.card(root, { titleKey: 'admin.view.actions', hintKey: 'admin.view.actions.hint', icon: 'settings' });
+    var b1 = el('div', 'av-btns');
+    b1.appendChild(P.is_verified
+      ? btn('secondary', 'shield-off', 'admin.view.unverify', function () { run('user.unverify').then(reloadIfOk); })
+      : btn('primary', 'verified', 'admin.users.verify', function () { run('user.verify').then(reloadIfOk); }));
+    b1.appendChild(btn('secondary', 'lock', 'admin.view.password', openPassword));
+    b1.appendChild(btn('secondary', 'mail', 'admin.users.message', openMessage));
+    b1.appendChild(btn('danger', 'delete', 'admin.view.delete', deleteUser));
+    act.appendChild(b1);
+
+    var ty = TwAdminShell.card(root, { titleKey: 'admin.view.type', hintKey: 'admin.view.type.hint', icon: 'users' });
+    var b2 = el('div', 'av-btns');
+    TYPES.forEach(function (k) {
+      var b = btn('secondary', TYPE_ICON[k], 'admin.user.type.' + k, function () { changeType(k); });
+      b.setAttribute('data-av-type', k);
+      if (k === t) { b.classList.add('is-current'); b.disabled = true; b.setAttribute('aria-current', 'true'); }
+      b2.appendChild(b);
+    });
+    ty.appendChild(b2);
+
+    var info = TwAdminShell.card(root, { titleKey: 'admin.view.info', hintKey: 'admin.view.info.hint', icon: 'id-card' });
+    Object.keys(FIELDS).forEach(function (f) {
+      var r = row(P[f] || twT('admin.view.empty_field'), [twT(FIELDS[f][0])]);
+      r.main.insertBefore(r.main.lastChild, r.main.firstChild);   // label above the value
+      r.acts.appendChild(btn('secondary', 'edit', 'admin.view.edit', function () { editField(f); }));
+      info.appendChild(r.row);
+    });
+
+    list('admin.view.exp', 'admin.view.exp.hint', 'briefcase', P.experience, 'exp.delete', function (e) {
+      return [e.title, [[e.company, e.location].filter(Boolean).join(' · '),
+                        [e.start_date, e.end_date].filter(Boolean).join(' ← ')], e.description];
+    });
+    list('admin.view.edu', 'admin.view.edu.hint', 'graduation-cap', P.education, 'edu.delete', function (e) {
+      return [[e.degree, e.field].filter(Boolean).join(' - '), [e.institution, e.end_year ? String(e.end_year) : '']];
+    });
+    list('admin.view.courses', 'admin.view.courses.hint', 'book-open', P.courses, 'course.delete', function (c) {
+      return [c.title, [c.provider, c.completion_date]];
+    });
+  }
+
+  function list(titleKey, hintKey, icon, items, action, describe) {
+    var body = TwAdminShell.card(root, { titleKey: titleKey, hintKey: hintKey, icon: icon });
+    items = items || [];
+    if (!items.length) { body.appendChild(el('p', 'tw-adm-msg', twT('admin.view.none'))); return; }
+    items.forEach(function (it) {
+      var d = describe(it), r = row(d[0], d[1]);
+      if (d[2]) r.main.appendChild(el('p', 'av-desc', d[2]));
+      r.acts.appendChild(btn('danger', 'delete', 'admin.users.delete', function () {
+        run(action, { item: it.id }).then(reloadIfOk);
+      }));
+      body.appendChild(r.row);
+    });
+  }
+
+  function load() {
+    TwAdminSession.fetch('/admin/profile/' + userId, { cache: 'no-store' })
+      .then(function (r) {
+        if (r.ok) return r.json().then(function (j) { P = j.profile || j; render(); });
+        if (r.status === 401 || r.status === 403) return;   // TwAdminShell → panel login
+        message(r.status === 404 ? 'admin.view.not_found' : 'admin.view.load_error');
+      })
+      .catch(function (e) { console.error('[admin-view] load:', e); message('admin.view.load_error'); });
+  }
+
+  load();
+}());

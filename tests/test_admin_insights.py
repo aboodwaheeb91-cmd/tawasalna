@@ -27,6 +27,7 @@ import server as srv
 
 client = TestClient(srv.app)
 PASSWORD = "p" * 40
+LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"   # the panel login path (slug from the env, never in a file)
 NEW_ENDPOINTS = ("/admin/stats/summary", "/admin/stats/timeseries?metric=users&days=30",
                  "/admin/activity", "/admin/audit")
 
@@ -74,7 +75,7 @@ def env(monkeypatch):
 
 
 def _admin():
-    r = client.post("/tw-ctrl-login", json={"password": PASSWORD})
+    r = client.post(LOGIN, json={"password": PASSWORD})
     assert r.status_code == 200
     return {"X-Admin-Token": r.json()["token"]}
 
@@ -158,8 +159,8 @@ def test_activity_lists_latest_events_without_private_fields():
 
 # ── audit log ──
 def test_audit_records_login_success_and_failure_without_secrets():
-    client.post("/tw-ctrl-login", json={"password": "wrong-" + "w" * 30}, headers={"X-Real-IP": "203.0.113.9"})
-    r = client.post("/tw-ctrl-login", json={"password": PASSWORD}, headers={"X-Real-IP": "203.0.113.10"})
+    client.post(LOGIN, json={"password": "wrong-" + "w" * 30}, headers={"X-Real-IP": "203.0.113.9"})
+    r = client.post(LOGIN, json={"password": PASSWORD}, headers={"X-Real-IP": "203.0.113.10"})
     token = r.json()["token"]
     rows = _audit_rows()
     assert [(x[1], x[3], x[4], x[5]) for x in rows] == [

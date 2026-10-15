@@ -7,7 +7,10 @@
  *   B  no panel prefix in any admin file the browser gets
  *   C  big actions never send a request without confirmation (twConfirm / typed-word twModal)
  *   D  401 from any admin call → back to the panel login with the "expired" flag · no session → login
- *   E  (task 5.3a2) desktop: side menu from the registry · mobile: menu button → the same links in a DS-OVL
+ *   E  admin-view.html (task 5.3b — static/admin-view/admin-view.js): page outside the panel path uses this
+ *      tab's panel root · every write needs a confirm · account type change needs the typed word ·
+ *      cancel → no request · every confirm / done text key exists
+ *   F  (task 5.3a2) desktop: side menu from the registry · mobile: menu button → the same links in a DS-OVL
  *      dialog that closes on a link · unified search groups · /health state · twChart geometry
  *
  * Run: node tests/test_admin_shell_runtime.js
@@ -42,6 +45,7 @@ function shell(opts) {
   const rec = { replaced: [], requests: [], confirms: [], modals: [], toasts: [] };
   const store = {};
   if (opts.token) store.tw_adm_token = opts.token;
+  if (opts.panel) store.tw_adm_panel = opts.panel;
   const ctx = {
     console, JSON, Promise, URLSearchParams,
     sessionStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); },
@@ -54,7 +58,7 @@ function shell(opts) {
     location: { pathname: opts.path || PANEL, hash: opts.hash || '', search: opts.search || '',
                 replace: u => rec.replaced.push(u) },
     addEventListener: noop,
-    twT: (k, v) => k + (v && v.word ? ':' + v.word : ''),
+    twT: (k, v) => k + (v && v.word ? ':' + v.word : ''), twTApply: noop,
     twEscAttr: s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'),
     twEscHtml: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'),
     twIcon: n => '<svg data-i="' + n + '"></svg>',
@@ -67,15 +71,16 @@ function shell(opts) {
       return m.ctl;
     },
     fetch: (url, init) => {
-      rec.requests.push([url, (init && init.method) || 'GET']);
-      const st = opts.status || 200;
+      const method = (init && init.method) || 'GET';
+      rec.requests.push([url, method, init && init.body]);
+      const st = (method === 'GET' && opts.getStatus) || opts.status || 200;
       return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve({}) });
     },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
   ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js']
-    .concat(opts.page ? ['static/admin/admin.js'] : []).concat(opts.chart ? ['static/shared/tw-chart.js'] : [])
+    .concat(opts.page ? [opts.page === true ? 'static/admin/admin.js' : opts.page] : []).concat(opts.chart ? ['static/shared/tw-chart.js'] : [])
     .forEach(f => vm.runInContext(read(f), ctx, { filename: f }));
   return { ctx, rec, store };
 }
@@ -116,7 +121,7 @@ const tick = () => new Promise(r => setImmediate(r));
   {
     const files = ['admin.html', 'admin-email.html', 'admin-view.html', 'static/shared/admin-session.js',
       'static/shared/admin-sections.js', 'static/shared/admin-shell.js', 'static/shared/admin-shell.css',
-      'static/admin/admin.js', 'static/admin-email/admin-email.js'];
+      'static/admin/admin.js', 'static/admin-email/admin-email.js', 'static/admin-view/admin-view.js'];
     const bad = files.filter(f => read(f).indexOf('tw-ctrl') !== -1);
     check('B1 no "tw-ctrl" in any admin page / script / style', bad.length === 0, bad);
   }
@@ -196,7 +201,88 @@ const tick = () => new Promise(r => setImmediate(r));
     check('D9 start() saves the panel root for admin-view (runtime only)', l.ctx.TwAdminSession.panelHref() === PANEL);
   }
 
-  console.log('\nE — side menu (desktop) · menu dialog (mobile) · search · health · chart (task 5.3a2)');
+  console.log('\nE — admin-view.html (one user · outside the panel path)');
+  const VIEW = 'static/admin-view/admin-view.js';
+  const STR = JSON.parse(read('tw_strings.json')).ar;
+  // the page loads the user (GET) itself — 404 keeps it on its message; only writes are counted below
+  const view = o => shell(Object.assign({ page: VIEW, path: '/admin-view', search: '?id=5', getStatus: 404 }, o));
+  const writes = s => s.rec.requests.filter(r => r[1] !== 'GET');
+  {
+    const none = view({});
+    check('E1 tab never opened the panel → no session use, no navigation, no request',
+      none.rec.replaced.length === 0 && none.rec.requests.length === 0);
+    const out = view({ panel: PANEL });
+    check('E2 panel known, no session → back to the panel login', out.rec.replaced[0] === PANEL && out.rec.requests.length === 0);
+    const live = view({ panel: PANEL, token: LIVE });
+    check('E3 live session → loads the user once', live.rec.requests.length === 1
+      && live.rec.requests[0][0] === '/admin/profile/5' && live.rec.replaced.length === 0);
+    check('E4 menu links = this tab\'s panel root · «users» marked',
+      live.ctx.TwAdminShell.items().every(i => i.href.indexOf(PANEL) === 0) && live.ctx.TwAdminShell.currentKey() === 'users');
+    const bad = view({ panel: PANEL, token: LIVE, search: '?id=5x' });
+    check('E5 invalid id → no request', bad.rec.requests.length === 0);
+    const exp = view({ panel: PANEL, token: LIVE, getStatus: 401 });
+    await tick(); await tick();
+    check('E6 401 → panel login with the expired flag', exp.rec.replaced[0] === PANEL + '?session=expired', JSON.stringify(exp.rec.replaced));
+  }
+  const VA = view({ panel: PANEL, token: LIVE }).ctx.TwAdminUserView.ACTIONS;
+  const VCTX = { id: 5, item: 7, type: 'co', password: 'secret77', field: 'headline', value: 'x', text: 'hi' };
+  {
+    const keys = Object.keys(VA);
+    check('E7 every write on the page has a confirm step', keys.length >= 10 && keys.every(k => VA[k].confirm),
+      keys.filter(k => !VA[k].confirm));
+    check('E8 type change + account delete need a typed word and are danger',
+      ['user.type', 'user.delete'].every(k => VA[k].confirm.typeWord && VA[k].confirm.danger));
+    check('E9 password change + item deletes are danger',
+      ['user.password', 'exp.delete', 'edu.delete', 'course.delete'].every(k => VA[k].confirm.danger));
+    const missing = [];
+    keys.forEach(k => {
+      const c = VA[k].confirm;
+      [c.title, c.message, c.confirm, c.typeWord, VA[k].done].forEach(x => { if (x && !(x in STR)) missing.push(k + ':' + x); });
+    });
+    check('E10 every confirm / done text key exists in tw_strings.json', missing.length === 0, missing);
+  }
+  for (const k of Object.keys(VA)) {
+    if (VA[k].confirm.typeWord) continue;
+    const s = view({ panel: PANEL, token: LIVE, confirmAnswer: false });
+    const res = await s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS[k], VCTX);
+    check('E11 ' + k + ': cancel → no request', res === null && writes(s).length === 0 && s.rec.confirms.length === 1);
+    const y = view({ panel: PANEL, token: LIVE, confirmAnswer: true });
+    const r2 = await y.ctx.TwAdminShell.run(y.ctx.TwAdminUserView.ACTIONS[k], VCTX);
+    check('E12 ' + k + ': confirm → exactly one write', r2 && r2.ok && writes(y).length === 1, JSON.stringify(writes(y)));
+  }
+  {
+    const s = view({ panel: PANEL, token: LIVE });
+    const p = s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS['user.type'], VCTX);
+    await tick();
+    const m = s.rec.modals[0];
+    const input = m && m.opts.content.children[0].children[0];
+    check('E13 type change: dialog opens with the confirm button disabled', !!m && m.disabled[1] === true);
+    input.value = 'نعم';
+    input.fire('input');
+    check('E14 type change without the word: still disabled + click refused + no request',
+      m.disabled[1] === true && m.opts.actions[1].onClick() === false && writes(s).length === 0);
+    m.opts.onClose('cancel');
+    check('E15 closed without the word → no request', (await p) === null && writes(s).length === 0);
+    const y = view({ panel: PANEL, token: LIVE });
+    const py = y.ctx.TwAdminShell.run(y.ctx.TwAdminUserView.ACTIONS['user.type'], VCTX);
+    await tick();
+    const my = y.rec.modals[0], iy = my.opts.content.children[0].children[0];
+    iy.value = y.ctx.twT('admin.confirm.word.type');
+    iy.fire('input');
+    my.opts.actions[1].onClick();
+    my.opts.onClose('action');
+    const ry = await py, w = writes(y);
+    check('E16 the right word → one PUT /admin/user/5/type {user_type: co}', ry && ry.ok && w.length === 1
+      && w[0][0] === '/admin/user/5/type' && w[0][1] === 'PUT' && JSON.parse(w[0][2]).user_type === 'co', JSON.stringify(w));
+  }
+  {
+    const s = view({ panel: PANEL, token: LIVE, confirmAnswer: true, status: 422 });
+    const res = await s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS['profile.edit'], VCTX);
+    check('E17 a failed write → no «done» toast (result checked first)', res && !res.ok
+      && s.rec.toasts.every(t => t[1] !== 'success'), JSON.stringify(s.rec.toasts));
+  }
+
+  console.log('\nF — side menu (desktop) · menu dialog (mobile) · search · health · chart (task 5.3a2)');
   {
     // a header placeholder that records what mount() renders and the listeners it binds
     const parts = {};
@@ -209,52 +295,52 @@ const tick = () => new Promise(r => setImmediate(r));
     s.ctx.TwAdminShell.mount();
     const html = header.innerHTML, reg = s.ctx.TW_ADMIN_SECTIONS;
     const side = (html.match(/<aside class="tw-adm-side">([\s\S]*?)<\/aside>/) || [])[1] || '';
-    check('E1 mount: header shown + side menu holds one link per registry entry',
+    check('F1 mount: header shown + side menu holds one link per registry entry',
       header.hidden === false && (side.match(/<a /g) || []).length === reg.length);
-    check('E2 side menu marks the current section', /aria-current="page" href="[^"]*#kyc"/.test(side));
-    check('E3 body gets the side-menu layout class', s.ctx.document.body.classList.list.indexOf('tw-adm-has-side') !== -1);
-    check('E4 top bar: menu button · search · system status · badge shortcuts · logout',
+    check('F2 side menu marks the current section', /aria-current="page" href="[^"]*#kyc"/.test(side));
+    check('F3 body gets the side-menu layout class', s.ctx.document.body.classList.list.indexOf('tw-adm-has-side') !== -1);
+    check('F4 top bar: menu button · search · system status · badge shortcuts · logout',
       /data-adm-menu/.test(html) && /data-adm-search/.test(html) && /data-adm-health/.test(html)
       && (html.match(/class="tw-adm-iconbtn" href=/g) || []).length === reg.filter(x => x.badge).length && /data-adm-logout/.test(html));
-    check('E5 no request for search data before the search is used', !s.rec.requests.some(r => r[0] === '/admin/jobs'));
+    check('F5 no request for search data before the search is used', !s.rec.requests.some(r => r[0] === '/admin/jobs'));
     parts['[data-adm-menu]'].fire('click');
     const m = s.rec.modals[0];
     const nav = m && m.opts.content;
-    check('E6 menu button opens a DS-OVL dialog with the same registry links',
+    check('F6 menu button opens a DS-OVL dialog with the same registry links',
       !!m && (nav.innerHTML.match(/<a /g) || []).length === reg.length && /aria-current="page" href="[^"]*#kyc"/.test(nav.innerHTML));
     let closed = 0;
     m.ctl.close = () => { closed++; };
     nav.fire('click', { target: { closest: () => null } });
-    check('E7a a click outside a link keeps the menu dialog open', closed === 0);
+    check('F7a a click outside a link keeps the menu dialog open', closed === 0);
     nav.fire('click', { target: { closest: sel => (sel === 'a' ? {} : null) } });
-    check('E7 choosing a link closes the menu dialog', closed === 1);
+    check('F7 choosing a link closes the menu dialog', closed === 1);
     const css = read('static/shared/admin-shell.css');
     const desk = (css.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/) || [])[1] || '';
-    check('E8 desktop (≥1024): side menu fixed, menu button hidden · below: side menu hidden',
+    check('F8 desktop (≥1024): side menu fixed, menu button hidden · below: side menu hidden',
       /\.tw-adm-side \{ display: flex;[^}]*position: fixed/.test(desk) && /\.tw-adm-menu-btn[^{]*\{ display: none/.test(desk)
       && /^\.tw-adm-side \{ display: none; \}/m.test(css));
 
     const data = { users: [{ id: 1, full_name: 'سارة', email: 's@x', user_type: 'emp' }, { id: 2, full_name: 'Tech Co', email: 'hr@t', user_type: 'co' }],
                    jobs: [{ id: 5, title: 'Tech lead', company_name: 'Tech Co' }] };
     const g = s.ctx.TwAdminShell.searchResults(data, 'tech');
-    check('E9 search: companies and jobs grouped, users without a match left out',
+    check('F9 search: companies and jobs grouped, users without a match left out',
       g.map(x => x.key).join() === 'companies,jobs' && g[0].items[0].href === '/admin-view?id=2'
       && g[1].items[0].href === PANEL + '#jobs' && g[1].items[0].section === 'jobs');
-    check('E10 search: empty query → nothing', s.ctx.TwAdminShell.searchResults(data, '  ').length === 0);
+    check('F10 search: empty query → nothing', s.ctx.TwAdminShell.searchResults(data, '  ').length === 0);
     const hs = s.ctx.TwAdminShell.healthState;
-    check('E11 health: ok · degraded · down', hs({ status: 'ok', db: 'ok', email: 'configured', storage: 'configured' }) === 'ok'
+    check('F11 health: ok · degraded · down', hs({ status: 'ok', db: 'ok', email: 'configured', storage: 'configured' }) === 'ok'
       && hs({ status: 'ok', db: 'ok', email: 'missing', storage: 'configured' }) === 'degraded'
       && hs({ status: 'degraded', db: 'error' }) === 'down' && hs(null) === 'down');
   }
   {
     const c = shell({ chart: true }).ctx;
     const L = c.twChart.layout([{ value: 0 }, { value: 5 }, { value: 10 }], 'line');
-    check('E12 chart: highest value reaches the top, zero sits on the base', L.max === 10 && L.ys[2] < L.ys[1] && L.ys[1] < L.ys[0]
+    check('F12 chart: highest value reaches the top, zero sits on the base', L.max === 10 && L.ys[2] < L.ys[1] && L.ys[1] < L.ys[0]
       && L.xs[0] < L.xs[2] && L.bars[2].h > L.bars[1].h && L.bars[0].h === 0);
     const box = fakeEl('div');
     box.textContent = 'old';
     const w = c.twChart(box, { type: 'bar', title: 'T', points: [{ label: '<b>', value: 2 }, { label: 'b', value: 1 }] });
-    check('E13 chart: drawn into the container, accessible name, labels escaped',
+    check('F13 chart: drawn into the container, accessible name, labels escaped',
       box.children[0] === w && w.attrs.role === 'img' && /^T: /.test(w.attrs['aria-label'])
       && (w.innerHTML.match(/<rect /g) || []).length === 2 && w.innerHTML.indexOf('<b>') === -1);
   }

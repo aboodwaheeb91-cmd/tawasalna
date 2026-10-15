@@ -57,9 +57,9 @@ check("A08 hash is 10 hex chars",
       re.search(r"tw_shared\.css\?v=[0-9a-f]{10}\"", out) is not None)
 
 print("\nB — page without markers is unchanged")
-for name in ("admin-view.html",):   # unconverted pages — admin.html joined the admin shell (task 5.3a) — index.html (PR 4.8) + settings.html (PR 4.7) + profile-showcase.html (PR 4.2a) + company-profile.html (PR 4.3a) joined the shell
-    raw = read(name)
-    check(f"B01 {name} byte-identical", apply_shell(raw, name) == raw)
+# every page has joined the shell (admin-view.html last — task 5.3b) → a page without markers, built here
+raw = "<!DOCTYPE html>\n<html><head><title>x</title></head><body><p>x</p></body></html>\n"
+check("B01 page without markers byte-identical", apply_shell(raw, "plain.html") == raw)
 
 print("\nC — admin variant")
 adm = apply_shell(PAGE.replace("shell-head-->", "shell-head:admin-->")

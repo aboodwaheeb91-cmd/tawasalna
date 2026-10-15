@@ -64,15 +64,6 @@ def check_admin_html_route(server_content):
     matches = route_pattern.findall(server_content)
     return matches
 
-def check_rate_limit(server_content):
-    """
-    Check that /tw-ctrl-login appears in the rate_limit_middleware list.
-    """
-    pattern = re.compile(r'["\']\/tw-ctrl-login["\']')
-    matches = pattern.findall(server_content)
-    return matches
-
-
 def check_single_escaping_impl(tw_shared_content):
     """
     Check that tw_shared.js has exactly ONE full escaping implementation.
@@ -112,7 +103,8 @@ def main():
 
     # Read files
     admin_html = read_file('admin.html')
-    admin_view_html = read_file('admin-view.html')
+    # task 5.3b: the page logic lives in static/admin-view/admin-view.js
+    admin_view_html = read_file('admin-view.html') + read_file('static/admin-view/admin-view.js')
     server_py = read_file('server.py')
 
     print('=' * 60)
@@ -167,13 +159,8 @@ def main():
     else:
         print(f'[{PASS}] server.py: GET /admin.html route is deleted')
 
-    # Check 6: /tw-ctrl-login is in rate_limit_middleware
-    good6 = check_rate_limit(server_py)
-    if good6:
-        print(f'[{PASS}] server.py: /tw-ctrl-login is in rate_limit_middleware list')
-    else:
-        print(f'[{FAIL}] server.py: /tw-ctrl-login NOT found in rate_limit_middleware list')
-        all_pass = False
+    # Check 6 (admin login rate limit) is behavioural since task 5.3b:
+    # tests/test_admin_session_security.py → <panel>/login 401 then 429 · old /tw-ctrl-login 404.
 
     # Check 7: tw_shared.js has exactly one escaping implementation (twEscAttr)
     tw_shared = read_file('tw_shared.js')
