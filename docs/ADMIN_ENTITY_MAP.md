@@ -143,7 +143,7 @@
 | closed → expired | — | **تلقائي** (محسوب) | 30 يوم بعد الإغلاق |
 | active (مدة جديدة) | الشركة | يدوي | `PUT /company/jobs/{id}` مع `duration_days` → `expires_at = NOW() + المدة` (active / paused بس) |
 | closed / expired → active | الأدمن | يدوي | `POST /admin/jobs/{id}/reactivate {duration_days}` → `expires_at = NOW() + المدة` + تذكير + إشعار (5.3j) |
-| closed → active (مش expired) | الشركة | يدوي | `PATCH /company/jobs/{id}/status {active, duration_days}` → `_reopen_job` + تذكير (5.3j المرحلة 3) |
+| closed / expired → active | الشركة | **ممنوع** | `set_job_status` بيرفض (422 «لا يمكن إعادة فتح…») — إعادة الفتح للأدمن بس (قرار صاحب المشروع 5.3j4) |
 | active ↔ paused · → closed | الأدمن | يدوي | `POST /admin/jobs/{id}/status {status, reason}` = نفس `set_job_status` · سبب إلزامي للإغلاق + إشعار (5.3j المرحلة 3) |
 | active / paused (مدة أطول) | الأدمن | يدوي | `POST /admin/jobs/{id}/extend {duration_days}` → `expires_at += المدة` + إشعار (5.3j) |
 | أي حالة ↔ مخفية | الأدمن | يدوي | `POST /admin/jobs/{id}/hide {reason}` / `unhide` + إشعار (5.3j) |
@@ -168,7 +168,7 @@
 
 - ~~قائمة أدمن بكل الحالات + فلتر + بحث + pagination + عدد المتقدمين~~ ✅ 5.3j.
 - ~~إخفاء / إرجاع من الأدمن بسبب~~ · ~~إعادة التفعيل~~ · ~~تمديد المدة~~ · ~~#7~~ · ~~#13~~ ✅ 5.3j المرحلة 2.
-- ~~إيقاف / استئناف / إغلاق من الأدمن~~ · ~~إلغاء الأرشفة~~ · ~~إعادة فتح الشركة لوظيفتها المغلقة~~ ✅ 5.3j المرحلة 3.
+- ~~إيقاف / استئناف / إغلاق من الأدمن~~ · ~~إلغاء الأرشفة~~ ✅ 5.3j المرحلة 3 · إعادة فتح الشركة لوظيفتها المغلقة: انضافت بالمرحلة 3 وانشالت بـ 5.3j4 (قرار صاحب المشروع — إعادة الفتح للأدمن بس).
 - **الباقي = المرحلة 4:** صفحة تفاصيل أدمن للوظيفة (تعديل كل الحقول بنفس قواعد تحقق الشركة + المتقدمون قراءة بس) · endpoint معاينة قبل الحذف.
 
 ### 2.6 ملاحظات خطر
@@ -176,7 +176,7 @@
 - **حذف الأدمن النهائي:** `job_applications` CASCADE · `company_candidate_job_refs` CASCADE · `job_profession_targets` · `company_saved_candidates.job_id` → NULL · `appointments.job_id` → NULL · **`job_pipeline_entries.job_id` = RESTRICT** → من 5.3j الحذف بيشيلهم أول بنفس الـ transaction (أحداثهم وملاحظاتهم CASCADE).
 - `status` المخزّن ≠ الحالة الحقيقية (محسوبة) → أي فلترة بالـ DB على `status='active'` لحالها غلط — من 5.3j كلها عبر `job_active_sql()`.
 - ~~`paused` ما بيوقف العدّاد فعلياً~~ ✅ 5.3j #7: الموقوفة بتضل `paused` والاستئناف بيكمّل المدة الباقية.
-- `closed`: الشركة بتعيد فتحها بمدة جديدة أو الأدمن بيعيد تفعيلها · `expired`: الأدمن بس (5.3j).
+- `closed` / `expired`: مخرجها إعادة تفعيل الأدمن بس (`/reactivate` — 5.3j4)؛ الشركة ما بتقدر.
 
 ---
 

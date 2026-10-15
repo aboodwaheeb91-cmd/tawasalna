@@ -498,12 +498,10 @@
           // Record only: no actions
           rightHtml = '<div class="job-owner-col"></div>';
         } else if (eff === 'closed') {
-          // 30-day viewer window: applicants visible + reopen with a new duration (task 5.3j — not for expired)
+          // 30-day viewer window: applicants visible, no manage (reopening = admin only — task 5.3j4)
           rightHtml = '<div class="job-owner-col">'
             + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
             + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
-            + '<button type="button" class="joc-btn joc-btn--muted owner-reopen-btn" data-jid="' + jid + '">'
-            + _esc(twT('company.job.reopen')) + '</button>'
             + '</div>';
         } else {
           // active or paused: full controls
