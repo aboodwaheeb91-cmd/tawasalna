@@ -103,6 +103,7 @@ PY_DB=(
   pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py
   pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
+  pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────

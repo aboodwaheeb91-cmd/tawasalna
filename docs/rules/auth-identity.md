@@ -9,7 +9,7 @@
 - Hashed with **bcrypt** (salted)
 - Minimum 6 characters enforced
 - `hash_password(plain)` / `verify_password(plain, hashed)`
-- **One rule (PR 1.2):** `_password_policy_error(pw)` in `server.py` — used by `POST /auth/register` and `PUT /auth/password`. ❌ a second length check. Signed-in change: `PUT /auth/password` (JWT + bcrypt check of the current password, new ≠ current, rate limited) — never verify a password by calling `/auth/login` from the client. → SYSTEMS_INDEX §1a.
+- **One rule (PR 1.2):** `_password_policy_error(pw)` in `server.py` — used by `POST /auth/register`, `PUT /auth/password` and `PUT /admin/user/{id}/password` (task 5.0c — weak → 422, field `password`; the admin page has no own length check). ❌ a second length check. Signed-in change: `PUT /auth/password` (JWT + bcrypt check of the current password, new ≠ current, rate limited) — never verify a password by calling `/auth/login` from the client. → SYSTEMS_INDEX §1a.
 
 ### User ID Format (tw_id)
 Every user gets a unique platform ID:
@@ -46,6 +46,13 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 4. **One check, one cache:** `server._jwt_decode` → `_jwt_revoked_by_password_change` → `_session_state(uid)` (`auth.get_session_state` → `{changed, sv}` through `_pwd_changed_cache`, TTL 60s) · `_password_changed_cache_set(uid, state)` right after every write.
 - ❌ writing `password_hash` / `session_version` outside `set_user_password` · ❌ a password change that leaves emailed tokens alive · ❌ a second session-version cache or check · ❌ `sv` in an API response body.
 - Test: `python -m pytest tests/test_session_version_tokens.py -q` (PostgreSQL).
+
+### Verified Badge — one source (task 5.0c — SYSTEMS_INDEX §23)
+1. **`profiles.is_verified` is the public «موثّق» badge** (public profile · job company badge · completion · admin). **`auth.set_user_verified(user_id, verified, conn)` is its only writer** — KYC approve (TRUE) · KYC reject (FALSE) · `PUT /admin/user/{id}/verify` `{is_verified: true|false}` (required boolean → else 422).
+2. **`users.is_verified` is legacy** — no writer, no reader (column kept). `company_profiles.verified_co` has no writer (F30 — open).
+3. **KYC review:** approve / reject only a submission at `step='review'` + `status='pending'` → `step = status = approved | rejected`; otherwise 409. `POST /kyc/docs` only after email + phone are verified (`step ∈ {id_upload, rejected}`) → otherwise 409.
+- ❌ an UPDATE of `profiles.is_verified` / `users.is_verified` anywhere else · ❌ approving without a submission in review · ❌ a default `True` on the verify endpoint.
+- Test: `python -m pytest tests/test_entity_map_fixes_50c.py -q` (PostgreSQL).
 
 ### Admin Authentication
 - All secrets are environment variables — no hardcoded values in source
