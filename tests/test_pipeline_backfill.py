@@ -78,27 +78,15 @@ def _fn_strict(src, name, window=15000):
 # ═══════════════════════════════════════════════════════════════════════════════
 # §A  Mapping constants
 # ═══════════════════════════════════════════════════════════════════════════════
-# Extract the dict literal body for each mapping (finds assignment line = { ... })
-def _dict_body(src, var_name):
-    # Search for the assignment pattern: VAR_NAME: dict = { or VAR_NAME = {
-    import re as _re
-    pattern = rf'\b{_re.escape(var_name)}\b[^=]*=\s*\{{'
-    m = _re.search(pattern, src)
-    if not m:
-        return ""
-    start = src.find("{", m.start())
-    end   = src.find("}", start)
-    return src[start:end+1] if start != -1 and end != -1 else ""
-
-_la2p = _dict_body(_auth, "LEGACY_APP_STATUS_TO_PIPELINE_STAGE")
-_lc2p = _dict_body(_auth, "LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE")
+# The real mapping dicts (behaviour — not a text parse of auth.py; task 5.1d moved a use of
+# the name above its definition, which broke the old first-match regex).
+import auth as _auth_mod
+_la2p = _auth_mod.LEGACY_APP_STATUS_TO_PIPELINE_STAGE
+_lc2p = _auth_mod.LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE
 
 def _kv(d, k, v):
-    """Check that k→v mapping appears in dict body (handles both quote styles)."""
-    return any(
-        (f"{q1}{k}{q1}" in d and f"{q2}{v}{q2}" in d)
-        for q1 in ('"', "'") for q2 in ('"', "'")
-    )
+    """Check that the mapping sends k → v."""
+    return d.get(k) == v
 
 check("A-01. LEGACY_APP_STATUS_TO_PIPELINE_STAGE defined in auth.py",
       "LEGACY_APP_STATUS_TO_PIPELINE_STAGE" in _auth)
