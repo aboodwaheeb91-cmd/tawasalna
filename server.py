@@ -141,6 +141,7 @@ from auth import (
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
     _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _eff_status, _ALLOWED_DURATIONS,
+    job_active_sql, admin_hard_delete_job,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -1172,9 +1173,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    JOIN users u ON j.company_id = u.id
                    LEFT JOIN profiles p ON j.company_id = p.user_id
                    LEFT JOIN profession_categories pc ON j.profession_id = pc.id
-                   WHERE j.status IN ('active', 'open')
-                     AND j.archived_at IS NULL
-                     AND (j.expires_at IS NULL OR j.expires_at > NOW())
+                   WHERE """ + job_active_sql("j") + """
                    ORDER BY j.created_at DESC
                    LIMIT :pool""",
                 pool=pool,
@@ -1446,7 +1445,7 @@ def get_company_profile(company_id: str, request: Request):
 
         # ── jobs_count from DB (Rule #19: no hardcoded) ──
         j_rows = conn.run(
-            "SELECT COUNT(*) FROM jobs WHERE company_id = :cid AND status = 'active' AND archived_at IS NULL",
+            "SELECT COUNT(*) FROM jobs j WHERE j.company_id = :cid AND " + job_active_sql("j"),
             cid=resolved_id
         )
         jobs_count = j_rows[0][0] if j_rows else 0
@@ -6123,19 +6122,33 @@ def promote_applicant(app_id: int, token=Depends(verify_token)):
 
 
 @app.get("/admin/jobs")
-def admin_list_jobs(request: Request):
+def admin_list_jobs(request: Request, q: str = "", status: str = "", page: str = "1", limit: str = "20"):
+    """Every job in every state (task 5.3j — #8: was the public feed). SYSTEMS_INDEX §25e."""
     check_admin(request)
-    return get_jobs({})
+    if status and status not in admin_insights.JOB_ADMIN_STATUSES:
+        return api_error(422, "invalid_status", "حالة الوظيفة غير معروفة", field="status")
+    if len(q) > admin_insights.USERS_Q_MAX:
+        return api_error(422, "invalid_q", "نص البحث طويل", field="q")
+    if not _admin_int(page, 1, 100000):
+        return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
+    if not _admin_int(limit, 1, admin_insights.JOBS_PAGE_MAX):
+        return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
+    try:
+        return api_ok(admin_insights.jobs_list(q=q, status=status, page=int(page), limit=int(limit)))
+    except Exception as e:
+        raise _server_error("admin_list_jobs", e)
 
 @app.delete("/admin/jobs/{job_id}")
 def admin_delete_job(job_id: int, request: Request):
+    # Hard delete (task 5.3j — #1): pipeline entries go in the same transaction (their FK is RESTRICT).
     check_admin(request)
-    conn = get_conn()
     try:
-        conn.run("DELETE FROM jobs WHERE id=:id", id=job_id)
-        return {"success": True}
-    finally:
-        release_conn(conn)
+        removed = admin_hard_delete_job(job_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise _server_error("admin_delete_job", e)
+    return {"success": True, "removed": removed}
 
 
 @app.get("/stats")
@@ -6151,7 +6164,7 @@ def stats():
             "emp_count": emp_count,
             "co_count": co_count,
             "edu_count": edu_count,
-            "jobs_count": conn.run("SELECT COUNT(*) FROM jobs WHERE status='active' AND archived_at IS NULL")[0][0] if True else 0
+            "jobs_count": conn.run("SELECT COUNT(*) FROM jobs j WHERE " + job_active_sql("j"))[0][0]
         }
     except Exception as e:
         raise _server_error("stats", e)

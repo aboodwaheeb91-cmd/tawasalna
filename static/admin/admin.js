@@ -6,6 +6,8 @@
 //   - users / companies = one table view (task 5.3a3): GET /admin/users (search · type · verification · sort ·
 //     server pages) — companies = the same view with a fixed type filter · CSV = GET /admin/users/export
 //     (confirm first, via run) · audit = GET /admin/audit (read only) · activity = GET /admin/activity (paged)
+//   - jobs = GET /admin/jobs (task 5.3j): every state (active · paused · closed · expired · archived — state from
+//     the server), status tabs with counts, search title / company, server pages, applicants per job
 //   - counts shown with twFormatNumber (tw_shared.js — §59a)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
@@ -13,7 +15,7 @@
 (function () {
   'use strict';
   var PAG = 20, SEARCH_DELAY = 300;
-  var S = { jobs: [], kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '', actPage: 1 };
+  var S = { kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '', actPage: 1 };
   // users table views — 'companies' = the same view with a fixed type filter (task 5.3a2, no 2nd table code)
   function view(fixed) { return { fixed: fixed, type: fixed, status: '', sort: 'newest', q: '', page: 1, seq: 0 }; }
   var VIEWS = { users: view(''), companies: view('co') };
@@ -62,7 +64,7 @@
       request: function (c) { return { url: '/admin/users/export?' + c.query, method: 'GET' }; },
       as: 'blob', done: 'admin.done.exported' },
   };
-  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, pageList: pageList };
+  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, pageList: pageList };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -113,17 +115,7 @@
     buildAudit($('sec-audit'));
     buildActivity($('sec-activity'));
 
-    var bj = TwAdminShell.card($('sec-jobs'), { titleKey: 'admin.jobs.title', hintKey: 'admin.jobs.hint', icon: 'briefcase' });
-    var js = el('input', 'tw-input');
-    js.type = 'search';
-    js.id = 'jobSearch';
-    js.setAttribute('placeholder', twT('admin.jobs.search'));
-    js.setAttribute('aria-label', twT('admin.jobs.search'));
-    js.addEventListener('input', function () { renderJobs(js.value); });
-    bj.appendChild(js);
-    BODY.jobs = el('div');
-    bj.appendChild(BODY.jobs);
-    msg(BODY.jobs, 'common.loading');
+    buildJobs($('sec-jobs'));
 
     BODY.reports = TwAdminShell.card($('sec-reports'), { titleKey: 'admin.reports.title', hintKey: 'admin.reports.hint', icon: 'report' });
     BODY.kyc = TwAdminShell.card($('sec-kyc'), { titleKey: 'admin.kyc.title', hintKey: 'admin.kyc.hint', icon: 'id-card' });
@@ -604,28 +596,116 @@
     box.appendChild(table);
   }
 
-  // ── jobs ──
-  function loadJobs() {
-    return getJson('/admin/jobs').then(function (d) {
-      S.jobs = d.jobs || [];
-      renderJobs(($('jobSearch') || {}).value || '');
-    }).catch(function (e) { console.error('[admin] jobs:', e); msg(BODY.jobs, 'admin.load_error'); });
+  // ── jobs — every state, server search / status / pages (GET /admin/jobs — task 5.3j · §25e) ──
+  // status = one value per job from the server (archived · or the effective status) — never computed here
+  var JOB_STATES = ['active', 'paused', 'closed', 'expired', 'archived'];
+  var JOB_PILL = { active: 'ok', paused: 'warn', closed: 'muted', expired: 'danger', archived: 'muted' };
+  var JV = { q: '', status: '', page: 1, seq: 0 };
+  // view state → query string of GET /admin/jobs (pure — tests read it)
+  function jobsQuery(v) {
+    var p = [];
+    if (v.q) p.push('q=' + encodeURIComponent(v.q));
+    if (JOB_STATES.indexOf(v.status) !== -1) p.push('status=' + v.status);
+    p.push('page=' + v.page, 'limit=' + PAG);
+    return p.join('&');
   }
-  function renderJobs(q) {
-    q = String(q || '').toLowerCase();
-    var list = S.jobs.filter(function (j) {
-      return !q || String(j.title || '').toLowerCase().indexOf(q) !== -1 || String(j.company_name || '').toLowerCase().indexOf(q) !== -1;
+  function buildJobs(sec) {
+    var box = TwAdminShell.card(sec, { titleKey: 'admin.jobs.title', hintKey: 'admin.jobs.hint', icon: 'briefcase' });
+    var tools = el('div', 'adm-utools'), sw = el('div', 'adm-usearch');
+    JV.search = el('input', 'tw-input');
+    JV.search.type = 'search';
+    JV.search.id = 'jobSearch';
+    JV.search.setAttribute('placeholder', twT('admin.jobs.search'));
+    JV.search.setAttribute('aria-label', twT('admin.jobs.search'));
+    var timer = null;
+    JV.search.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () { setJobsQuery(JV.search.value); }, SEARCH_DELAY);
     });
-    BODY.jobs.textContent = '';
-    if (!list.length) { msg(BODY.jobs, 'admin.jobs.empty'); return; }
+    sw.appendChild(JV.search);
+    tools.appendChild(sw);
+    box.appendChild(tools);
+    JV.tabs = el('div', 'adm-jtabs');
+    JV.tabs.setAttribute('role', 'group');
+    JV.tabs.setAttribute('aria-label', twT('admin.jobs.f.status'));
+    box.appendChild(JV.tabs);
+    JV.count = el('p', 'tw-adm-hint adm-ucount');
+    box.appendChild(JV.count);
+    JV.body = el('div', 'adm-uwrap');
+    box.appendChild(JV.body);
+    JV.pag = el('div', 'tw-adm-pag');
+    box.appendChild(JV.pag);
+    msg(JV.body, 'common.loading');
+  }
+  function setJobsQuery(q) {
+    q = String(q || '').trim();
+    if (q === JV.q) return;
+    JV.q = q; JV.page = 1; loadJobs();
+  }
+  function loadJobs() {
+    var seq = ++JV.seq;
+    return apiData('/admin/jobs?' + jobsQuery(JV)).then(function (d) {
+      if (seq !== JV.seq) return;   // a newer search / tab answered first
+      renderJobs(d);
+    }).catch(function (e) {
+      if (seq !== JV.seq) return;
+      console.error('[admin] jobs:', e);
+      msg(JV.body, 'admin.load_error');
+      JV.pag.textContent = '';
+    });
+  }
+  function jobState(s) { return JOB_STATES.indexOf(s) !== -1 ? s : 'closed'; }
+  function renderJobTabs(counts) {
+    JV.tabs.textContent = '';
+    [''].concat(JOB_STATES).forEach(function (s) {
+      var on = s === JV.status;
+      var b = el('button', 'tw-act tw-act-secondary' + (on ? ' is-current' : ''),
+        twT(s ? 'admin.jobs.s.' + s : 'common.all') + ' · ' + twFormatNumber(Number(counts[s || 'all']) || 0));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function () { if (JV.status === s) return; JV.status = s; JV.page = 1; loadJobs(); });
+      JV.tabs.appendChild(b);
+    });
+  }
+  function renderJobs(d) {
+    var list = d.items || [], box = JV.body;
+    renderJobTabs(d.counts || {});
+    box.textContent = '';
+    JV.count.textContent = twT('admin.jobs.count', { n: twFormatNumber(d.total || 0) });
+    pager(JV.pag, d.page, Math.ceil((d.total || 0) / d.limit), function (p) { JV.page = p; loadJobs(); });
+    if (!list.length) { msg(box, 'admin.jobs.empty'); return; }
+    var table = el('table', 'adm-utable'), head = el('tr');
+    ['admin.jobs.col.job', 'admin.jobs.col.status', 'admin.jobs.col.applicants', 'admin.jobs.col.expires',
+     'admin.jobs.col.created', 'admin.users.col.actions'].forEach(function (k) {
+      var th = el('th', null, twT(k));
+      th.scope = 'col';
+      head.appendChild(th);
+    });
+    table.appendChild(el('thead')).appendChild(head);
+    var tbody = el('tbody');
+    table.appendChild(tbody);
     list.forEach(function (j) {
-      var active = j.status === 'active';
-      var r = row(j.title, [j.company_name], pill(twT(active ? 'admin.jobs.active' : 'admin.jobs.paused'), active ? 'ok' : 'warn'));
-      r.acts.appendChild(btn('danger', 'delete', 'admin.jobs.delete', function () {
-        run('job.delete', { id: j.id }).then(function (res) { if (res && res.ok) loadJobs(); });
+      var id = Number(j.id), st = jobState(j.status), tr = el('tr');
+      var who = cell(tr, 'adm-u-who'), nm = el('span', 'adm-u-name');
+      nm.appendChild(el('span', 'adm-u-title', j.title || '—'));
+      if (j.company_id) {
+        var co = el('a', 'adm-u-sub', j.company_name || twT('admin.user.unnamed'));
+        co.href = '/admin-view?id=' + Number(j.company_id);
+        nm.appendChild(co);
+      }
+      who.appendChild(nm);
+      cell(tr, 'adm-u-type').appendChild(pill(twT('admin.jobs.s.' + st), JOB_PILL[st]));
+      cell(tr, 'adm-u-email').textContent = twT('admin.jobs.applicants', { n: twFormatNumber(j.applicant_count || 0) });
+      cell(tr, 'adm-u-date').textContent = j.expires_at ? twFormatDate(j.expires_at) : '—';
+      cell(tr, 'adm-u-date').textContent = j.created_at ? twFormatDate(j.created_at) : '—';
+      var acts = cell(tr, 'adm-u-acts').appendChild(el('div', 'adm-u-btns'));
+      acts.appendChild(btn('danger', 'delete', 'admin.jobs.delete', function () {
+        run('job.delete', { id: id, title: j.title || '', n: twFormatNumber(j.applicant_count || 0) })
+          .then(function (res) { if (res && res.ok) loadJobs(); });
       }));
-      BODY.jobs.appendChild(r.row);
+      tbody.appendChild(tr);
     });
+    box.appendChild(table);
   }
 
   // ── reports ──
@@ -812,7 +892,11 @@
     // unified search → a job result opens the jobs section filtered by that title
     document.addEventListener('tw-adm:pick', function (e) {
       var d = (e && e.detail) || {};
-      if (d.section === 'jobs' && $('jobSearch')) { $('jobSearch').value = d.q || ''; renderJobs(d.q || ''); }
+      if (d.section === 'jobs' && JV.search) {
+        JV.search.value = d.q || '';
+        JV.q = String(d.q || '').trim(); JV.status = ''; JV.page = 1;
+        loadJobs();
+      }
     });
     show();
   }

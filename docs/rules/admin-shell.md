@@ -1,4 +1,4 @@
-# Admin Shell (task 5.3a · 5.3b · 5.3a3)
+# Admin Shell (task 5.3a · 5.3b · 5.3a3 · 5.3j)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس صفحة أدمن (`admin.html` · `admin-email.html` · `admin-view.html` — 5.3b).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25a · جلسة الأدمن: §25 + `docs/rules/auth-identity.md → Admin Authentication`.
@@ -39,4 +39,6 @@
 
 17. **النشاط المباشر:** كرت الرئيسية = آخر 8 (`GET /admin/activity?limit=8`) + «عرض الكل» → قسم `#activity` (سطر بالـ registry) بصفحات من نفس الـ endpoint. ❌ قائمة بدون حد. الأعداد المعروضة عبر `twFormatNumber` (SYSTEMS_INDEX §59a).
 
-Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول · E: admin-view برّا اللوحة + تغيير النوع بدون الكلمة ما بيمرق · F: قائمة جانبية / نافذة موبايل · بحث · حالة · رسم) · `python -m pytest tests/test_admin_session_security.py -q` (دخول `<panel>/login` 401 / 429 · القديم 404). · `python -m pytest tests/test_admin_insights.py -q` (endpoints + السجل الأمني + جدول المستخدمين / التصدير / صفحات النشاط — 5.3a3) · G بـ `test_admin_shell_runtime.js` (استعلام الجدول · أرقام الصفحات · التصدير بتأكيد · البحث بعد التوقف).
+18. **الوظائف (task 5.3j — SYSTEMS_INDEX §25e):** القائمة من `GET /admin/jobs` بس — كل الحالات (نشطة · موقوفة · مغلقة · منتهية · مؤرشفة)، الحالة جاية من السيرفر (`job_eff_status_sql` = توأم `_eff_status`) — ❌ حساب الحالة بالصفحة · ❌ الفيد العام كقائمة أدمن. تبويبات بعدد كل حالة + بحث (عنوان / شركة) + صفحات بالسيرفر + شارة لون لكل حالة (tokens). الحذف النهائي = `run('job.delete')` بالكلمة «حذف» ورسالة فيها عدد المتقدمين؛ السيرفر بيشيل مراحل التوظيف بنفس الـ transaction. أي فلترة «نشطة» بالسيرفر = `job_active_sql` — ❌ `status='active'` لحاله.
+
+Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول · E: admin-view برّا اللوحة + تغيير النوع بدون الكلمة ما بيمرق · F: قائمة جانبية / نافذة موبايل · بحث · حالة · رسم) · `python -m pytest tests/test_admin_session_security.py -q` (دخول `<panel>/login` 401 / 429 · القديم 404). · `python -m pytest tests/test_admin_insights.py -q` (endpoints + السجل الأمني + جدول المستخدمين / التصدير / صفحات النشاط — 5.3a3) · G بـ `test_admin_shell_runtime.js` (استعلام الجدول · أرقام الصفحات · التصدير بتأكيد · البحث بعد التوقف). · `python -m pytest tests/test_admin_jobs.py -q` (قائمة الوظائف بكل الحالات · الحالة SQL = Python · `/stats` · حذف وظيفة إلها متقدمين — 5.3j).

@@ -139,18 +139,20 @@
   }
 
   // ── unified search: users · companies (GET /admin/users?q= — searched on the server, task 5.3a3) ·
-  //    jobs (GET /admin/jobs, loaded once and filtered here) ──
-  var SEARCH_MAX = 5, SEARCH_DELAY = 300, _jobsData = null;
-  function _getList(url, key) {
+  //    jobs (GET /admin/jobs?q= — every state, searched on the server, task 5.3j) ──
+  var SEARCH_MAX = 5, SEARCH_DELAY = 300;
+  function _getList(url) {
     return TwAdminSession.fetch(url, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; })
-      .then(function (d) { return (key ? d && d[key] : d && d.data && d.data.items) || []; })
+      .then(function (d) { return (d && d.data && d.data.items) || []; })
       .catch(function (e) { console.error('[TwAdminShell] search ' + url + ':', e); return []; });
   }
   function loadSearch(q) {
-    if (!_jobsData) _jobsData = _getList('/admin/jobs', 'jobs');
     q = String(q || '').trim();
-    var users = q ? _getList('/admin/users?limit=' + (SEARCH_MAX * 2) + '&q=' + encodeURIComponent(q)) : Promise.resolve([]);
-    return Promise.all([users, _jobsData]).then(function (r) { return { users: r[0], jobs: r[1] }; });
+    if (!q) return Promise.resolve({ users: [], jobs: [] });
+    var enc = encodeURIComponent(q);
+    return Promise.all([_getList('/admin/users?limit=' + (SEARCH_MAX * 2) + '&q=' + enc),
+                        _getList('/admin/jobs?limit=' + SEARCH_MAX + '&q=' + enc)])
+      .then(function (r) { return { users: r[0], jobs: r[1] }; });
   }
   function _has(v, q) { return String(v == null ? '' : v).toLowerCase().indexOf(q) !== -1; }
   // Pure (tests read it): data + query → [{key, items:[{title, sub, href, section?, q?}]}] (empty groups dropped)

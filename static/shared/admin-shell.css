@@ -127,6 +127,7 @@ body.tw-adm-body-page { background: var(--color-surface-page); color: var(--colo
 .tw-adm-pill.is-ok { color: var(--color-status-success); border-color: rgba(var(--color-status-success-rgb), .4); }
 .tw-adm-pill.is-warn { color: var(--color-status-warning); border-color: rgba(var(--color-status-warning-rgb), .4); }
 .tw-adm-pill.is-danger { color: var(--color-status-danger); border-color: rgba(var(--color-status-danger-rgb), .4); }
+.tw-adm-pill.is-muted { color: var(--color-text-muted); }
 .tw-adm-pill.is-co { color: var(--color-brand-secondary-text); }
 .tw-adm-pill.is-edu { color: var(--color-categorical-purple); }
 .tw-adm-pag { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; padding-top: var(--space-4); }

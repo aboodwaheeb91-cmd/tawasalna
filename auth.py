@@ -2681,6 +2681,29 @@ def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
     return status
 
 
+# SQL twins of _eff_status (task 5.3j — ADMIN_ENTITY_MAP §2): every server-side «active» filter and
+# every status filter in SQL goes through these two — never a bare `status='active'` (#14 / #15).
+JOB_STATUSES = ("active", "paused", "closed", "expired")
+
+
+def job_eff_status_sql(a: str = "j") -> str:
+    """CASE expression → 'active' | 'paused' | 'closed' | 'expired' — the same rules as _eff_status()."""
+    return (
+        f"(CASE WHEN {a}.status = 'closed' THEN "
+        f"CASE WHEN COALESCE({a}.closed_at, {a}.expires_at) <= NOW() - INTERVAL '30 days' "
+        f"THEN 'expired' ELSE 'closed' END "
+        f"WHEN {a}.expires_at IS NOT NULL AND {a}.expires_at < NOW() THEN "
+        f"CASE WHEN {a}.expires_at <= NOW() - INTERVAL '30 days' THEN 'expired' ELSE 'closed' END "
+        f"ELSE {a}.status END)"
+    )
+
+
+def job_active_sql(a: str = "j") -> str:
+    """Public «active» = not archived + effective status 'active'. `status = 'active'` first is implied by
+    the CASE (paused / closed never become active) — it is there so the status index can be used."""
+    return f"({a}.status = 'active' AND {a}.archived_at IS NULL AND {job_eff_status_sql(a)} = 'active')"
+
+
 _ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
 
 
@@ -2790,7 +2813,7 @@ def get_jobs(filters: dict = None) -> list:
             where = "WHERE j.status IN ('active','paused') AND j.archived_at IS NULL"
         else:
             # Global public feed: active only (also exclude auto-expired via expires_at)
-            where = "WHERE j.status='active' AND (j.expires_at IS NULL OR j.expires_at > NOW()) AND j.archived_at IS NULL"
+            where = "WHERE " + job_active_sql("j")
         params = {}
         if filters:
             if filters.get("search"):
@@ -3538,6 +3561,34 @@ def archive_job(job_id: int, company_id: int, archived_by: int) -> dict:
         raise
     finally:
         release_conn(conn)
+
+def admin_hard_delete_job(job_id: int) -> dict:
+    """Admin hard delete (task 5.3j — ADMIN_ENTITY_MAP #1). One transaction:
+    job_pipeline_entries (FK job_id = RESTRICT — every application makes one; their stage events /
+    notes CASCADE, appointments.pipeline_entry_id → NULL) first, then the job (applications, job refs,
+    profession targets CASCADE; saved candidates / appointments job_id → NULL).
+    Raises LookupError when the job does not exist. Returns what was removed."""
+    with db_conn() as conn:
+        committed = False
+        try:
+            conn.run("BEGIN")
+            if not conn.run("SELECT id FROM jobs WHERE id=:id FOR UPDATE", id=job_id):
+                raise LookupError("الوظيفة غير موجودة")
+            applicants = int(conn.run("SELECT COUNT(*) FROM job_applications WHERE job_id=:id", id=job_id)[0][0] or 0)
+            conn.run("DELETE FROM job_pipeline_entries WHERE job_id=:id", id=job_id)
+            entries = max(0, int(conn.row_count or 0))
+            conn.run("DELETE FROM jobs WHERE id=:id", id=job_id)
+            conn.run("COMMIT")
+            committed = True
+        finally:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception as e:
+                    print(f"[admin_hard_delete_job] rollback failed job={job_id}: {type(e).__name__}")
+    _cache_del('jobs:')
+    return {"applicants": applicants, "pipeline_entries": entries}
+
 
 def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
     """
@@ -7185,7 +7236,7 @@ def get_company_candidate_suggestions(
             "       pc.name_ar AS profession_name "
             "FROM jobs j "
             "LEFT JOIN profession_categories pc ON pc.id = j.profession_id "
-            "WHERE j.company_id = :cid AND j.status = 'active' AND j.archived_at IS NULL",
+            "WHERE j.company_id = :cid AND " + job_active_sql("j"),
             cid=company_id)
 
         if not job_rows:

@@ -111,22 +111,22 @@
 |---|---|---|
 | `active` — نشطة، بتستقبل طلبات | `jobs.status='active'` و `expires_at` لسا ما خلص | مخزّنة |
 | `paused` — موقوفة مؤقتاً | `jobs.status='paused'` + `paused_at` | مخزّنة |
-| `closed` — مغلقة (يدوياً أو انتهت مدتها) | `status='closed'` + `closed_at` **أو** `active`/`paused` و `expires_at` مضى (< 30 يوم) | مخزّنة أو **محسوبة** — `_eff_status()` (`auth.py ~2650`) |
+| `closed` — مغلقة (يدوياً أو انتهت مدتها) | `status='closed'` + `closed_at` **أو** `active`/`paused` و `expires_at` مضى (< 30 يوم) | مخزّنة أو **محسوبة** — `_eff_status()` (`auth.py`) + توأمها بالـ SQL `job_eff_status_sql()` (5.3j) |
 | `expired` — انتهت صلاحيتها (30 يوم بعد الإغلاق) | `_eff_status()`: مرجع الإغلاق + 30 يوم | **محسوبة فقط** (`effective_status` بالرد) |
 | مؤرشفة (محذوفة من الشركة) | `jobs.archived_at IS NOT NULL` — مستقلة عن `status` | مخزّنة |
 | محذوفة نهائياً | `DELETE FROM jobs` (أدمن بس) | — |
 
-> `status` بالـ DB ممكن يضل `active` لوظيفة فعلياً `closed` / `expired` — الحقيقة بـ `effective_status` المحسوبة.
+> `status` بالـ DB ممكن يضل `active` لوظيفة فعلياً `closed` / `expired` — الحقيقة بـ `effective_status` المحسوبة. **من 5.3j:** أي فلترة «نشطة» بالسيرفر = `job_active_sql()` (فيد · `/home/feed` · `jobs_count` صفحة الشركة · `/stats` · لوحة القيادة · الاقتراحات) — ❌ `status='active'` لحاله.
 
 ### 2.2 مين بيشوف شو
 
 | الحالة | زائر / حساب شخصي | الشركة صاحبتها | المتقدم عليها | الأدمن |
 |---|---|---|---|---|
-| active | بالفيد العام (`GET /jobs` · `/home/feed`) + صفحة الشركة + `/job-detail` · يقدّم | كل شي: تعديل · إيقاف · إغلاق · تغيير المدة · أرشفة · المتقدمون | بيشوفها بـ «طلباتي» | ✅ `GET /admin/jobs` |
-| paused | مش بالفيد · بصفحة الشركة (ما بيقدر يقدّم) · `/job-detail` | استئناف · إغلاق · تعديل · أرشفة | بطلباته | ❌ ما بتطلع بقائمة الأدمن |
-| closed | مش بالفيد · مش بصفحة الشركة (بتنعدّ بـ `closed_count`) · `/job-detail` بيفتح (التقديم مرفوض) | تعديل الحقول (بدون المدة) · أرشفة · المتقدمون | بطلباته | ❌ |
-| expired | متل closed | **ممنوع التعديل** (403) · أرشفة بس | بطلباته | ❌ |
-| مؤرشفة | 404 بكل مكان عام | بتبويب «المؤرشفة» (`GET /company/jobs?view=archived`) — قراءة بس | بطلباته (`get_user_applications` ما بيفلتر الأرشيف) | ❌ |
+| active | بالفيد العام (`GET /jobs` · `/home/feed`) + صفحة الشركة + `/job-detail` · يقدّم | كل شي: تعديل · إيقاف · إغلاق · تغيير المدة · أرشفة · المتقدمون | بيشوفها بـ «طلباتي» | ✅ `GET /admin/jobs` (كل الحالات — 5.3j) |
+| paused | مش بالفيد · بصفحة الشركة (ما بيقدر يقدّم) · `/job-detail` | استئناف · إغلاق · تعديل · أرشفة | بطلباته | ✅ تبويب «موقوفة» (5.3j) |
+| closed | مش بالفيد · مش بصفحة الشركة (بتنعدّ بـ `closed_count`) · `/job-detail` بيفتح (التقديم مرفوض) | تعديل الحقول (بدون المدة) · أرشفة · المتقدمون | بطلباته | ✅ تبويب «مغلقة» (5.3j) |
+| expired | متل closed | **ممنوع التعديل** (403) · أرشفة بس | بطلباته | ✅ تبويب «منتهية» (5.3j) |
+| مؤرشفة | 404 بكل مكان عام | بتبويب «المؤرشفة» (`GET /company/jobs?view=archived`) — قراءة بس | بطلباته (`get_user_applications` ما بيفلتر الأرشيف) | ✅ تبويب «مؤرشفة» (5.3j) |
 
 ### 2.3 الانتقالات
 
@@ -142,19 +142,20 @@
 | closed / expired → active | — | **ممنوع** | `set_job_status` بيرفض «لا يمكن إعادة فتح…» |
 | أي حالة → مؤرشفة | الشركة | يدوي | `DELETE /company/jobs/{id}` → `archive_job` (حذف ناعم) |
 | مؤرشفة → غير مؤرشفة | — | **ما في endpoint** | — |
-| أي حالة → محذوفة | الأدمن | يدوي | `DELETE /admin/jobs/{id}` (حذف نهائي) |
+| أي حالة → محذوفة | الأدمن | يدوي | `DELETE /admin/jobs/{id}` (حذف نهائي — مراحل التوظيف + الوظيفة بنفس الـ transaction، 5.3j) |
 
 ### 2.4 الأدمن هلق
 
 | الإجراء | Endpoint | شاشة |
 |---|---|---|
-| قائمة | `GET /admin/jobs` = `get_jobs({})` = **نفس الفيد العام** (active وغير منتهية بس) | ✅ لوحة → الوظائف |
-| حذف نهائي | `DELETE /admin/jobs/{id}` | ✅ (تأكيد) — **بيفشل غالباً** (مشكلة #1) |
+| قائمة | `GET /admin/jobs` = `admin_insights.jobs_list` — **كل الحالات** (نشطة · موقوفة · مغلقة · منتهية · مؤرشفة) + عدد كل حالة + بحث عنوان / شركة + صفحات بالسيرفر + `applicant_count` (5.3j) | ✅ لوحة → الوظائف (تبويبات + شارة لون) |
+| حذف نهائي | `DELETE /admin/jobs/{id}` → `auth.admin_hard_delete_job` (مراحل التوظيف ثم الوظيفة بـ transaction وحدة · 404 لغير الموجودة) | ✅ (كتابة «حذف» + عدد المتقدمين بالرسالة) |
 | أي شي تاني | — | ❌ |
 
 ### 2.5 ناقص للتحكم الكامل
 
-- قائمة أدمن بكل الحالات (active / paused / closed / expired / مؤرشفة) + فلتر + بحث + pagination + `effective_status` + عدد المتقدمين.
+- ~~قائمة أدمن بكل الحالات + فلتر + بحث + pagination + عدد المتقدمين~~ ✅ 5.3j.
+- **الباقي = المرحلة 2 من 5.3j (PR تاني)** + #7 · #13 · إعادة فتح الشركة لوظيفتها المغلقة:
 - **إخفاء / تعليق من الأدمن** (حالة منفصلة عن حالات الشركة، مثلاً `admin_hidden_at` + سبب) بدل الحذف النهائي.
 - **إرجاع التفعيل** (closed / expired → active) و**تمديد المدة** — هلق ولا حدا بيقدر (ولا الشركة نفسها).
 - إلغاء الأرشفة.
@@ -164,8 +165,8 @@
 
 ### 2.6 ملاحظات خطر
 
-- **حذف الأدمن النهائي:** `job_applications` CASCADE · `company_candidate_job_refs` CASCADE · `job_profession_targets` · `company_saved_candidates.job_id` → NULL · `appointments.job_id` → NULL · **`job_pipeline_entries.job_id` = RESTRICT** → الحذف بيفشل لأي وظيفة إلها متقدم (كل تقديم بيعمل entry).
-- `status` المخزّن ≠ الحالة الحقيقية (محسوبة) → أي فلترة بالـ DB على `status='active'` لحالها غلط (مثال: `/stats` بيعدّ وظائف منتهية المدة كـ «نشطة»).
+- **حذف الأدمن النهائي:** `job_applications` CASCADE · `company_candidate_job_refs` CASCADE · `job_profession_targets` · `company_saved_candidates.job_id` → NULL · `appointments.job_id` → NULL · **`job_pipeline_entries.job_id` = RESTRICT** → من 5.3j الحذف بيشيلهم أول بنفس الـ transaction (أحداثهم وملاحظاتهم CASCADE).
+- `status` المخزّن ≠ الحالة الحقيقية (محسوبة) → أي فلترة بالـ DB على `status='active'` لحالها غلط — من 5.3j كلها عبر `job_active_sql()`.
 - `paused` ما بيوقف العدّاد فعلياً: إذا `expires_at` مضى وهي موقوفة → بتصير `closed` محسوبة، والاستئناف بعدها مرفوض (مشكلة #6).
 - `closed` و `expired` = **حالات بلا مخرج** (لا للشركة ولا للأدمن).
 
@@ -459,25 +460,25 @@
 
 ## 20. مشاكل لقيتها
 
-> مسجّلة فقط — **ما انصلحت بهالمهمة** (توثيق بس). كل وحدة بتحتاج مهمة لحالها.
+> مسجّلة بمهمة 5.3m. المشطوب انصلح (رقم المهمة جنبه).
 
 | # | الخطورة | المشكلة | المكان | الأثر |
 |---|---|---|---|---|
-| 1 | عالية | حذف الأدمن للوظيفة بيفشل لأي وظيفة إلها متقدم: `job_pipeline_entries.job_id` = `ON DELETE RESTRICT` وكل تقديم بيعمل entry، والـ endpoint ما بيلتقط الخطأ | `server.py → admin_delete_job` | زر «حذف» باللوحة بيرجّع 500 للوظائف الحقيقية؛ الحذف بينجح بس لوظيفة بدون متقدمين |
+| 1 | عالية | ~~حذف الأدمن للوظيفة بيفشل لأي وظيفة إلها متقدم: `job_pipeline_entries.job_id` = `ON DELETE RESTRICT` وكل تقديم بيعمل entry، والـ endpoint ما بيلتقط الخطأ~~ ✅ 5.3j | `server.py → admin_delete_job` | زر «حذف» باللوحة بيرجّع 500 للوظائف الحقيقية؛ الحذف بينجح بس لوظيفة بدون متقدمين |
 | 2 | عالية | بلاغ على وظيفة: `twReportDialog({reportedId: _jobId, reportedType: 'job'})` بيحط **رقم الوظيفة** بـ `reports.reported_id` اللي هو FK → `users(id)` | `static/job/job-detail.js ~642` · `server.py → submit_report` · `auth.py → ensure_reports_table` | إذا ما في user بنفس الرقم → FK error → 500 «خطأ في الخادم»؛ إذا في → البلاغ بينربط بحساب ما إله علاقة (اسم غلط باللوحة، وحذف هالحساب بيمسح البلاغ) |
 | 3 | متوسطة | موافقة KYC ما بتغيّر `step` (بيضل `review`) | `auth.py → admin_approve_kyc` | لوحة القيادة `pending_kyc` و «النشاط» (`step='review'`) بيعدّوا الموثّقين كـ «بانتظار المراجعة» للأبد |
 | 4 | متوسطة | 3 مصادر للتوثيق: `users.is_verified` (KYC) · `profiles.is_verified` (زر الأدمن — **هو اللي بيطلع بالشارة العامة**) · `company_profiles.verified_co` (ما في كاتب) | `auth.py` · `server.py → verify_user` | موافقة KYC ما بتعطي شارة؛ رفض KYC ما بيلغي `users.is_verified` إذا كان موافق عليه قبل |
 | 5 | متوسطة | `admin_approve_kyc` / `admin_reject_kyc` ما بيفحصوا وجود طلب ولا إنه بـ `review` | `auth.py` | موافقة على حساب ما قدّم شي = `users.is_verified=TRUE` (الـ UPDATE على KYC بيأثر على 0 صف) |
 | 6 | متوسطة | `POST /kyc/docs` ما بيفحص الـ step | `auth.py → upload_kyc_docs` | بيقدر يتخطى توثيق الإيميل / الجوال ويوصل `review` مباشرة؛ بدون صف KYC بيرجّع «submitted» وهو ما حفظ شي |
 | 7 | متوسطة | الإيقاف المؤقت ما بيجمّد المدة: `_eff_status` بيعتبر `paused` منتهية إذا `expires_at` مضى | `auth.py → _eff_status` / `set_job_status` | شركة بتوقف وظيفة أطول من المدة الباقية → بتصير «مغلقة» وما بتقدر ترجّعها |
-| 8 | متوسطة | `GET /admin/jobs` = `get_jobs({})` = الفيد العام | `server.py → admin_list_jobs` | الأدمن ما بيشوف الوظائف الموقوفة / المغلقة / المنتهية / المؤرشفة أبداً |
+| 8 | متوسطة | ~~`GET /admin/jobs` = `get_jobs({})` = الفيد العام~~ ✅ 5.3j | `server.py → admin_list_jobs` | الأدمن ما بيشوف الوظائف الموقوفة / المغلقة / المنتهية / المؤرشفة أبداً |
 | 9 | متوسطة | `POST /admin/message` بيطبع الرسالة بالـ log وبيرجّع `success` بدون إرسال | `server.py → admin_send_message` | الأدمن بيشوف «تم» والمستخدم ما بيوصله شي (F9) · نص الرسالة بالـ log |
 | 10 | متوسطة | `PUT /admin/user/{id}/password` بيقبل ≥ 6 أحرف — مش `_password_policy_error` | `server.py → admin_reset_password` | قاعدة كلمة سر تانية (CLAUDE.md: قاعدة وحدة) |
 | 11 | منخفضة | `GET /admin/reports` بيبلع أي خطأ وبيرجّع قائمة فاضية | `server.py → admin_get_reports` | عطل DB بيبين «ما في بلاغات» (F9) |
 | 12 | منخفضة | `reports.reported_id` CASCADE | `auth.py → ensure_reports_table` | حذف الحساب المبلَّغ عنه بيمسح الدليل |
 | 13 | منخفضة | استئناف وظيفة أو تغيير مدتها ما بيجدول تذكير `job_expiring_soon` جديد | `server.py → update_job_endpoint` · `auth.py → set_job_status` | التذكير القديم بيتخطّى نفسه (stale) وما في جديد → الشركة ما بتنبّه |
-| 14 | منخفضة | `/stats` بيعدّ `status='active'` بدون فحص `expires_at` | `server.py → stats` | رقم «الوظائف» أعلى من الحقيقي |
-| 15 | منخفضة | `/home/feed` بيفلتر `status IN ('active','open')` — `open` مش حالة موجودة | `server.py ~1171` | قيمة ميتة (بدون أثر حالياً) |
+| 14 | منخفضة | ~~`/stats` بيعدّ `status='active'` بدون فحص `expires_at`~~ ✅ 5.3j | `server.py → stats` | رقم «الوظائف» أعلى من الحقيقي |
+| 15 | منخفضة | ~~`/home/feed` بيفلتر `status IN ('active','open')` — `open` مش حالة موجودة~~ ✅ 5.3j | `server.py ~1171` | قيمة ميتة (بدون أثر حالياً) |
 | 16 | منخفضة | `admin.js` بيبعت `{verified: true}` والسيرفر بيقرأ `is_verified` (افتراضي TRUE) | `static/admin/admin.js:22` | بيشتغل بالصدفة؛ أي «إلغاء» من هالمسار رح يوثّق بدل ما يلغي |
 | 17 | منخفضة | `my/applications` بيرجّع الحالة الداخلية للمتقدم (`viewed` / `interview` / `rejected`…) بينما 5.1d بيعتبر المراحل الوسطى داخلية للشركة | `auth.py → get_user_applications` · `profile-v2.apps.js` | قرار منتج مش محسوم — للمراجعة |
 | 18 | منخفضة | مراحل / حالات بدون كاتب: `pipeline.stage` `offer` / `withdrawn` · `job_pipeline_entries.archived_at` · `profession_suggestions.status` · `company_profiles.verified_co` | — | قيم بالـ schema بدون مسار — أي شاشة أدمن لازم تعرف إنها ما بتصير |

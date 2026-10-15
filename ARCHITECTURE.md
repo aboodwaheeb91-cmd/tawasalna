@@ -6364,8 +6364,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/maintenance/migrate-data-images?dry_run=1` | `admin_migrate_data_images` | Move legacy `data:` images to Storage (PR-7c); `dry_run=1` default = count only |
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
 | PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
-| GET | `/admin/jobs` | `admin_list_jobs` | List jobs |
-| DELETE | `/admin/jobs/{job_id}` | `admin_delete_job` | Delete job |
+| GET | `/admin/jobs` | `admin_list_jobs` | Every job in every state — `?q=&status=active\|paused\|closed\|expired\|archived&page=&limit≤100` → `{ok, data:{items, total, page, limit, counts}}` (task 5.3j · SYSTEMS_INDEX §25e) |
+| DELETE | `/admin/jobs/{job_id}` | `admin_delete_job` | Hard delete — pipeline entries + job in one transaction → `{success, removed:{applicants, pipeline_entries}}` · 404 unknown (task 5.3j — #1) |
 | GET | `/admin/reports` | `admin_get_reports` | List content reports (§58) |
 | PUT | `/admin/reports/{report_id}/resolve` | `resolve_report` | Resolve report |
 | GET | `/admin/errors` | `admin_errors` | JS error logs |
@@ -11404,7 +11404,7 @@ HTTP 409 Conflict
 
 ### admin hard delete unchanged
 
-`DELETE /admin/jobs/{job_id}` remains a true hard DELETE (admin-only). Admin hard delete still requires resolving pipeline entries first (RESTRICT FK enforced at DB level).
+`DELETE /admin/jobs/{job_id}` remains a true hard DELETE (admin-only). Since task 5.3j `auth.admin_hard_delete_job` removes the job's `job_pipeline_entries` (RESTRICT FK) in the same transaction before the job — SYSTEMS_INDEX §25e.
 
 ### Source functions (auth.py)
 
