@@ -6368,6 +6368,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/jobs/{job_id}/hide` | `admin_hide_job` | Hide from every public place — body `{reason}` (required, ≤ 500) → `{ok, data:{id, hidden, notified}}` · 404 · 409 already hidden · 422 no reason (task 5.3j phase 2 · §25e) |
 | POST | `/admin/jobs/{job_id}/unhide` | `admin_unhide_job` | Back to its own state → `{ok, data}` · 409 not hidden |
 | POST | `/admin/jobs/{job_id}/reactivate` | `admin_reactivate_job_endpoint` | closed / expired → active, `{duration_days}` ∈ 3 · 7 · 14 · 30 → `expires_at = NOW() + days` · 409 other state / archived · 422 bad duration |
+| POST | `/admin/jobs/{job_id}/status` | `admin_job_status` | `{status: paused\|active\|closed, reason}` — the company's `set_job_status` (reason required for closed) → `{ok, data}` · 404 · 409 wrong state / archived / closed → active (use reactivate) · 422 (task 5.3j phase 3) |
+| POST | `/admin/jobs/{job_id}/unarchive` | `admin_unarchive_job_endpoint` | archived → its own state → `{ok, data}` · 409 not archived |
 | POST | `/admin/jobs/{job_id}/extend` | `admin_extend_job_endpoint` | active / paused → `expires_at + days` · 409 other state / archived · 422 bad duration |
 | DELETE | `/admin/jobs/{job_id}` | `admin_delete_job` | Hard delete — pipeline entries + job in one transaction → `{success, removed:{applicants, pipeline_entries}}` · 404 unknown (task 5.3j — #1) |
 | GET | `/admin/reports` | `admin_get_reports` | List content reports (§58) |
@@ -9885,6 +9887,8 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE;
 ```
+
+**Job status change (task 5.3j phase 3)** — `PATCH /company/jobs/{id}/status {status, duration_days?}` and `POST /admin/jobs/{id}/status` both call `auth.set_job_status`; a closed (not expired) job reopens only with `duration_days` ∈ 3 · 7 · 14 · 30 (`auth._reopen_job`); no-op / wrong state / archived → 422 (company) · 409 (admin) — SYSTEMS_INDEX §25e.
 
 **`jobs` admin hide (task 5.3j phase 2)** — `_migrate_job_lifecycle` (critical, idempotent): `admin_hidden_at TIMESTAMPTZ NULL` + `admin_hidden_reason TEXT NULL`. Set / cleared only by `auth.admin_set_job_hidden`; any value = not public (`job_active_sql` · `get_jobs` · `get_job` · `apply_job`) — SYSTEMS_INDEX §25e.
 

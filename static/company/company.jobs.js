@@ -189,6 +189,13 @@
           if (window.openApplicantsModal) openApplicantsModal(parseInt(card.dataset.jid, 10));
           return;
         }
+        var reopenBtn = e.target.closest('.owner-reopen-btn');
+        if (reopenBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          reopenJob(parseInt(card.dataset.jid, 10));
+          return;
+        }
         var manageBtn = e.target.closest('.job-manage-btn');
         if (manageBtn) {
           e.preventDefault();
@@ -1119,6 +1126,39 @@
     });
   }
 
+  // ── Job management — reopen a closed job with a new duration (task 5.3j) ──
+  // Durations = the job form's own #j-dur options (the page's one list of allowed durations).
+  function reopenJob(jobId) {
+    var src = document.getElementById('j-dur');
+    var form = document.createElement('label');
+    form.className = 'mf';
+    form.textContent = twT('company.job.reopen.label');
+    var sel = document.createElement('select');
+    sel.className = 'ep-select';
+    if (src) Array.prototype.forEach.call(src.options, function (o) { sel.appendChild(new Option(o.textContent, o.value)); });
+    sel.value = '7';
+    form.appendChild(sel);
+    twModal({
+      title: twT('company.job.reopen.title'), content: form,
+      actions: [
+        { text: twT('common.cancel'), variant: 'secondary' },
+        { text: twT('company.job.reopen.ok'), variant: 'primary', onClick: function () {
+          return twApi('/company/jobs/' + parseInt(jobId, 10) + '/status', {
+            method: 'PATCH', body: { status: 'active', duration_days: parseInt(sel.value, 10) },
+          }).then(function (res) {
+            if (!res.ok) {
+              if (window.showToast) showToast(twApiMessage(res, twT('company.job.reopen.failed')), 'error');
+              return false;
+            }
+            if (window.showToast) showToast(twT('company.job.reopen.done'));
+            if (window.loadJobs) loadJobs();
+            return true;
+          });
+        } },
+      ],
+    });
+  }
+
   // ── Event bindings ─────────────────────────────────────────────
   function _bindJobEvents() {
     var q = function (id) { return document.getElementById(id); };
@@ -1163,6 +1203,7 @@
   window._closePostJobOverlay  = _closePostJobOverlay;
   window.toggleJobStatus       = toggleJobStatus;
   window.closeJob              = closeJob;
+  window.reopenJob             = reopenJob;
   window._onJobLocModeChange   = _onJobLocModeChange;
   window._onWmodeChange        = _onWmodeChange;
   window._onSalShowChange      = _onSalShowChange;

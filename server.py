@@ -143,7 +143,7 @@ from auth import (
     _migrate_company_branches, get_company_branches, save_company_branches,
     _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _eff_status, _ALLOWED_DURATIONS,
     job_active_sql, admin_hard_delete_job, schedule_job_expiry_reminder,
-    admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError,
+    admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError, admin_unarchive_job, JOB_HIDE_REASON_MAX,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -1836,7 +1836,8 @@ class AppStatusInput(BaseModel):
     status: str  # pending, viewed, accepted, contacted, interview, hired, rejected
 
 class JobStatusInput(BaseModel):
-    status: str  # active, paused
+    status: str  # active, paused, closed
+    duration_days: Optional[int] = None  # reopen a closed job (task 5.3j) — 3 / 7 / 14 / 30
 
 class SkillInput(BaseModel):
     skill: str
@@ -5965,7 +5966,7 @@ def set_job_status_endpoint(job_id: int, data: JobStatusInput, token=Depends(ver
     finally:
         release_conn(conn)
     try:
-        set_job_status(job_id, cid, data.status)
+        set_job_status(job_id, cid, data.status, data.duration_days)
     except ValueError as e:
         raise HTTPException(422, str(e))
     return {"status": "success"}
@@ -6182,7 +6183,12 @@ _JOB_ADMIN_NOTICE = {
     "unhidden":    ("أعادت الإدارة إظهار وظيفتك", "«{title}» تظهر في الموقع من جديد."),
     "reactivated": ("أعادت الإدارة تفعيل وظيفتك", "«{title}» نشطة الآن لمدة {days} يوماً."),
     "extended":    ("مدّدت الإدارة مدة وظيفتك", "أُضيف {days} يوماً إلى مدة «{title}»."),
+    "paused":      ("أوقفت الإدارة التقديم على وظيفتك", "«{title}» موقوفة الآن، ومدتها محفوظة."),
+    "resumed":     ("استأنفت الإدارة التقديم على وظيفتك", "«{title}» تستقبل الطلبات من جديد."),
+    "closed":      ("أغلقت الإدارة وظيفتك", "«{title}» أُغلقت. السبب: {reason}"),
+    "unarchived":  ("ألغت الإدارة أرشفة وظيفتك", "«{title}» رجعت إلى قائمة وظائفك."),
 }
+_ADMIN_JOB_STATUS = {"paused": "paused", "active": "resumed", "closed": "closed"}   # body status → notice
 
 
 def _notify_company_job_admin(info: dict, kind: str, days: int = 0) -> bool:
@@ -6256,6 +6262,37 @@ def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(d
         info = admin_extend_job(job_id, days)
         return api_ok({**_job_out(info), "notified": _notify_company_job_admin(info, "extended", int(days))})
     return _admin_job_action("admin_extend_job", run)
+
+
+@app.post("/admin/jobs/{job_id}/status")
+def admin_job_status(job_id: int, request: Request, data: dict = Body(default={})):
+    """Pause / resume / close from the admin — the same auth.set_job_status as the company (task 5.3j).
+    Closing needs a reason (sent to the company). Reopening a closed job = /reactivate."""
+    check_admin(request)
+    def run():
+        st = str((data or {}).get("status") or "")
+        if st not in _ADMIN_JOB_STATUS:
+            raise ValueError("الحالة يجب أن تكون: paused أو active أو closed")
+        reason = str((data or {}).get("reason") or "").strip()
+        if st == "closed" and not reason:
+            raise ValueError("اكتب سبب الإغلاق")
+        if len(reason) > JOB_HIDE_REASON_MAX:
+            raise ValueError(f"السبب أطول من {JOB_HIDE_REASON_MAX} حرف")
+        info = set_job_status(job_id, None, st)   # closed → active without a duration = 409 (use /reactivate)
+        info["reason"] = reason
+        return api_ok({**_job_out(info), "status": st,
+                       "notified": _notify_company_job_admin(info, _ADMIN_JOB_STATUS[st])})
+    return _admin_job_action("admin_job_status", run)
+
+
+@app.post("/admin/jobs/{job_id}/unarchive")
+def admin_unarchive_job_endpoint(job_id: int, request: Request):
+    check_admin(request)
+    def run():
+        info = admin_unarchive_job(job_id)
+        return api_ok({"id": info["id"], "archived": False,
+                       "notified": _notify_company_job_admin(info, "unarchived")})
+    return _admin_job_action("admin_unarchive_job", run)
 
 
 @app.delete("/admin/jobs/{job_id}")
