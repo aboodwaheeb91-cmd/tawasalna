@@ -40,7 +40,7 @@ def _t_validate(body: _M):
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
-    monkeypatch.setattr(auth, "get_password_changed_epoch", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
     srv._pwd_changed_cache.clear()
 
 

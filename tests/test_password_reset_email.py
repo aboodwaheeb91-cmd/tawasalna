@@ -70,6 +70,7 @@ def db():
     auth.release_conn(c)
     auth._migrate_password_reset_tokens()
     auth._migrate_password_reset_tokens()   # idempotent
+    auth._migrate_session_version()
     return auth
 
 

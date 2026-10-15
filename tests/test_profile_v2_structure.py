@@ -68,10 +68,10 @@ check("A no profiles row → 0", none["score"] == 0)
 
 print("\nB — GET /profile/{id}/score (privacy: checklist = owner / admin only)")
 from fastapi.testclient import TestClient  # noqa: E402
-_orig = (server.get_conn, server.release_conn, server._password_changed_epoch)
+_orig = (server.get_conn, server.release_conn, server._session_state)
 server.get_conn = lambda: FakeConn(FULL_PROF, dict(FULL_COUNTS, courses=0))
 server.release_conn = lambda c: None
-server._password_changed_epoch = lambda uid: None   # no DB for the session-invalidation lookup
+server._session_state = lambda uid: None   # no DB for the session-invalidation lookup
 client = TestClient(server.app)
 try:
     guest = client.get("/profile/7/score")
@@ -81,7 +81,7 @@ try:
                        headers={"Authorization": "Bearer " + server._jwt_encode({"user_id": 7, "user_type": "emp"})})
     bad = client.get("/profile/7/score", headers={"X-Admin-Token": "not-a-valid-admin-jwt"})
 finally:
-    server.get_conn, server.release_conn, server._password_changed_epoch = _orig
+    server.get_conn, server.release_conn, server._session_state = _orig
 g, o, w, b = (x.json() if x.status_code == 200 else {} for x in (guest, other, owner, bad))
 check("B visitor (no JWT) → score + level only — no items / tips",
       guest.status_code == 200 and g.get("score") == 95 and set(g) == {"score", "level"}, (guest.status_code, g))

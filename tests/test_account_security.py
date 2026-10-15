@@ -35,7 +35,7 @@ def fake_db(monkeypatch):
             state["deleted"].append((sql, kw))
 
     monkeypatch.setattr(server, "check_user_password", check)
-    monkeypatch.setattr(server, "set_user_password", lambda uid, pw: state["set"].append((uid, pw)))
+    monkeypatch.setattr(server, "set_user_password", lambda uid, pw: state["set"].append((uid, pw)) or {"changed": 0, "sv": 1})
     monkeypatch.setattr(server, "get_conn", lambda: _Conn())
     monkeypatch.setattr(server, "release_conn", lambda c: None)
     monkeypatch.setattr(server, "_cache_del", lambda k: None)

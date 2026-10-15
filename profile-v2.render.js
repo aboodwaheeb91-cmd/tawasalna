@@ -957,7 +957,8 @@ window.renderProfile = function renderProfile(res){
 
 // ── Owner hydration generation counter (VM-01-BFCACHE) ──
 // Incremented on every session revoke / account switch via the auth-sync handler.
-// Owner hydration Promises capture this value at start; on resolve they re-check
+// Owner hydration Promises and every getProfile request (initial load + the auth-sync
+// re-verify paths — 5.0b) capture this value at start; on resolve they re-check
 // to ensure the session was not revoked while the request was in-flight.
 // See: docs/design-system/VIEWER-MODES.md §VM-01-BFCACHE
 window._scOwnerHydrationGeneration = 0;
@@ -986,6 +987,7 @@ function _scShowLoadError(kind){
 }
 window._scShowLoadError = _scShowLoadError;
 
+// @vm-extract-begin: p2-initial-load
 (function(){
   if(!_scProfileId){ _scShowLoadError('no_id'); return; }
 
@@ -994,8 +996,12 @@ window._scShowLoadError = _scShowLoadError;
     var errEl=document.getElementById('scErrorState');
     if(ld){ ld.style.display=''; }
     if(errEl){ errEl.hidden = true; }
+    // Generation guard (5.0b): a reply that lands after a session change (logout / switch
+    // while in flight) is dropped — the auth-sync handler below re-fetches for the new session.
+    var _reqGen = window._scOwnerHydrationGeneration;
     getProfile(_scProfileId)
       .then(function(res){
+        if (_reqGen !== window._scOwnerHydrationGeneration) return;
         window.renderProfile(res);
         // Owner-only hydration: start loading /full AFTER renderProfile confirms viewer_type.
         // Public state (window._scProfile) must never contain dob/phone/email.
@@ -1032,6 +1038,7 @@ window._scShowLoadError = _scShowLoadError;
         // @vm-extract-end: p2-hydration
       })
       .catch(function(e){
+        if (_reqGen !== window._scOwnerHydrationGeneration) return;
         if(e && e.status) console.warn('[profile] load failed: HTTP ' + e.status);
         else console.error('[profile] load/render failed:', e);
         _scShowLoadError(e && (e.status === 404 || e.status === 422) ? 'not_found' : 'load');
@@ -1043,6 +1050,7 @@ window._scShowLoadError = _scShowLoadError;
 
   _loadProfile();
 })();
+// @vm-extract-end: p2-initial-load
 
 // ── Profile Metrics soft refresh ──
 // Uses GET /profile/{id}/metrics — read-only, no view recording, no full re-render.
@@ -1564,8 +1572,12 @@ window._scShowLoadError = _scShowLoadError;
        window._scViewerType === 'owner') {
       // Background re-verify only — page state is still correct for this owner
       if(window.getProfile && window._scProfileId){
+        var _verGen = window._scOwnerHydrationGeneration;   // stale reply guard (5.0b)
         window.getProfile(window._scProfileId)
-          .then(function(res){ if(window.renderProfile) window.renderProfile(res); })
+          .then(function(res){
+            if(_verGen !== window._scOwnerHydrationGeneration) return;
+            if(window.renderProfile) window.renderProfile(res);
+          })
           .catch(function(err){
             var _msg = (err && err.message) ? String(err.message) : '';
             if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){
@@ -1602,8 +1614,12 @@ window._scShowLoadError = _scShowLoadError;
 
     // Background re-verify — gets authoritative viewer_type from server.
     if(window.getProfile && window._scProfileId){
+      var _revGen = window._scOwnerHydrationGeneration;   // stale reply guard (5.0b)
       window.getProfile(window._scProfileId)
-        .then(function(res){ if(window.renderProfile) window.renderProfile(res); })
+        .then(function(res){
+          if(_revGen !== window._scOwnerHydrationGeneration) return;
+          if(window.renderProfile) window.renderProfile(res);
+        })
         .catch(function(err){
           var _msg = (err && err.message) ? String(err.message) : '';
           if(_msg.indexOf('401') !== -1 && window.TwAuthSync && TwAuthSync.invalidateSession){

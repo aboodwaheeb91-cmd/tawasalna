@@ -12731,17 +12731,19 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | Piece | Where | Rule |
 |-------|-------|------|
 | Column | `users.password_changed_at TIMESTAMPTZ NULL` · `auth._migrate_password_changed_at()` (startup-critical, `ADD COLUMN IF NOT EXISTS`, no backfill — NULL = no change since ship → existing sessions stay valid) | |
-| Write | `auth.set_user_password(uid, pw) → epoch` — the only writer; used by `PUT /auth/password` **and** `PUT /admin/user/{id}/password` | stamp = `int(time.time())` from the **app clock** (same clock as JWT `iat`), stored with `to_timestamp(:ts)` |
-| Read | `auth.get_password_changed_epoch(uid)` → only via `server._password_changed_epoch(uid)` | in-memory cache `_pwd_changed_cache`, TTL `_PWD_CHANGED_TTL` = 60s — no DB query per request |
-| Check | `server._jwt_decode` → `_jwt_revoked_by_password_change(payload)` | reject when `iat < password_changed_at` (seconds); no `iat` + a stamp → reject |
-| Cache refresh | `_password_changed_cache_set(uid, epoch)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
+| Column (5.0b) | `users.session_version INTEGER NOT NULL DEFAULT 0` · `auth._migrate_session_version()` (startup-critical, `ADD COLUMN IF NOT EXISTS`) | |
+| Write | `auth.set_user_password(uid, pw) → {changed, sv} \| None` — the only writer; used by `PUT /auth/password`, `POST /auth/password-reset/confirm` **and** `PUT /admin/user/{id}/password` | one statement: hash + stamp (`int(time.time())`, app clock, `to_timestamp(:ts)`) + `session_version + 1` + `DELETE FROM password_reset_tokens WHERE user_id` (all purposes — pending email-change / reset links die, 5.0b) |
+| Read | `auth.get_session_state(uid) → {changed, sv} \| None` → only via `server._session_state(uid)` | in-memory cache `_pwd_changed_cache`, TTL `_PWD_CHANGED_TTL` = 60s — no DB query per request |
+| Check | `server._jwt_decode` → `_jwt_revoked_by_password_change(payload)` | claim `sv` present → reject unless `sv == session_version` (non-int → reject); no `sv` (pre-5.0b token) → reject when `iat < password_changed_at` (seconds); no `iat` + a stamp → reject |
+| JWT `sv` | login (`authenticate_user` reads `session_version`; popped from the reply) · register (`0`) · `PUT /auth/password` (new sv) | never in a response body |
+| Cache refresh | `_password_changed_cache_set(uid, state)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
 | DB error on lookup | logged `[session-invalidation]`, not cached, token allowed | the request then fails at its own DB call; rejecting would log everyone out on a DB blip |
-| New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id})` | `iat ≥ stamp` → survives |
+| New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id, sv})` | carries the new `sv` → survives |
 | Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
 | Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
 
-Known edge: a JWT issued **in the same second** as the change (iat == stamp) stays valid — accepted (second granularity of `iat`).
+Same-second edge closed in 5.0b by `sv`; only pre-5.0b tokens (no `sv`) keep the second-granularity `iat` check until they expire.
 
 ### `settings.html` contract
 
@@ -12774,7 +12776,7 @@ Test: `python -m pytest tests/test_account_security.py -q`.
 
 | Table | Key Columns (from `CREATE TABLE` + migrations) |
 |-------|-------------------------------------------------|
-| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) |
+| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) · `session_version INTEGER NOT NULL DEFAULT 0` (5.0b — `_migrate_session_version()`) |
 | `profiles` | user_id (UNIQUE FK → users, CASCADE), headline, bio, location, skills[], avatar_url, website, is_verified, updated_at + migrated: dob, phone, country, city, avail, availability_status (deprecated — see `docs/rules/profile-v2.md`), title, sections_order, custom_sections, profile_color, profile_style, first_name, middle_name, last_name, cover_url, short_bio |
 | `experience` | user_id FK, title, company, location, start_date, end_date, is_current, description, sort_order, created_at |
 | `education` | user_id FK, institution, degree, field, start_year, end_year, description, created_at |
