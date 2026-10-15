@@ -1836,8 +1836,7 @@ class AppStatusInput(BaseModel):
     status: str  # pending, viewed, accepted, contacted, interview, hired, rejected
 
 class JobStatusInput(BaseModel):
-    status: str  # active, paused, closed
-    duration_days: Optional[int] = None  # reopen a closed job (task 5.3j) — 3 / 7 / 14 / 30
+    status: str  # active, paused, closed (reopening a closed job = admin only — task 5.3j4)
 
 class SkillInput(BaseModel):
     skill: str
@@ -5966,7 +5965,7 @@ def set_job_status_endpoint(job_id: int, data: JobStatusInput, token=Depends(ver
     finally:
         release_conn(conn)
     try:
-        set_job_status(job_id, cid, data.status, data.duration_days)
+        set_job_status(job_id, cid, data.status)
     except ValueError as e:
         raise HTTPException(422, str(e))
     return {"status": "success"}

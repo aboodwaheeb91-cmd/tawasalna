@@ -3789,27 +3789,25 @@ def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
         release_conn(conn)
 
 def _reopen_job(conn, job_id: int, dur: int):
-    """closed / expired → active with a new duration counted from now — the ONE reopen write (company reopen of
-    its closed job · admin reactivate — task 5.3j). dur MUST already be in _ALLOWED_DURATIONS. → new expires_at."""
+    """closed / expired → active with a new duration counted from now — the ONE reopen write. Admin only
+    (admin_reactivate_job — owner decision 5.3j4: the company cannot reopen). dur MUST already be in
+    _ALLOWED_DURATIONS. → new expires_at."""
     return conn.run(
         f"UPDATE jobs SET status='active', closed_at=NULL, paused_at=NULL, duration_days={int(dur)}, "
         f"expires_at=NOW() + INTERVAL '{int(dur)} days' WHERE id=:id RETURNING expires_at", id=job_id)[0][0]
 
 
-def set_job_status(job_id: int, company_id, new_status: str, duration_days=None) -> dict:
+def set_job_status(job_id: int, company_id, new_status: str) -> dict:
     """The ONE job status change — the company (company_id = owner, checked here) and the admin (company_id=None,
     task 5.3j) both go through it. Transitions (effective status):
       active → paused (paused_at = now, the duration freezes — #7) · paused → active (expires_at + paused time,
-      new reminder — #13) · active / paused → closed (closed_at = now) · closed → active ONLY with duration_days
-      from _ALLOWED_DURATIONS (company reopen — product decision 5.3j; expired = admin reactivate only).
-    Anything else (no-op, wrong state, archived) → JobActionError (ValueError — Arabic message).
-    → {id, title, company_id, status, expires_at}."""
+      new reminder — #13) · active / paused → closed (closed_at = now).
+    closed / expired → active is NOT here: reopening is the admin's only (POST /admin/jobs/{id}/reactivate →
+    admin_reactivate_job → _reopen_job — owner decision 5.3j4). Anything else (no-op, wrong state, archived)
+    → JobActionError (ValueError — Arabic message). → {id, title, company_id, status, expires_at}."""
     _ALLOWED = ('active', 'paused', 'closed')
     if new_status not in _ALLOWED:
         raise ValueError(f"Invalid status '{new_status}'. Allowed: {_ALLOWED}")
-    dur = None
-    if duration_days not in (None, ""):
-        dur = _duration(duration_days)
 
     new_expires = None
     with db_conn() as conn:
@@ -3841,13 +3839,12 @@ def set_job_status(job_id: int, company_id, new_status: str, duration_days=None)
                     "expires_at = CASE WHEN paused_at IS NULL THEN expires_at "
                     "ELSE expires_at + (NOW() - paused_at) END, paused_at=NULL "
                     "WHERE id=:id RETURNING expires_at", id=job_id)[0][0]
-            elif new_status == 'active' and eff == 'closed':
-                if dur is None:
-                    raise JobActionError("اختر مدة جديدة لإعادة فتح الوظيفة")
-                new_expires = _reopen_job(conn, job_id, dur)
+            elif new_status == 'active' and eff in ('closed', 'expired'):
+                if company_id is not None:
+                    raise JobActionError("لا يمكن إعادة فتح إعلان منتهٍ أو انتهت صلاحيته")
+                raise JobActionError("الوظيفة مغلقة — استعمل «إعادة تفعيل» واختر مدة")
             elif new_status == 'active':
-                raise JobActionError("الوظيفة نشطة أصلاً" if eff == 'active'
-                                     else "انتهت صلاحية الوظيفة — إعادة تفعيلها من الإدارة بس")
+                raise JobActionError("الوظيفة نشطة أصلاً")
             elif new_status == 'closed':
                 if eff not in ('active', 'paused'):
                     raise JobActionError("الإعلان منتهٍ بالفعل")

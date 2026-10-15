@@ -9888,7 +9888,7 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE;
 ```
 
-**Job status change (task 5.3j phase 3)** — `PATCH /company/jobs/{id}/status {status, duration_days?}` and `POST /admin/jobs/{id}/status` both call `auth.set_job_status`; a closed (not expired) job reopens only with `duration_days` ∈ 3 · 7 · 14 · 30 (`auth._reopen_job`); no-op / wrong state / archived → 422 (company) · 409 (admin) — SYSTEMS_INDEX §25e.
+**Job status change (task 5.3j phase 3 · 5.3j4)** — `PATCH /company/jobs/{id}/status {status}` and `POST /admin/jobs/{id}/status` both call `auth.set_job_status`; closed / expired → active is refused there (company 422 · admin 409) — reopening is the admin's only, via `POST /admin/jobs/{id}/reactivate` (`auth._reopen_job`, owner decision 5.3j4); no-op / wrong state / archived → 422 (company) · 409 (admin) — SYSTEMS_INDEX §25e.
 
 **`jobs` admin hide (task 5.3j phase 2)** — `_migrate_job_lifecycle` (critical, idempotent): `admin_hidden_at TIMESTAMPTZ NULL` + `admin_hidden_reason TEXT NULL`. Set / cleared only by `auth.admin_set_job_hidden`; any value = not public (`job_active_sql` · `get_jobs` · `get_job` · `apply_job`) — SYSTEMS_INDEX §25e.
 

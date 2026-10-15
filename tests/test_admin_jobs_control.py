@@ -12,8 +12,9 @@ real startup migrations:
   - #7: a paused job past its expires_at stays «paused» (Python + SQL) and resume continues the remaining time
     (+ a new reminder — #13)
   - phase 3: admin pause / resume / close (reason required) through set_job_status + company notified ·
-    wrong state / archived → 409 · unarchive (not archived → 409) · the company reopens its CLOSED job with a
-    new duration (expires_at = now + days, reminder) — no duration / expired / bad duration / active → 422
+    wrong state / archived → 409 · unarchive (not archived → 409)
+  - 5.3j4 (owner decision): the company cannot reopen a closed / expired job (422, nothing changes) — the admin
+    reactivates it (expires_at = now + days, reminder) · the removed company reopen button does not come back
 Run: python -m pytest tests/test_admin_jobs_control.py -q
 """
 import os
@@ -245,19 +246,26 @@ def test_admin_unarchive(db):
     assert client.post(f"/admin/jobs/{live}/unarchive", headers=h).status_code == 409
 
 
-def test_company_reopens_its_closed_job_only(db):
-    co, other = _user(), _user()
+def test_only_the_admin_reopens_a_closed_job(db):
+    """Owner decision 5.3j4: the company cannot reopen its closed job (422, as before 5.3j3) — the admin can."""
+    co = _user()
     closed = _job(co, "closed", closed="NOW() - INTERVAL '3 days'")
     expired = _job(co, "closed", expires="NOW() - INTERVAL '50 days'", closed="NOW() - INTERVAL '40 days'")
-    act = _job(co)
     url = lambda j: f"/company/jobs/{j}/status"
-    assert client.patch(url(closed), json={"status": "active"}, headers=_h(co)).status_code == 422             # no duration
-    assert client.patch(url(closed), json={"status": "active", "duration_days": 5}, headers=_h(co)).status_code == 422
-    assert client.patch(url(closed), json={"status": "active", "duration_days": 14}, headers=_h(other)).status_code == 403
-    r = client.patch(url(closed), json={"status": "active", "duration_days": 14}, headers=_h(co))
+    for body in ({"status": "active"}, {"status": "active", "duration_days": 14}):
+        assert client.patch(url(closed), json=body, headers=_h(co)).status_code == 422
+        assert client.patch(url(expired), json=body, headers=_h(co)).status_code == 422
+    assert _status(closed) == ("closed", "closed") and _status(expired)[1] == "expired"   # nothing changed
+    h = _admin()
+    assert client.post(f"/admin/jobs/{closed}/status", json={"status": "active"}, headers=h).status_code == 409
+    r = client.post(f"/admin/jobs/{closed}/reactivate", json={"duration_days": 14}, headers=h)
     assert r.status_code == 200, r.text
     assert _status(closed) == ("active", "active")
     assert _close_to(_expires(closed), _now() + timedelta(days=14)) and _reminders(closed) == 1
-    assert client.patch(url(expired), json={"status": "active", "duration_days": 7}, headers=_h(co)).status_code == 422
-    assert _status(expired)[1] == "expired"
-    assert client.patch(url(act), json={"status": "active", "duration_days": 7}, headers=_h(co)).status_code == 422
+
+
+def test_company_reopen_button_is_gone():
+    """The removed company reopen flow does not come back (function / button class absent)."""
+    src = open("static/company/company.jobs.js", encoding="utf-8").read() \
+        + open("static/company/company.render.js", encoding="utf-8").read()
+    assert "function reopenJob" not in src and "owner-reopen-btn" not in src
