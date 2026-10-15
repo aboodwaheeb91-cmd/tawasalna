@@ -617,6 +617,7 @@ def _login_email_reset(email: str) -> None:
 
 _RATE_LIMITED_PATHS = frozenset({
     "/auth/login", "/auth/register", "/auth/password", "/tw-ctrl-login",
+    "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login",   # same admin login, under the panel path (task 5.3a)
     "/auth/password-reset/request", "/auth/password-reset/confirm",
     "/auth/email-change/request", "/auth/email-change/confirm",
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
@@ -6008,7 +6009,11 @@ def stats():
 # ══════════════════════════════════════════
 # Admin Login - returns token
 # ══════════════════════════════════════════
+# Task 5.3a: the same handler also answers under the panel path (<panel>/login) so no served
+# file carries the panel prefix (the page posts relative to its own path — docs/rules/admin-shell.md).
+# /tw-ctrl-login stays (backward compatible, F14); both are in _RATE_LIMITED_PATHS.
 @app.post("/tw-ctrl-login")
+@app.post("/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")
 def admin_login(data: AdminLoginInput):
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

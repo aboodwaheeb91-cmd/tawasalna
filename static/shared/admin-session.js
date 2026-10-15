@@ -1,6 +1,6 @@
-// admin-session.js — Admin Session Client (PR 1.5) — admin pages only (admin.html · admin-view.html).
-// The admin session token is a short-lived admin JWT returned by POST /tw-ctrl-login
-// (≤ 1h, signed server-side with ADMIN_JWT_SECRET). It lives in sessionStorage
+// admin-session.js — Admin Session Client (PR 1.5) — admin pages only (admin.html · admin-email.html · admin-view.html).
+// The admin session token is a short-lived admin JWT returned by the admin login endpoint
+// (POST <panel root>/login — task 5.3a; ≤ 1h, signed server-side with ADMIN_JWT_SECRET). It lives in sessionStorage
 // (per tab, gone when the tab closes) and is sent as the X-Admin-Token header.
 // Every admin API call goes through TwAdminSession.fetch(): a 401/403 (expired /
 // invalid token) clears the token and fires the page's onExpired handler once —
@@ -10,6 +10,7 @@
   'use strict';
 
   var KEY = 'tw_adm_token';
+  var PANEL_KEY = 'tw_adm_panel';   // panel root path, written by TwAdminShell.start (task 5.3a)
   var EXPIRED_MSG = 'انتهت جلسة الإدارة (صلاحيتها ساعة واحدة) — سجّل الدخول من جديد.';
   var _handlers = [];
   var _timer = null;
@@ -81,6 +82,17 @@
     });
   }
 
+  // Panel root for pages outside it (admin-view.html back link). Runtime value only — never in a file.
+  function setPanelHref(path) {
+    if (!/^\/[A-Za-z0-9_-]+$/.test(String(path || ''))) return;
+    try { sessionStorage.setItem(PANEL_KEY, path); } catch (e) { console.error('[TwAdminSession] panel write failed:', e); }
+  }
+  function panelHref() {
+    var p = '';
+    try { p = sessionStorage.getItem(PANEL_KEY) || ''; } catch (e) { return ''; }
+    return /^\/[A-Za-z0-9_-]+$/.test(p) ? p : '';
+  }
+
   window.TwAdminSession = {
     EXPIRED_MSG: EXPIRED_MSG,
     getToken: getToken,
@@ -89,6 +101,8 @@
     hasLiveToken: hasLiveToken,
     headers: headers,
     fetch: adminFetch,
+    setPanelHref: setPanelHref,
+    panelHref: panelHref,
     onExpired: function (cb) { _handlers.push(cb); }
   };
 

@@ -63,6 +63,15 @@ def test_login_returns_short_admin_jwt_not_raw_secret():
     assert client.post("/tw-ctrl-login", json={"password": "b" * 40}).status_code == 401
 
 
+def test_login_under_panel_path_same_handler_and_rate_limited():
+    """Task 5.3a — admin pages post the login to <panel>/login (no panel prefix in served files)."""
+    path = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"
+    r = client.post(path, json={"password": "a" * 40})
+    assert r.status_code == 200 and srv._admin_jwt_claims(r.json()["token"])["role"] == "admin"
+    assert client.post(path, json={"password": "b" * 40}).status_code == 401
+    assert path in srv._RATE_LIMITED_PATHS
+
+
 def test_raw_admin_token_rejected_as_session():
     assert _status(srv.check_admin, _req("a" * 40)) == 401
     assert _status(srv.check_admin, _req("")) == 401

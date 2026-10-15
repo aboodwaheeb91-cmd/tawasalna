@@ -115,6 +115,7 @@ NODE_TESTS=(
   test_ds_icon_registry.js          # its RTL browser part prints SKIP without Playwright
   test_ds_image_runtime.js
   test_ds_overlay_runtime.js
+  test_admin_shell_runtime.js       # task 5.3a — Admin Shell: menu registry · confirm gate · 401 → login (vm)
   test_header_hidden_runtime.js     # real headless Chrome (ubuntu-latest google-chrome); SKIP locally without one
   test_login_jobdetail_runtime.js
   test_messages_page_runtime.js

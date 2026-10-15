@@ -97,7 +97,8 @@ check('S3 no --size-*/--radius-*/--space-* defined outside tw_shared.css', not o
 # pages migrated in phase C (one approved PR per page adds its files here).
 _PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html', 'appointments.html', 'appointment-room.html',
                   'static/app-header.css',   # PR 3.2 — unified header/bottom nav = the declared header-buttons PR (ds-size rule 10)
-                  'profile-v2.css', 'profile-showcase.html']   # PR 4.2a — profile page (task-approved: bio 8px → token; new controls on tokens)
+                  'profile-v2.css', 'profile-showcase.html',   # PR 4.2a — profile page (task-approved: bio 8px → token; new controls on tokens)
+                  'admin.html', 'static/shared/admin-shell.css']   # task 5.3a — admin page rebuilt on the new Admin Shell (task-approved full conversion; new code on tokens)
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,

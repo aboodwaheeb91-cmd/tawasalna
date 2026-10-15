@@ -672,6 +672,9 @@ initScrollProg(); showToast('تم الحذف ✓');
 // ── Utils ──
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
 function goBack(){
+  // Admin Shell (task 5.3a): back to the panel's user list (panel root saved by TwAdminShell this tab).
+  var panel = TwAdminSession.panelHref();
+  if(panel){ window.location.href = panel + '#users'; return; }
   if(window.history.length > 1){ window.history.back(); return; }
   _adminStop('افتح لوحة الإدارة للرجوع.');
 }

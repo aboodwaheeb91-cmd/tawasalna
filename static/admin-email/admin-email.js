@@ -1,5 +1,6 @@
 // static/admin-email/admin-email.js — admin email page (route: server.py → admin_email_page · task 5.1c)
 //   - admin session = TwAdminSession (admin JWT, same tab as the panel login) — never the user JWT
+//   - header / menu / session expiry → panel login = TwAdminShell (static/shared/admin-shell.js · task 5.3a)
 //   - GET /admin/email → provider status · usage (email_send_log: today / month, security vs
 //     notification, blocked by the cap) · notification types on/off · caps · message rules
 //   - PUT /admin/email {types, notify} — a type switched off, or a cap cut by half or more,
@@ -7,12 +8,13 @@
 //   - text: twT (admin.email.* / email.type.*) · icons: twIcon · colors: --color-* tokens only
 (function () {
   'use strict';
+  // Admin Shell (task 5.3a): header + menu + session gate (no session → panel login) — one call first.
+  if (!TwAdminShell.start()) return;
   var root = document.getElementById('aeRoot');
-  var panel = location.pathname.replace(/\/email\/?$/, '');
   var data = null;
 
   document.title = twT('page.title', { page: twT('admin.email.title') });
-  document.getElementById('aeBack').setAttribute('href', panel);
+  TwAdminShell.mount();
   twTApply(document.body);
   twIcon.hydrate(document.body);
 
@@ -24,40 +26,16 @@
   }
   function message(key) {
     root.textContent = '';
-    root.appendChild(el('p', 'ae-msg', twT(key)));
+    root.appendChild(el('p', 'tw-adm-msg', twT(key)));
   }
 
-  // ── card with an ⓘ toggle (hint hidden until asked) ──
-  var _cid = 0;
-  function card(titleKey, hintKey) {
-    var c = el('section', 'ae-card'), hdr = el('div', 'ae-card-hdr'), id = 'ae-hint-' + (++_cid);
-    var info = el('button', 'ae-info');
-    info.type = 'button';
-    info.setAttribute('aria-label', twT('admin.email.info'));
-    info.setAttribute('aria-expanded', 'false');
-    info.setAttribute('aria-controls', id);
-    info.appendChild(twIconEl('info', { size: 'xs' }));
-    var hint = el('p', 'ae-hint', twT(hintKey));
-    hint.id = id;
-    hint.hidden = true;
-    info.addEventListener('click', function () {
-      hint.hidden = !hint.hidden;
-      info.setAttribute('aria-expanded', String(!hint.hidden));
-    });
-    hdr.appendChild(el('h2', 'ae-card-title', twT(titleKey)));
-    hdr.appendChild(info);
-    c.appendChild(hdr);
-    c.appendChild(hint);
-    var body = el('div', 'ae-body');
-    c.appendChild(body);
-    root.appendChild(c);
-    return body;
-  }
+  // card with an ⓘ toggle — the shared admin card (TwAdminShell.card)
+  function card(titleKey, hintKey) { return TwAdminShell.card(root, { titleKey: titleKey, hintKey: hintKey }); }
 
   function n(obj, status) { return (obj && obj[status]) || 0; }
 
   function renderUsage(body, stats) {
-    if (!stats) { body.appendChild(el('p', 'ae-hint', twT('admin.email.stats_unavailable'))); return; }
+    if (!stats) { body.appendChild(el('p', 'tw-adm-hint', twT('admin.email.stats_unavailable'))); return; }
     var t = el('table', 'ae-table'), head = el('tr');
     ['', 'admin.email.sent', 'admin.email.failed', 'admin.email.capped'].forEach(function (k) {
       head.appendChild(el('th', null, k ? twT(k) : ''));
@@ -178,14 +156,12 @@
     TwAdminSession.fetch('/admin/email')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        if (!j || !j.data) { if (TwAdminSession.hasLiveToken()) message('admin.email.load_error'); return; }
+        if (!j || !j.data) { if (TwAdminSession.hasLiveToken()) message('admin.email.load_error'); return; }   // 401 → shell → login
         data = j.data;
         render();
       })
       .catch(function () { message('admin.email.load_error'); });
   }
 
-  TwAdminSession.onExpired(function () { message('admin.email.login_needed'); });
-  if (!TwAdminSession.hasLiveToken()) message('admin.email.login_needed');
-  else load();
+  load();
 }());

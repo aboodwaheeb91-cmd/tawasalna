@@ -40,6 +40,11 @@ PAGE_ASSETS = {
     "tw-select.js": os.path.join("static", "shared", "tw-select.js"),
     "tw-select.css": os.path.join("static", "shared", "tw-select.css"),
     "tw-schedule.js": os.path.join("static", "shared", "tw-schedule.js"),
+    # Admin Shell (task 5.3a · docs/rules/admin-shell.md)
+    "admin-sections.js": os.path.join("static", "shared", "admin-sections.js"),
+    "admin-shell.js": os.path.join("static", "shared", "admin-shell.js"),
+    "admin-shell.css": os.path.join("static", "shared", "admin-shell.css"),
+    "admin.js": os.path.join("static", "admin", "admin.js"),
 }
 
 _PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")

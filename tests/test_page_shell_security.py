@@ -1,9 +1,9 @@
 """Page Shell security (pre PR-8/B) — static checks.
 
-1. No served HTML/JS/CSS file carries an admin panel slug ("tw-ctrl-…").
-   The only allowed occurrence is the fixed login endpoint `/tw-ctrl-login`
-   (called by admin.html, which itself is served only behind the secret slug).
-   The slug route lives in server.py only.
+1. No served HTML/JS/CSS file carries the admin panel prefix ("tw-ctrl-") at all —
+   not the slug, not the login endpoint (task 5.3a: admin pages derive the panel root
+   from location.pathname and post the login to <panel>/login). The routes live in
+   server.py only.
 2. admin-view.html: clean <!DOCTYPE html> (standards mode), no redirect to the
    deleted admin.html.
 3. No page loads a script from an external domain / CDN (unpkg, jsdelivr, cdnjs…).
@@ -41,7 +41,7 @@ class TestPageShellSecurity(unittest.TestCase):
     def test_no_admin_slug_in_served_files(self):
         bad = []
         for p in _served_files():
-            for m in re.finditer(r"tw-ctrl-(?!login\b)", _read(p)):
+            for m in re.finditer(r"tw-ctrl-", _read(p)):
                 bad.append(str(p.relative_to(ROOT)))
         self.assertEqual(bad, [], "admin slug (tw-ctrl-…) in served files")
 
