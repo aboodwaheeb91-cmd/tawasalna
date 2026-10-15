@@ -417,9 +417,9 @@ These rules are permanent and apply to all future AI sessions.
 
 6. **`GET /admin.html` route is permanently deleted.** The admin panel is served only via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
 
-7. **`/tw-ctrl-login` is in the rate_limit_middleware list.** Do not remove it.
+7. **The admin login (`<panel>/login` = `/tw-ctrl-{ADMIN_URL_TOKEN}/login`) is in the rate_limit_middleware list.** Do not remove it. The old fixed `/tw-ctrl-login` is deleted (task 5.3b) — ❌ re-adding it.
 
-7b. **`check_admin` accepts ONLY the admin JWT (PR 1.5).** `/tw-ctrl-login` returns a 1h admin JWT signed with `ADMIN_JWT_SECRET` (`_admin_jwt_issue`); the raw `ADMIN_TOKEN` is the login password only — never returned, never accepted as `X-Admin-Token`. Admin pages use `TwAdminSession` (`static/shared/admin-session.js`). Spec: SYSTEMS_INDEX §25 · test `python -m pytest tests/test_admin_session_security.py -q`.
+7b. **`check_admin` accepts ONLY the admin JWT (PR 1.5).** `<panel>/login` returns a 1h admin JWT signed with `ADMIN_JWT_SECRET` (`_admin_jwt_issue`); the raw `ADMIN_TOKEN` is the login password only — never returned, never accepted as `X-Admin-Token`. Admin pages use `TwAdminSession` (`static/shared/admin-session.js`). Spec: SYSTEMS_INDEX §25 · test `python -m pytest tests/test_admin_session_security.py -q`.
 
 8. **`get_client_ip(request)` in `server.py` is the ONLY source of the client IP (PR 1.4).** Rate limiter, registration country, logs — all call it. Never read `X-Forwarded-For` / `X-Real-IP` anywhere else. Source chosen by `CLIENT_IP_SOURCE` (measured, not guessed — `ARCHITECTURE.md §52 → Client IP Resolution`). KYC OTP logic lives only in `auth._otp_issue` / `auth._otp_verify` (SYSTEMS_INDEX §54c).
 
@@ -513,7 +513,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Overlay System (DS-OVL) Runtime V1 — `twConfirm` / `twAlert` / `twModal` · ممنوع `alert` / `confirm` / `prompt` بأي صفحة بتنلمس | `docs/rules/ds-overlay.md` |
 | Header & Bottom Nav V1 (DS-HNAV) — هيدر واحد (`<header data-tw-header>`) + شريط سفلي واحد (`<nav data-tw-bottom-nav>`) بيرسمهم `twMountAppChrome` بـ `tw_shared.js` · ممنوع هيدر / شريط خاص بصفحة (PR 3.2) | `docs/design-system/HEADER-NAV.md` |
 | Page Shell V1 (DS-SHELL) Rules — `<head>` + سكربتات مشتركة لكل صفحة (markers `<!--tw:shell-*-->`) | `docs/rules/page-shell.md` |
-| Admin Shell — هيدر + قائمة وحدة لكل صفحات الأدمن من registry واحد (`admin-sections.js`) · بوابة جلسة + 401 → الدخول من مكان واحد · كل تعديل عبر `TwAdminShell.run` (تأكيد قبل الطلب، كتابة كلمة للأخطر) · ممنوع `tw-ctrl-` بأي ملف مخدوم (task 5.3a) | `docs/rules/admin-shell.md` |
+| Admin Shell — هيدر + قائمة وحدة لكل صفحات الأدمن من registry واحد (`admin-sections.js`) · بوابة جلسة + 401 → الدخول من مكان واحد · كل تعديل عبر `TwAdminShell.run` (تأكيد قبل الطلب، كتابة كلمة للأخطر) · ممنوع `tw-ctrl-` بأي ملف مخدوم (task 5.3a) · `admin-view.html` على الـ shell برّا مسار اللوحة + حذف `/tw-ctrl-login` القديم (task 5.3b) | `docs/rules/admin-shell.md` |
 | Actions Registry — كل زر إجراء (متابعة، مراسلة، تحديد موعد…) من `twAction(id, ctx)` + `tw_actions.json` · ممنوع شرط ظهور زر بالصفحة (PR 3.7) | `docs/design-system/BUTTONS.md` BTN-19 · SYSTEMS_INDEX §60 |
 | Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
 | Unified Email System — `email_service.send_email` المرسل الوحيد (Resend) · نسيت كلمة المرور (رد واحد · توكن hash · 30 دقيقة · مرة وحدة) (task 5.1a) · تغيير الإيميل (رابط للجديد + تنبيه للقديم — نفس كود التوكن) + OTP التوثيق بالإيميل (task 5.1b) · إيميلات الإشعارات: تصنيف security / notification · بوابة واحدة (تفضيل · throttle · حد يومي / شهري) · عداد `email_send_log` (task 5.1c) · نتيجة طلب التوظيف: `hired` / `rejected` بس، مرة وحدة لكل طلب (task 5.1d) | `docs/rules/email.md` |

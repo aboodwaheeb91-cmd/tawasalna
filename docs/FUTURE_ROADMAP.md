@@ -142,9 +142,7 @@
 
 - [ ] **P1** — Verification requests review: واجهة أدمن لمراجعة طلبات توثيق الشركات والمؤسسات (مرتبط بـ Verification Badge & Flow)
 - [ ] **P2** — News posts management: إنشاء وتعديل وحذف `news_posts` من لوحة الأدمن
-- [ ] **P1** — **5.3b** — `admin-view.html` على الـ Admin Shell (SYSTEMS_INDEX §25a): هيدر + قائمة + `TwAdminShell.run` (تغيير نوع الحساب · تغيير كلمة السر · حذف خبرة / شهادة / دورة بتأكيد تحذيري) + ألوان توكنز (130) + Page Shell. تغيير النوع وكلمة السر موجودين بهالصفحة بس — ما انلمسوا بـ 5.3a.
 - [ ] **P1** — **5.3c** — إعدادات إلها API أدمن بدون شاشة: النصوص (`GET/PUT /admin/strings`) · الألوان (`GET/PUT /admin/theme/colors`) · الإجراءات (`GET/PUT /admin/actions`) · الأخبار (`/admin/news`). كل وحدة = صفحة فرعية + سطر بـ `TW_ADMIN_SECTIONS` (`static/shared/admin-sections.js`) + route تحت مسار اللوحة.
-- [ ] **P2** — بعد ما يتحوّل `admin-view.html`: حذف `POST /tw-ctrl-login` القديم (5.3a خلّاه للتوافق؛ الصفحات بتستعمل `<panel>/login`).
 
 ---
 

@@ -160,7 +160,8 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'reset-password.html',   // task 5.1a — unified header + page icons (data-tw-icon)
   'confirm-email.html',   // task 5.1b — unified header + page icons (data-tw-icon)
   'admin-email.html',   // task 5.1c — admin email page (card ⓘ + title icon)
-  'admin.html'];   // task 5.3a — admin panel root (Admin Shell: menu icons + card ⓘ + action icons)
+  'admin.html',   // task 5.3a — admin panel root (Admin Shell: menu icons + card ⓘ + action icons)
+  'admin-view.html'];   // task 5.3b — admin user page (Admin Shell: menu + card ⓘ + action icons)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {

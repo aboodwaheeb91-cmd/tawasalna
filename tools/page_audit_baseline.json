@@ -10,14 +10,14 @@
     "no_shell": 0
   },
   "admin-view.html": {
-    "colors": 130,
+    "colors": 0,
     "dialogs": 0,
     "fetch": 0,
     "forsa": 0,
     "helpers": 0,
     "ls_session": 0,
-    "no_header": 1,
-    "no_shell": 1
+    "no_header": 0,
+    "no_shell": 0
   },
   "admin.html": {
     "colors": 0,
