@@ -4,8 +4,10 @@
 <!--tw:shell-head:admin-->
 <!-- Admin panel root (task 5.3a · docs/rules/admin-shell.md). Route: server.py → admin_page (secret path).
      Login form + the sections of TW_ADMIN_SECTIONS whose path is '' or '#key' (one shown at a time).
+     Overview = dashboard (task 5.3a2 — cards · tw-chart.js charts · queues · activity · system · audit).
      Logic: static/admin/admin.js · header / menu / confirm gate: static/shared/admin-shell.js. -->
 <link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
 <title></title>
 <style>
 .adm-login { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: var(--space-8) var(--space-6); }
@@ -28,6 +30,38 @@
 .adm-doc img { width: 100%; max-height: 220px; object-fit: contain; border-radius: var(--radius-md); background: var(--color-surface-raised); }
 .adm-msg-form { display: flex; flex-direction: column; gap: var(--space-5); }
 .adm-msg-form textarea { min-height: 96px; resize: vertical; }
+/* dashboard (task 5.3a2) */
+.adm-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-7); }
+.adm-kpis .tw-adm-card.is-kpi { margin: 0; padding: var(--space-5) var(--space-6); }
+.is-kpi .tw-adm-card-title { font-size: var(--size-font-xs); color: var(--color-text-secondary); }
+.is-kpi .tw-adm-body { margin-top: var(--space-3); gap: var(--space-1); }
+.adm-kpi-val { font-size: var(--size-font-2xl); font-weight: 900; color: var(--color-text-primary); }
+.adm-kpi-chg { min-height: 1em; font-size: var(--size-font-2xs); color: var(--color-text-muted); }
+.adm-kpi-chg.is-up { color: var(--color-status-success); }
+.adm-kpi-chg.is-down { color: var(--color-status-danger); }
+.adm-more { font-size: var(--size-font-xs); font-weight: 700; color: var(--color-brand-primary); text-decoration: none; }
+.adm-more:hover { text-decoration: underline; }
+.adm-dash { display: grid; gap: var(--space-7); }
+.adm-col { min-width: 0; }
+.adm-charts, .adm-queues { display: grid; gap: var(--space-7); }
+.adm-charts .tw-adm-card, .adm-queues .tw-adm-card { margin: 0; }
+.adm-charts { margin-bottom: var(--space-7); }
+.adm-chart-sum { font-size: var(--size-font-xs); color: var(--color-text-muted); }
+.adm-act { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-4) 0; text-decoration: none;
+  border-bottom: 1px solid var(--color-border-subtle); }
+.adm-act:last-child { border-bottom: none; }
+.adm-act-ico { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--size-control-icon-sm);
+  height: var(--size-control-icon-sm); border-radius: var(--radius-circle); color: var(--color-brand-primary);
+  background: rgba(var(--color-brand-primary-rgb), .1); }
+.adm-act-txt { display: flex; flex-direction: column; min-width: 0; }
+.adm-act-title { font-size: var(--size-font-sm); font-weight: 700; color: var(--color-text-primary); overflow-wrap: anywhere; }
+.adm-act-sub { font-size: var(--size-font-2xs); color: var(--color-text-muted); }
+.adm-sys { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); font-size: var(--size-font-sm); }
+.adm-sys-lbl { color: var(--color-text-secondary); }
+.adm-pag-txt { align-self: center; font-size: var(--size-font-xs); color: var(--color-text-muted); }
+@media (min-width: 640px) { .adm-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } .adm-queues { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .adm-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .adm-dash { grid-template-columns: minmax(0, 1fr) 340px; } }
 </style>
 </head>
 <body class="tw-adm-body-page">
@@ -50,9 +84,11 @@
 <main class="tw-adm-main" id="main-content" hidden>
   <div class="tw-adm-section" data-adm-section="overview" id="sec-overview"></div>
   <div class="tw-adm-section" data-adm-section="users" id="sec-users" hidden></div>
+  <div class="tw-adm-section" data-adm-section="companies" id="sec-companies" hidden></div>
   <div class="tw-adm-section" data-adm-section="jobs" id="sec-jobs" hidden></div>
-  <div class="tw-adm-section" data-adm-section="reports" id="sec-reports" hidden></div>
   <div class="tw-adm-section" data-adm-section="kyc" id="sec-kyc" hidden></div>
+  <div class="tw-adm-section" data-adm-section="reports" id="sec-reports" hidden></div>
+  <div class="tw-adm-section" data-adm-section="audit" id="sec-audit" hidden></div>
   <div class="tw-adm-section" data-adm-section="errors" id="sec-errors" hidden></div>
   <div class="tw-adm-section" data-adm-section="system" id="sec-system" hidden></div>
 </main>
@@ -64,6 +100,8 @@
 <script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <script src="/static/shared/admin-sections.js?v={{v:admin-sections.js}}"></script>
 <script src="/static/shared/admin-shell.js?v={{v:admin-shell.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/shared/tw-chart.js?v={{v:tw-chart.js}}"></script>
 <script src="/static/admin/admin.js?v={{v:admin.js}}"></script>
 </body>
 </html>

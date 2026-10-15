@@ -635,6 +635,42 @@ async def rate_limit_middleware(request, call_next):
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
     return await call_next(request)
 
+
+# ── Admin Audit Log (task 5.3a2 · SYSTEMS_INDEX §25b) — the ONE place admin actions are recorded ──
+# Every admin write (POST / PUT / PATCH / DELETE under /admin/) + the admin login (success, wrong
+# password, rate limited). Stored: actor (admin JWT sub) · route name · path params · result · IP
+# (get_client_ip). Never the body, the password, the token or any message text.
+import admin_insights
+_ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-login", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
+_AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _admin_audit_entry(request, status: int):
+    """The audit row for this request, or None when it is not an admin write / login."""
+    path = request.url.path
+    if path in _ADMIN_LOGIN_PATHS and request.method == "POST":
+        return {"actor": "owner" if status < 400 else "-", "action": "admin_login", "target": None,
+                "status": status, "ip": get_client_ip(request)}
+    if request.method not in _AUDIT_WRITE_METHODS or not path.startswith("/admin/"):
+        return None
+    route = request.scope.get("route")
+    if route is None:            # no matching endpoint (404 / 405) — nothing ran
+        return None
+    claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
+    params = request.scope.get("path_params") or {}
+    target = ",".join(f"{k}={params[k]}" for k in sorted(params)) or None
+    return {"actor": str(claims.get("sub") or "-") if claims else "-", "action": getattr(route, "name", "") or "-",
+            "target": target, "status": status, "ip": get_client_ip(request)}
+
+
+@app.middleware("http")
+async def admin_audit_middleware(request, call_next):
+    response = await call_next(request)
+    entry = _admin_audit_entry(request, response.status_code)
+    if entry:
+        await asyncio.to_thread(admin_insights.audit_record, **entry)
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -785,6 +821,7 @@ def _startup_migrations():
         ("pipeline_schema_v1",                _migrate_pipeline_schema_v1,         True),
         ("pr5_pipeline_linking",              _migrate_pr5_pipeline_linking,       True),
         ("applicants_candidates_split",       _migrate_applicants_candidates_split, True),
+        ("admin_audit_log",                   admin_insights.migrate_admin_audit_log, True),
     )
 
 
@@ -3283,6 +3320,53 @@ def admin_errors(request: Request):
     check_admin(request)
     return {"errors": list(reversed(_error_log)), "count": len(_error_log)}
 
+
+# ── Admin Stats + Audit Log reads (task 5.3a2 · SYSTEMS_INDEX §25b / §25c) — read-only, admin JWT ──
+@app.get("/admin/stats/summary")
+def admin_stats_summary(request: Request):
+    check_admin(request)
+    try:
+        return api_ok(admin_insights.stats_summary())
+    except Exception as e:
+        raise _server_error("admin_stats_summary", e)
+
+
+@app.get("/admin/stats/timeseries")
+def admin_stats_timeseries(request: Request, metric: str = "", days: str = "30"):
+    check_admin(request)
+    if metric not in admin_insights.TIMESERIES_METRICS:
+        return api_error(422, "invalid_metric", "المؤشر غير معروف", field="metric")
+    if not (days.isascii() and days.isdigit() and 1 <= int(days) <= admin_insights.TIMESERIES_DAYS_MAX):
+        return api_error(422, "invalid_days", f"عدد الأيام من 1 إلى {admin_insights.TIMESERIES_DAYS_MAX}", field="days")
+    try:
+        return api_ok(admin_insights.stats_timeseries(metric, int(days)))
+    except Exception as e:
+        raise _server_error("admin_stats_timeseries", e)
+
+
+@app.get("/admin/activity")
+def admin_activity(request: Request):
+    check_admin(request)
+    try:
+        return api_ok(admin_insights.activity())
+    except Exception as e:
+        raise _server_error("admin_activity", e)
+
+
+@app.get("/admin/audit")
+def admin_audit(request: Request, page: str = "1", limit: str = "20", action: str = ""):
+    check_admin(request)
+    if not (page.isascii() and page.isdigit() and 1 <= int(page) <= 100000):
+        return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
+    if not (limit.isascii() and limit.isdigit() and 1 <= int(limit) <= admin_insights.AUDIT_PAGE_MAX):
+        return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
+    if len(action) > 80:
+        return api_error(422, "invalid_action", "الإجراء غير صالح", field="action")
+    try:
+        return api_ok(admin_insights.audit_list(int(page), int(limit), action))
+    except Exception as e:
+        raise _server_error("admin_audit", e)
+
 @app.post("/auth/verify-token")
 def verify_token_endpoint(token=Depends(verify_token)):
     return {"valid": True, "user_id": token["user_id"], "user_type": token["user_type"]}
@@ -3684,6 +3768,7 @@ def health():
         "db": "ok" if db_ok else "error",
         "migrations": migrations,
         "email": email_service.status(),   # configured | missing — never the key
+        "storage": _storage_status(),      # configured | missing — never the URL / key (5.3a2)
         "timestamp": datetime.now().isoformat(),
         "version": "2.0",
         "uptime": "running"
@@ -5135,6 +5220,15 @@ def _supabase_auth_headers() -> dict:
     if kind == "legacy":
         return {"apikey": key, "Authorization": "Bearer " + key}
     return {}
+
+
+def _storage_status() -> str:
+    """/health → storage: configured | missing (reasons stay in the startup log, never the values)."""
+    try:
+        return "missing" if (_supabase_url_status()[1] or _supabase_key_status()[2]) else "configured"
+    except Exception as e:
+        print(f"[health] storage status failed: {type(e).__name__}")
+        return "missing"
 
 
 def _supabase_storage_status_lines() -> list:

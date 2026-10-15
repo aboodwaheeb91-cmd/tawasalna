@@ -23,4 +23,12 @@
 
 9. **الصفحة نفسها:** Page Shell أدمن (`<!--tw:shell-head:admin-->` / `<!--tw:shell-scripts:admin-->`) · ترتيب السكربتات: `admin-session.js` → `tw-icons.js` → `tw-overlay.js` → `admin-sections.js` → `admin-shell.js` → سكربت الصفحة · ألوان `--color-*` بس (`admin-shell.css` + CSS الصفحة) · نص `twT` · أيقونات DS-ICON · نوافذ DS-OVL · `page_audit` = صفر.
 
-Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول).
+10. **الإطار (task 5.3a2):** ديسكتوب (≥ 1024px) = قائمة جانبية ثابتة يمين بلون `--color-brand-primary` + شريط علوي · موبايل = الشريط العلوي + زر القائمة → `TwAdminShell.openMenu()` = نفس روابط الـ registry جوّا `twModal` (DS-OVL — ما في drawer preset بالـ runtime) وبتسكّر لما تختار رابط. الشريط العلوي: بحث موحّد (`searchResults` — مستخدمين / شركات / وظائف من `GET /auth/users` + `GET /admin/jobs`) · حالة النظام (`TwAdminShell.health()` من `/health`) · اختصارات الشارات · خروج. ❌ قائمة / بحث / مؤشر حالة تاني بصفحة أدمن.
+
+11. **الشركات = نفس جدول المستخدمين بفلتر نوع ثابت** (`VIEWS.companies` بـ `admin.js`). ❌ كود جدول تاني لنوع حساب.
+
+12. **لوحة القيادة = بيانات حقيقية بس (F30):** كل كرت / رسم / طابور إلو endpoint حقيقي (`GET /admin/stats/summary` · `/admin/stats/timeseries` · `/admin/activity` · `/admin/kyc` · `/admin/reports` · `/health` · `/admin/audit`). عنصر ما إلو بيانات بالموقع (إيرادات، اشتراكات، مدفوعات، إعلانات، تقييمات، دعم فني، تذاكر) → **ما بيظهر أبداً** — لا رقم وهمي ولا قسم فاضي — ومسجّل بـ `docs/FUTURE_ROADMAP.md` → Admin Panel — Missing Sections. الرسومات عبر `twChart` (`static/shared/tw-chart.js`) بس — ❌ مكتبة رسوم. metric الرسم من allowlist بالسيرفر (`TIMESERIES_METRICS`) — ❌ اسم جدول / عمود من الطلب.
+
+13. **السجل الأمني (SYSTEMS_INDEX §25b):** كل كتابة أدمن (`POST/PUT/PATCH/DELETE` تحت `/admin/`) + كل محاولة دخول أدمن (ناجحة / فاشلة) بتتسجّل من مكان واحد: `admin_audit_middleware` بـ `server.py`. ❌ تسجيل body / كلمة سر / توكن / نص رسالة · ❌ نداء تسجيل بكل endpoint · endpoint جديد للكتابة تحت `/admin/` بيتسجّل لحاله (ما في شي تعمله).
+
+Test: `node tests/test_admin_shell_runtime.js` (registry → قائمة · ما في prefix · ما في تنفيذ بدون تأكيد · 401 → الدخول · قائمة جانبية / نافذة موبايل · بحث · حالة · رسم) · `python -m pytest tests/test_admin_insights.py -q` (endpoints + السجل).

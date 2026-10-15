@@ -6367,6 +6367,10 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/admin/reports` | `admin_get_reports` | List content reports (§58) |
 | PUT | `/admin/reports/{report_id}/resolve` | `resolve_report` | Resolve report |
 | GET | `/admin/errors` | `admin_errors` | JS error logs |
+| GET | `/admin/stats/summary` | `admin_stats_summary` | Dashboard cards (task 5.3a2 · SYSTEMS_INDEX §25c) — `{ok, data:{users, verified_companies, active_jobs, applications, open_reports, pending_kyc, messages_today, emails_today}}`, each `{value, change, period}`: `change` = % new in the last 30 days vs the 30 before (`period: "month"`) or today vs yesterday (`"day"`); `null` when there is no timestamp or nothing to compare |
+| GET | `/admin/stats/timeseries` | `admin_stats_timeseries` | `?metric=users\|jobs\|applications&days=1..90` — daily counts, aggregated in SQL (`generate_series` + `GROUP BY day`, empty days = 0) → `{ok, data:{metric, days, points:[{date, count}], in_range, total}}`. Metric outside the allowlist (`admin_insights.TIMESERIES_METRICS`) → 422 `invalid_metric`; bad days → 422 `invalid_days` |
+| GET | `/admin/activity` | `admin_activity` | Latest 15 events from the existing tables (registrations · jobs · KYC in review · reports) → `{ok, data:[{kind, at, title, sub, ref}]}` — names / titles only (no email, no report text) |
+| GET | `/admin/audit` | `admin_audit` | Admin audit log (SYSTEMS_INDEX §25b) — `?page=1..&limit=1..100&action=` → `{ok, data:{items:[{id, created_at, actor, action, target, result, status, ip}], total, page, limit, actions}}`; bad page / limit → 422 |
 | GET | `/admin/news` | `admin_list_news` | List official news |
 | POST | `/admin/news` | `admin_create_news` | Create news post |
 | PUT | `/admin/news/{news_id}` | `admin_update_news` | Update news post |
@@ -6380,6 +6384,23 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c). `?dry_run=true` for analysis only; `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)` |
 | GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill dry-run shortcut (§66c) |
 | POST | `/admin/pipeline/migrate-index` | `admin_pipeline_migrate_index` | Create pipeline partial UNIQUE index (§66c). `?confirm=true` required; idempotent; run AFTER backfill. Checks status before (for `action` label) and after (readiness guard). `BlockingConflictError` → `JSONResponse(409, e.report)`; `ready=False` → `JSONResponse(500, {"code":"pipeline_index_not_ready","index_status":{...}})`; success `{"status":"ok","action":"created"\|"already_exists","index_status":{ready:true,...}}` |
+
+### Admin Audit Log (task 5.3a2 · SYSTEMS_INDEX §25b)
+
+Table `admin_audit_log` — critical startup migration `admin_audit_log` (`admin_insights.migrate_admin_audit_log`):
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | |
+| `created_at` | TIMESTAMPTZ NOT NULL DEFAULT NOW() | index `(created_at DESC)` |
+| `actor` | TEXT NOT NULL | admin JWT `sub` (`owner` today — ready for staff accounts); `-` when there is no valid session |
+| `action` | TEXT NOT NULL | FastAPI route name (`delete_user`, `admin_kyc_reject`, `admin_login` …); index `(action, created_at DESC)` |
+| `target` | TEXT | path parameters only (`user_id=5`) |
+| `result` | TEXT NOT NULL CHECK `ok`/`denied`/`failed` | `< 400` ok · `401/403/429` denied · else failed |
+| `status` | INTEGER | HTTP status |
+| `ip` | TEXT | `get_client_ip(request)` only |
+
+Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited). Reads (`GET`) are not recorded. ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
 
 ### Rules
 
@@ -12661,6 +12682,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 - Texts: Strings keys `email.common.{greeting, greeting_plain, footer, link_hint}` + `email.<type>.{subject, body, button?, note?}` (admin override via `PUT /admin/strings`). Layout: one RTL table layout (inline styles — email clients have no CSS vars; brand colors read from the DS-COLOR primitives in `tw_shared.css`) + a plain-text version.
 - Settings: `site_settings[email_settings]` = `{from_address, from_name, site_url, types:{password_reset, password_changed, email_change, email_changed, kyc_email_otp}}`; defaults `no-reply@tawasolna.com` · «تواصلنا» · `https://tawasolna.com` · all on. Loaded at startup + on save.
 - `/health` → `email: configured | missing` (does not change `status`).
+- `/health` → `storage: configured | missing` (task 5.3a2 — Supabase Storage URL + service key valid; reasons stay in the startup log; does not change `status`). Read by the Admin Shell status indicator + the dashboard «حالة النظام» card.
 
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|

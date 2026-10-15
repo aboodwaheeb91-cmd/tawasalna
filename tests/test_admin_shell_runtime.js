@@ -7,6 +7,8 @@
  *   B  no panel prefix in any admin file the browser gets
  *   C  big actions never send a request without confirmation (twConfirm / typed-word twModal)
  *   D  401 from any admin call → back to the panel login with the "expired" flag · no session → login
+ *   E  (task 5.3a2) desktop: side menu from the registry · mobile: menu button → the same links in a DS-OVL
+ *      dialog that closes on a link · unified search groups · /health state · twChart geometry
  *
  * Run: node tests/test_admin_shell_runtime.js
  */
@@ -29,7 +31,7 @@ function fakeEl(tag) {
     tagName: tag, value: '', textContent: '', className: '', hidden: false, children: [], attrs: {},
     setAttribute(k, v) { this.attrs[k] = String(v); }, removeAttribute(k) { delete this.attrs[k]; },
     getAttribute(k) { return this.attrs[k]; }, appendChild(c) { this.children.push(c); return c; },
-    addEventListener(t, fn) { (ls[t] = ls[t] || []).push(fn); }, fire(t) { (ls[t] || []).forEach(fn => fn({})); },
+    addEventListener(t, fn) { (ls[t] = ls[t] || []).push(fn); }, fire(t, ev) { (ls[t] || []).forEach(fn => fn(ev || {})); },
     focus: noop, querySelectorAll: () => [], classList: { add: noop, toggle: noop },
   };
 }
@@ -46,8 +48,9 @@ function shell(opts) {
                       removeItem: k => { delete store[k]; } },
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     setTimeout: () => 0, clearTimeout: noop,
-    document: { readyState: 'loading', addEventListener: noop, querySelector: () => null, querySelectorAll: () => [],
-                createElement: fakeEl, getElementById: () => null },
+    document: { readyState: 'loading', addEventListener: noop, querySelector: opts.header ? (q => (q === '[data-tw-header="admin"]' ? opts.header : null)) : () => null,
+                querySelectorAll: () => [], createElement: fakeEl, getElementById: () => null, head: fakeEl('head'),
+                body: { classList: { list: [], add(c) { this.list.push(c); } } } },
     location: { pathname: opts.path || PANEL, hash: opts.hash || '', search: opts.search || '',
                 replace: u => rec.replaced.push(u) },
     addEventListener: noop,
@@ -72,7 +75,7 @@ function shell(opts) {
   ctx.window = ctx;
   vm.createContext(ctx);
   ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js']
-    .concat(opts.page ? ['static/admin/admin.js'] : [])
+    .concat(opts.page ? ['static/admin/admin.js'] : []).concat(opts.chart ? ['static/shared/tw-chart.js'] : [])
     .forEach(f => vm.runInContext(read(f), ctx, { filename: f }));
   return { ctx, rec, store };
 }
@@ -191,6 +194,69 @@ const tick = () => new Promise(r => setImmediate(r));
     check('D8 login page reads the expired flag', shell({ search: '?session=expired' }).ctx.TwAdminShell.wasExpired() === true
       && l.ctx.TwAdminShell.wasExpired() === false);
     check('D9 start() saves the panel root for admin-view (runtime only)', l.ctx.TwAdminSession.panelHref() === PANEL);
+  }
+
+  console.log('\nE — side menu (desktop) · menu dialog (mobile) · search · health · chart (task 5.3a2)');
+  {
+    // a header placeholder that records what mount() renders and the listeners it binds
+    const parts = {};
+    const header = {
+      innerHTML: '', hidden: true, classList: { add: noop },
+      querySelector: q => (parts[q] = parts[q] || Object.assign(fakeEl('x'), { contains: () => false })),
+      querySelectorAll: () => [],
+    };
+    const s = shell({ token: LIVE, hash: '#kyc', header });
+    s.ctx.TwAdminShell.mount();
+    const html = header.innerHTML, reg = s.ctx.TW_ADMIN_SECTIONS;
+    const side = (html.match(/<aside class="tw-adm-side">([\s\S]*?)<\/aside>/) || [])[1] || '';
+    check('E1 mount: header shown + side menu holds one link per registry entry',
+      header.hidden === false && (side.match(/<a /g) || []).length === reg.length);
+    check('E2 side menu marks the current section', /aria-current="page" href="[^"]*#kyc"/.test(side));
+    check('E3 body gets the side-menu layout class', s.ctx.document.body.classList.list.indexOf('tw-adm-has-side') !== -1);
+    check('E4 top bar: menu button · search · system status · badge shortcuts · logout',
+      /data-adm-menu/.test(html) && /data-adm-search/.test(html) && /data-adm-health/.test(html)
+      && (html.match(/class="tw-adm-iconbtn" href=/g) || []).length === reg.filter(x => x.badge).length && /data-adm-logout/.test(html));
+    check('E5 no request for search data before the search is used', !s.rec.requests.some(r => r[0] === '/admin/jobs'));
+    parts['[data-adm-menu]'].fire('click');
+    const m = s.rec.modals[0];
+    const nav = m && m.opts.content;
+    check('E6 menu button opens a DS-OVL dialog with the same registry links',
+      !!m && (nav.innerHTML.match(/<a /g) || []).length === reg.length && /aria-current="page" href="[^"]*#kyc"/.test(nav.innerHTML));
+    let closed = 0;
+    m.ctl.close = () => { closed++; };
+    nav.fire('click', { target: { closest: () => null } });
+    check('E7a a click outside a link keeps the menu dialog open', closed === 0);
+    nav.fire('click', { target: { closest: sel => (sel === 'a' ? {} : null) } });
+    check('E7 choosing a link closes the menu dialog', closed === 1);
+    const css = read('static/shared/admin-shell.css');
+    const desk = (css.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/) || [])[1] || '';
+    check('E8 desktop (≥1024): side menu fixed, menu button hidden · below: side menu hidden',
+      /\.tw-adm-side \{ display: flex;[^}]*position: fixed/.test(desk) && /\.tw-adm-menu-btn[^{]*\{ display: none/.test(desk)
+      && /^\.tw-adm-side \{ display: none; \}/m.test(css));
+
+    const data = { users: [{ id: 1, full_name: 'سارة', email: 's@x', user_type: 'emp' }, { id: 2, full_name: 'Tech Co', email: 'hr@t', user_type: 'co' }],
+                   jobs: [{ id: 5, title: 'Tech lead', company_name: 'Tech Co' }] };
+    const g = s.ctx.TwAdminShell.searchResults(data, 'tech');
+    check('E9 search: companies and jobs grouped, users without a match left out',
+      g.map(x => x.key).join() === 'companies,jobs' && g[0].items[0].href === '/admin-view?id=2'
+      && g[1].items[0].href === PANEL + '#jobs' && g[1].items[0].section === 'jobs');
+    check('E10 search: empty query → nothing', s.ctx.TwAdminShell.searchResults(data, '  ').length === 0);
+    const hs = s.ctx.TwAdminShell.healthState;
+    check('E11 health: ok · degraded · down', hs({ status: 'ok', db: 'ok', email: 'configured', storage: 'configured' }) === 'ok'
+      && hs({ status: 'ok', db: 'ok', email: 'missing', storage: 'configured' }) === 'degraded'
+      && hs({ status: 'degraded', db: 'error' }) === 'down' && hs(null) === 'down');
+  }
+  {
+    const c = shell({ chart: true }).ctx;
+    const L = c.twChart.layout([{ value: 0 }, { value: 5 }, { value: 10 }], 'line');
+    check('E12 chart: highest value reaches the top, zero sits on the base', L.max === 10 && L.ys[2] < L.ys[1] && L.ys[1] < L.ys[0]
+      && L.xs[0] < L.xs[2] && L.bars[2].h > L.bars[1].h && L.bars[0].h === 0);
+    const box = fakeEl('div');
+    box.textContent = 'old';
+    const w = c.twChart(box, { type: 'bar', title: 'T', points: [{ label: '<b>', value: 2 }, { label: 'b', value: 1 }] });
+    check('E13 chart: drawn into the container, accessible name, labels escaped',
+      box.children[0] === w && w.attrs.role === 'img' && /^T: /.test(w.attrs['aria-label'])
+      && (w.innerHTML.match(/<rect /g) || []).length === 2 && w.innerHTML.indexOf('<b>') === -1);
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

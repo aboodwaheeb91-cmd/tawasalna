@@ -7,7 +7,10 @@
 //   TwAdminShell.start({loginPage})  → one call first thing in the page script.
 //        live admin session → true. None → login page: false (page shows its form) ·
 //        any other admin page: location.replace(panel root) and false.
-//   TwAdminShell.mount()             → renders header + menu from TW_ADMIN_SECTIONS, loads badges.
+//   TwAdminShell.mount()             → renders the side menu (desktop) + top bar from TW_ADMIN_SECTIONS:
+//        unified search (users · companies · jobs) · system status (/health) · badge shortcuts · logout.
+//        Mobile: menu button → openMenu() = the same links in a DS-OVL twModal.
+//   TwAdminShell.health()            → cached GET /health (the dashboard's system card reuses it).
 //   TwAdminShell.run(action, ctx)    → the ONE way an admin page changes data: confirm (twConfirm,
 //        or typed-word confirm for the most dangerous) → TwAdminSession.fetch → toast. No confirm → no request.
 //   TwAdminShell.confirm(opts)       → twConfirm, or (opts.typeWord) a twModal whose confirm button
@@ -77,14 +80,152 @@
     }).join('');
   }
 
+  // Desktop: side menu (brand color) + top bar · mobile: top bar + menu button → the same links in a
+  // DS-OVL twModal (openMenu). Top bar: unified search · system status (/health) · badge shortcuts.
   function headerHtml(current) {
-    return '<div class="tw-adm-bar">'
-      + '<img class="tw-adm-logo" src="/static/33333.svg" alt="' + twEscAttr(twT('brand.name')) + '" width="96" height="26">'
-      + '<span class="tw-adm-title">' + twEscHtml(twT('admin.shell.title')) + '</span>'
-      + '<button type="button" class="tw-act tw-act-secondary tw-adm-logout" data-adm-logout>'
-      + ico('log-out', 'sm') + '<span>' + twEscHtml(twT('admin.shell.logout')) + '</span></button>'
-      + '</div>'
-      + '<nav class="tw-adm-nav" aria-label="' + twEscAttr(twT('admin.shell.nav')) + '">' + navHtml(current) + '</nav>';
+    var logo = '<img class="tw-adm-logo" src="/static/33333.svg" alt="' + twEscAttr(twT('brand.name')) + '" width="96" height="26">';
+    var quick = sections().filter(function (s) { return s.badge; }).map(function (s) {
+      return '<a class="tw-adm-iconbtn" href="' + twEscAttr(hrefFor(s)) + '" aria-label="' + twEscAttr(twT(s.labelKey))
+        + '" title="' + twEscAttr(twT(s.labelKey)) + '">' + ico(s.icon, 'sm')
+        + '<span class="tw-adm-badge" data-adm-badge="' + twEscAttr(s.badge) + '" hidden></span></a>';
+    }).join('');
+    return '<aside class="tw-adm-side">'
+      + '<div class="tw-adm-brand"><span class="tw-adm-brand-logo">' + logo + '</span>'
+      + '<span class="tw-adm-title">' + twEscHtml(twT('admin.shell.title')) + '</span></div>'
+      + '<nav class="tw-adm-nav" aria-label="' + twEscAttr(twT('admin.shell.nav')) + '">' + navHtml(current) + '</nav>'
+      + '</aside>'
+      + '<div class="tw-adm-bar">'
+      + '<button type="button" class="tw-adm-iconbtn tw-adm-menu-btn" data-adm-menu aria-label="' + twEscAttr(twT('admin.shell.menu'))
+      + '" title="' + twEscAttr(twT('admin.shell.menu')) + '">' + ico('menu', 'sm') + '</button>'
+      + '<span class="tw-adm-bar-logo">' + logo + '</span>'
+      + '<div class="tw-adm-search" role="search">' + '<span class="tw-adm-search-ico">' + ico('search', 'sm') + '</span>'
+      + '<input class="tw-input" type="search" data-adm-search autocomplete="off" aria-autocomplete="list" aria-expanded="false"'
+      + ' aria-controls="tw-adm-search-res" aria-label="' + twEscAttr(twT('admin.search.label'))
+      + '" placeholder="' + twEscAttr(twT('admin.search.placeholder')) + '">'
+      + '<div class="tw-adm-search-res" id="tw-adm-search-res" data-adm-search-res hidden></div></div>'
+      + '<span class="tw-adm-health" role="status" data-adm-health><span class="tw-adm-dot"></span>'
+      + '<span class="tw-adm-health-text" data-adm-health-text>' + twEscHtml(twT('admin.health.checking')) + '</span></span>'
+      + quick
+      + '<button type="button" class="tw-act tw-act-secondary tw-adm-logout" data-adm-logout aria-label="'
+      + twEscAttr(twT('admin.shell.logout')) + '">' + ico('log-out', 'sm') + '<span>' + twEscHtml(twT('admin.shell.logout')) + '</span></button>'
+      + '</div>';
+  }
+
+  // ── mobile menu: the same registry links inside a DS-OVL dialog (F33) ──
+  function openMenu() {
+    var nav = document.createElement('nav');
+    nav.className = 'tw-adm-nav tw-adm-drawer-nav';
+    nav.setAttribute('aria-label', twT('admin.shell.nav'));
+    nav.innerHTML = navHtml(currentKey());
+    var h = hdr();
+    nav.querySelectorAll('[data-adm-badge]').forEach(function (b) {
+      var src = h && h.querySelector('[data-adm-badge="' + b.getAttribute('data-adm-badge') + '"]');
+      if (src) { b.textContent = src.textContent; b.hidden = src.hidden; }
+    });
+    var ctl = twModal({ title: twT('admin.shell.nav'), content: nav,
+                        actions: [{ text: twT('common.close'), variant: 'secondary' }] });
+    nav.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('a')) ctl.close();
+    });
+    return ctl;
+  }
+
+  // ── unified search: users · companies · jobs (existing admin endpoints, filtered here) ──
+  var SEARCH_MAX = 5, _searchData = null;
+  function loadSearch() {
+    if (_searchData) return _searchData;
+    var get = function (url, key) {
+      return TwAdminSession.fetch(url, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (d) { return (d && d[key]) || []; })
+        .catch(function (e) { console.error('[TwAdminShell] search ' + url + ':', e); return []; });
+    };
+    _searchData = Promise.all([get('/auth/users', 'users'), get('/admin/jobs', 'jobs')])
+      .then(function (r) { return { users: r[0], jobs: r[1] }; });
+    return _searchData;
+  }
+  function _has(v, q) { return String(v == null ? '' : v).toLowerCase().indexOf(q) !== -1; }
+  // Pure (tests read it): data + query → [{key, items:[{title, sub, href, section?, q?}]}] (empty groups dropped)
+  function searchResults(data, q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q || !data) return [];
+    var users = [], cos = [], jobs = [];
+    (data.users || []).forEach(function (u) {
+      if (!_has(u.full_name, q) && !_has(u.email, q) && !_has(u.tw_id, q)) return;
+      var it = { title: u.full_name || u.email || '', sub: u.email || '', href: '/admin-view?id=' + Number(u.id) };
+      (u.user_type === 'co' ? cos : users).push(it);
+    });
+    (data.jobs || []).forEach(function (j) {
+      if (!_has(j.title, q) && !_has(j.company_name, q)) return;
+      jobs.push({ title: j.title || '', sub: j.company_name || '', href: hrefFor({ path: '#jobs' }), section: 'jobs', q: j.title || '' });
+    });
+    return [['users', users], ['companies', cos], ['jobs', jobs]]
+      .filter(function (g) { return g[1].length; })
+      .map(function (g) { return { key: g[0], items: g[1].slice(0, SEARCH_MAX) }; });
+  }
+  function searchHtml(groups) {
+    if (!groups.length) return '<p class="tw-adm-res-empty">' + twEscHtml(twT('admin.search.empty')) + '</p>';
+    return groups.map(function (g) {
+      return '<div class="tw-adm-res-group"><div class="tw-adm-res-title">' + twEscHtml(twT('admin.nav.' + g.key)) + '</div>'
+        + g.items.map(function (it) {
+          return '<a class="tw-adm-res-item" href="' + twEscAttr(it.href) + '"'
+            + (it.section ? ' data-adm-pick="' + twEscAttr(it.section) + '" data-adm-q="' + twEscAttr(it.q) + '"' : '') + '>'
+            + '<span class="tw-adm-res-name">' + twEscHtml(it.title) + '</span>'
+            + (it.sub ? '<span class="tw-adm-res-sub">' + twEscHtml(it.sub) + '</span>' : '') + '</a>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+  function bindSearch(h) {
+    var input = h.querySelector('[data-adm-search]'), box = h.querySelector('[data-adm-search-res]');
+    if (!input || !box) return;
+    var close = function () { box.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+    var render = function () {
+      var q = input.value;
+      if (!q.trim()) { close(); return; }
+      loadSearch().then(function (data) {
+        if (input.value !== q) return;
+        box.innerHTML = searchHtml(searchResults(data, q));
+        box.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      });
+    };
+    input.addEventListener('focus', function () { loadSearch(); });
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); } });
+    box.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('[data-adm-pick]') : null;
+      if (a) {
+        try {
+          document.dispatchEvent(new CustomEvent('tw-adm:pick',
+            { detail: { section: a.getAttribute('data-adm-pick'), q: a.getAttribute('data-adm-q') } }));
+        } catch (err) { console.error('[TwAdminShell] pick:', err); }
+      }
+      close();
+    });
+    document.addEventListener('click', function (e) { if (!h.querySelector('.tw-adm-search').contains(e.target)) close(); });
+  }
+
+  // ── system status from /health (db · email · storage · migrations) — shared with the dashboard ──
+  var _health = null;
+  function health(force) {
+    if (!_health || force) {
+      _health = TwAdminSession.fetch('/health', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .catch(function (e) { console.error('[TwAdminShell] health:', e); return null; });
+    }
+    return _health;
+  }
+  // Pure: /health body → 'ok' | 'degraded' | 'down'
+  function healthState(h) {
+    if (!h || h.db !== 'ok') return 'down';
+    return h.status === 'ok' && h.email === 'configured' && h.storage === 'configured' ? 'ok' : 'degraded';
+  }
+  function showHealth(h) {
+    var el = hdr() && hdr().querySelector('[data-adm-health]');
+    if (!el) return;
+    var st = healthState(h);
+    el.className = 'tw-adm-health is-' + st;
+    el.querySelector('[data-adm-health-text]').textContent = twT('admin.health.' + st);
+    el.setAttribute('title', twT('admin.health.' + st));
   }
 
   function hdr() { return document.querySelector('[data-tw-header="admin"]'); }
@@ -133,9 +274,13 @@
     h.classList.add('tw-adm-hdr');
     h.innerHTML = headerHtml(currentKey());
     h.hidden = false;
+    if (document.body && document.body.classList) document.body.classList.add('tw-adm-has-side');
     h.querySelector('[data-adm-logout]').addEventListener('click', logout);
+    h.querySelector('[data-adm-menu]').addEventListener('click', openMenu);
+    bindSearch(h);
     window.addEventListener('hashchange', function () { setCurrent(currentKey()); });
     refreshBadges();
+    health().then(showHealth);
   }
 
   // ── session gate ──
@@ -267,5 +412,6 @@
     base: base, page: page, hrefFor: hrefFor, currentKey: currentKey, items: items, navHtml: navHtml,
     start: start, mount: mount, setCurrent: setCurrent, setBadge: setBadge, refreshBadges: refreshBadges,
     wasExpired: wasExpired, logout: logout, confirm: confirm, run: run, card: card,
+    openMenu: openMenu, searchResults: searchResults, health: health, healthState: healthState,
   };
 }());

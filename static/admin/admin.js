@@ -1,13 +1,18 @@
 // static/admin/admin.js — admin panel root (admin.html · task 5.3a · docs/rules/admin-shell.md)
 //   - session / header / menu / confirm gate = TwAdminShell (static/shared/admin-shell.js)
 //   - one section shown at a time, chosen by the menu (#users · #jobs · … → TW_ADMIN_SECTIONS key)
+//   - overview = dashboard (task 5.3a2): cards (GET /admin/stats/summary) · 30-day charts (GET /admin/stats/timeseries,
+//     drawn by twChart) · review queues · live activity (GET /admin/activity) · system (/health) · recent audit
+//   - companies = the users view with a fixed type filter · audit = GET /admin/audit (read only)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
 //   - text: twT (admin.*) · icons: twIcon · colors: --color-* tokens · dialogs: DS-OVL
 (function () {
   'use strict';
   var PAG = 20;
-  var S = { users: [], jobs: [], kyc: [], reports: [], usersPage: 1, filter: '', logo: '', built: false, logoLoaded: false };
+  var S = { users: null, jobs: [], kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '' };
+  // users table views — 'companies' = the same view with a fixed type filter (task 5.3a2, no 2nd table code)
+  var VIEWS = { users: { fixed: '', filter: '', page: 1 }, companies: { fixed: 'co', filter: 'co', page: 1 } };
 
   // ── actions (the only writes on this page) ──
   var DEL_WORD = 'admin.confirm.word.delete';
@@ -102,48 +107,15 @@
     if (S.built) return;
     S.built = true;
 
-    var ov = $('sec-overview');
-    var b1 = TwAdminShell.card(ov, { titleKey: 'admin.overview.users', hintKey: 'admin.overview.users.hint', icon: 'users' });
-    var g1 = el('div', 'tw-adm-stats');
-    [['statTotalUsers', 'admin.stat.total', true], ['statEmployees', 'admin.stat.emp'],
-     ['statCompanies', 'admin.stat.co'], ['statEdu', 'admin.stat.edu']].forEach(function (s) { g1.appendChild(stat(s[0], s[1], s[2])); });
-    b1.appendChild(g1);
-    var b2 = TwAdminShell.card(ov, { titleKey: 'admin.overview.activity', hintKey: 'admin.overview.activity.hint', icon: 'activity' });
-    var g2 = el('div', 'tw-adm-stats');
-    g2.appendChild(stat('statTotalJobs', 'admin.stat.jobs'));
-    g2.appendChild(stat('statKYC', 'admin.stat.kyc'));
-    b2.appendChild(g2);
-
-    // users: search + type filter + list
-    var bu = TwAdminShell.card($('sec-users'), { titleKey: 'admin.users.title', hintKey: 'admin.users.hint', icon: 'users' });
-    var search = el('input', 'tw-input');
-    search.type = 'search';
-    search.id = 'userSearch';
-    search.setAttribute('placeholder', twT('admin.users.search'));
-    search.setAttribute('aria-label', twT('admin.users.search'));
-    search.addEventListener('input', function () { S.usersPage = 1; renderUsers(); });
-    bu.appendChild(search);
-    var chips = el('div', 'adm-btns');
-    chips.setAttribute('role', 'group');
-    ['', 'emp', 'co', 'edu'].forEach(function (t) {
-      var c = btn('secondary', null, t ? 'admin.user.type.' + t : 'common.all', function () {
-        S.filter = t; S.usersPage = 1;
-        chips.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === c)); });
-        renderUsers();
-      });
-      c.setAttribute('aria-pressed', String(!t));
-      chips.appendChild(c);
-    });
-    bu.appendChild(chips);
-    BODY.users = el('div');
-    bu.appendChild(BODY.users);
-    BODY.usersPag = el('div', 'tw-adm-pag');
-    bu.appendChild(BODY.usersPag);
-    msg(BODY.users, 'common.loading');
+    buildOverview($('sec-overview'));
+    buildUsersView('users', $('sec-users'), 'admin.users.title', 'admin.users.hint', 'users');
+    buildUsersView('companies', $('sec-companies'), 'admin.companies.title', 'admin.companies.hint', 'building-2');
+    buildAudit($('sec-audit'));
 
     var bj = TwAdminShell.card($('sec-jobs'), { titleKey: 'admin.jobs.title', hintKey: 'admin.jobs.hint', icon: 'briefcase' });
     var js = el('input', 'tw-input');
     js.type = 'search';
+    js.id = 'jobSearch';
     js.setAttribute('placeholder', twT('admin.jobs.search'));
     js.setAttribute('aria-label', twT('admin.jobs.search'));
     js.addEventListener('input', function () { renderJobs(js.value); });
@@ -190,27 +162,246 @@
     bm.appendChild(BODY.mig);
   }
 
-  function stat(id, labelKey, wide) {
-    var s = el('div', 'tw-adm-stat' + (wide ? ' is-wide' : ''));
-    var n = el('div', 'tw-adm-stat-num', '—');
-    n.id = id;
-    s.appendChild(n);
-    s.appendChild(el('div', 'tw-adm-stat-lbl', twT(labelKey)));
-    return s;
+  // ── overview = dashboard (task 5.3a2) — real data only: no card without a source ──
+  // [summary key, DS-ICON, twT base (… + '.hint'), section key the card opens]
+  var KPIS = [
+    ['users', 'users', 'admin.kpi.users', 'users'],
+    ['verified_companies', 'badge-check', 'admin.kpi.verified_companies', 'companies'],
+    ['active_jobs', 'briefcase', 'admin.kpi.active_jobs', 'jobs'],
+    ['applications', 'file-text', 'admin.kpi.applications', ''],
+    ['open_reports', 'report', 'admin.kpi.open_reports', 'reports'],
+    ['pending_kyc', 'id-card', 'admin.kpi.pending_kyc', 'kyc'],
+    ['messages_today', 'messages-square', 'admin.kpi.messages_today', ''],
+    ['emails_today', 'mail', 'admin.kpi.emails_today', 'email'],
+  ];
+  // [metric (GET /admin/stats/timeseries allowlist), chart type, twT base, icon]
+  var CHARTS = [
+    ['users', 'line', 'admin.chart.users', 'trending-up'],
+    ['jobs', 'bar', 'admin.chart.jobs', 'briefcase'],
+    ['applications', 'line', 'admin.chart.applications', 'file-text'],
+  ];
+  var DAYS = 30, QUEUE_MAX = 5, OV = {};
+  function sectionHref(key) {
+    var s = (window.TW_ADMIN_SECTIONS || []).filter(function (x) { return x.key === key; })[0];
+    return s ? TwAdminShell.hrefFor(s) : '';
   }
-  function setStat(id, n) { var e = $(id); if (e) e.textContent = String(n); }
-  function updateStats() {
-    setStat('statTotalUsers', S.users.length);
-    setStat('statEmployees', S.users.filter(function (u) { return u.user_type === 'emp'; }).length);
-    setStat('statCompanies', S.users.filter(function (u) { return u.user_type === 'co'; }).length);
-    setStat('statEdu', S.users.filter(function (u) { return u.user_type === 'edu'; }).length);
-    setStat('statTotalJobs', S.jobs.length);
-    setStat('statKYC', S.kyc.filter(function (k) { return k.step === 'review'; }).length);
+  function moreLink(parent, key) {
+    var a = el('a', 'adm-more', twT('admin.dash.view_all'));
+    a.href = sectionHref(key);
+    parent.appendChild(a);
+  }
+  function buildOverview(ov) {
+    var kpis = el('div', 'adm-kpis');
+    ov.appendChild(kpis);
+    OV.kpi = {};
+    KPIS.forEach(function (k) {
+      var body = TwAdminShell.card(kpis, { titleKey: k[2], hintKey: k[2] + '.hint', icon: k[1] });
+      body.parentNode.classList.add('is-kpi');
+      var val = el('div', 'adm-kpi-val', '—'), chg = el('div', 'adm-kpi-chg');
+      body.appendChild(val);
+      body.appendChild(chg);
+      if (k[3]) moreLink(body, k[3]);
+      OV.kpi[k[0]] = { val: val, chg: chg };
+    });
+    var dash = el('div', 'adm-dash'), mainCol = el('div', 'adm-col'), side = el('div', 'adm-col');
+    dash.appendChild(mainCol);
+    dash.appendChild(side);
+    ov.appendChild(dash);
+    var charts = el('div', 'adm-charts');
+    mainCol.appendChild(charts);
+    OV.chart = {};
+    CHARTS.forEach(function (c) {
+      var body = TwAdminShell.card(charts, { titleKey: c[2], hintKey: c[2] + '.hint', icon: c[3] });
+      var sum = el('div', 'adm-chart-sum'), box = el('div', 'adm-chart-box');
+      body.appendChild(sum);
+      body.appendChild(box);
+      msg(box, 'common.loading');
+      OV.chart[c[0]] = { sum: sum, box: box, type: c[1], title: c[2] };
+    });
+    var queues = el('div', 'adm-queues');
+    mainCol.appendChild(queues);
+    OV.qKyc = TwAdminShell.card(queues, { titleKey: 'admin.queue.kyc', hintKey: 'admin.queue.kyc.hint', icon: 'id-card' });
+    OV.qRep = TwAdminShell.card(queues, { titleKey: 'admin.queue.reports', hintKey: 'admin.queue.reports.hint', icon: 'report' });
+    OV.activity = TwAdminShell.card(side, { titleKey: 'admin.activity.title', hintKey: 'admin.activity.hint', icon: 'activity' });
+    OV.system = TwAdminShell.card(side, { titleKey: 'admin.system.title', hintKey: 'admin.system.hint', icon: 'server' });
+    OV.audit = TwAdminShell.card(side, { titleKey: 'admin.audit.recent', hintKey: 'admin.audit.recent.hint', icon: 'shield' });
+  }
+  function apiData(url) {   // new admin endpoints answer {ok, data}
+    return getJson(url).then(function (d) { return d && d.data; });
+  }
+  function renderKpis(sum) {
+    KPIS.forEach(function (k) {
+      var c = sum[k[0]] || {}, ui = OV.kpi[k[0]];
+      ui.val.textContent = String(Number(c.value) || 0);
+      ui.chg.textContent = '';
+      ui.chg.className = 'adm-kpi-chg';
+      if (c.change === null || c.change === undefined || !c.period) return;
+      var n = Number(c.change);
+      ui.chg.classList.add(n > 0 ? 'is-up' : n < 0 ? 'is-down' : 'is-flat');
+      ui.chg.textContent = twT('admin.kpi.change.' + (c.period === 'day' ? 'day' : 'month'), { n: (n > 0 ? '+' : '') + n + '%' });
+    });
+  }
+  function renderChart(metric, d) {
+    var c = OV.chart[metric];
+    c.sum.textContent = twT('admin.chart.sum', { n: Number(d.in_range) || 0, days: DAYS, total: Number(d.total) || 0 });
+    twChart(c.box, { type: c.type, title: twT(c.title),
+                     points: (d.points || []).map(function (p) { return { label: twFormatDate(p.date), value: p.count }; }) });
+  }
+  function queueRow(parent, title, sub, sectionKey) {
+    var r = row(title, sub);
+    var a = el('a', 'tw-act tw-act-secondary');
+    a.href = sectionHref(sectionKey);
+    a.appendChild(twIconEl('eye', { size: 'xs' }));
+    a.appendChild(el('span', null, twT('admin.dash.review')));
+    r.acts.appendChild(a);
+    parent.appendChild(r.row);
+  }
+  function renderQueues() {
+    var k = S.kyc.filter(function (x) { return x.step === 'review'; });
+    OV.qKyc.textContent = '';
+    if (!k.length) msg(OV.qKyc, 'admin.queue.kyc.empty');
+    k.slice(0, QUEUE_MAX).forEach(function (x) {
+      queueRow(OV.qKyc, x.full_name, [typeLabel(x.user_type) + (x.submitted_at ? ' · ' + twFormatDate(x.submitted_at) : '')], 'kyc');
+    });
+    if (k.length) moreLink(OV.qKyc, 'kyc');
+    var r = S.reports.filter(function (x) { return x.status === 'pending'; });
+    OV.qRep.textContent = '';
+    if (!r.length) msg(OV.qRep, 'admin.queue.reports.empty');
+    r.slice(0, QUEUE_MAX).forEach(function (x) {
+      queueRow(OV.qRep, x.reported_name || twT('admin.reports.unknown'),
+               [(x.report_type || twT('admin.reports.default_type')) + (x.created_at ? ' · ' + twFormatDate(x.created_at) : '')], 'reports');
+    });
+    if (r.length) moreLink(OV.qRep, 'reports');
+  }
+  var ACT_SECTION = { job: 'jobs', kyc: 'kyc', report: 'reports' };
+  function renderActivity(list) {
+    var box = OV.activity;
+    box.textContent = '';
+    if (!list.length) { msg(box, 'admin.activity.empty'); return; }
+    list.forEach(function (a) {
+      var kind = (ACT_SECTION[a.kind] || a.kind === 'register') ? a.kind : 'register';
+      var sub = kind === 'job' || kind === 'report' ? (a.sub || '') : typeLabel(a.sub);
+      var it = el('a', 'adm-act');
+      it.href = a.kind === 'register' ? '/admin-view?id=' + Number(a.ref) : sectionHref(ACT_SECTION[a.kind]);
+      it.appendChild(el('span', 'adm-act-ico')).appendChild(twIconEl(
+        { register: 'user-plus', job: 'briefcase', kyc: 'id-card', report: 'report' }[kind], { size: 'sm' }));
+      var txt = el('span', 'adm-act-txt');
+      txt.appendChild(el('span', 'adm-act-title', twT('admin.activity.' + kind, { name: a.title || '—' })));
+      txt.appendChild(el('span', 'adm-act-sub', [sub, a.at ? twFormatDateTime(a.at) : ''].filter(Boolean).join(' · ')));
+      it.appendChild(txt);
+      box.appendChild(it);
+    });
+  }
+  function sysRow(box, labelKey, ok, textKey) {
+    var r = el('div', 'adm-sys');
+    r.appendChild(el('span', 'adm-sys-lbl', twT(labelKey)));
+    r.appendChild(pill(twT(textKey), ok ? 'ok' : 'danger'));
+    box.appendChild(r);
+  }
+  function renderSystem(h) {
+    var box = OV.system;
+    box.textContent = '';
+    if (!h) { msg(box, 'admin.health.down'); return; }
+    var mig = h.migrations || {}, names = Object.keys(mig), bad = names.filter(function (n) { return mig[n] !== 'ok'; });
+    sysRow(box, 'admin.system.db', h.db === 'ok', h.db === 'ok' ? 'admin.system.ok' : 'admin.system.error');
+    sysRow(box, 'admin.system.email', h.email === 'configured', h.email === 'configured' ? 'admin.system.configured' : 'admin.system.missing');
+    sysRow(box, 'admin.system.storage', h.storage === 'configured', h.storage === 'configured' ? 'admin.system.configured' : 'admin.system.missing');
+    var r = el('div', 'adm-sys');
+    r.appendChild(el('span', 'adm-sys-lbl', twT('admin.system.migrations')));
+    r.appendChild(pill(bad.length ? twT('admin.system.migrations_failed', { n: bad.length }) : twT('admin.system.migrations_ok', { n: names.length }),
+                       bad.length ? 'danger' : 'ok'));
+    box.appendChild(r);
+    if (bad.length) box.appendChild(el('p', 'tw-adm-hint', bad.join(' · ')));
+  }
+  var AUDIT_LABELS = ['admin_login', 'delete_user', 'verify_user', 'change_user_type', 'admin_reset_password', 'admin_update_profile',
+                      'admin_delete_job', 'admin_kyc_approve', 'admin_kyc_reject', 'resolve_report', 'upload_logo',
+                      'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email'];
+  function auditLabel(a) { return AUDIT_LABELS.indexOf(a) !== -1 ? twT('admin.audit.action.' + a) : String(a || '—'); }
+  var RESULT_MOD = { ok: 'ok', denied: 'danger', failed: 'warn' };
+  function auditRows(box, items) {
+    items.forEach(function (it) {
+      var r = row(auditLabel(it.action), [
+        [it.created_at ? twFormatDateTime(it.created_at) : '', it.target || '', it.ip ? twT('admin.audit.ip', { ip: it.ip }) : '']
+          .filter(Boolean).join(' · '),
+        twT('admin.audit.actor', { actor: it.actor || '—' }),
+      ], pill(twT('admin.audit.result.' + (RESULT_MOD[it.result] ? it.result : 'failed')), RESULT_MOD[it.result] || 'warn'));
+      box.appendChild(r.row);
+    });
+  }
+  function renderRecentAudit(d) {
+    OV.audit.textContent = '';
+    if (!d.items.length) { msg(OV.audit, 'admin.audit.empty'); return; }
+    auditRows(OV.audit, d.items);
+    moreLink(OV.audit, 'audit');
+  }
+  function failBox(box) { return function (e) { console.error('[admin] overview:', e); msg(box, 'admin.load_error'); }; }
+  function loadOverview() {
+    apiData('/admin/stats/summary').then(renderKpis).catch(function (e) { console.error('[admin] summary:', e); });
+    CHARTS.forEach(function (c) {
+      apiData('/admin/stats/timeseries?metric=' + c[0] + '&days=' + DAYS).then(function (d) { renderChart(c[0], d); })
+        .catch(failBox(OV.chart[c[0]].box));
+    });
+    Promise.all([getJson('/admin/kyc'), getJson('/admin/reports')]).then(function (r) {
+      S.kyc = r[0].submissions || [];
+      S.reports = r[1].reports || [];
+      renderQueues();
+    }).catch(failBox(OV.qKyc));
+    apiData('/admin/activity').then(function (d) { renderActivity(d || []); }).catch(failBox(OV.activity));
+    TwAdminShell.health(true).then(renderSystem);
+    apiData('/admin/audit?limit=5').then(renderRecentAudit).catch(failBox(OV.audit));
+  }
+
+  // ── security log (GET /admin/audit — read only) ──
+  var AUDIT_PAG = 20;
+  function buildAudit(sec) {
+    var box = TwAdminShell.card(sec, { titleKey: 'admin.audit.title', hintKey: 'admin.audit.hint', icon: 'shield' });
+    var lbl = el('label', 'adm-field');
+    lbl.appendChild(el('span', null, twT('admin.audit.filter')));
+    var sel = el('select', 'tw-input ep-select');
+    sel.id = 'auditAction';
+    sel.appendChild(new Option(twT('common.all'), ''));
+    sel.addEventListener('change', function () { S.auditAction = sel.value; S.auditPage = 1; loadAudit(); });
+    lbl.appendChild(sel);
+    box.appendChild(lbl);
+    BODY.audit = el('div');
+    box.appendChild(BODY.audit);
+    BODY.auditPag = el('div', 'tw-adm-pag');
+    box.appendChild(BODY.auditPag);
+    if (typeof window.scSelectInit === 'function') window.scSelectInit();
+  }
+  function loadAudit() {
+    msg(BODY.audit, 'common.loading');
+    var q = '/admin/audit?page=' + S.auditPage + '&limit=' + AUDIT_PAG + (S.auditAction ? '&action=' + encodeURIComponent(S.auditAction) : '');
+    return apiData(q).then(function (d) {
+      var sel = $('auditAction');
+      if (sel && sel.options.length - 1 !== d.actions.length) {
+        while (sel.options.length > 1) sel.remove(1);
+        d.actions.forEach(function (a) { sel.appendChild(new Option(auditLabel(a), a)); });
+        sel.value = S.auditAction;
+      }
+      BODY.audit.textContent = '';
+      BODY.auditPag.textContent = '';
+      if (!d.items.length) { msg(BODY.audit, 'admin.audit.empty'); return; }
+      auditRows(BODY.audit, d.items);
+      var pages = Math.ceil(d.total / d.limit);
+      if (pages > 1) {
+        var prev = btn('secondary', 'prev', 'admin.pag.prev', function () { S.auditPage--; loadAudit(); });
+        var next = btn('secondary', 'next', 'admin.pag.next', function () { S.auditPage++; loadAudit(); });
+        prev.disabled = d.page <= 1;
+        next.disabled = d.page >= pages;
+        BODY.auditPag.appendChild(prev);
+        BODY.auditPag.appendChild(el('span', 'adm-pag-txt', twT('admin.pag.of', { page: d.page, pages: pages })));
+        BODY.auditPag.appendChild(next);
+      }
+    }).catch(function (e) { console.error('[admin] audit:', e); msg(BODY.audit, 'admin.load_error'); });
   }
 
   // ── section switching (menu → hash) ──
   var LOADERS = {
-    users: function () { renderUsers(); },
+    overview: loadOverview,
+    users: function () { showUsers('users'); },
+    companies: function () { showUsers('companies'); },
+    audit: function () { loadAudit(); },
     jobs: loadJobs, reports: loadReports, kyc: loadKYC, errors: loadErrors,
     system: function () { if (!S.logoLoaded) loadLogo(); },
   };
@@ -221,29 +412,63 @@
     if (LOADERS[key]) LOADERS[key]();
   }
 
-  // ── users ──
+  // ── users / companies (one view, VIEWS[name]) ──
   function typeLabel(t) { return twT('admin.user.type.' + (t === 'co' || t === 'edu' ? t : 'emp')); }
+  function buildUsersView(name, sec, titleKey, hintKey, icon) {
+    var v = VIEWS[name];
+    var box = TwAdminShell.card(sec, { titleKey: titleKey, hintKey: hintKey, icon: icon });
+    v.search = el('input', 'tw-input');
+    v.search.type = 'search';
+    v.search.setAttribute('placeholder', twT('admin.users.search'));
+    v.search.setAttribute('aria-label', twT('admin.users.search'));
+    v.search.addEventListener('input', function () { v.page = 1; renderUsers(name); });
+    box.appendChild(v.search);
+    if (!v.fixed) {
+      var chips = el('div', 'adm-btns');
+      chips.setAttribute('role', 'group');
+      ['', 'emp', 'co', 'edu'].forEach(function (t) {
+        var c = btn('secondary', null, t ? 'admin.user.type.' + t : 'common.all', function () {
+          v.filter = t; v.page = 1;
+          chips.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === c)); });
+          renderUsers(name);
+        });
+        c.setAttribute('aria-pressed', String(!t));
+        chips.appendChild(c);
+      });
+      box.appendChild(chips);
+    }
+    v.body = el('div');
+    box.appendChild(v.body);
+    v.pag = el('div', 'tw-adm-pag');
+    box.appendChild(v.pag);
+    msg(v.body, 'common.loading');
+  }
+  function showUsers(name) { if (S.users) renderUsers(name); else loadUsers(); }
   function loadUsers() {
     return getJson('/auth/users').then(function (d) {
       S.users = d.users || [];
-      updateStats();
-      renderUsers();
-    }).catch(function (e) { console.error('[admin] users:', e); msg(BODY.users, 'admin.load_error'); });
-  }
-  function filteredUsers() {
-    var q = (($('userSearch') || {}).value || '').toLowerCase();
-    return S.users.filter(function (u) {
-      var hit = !q || String(u.full_name || '').toLowerCase().indexOf(q) !== -1 || String(u.email || '').toLowerCase().indexOf(q) !== -1;
-      return hit && (!S.filter || u.user_type === S.filter);
+      renderUsers('users');
+      renderUsers('companies');
+    }).catch(function (e) {
+      console.error('[admin] users:', e);
+      msg(VIEWS.users.body, 'admin.load_error');
+      msg(VIEWS.companies.body, 'admin.load_error');
     });
   }
-  function renderUsers() {
-    var list = filteredUsers(), box = BODY.users;
+  function filteredUsers(v) {
+    var q = String(v.search.value || '').toLowerCase();
+    return (S.users || []).filter(function (u) {
+      var hit = !q || String(u.full_name || '').toLowerCase().indexOf(q) !== -1 || String(u.email || '').toLowerCase().indexOf(q) !== -1;
+      return hit && (!v.filter || u.user_type === v.filter);
+    });
+  }
+  function renderUsers(name) {
+    var v = VIEWS[name], list = filteredUsers(v), box = v.body;
     box.textContent = '';
-    BODY.usersPag.textContent = '';
+    v.pag.textContent = '';
     if (!list.length) { msg(box, 'admin.users.empty'); return; }
-    list.slice((S.usersPage - 1) * PAG, S.usersPage * PAG).forEach(function (u) {
-      var id = Number(u.id), name = u.full_name || twT('admin.user.unnamed');
+    list.slice((v.page - 1) * PAG, v.page * PAG).forEach(function (u) {
+      var id = Number(u.id), uname = u.full_name || twT('admin.user.unnamed');
       var t = u.user_type === 'co' || u.user_type === 'edu' ? u.user_type : '';
       var r = row(u.full_name, [u.email], pill(typeLabel(u.user_type), t));
       r.main.classList.add('is-link');
@@ -252,7 +477,7 @@
       var open = function () { location.href = '/admin-view?id=' + id; };
       r.main.addEventListener('click', open);
       r.main.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(); });
-      r.acts.appendChild(btn('secondary', 'mail', 'admin.users.message', function () { openMsg(id, name); }));
+      r.acts.appendChild(btn('secondary', 'mail', 'admin.users.message', function () { openMsg(id, uname); }));
       r.acts.appendChild(btn('primary', 'verified', 'admin.users.verify', function () {
         run('user.verify', { id: id }).then(function (res) { if (res && res.ok) loadUsers(); });
       }));
@@ -263,26 +488,19 @@
     });
     var pages = Math.ceil(list.length / PAG);
     if (pages > 1) for (var i = 1; i <= pages; i++) (function (p) {
-      var b = el('button', 'tw-act tw-act-secondary' + (p === S.usersPage ? ' is-current' : ''), String(p));
+      var b = el('button', 'tw-act tw-act-secondary' + (p === v.page ? ' is-current' : ''), String(p));
       b.type = 'button';
-      if (p === S.usersPage) b.setAttribute('aria-current', 'page');
-      b.addEventListener('click', function () { S.usersPage = p; renderUsers(); });
-      BODY.usersPag.appendChild(b);
+      if (p === v.page) b.setAttribute('aria-current', 'page');
+      b.addEventListener('click', function () { v.page = p; renderUsers(name); });
+      v.pag.appendChild(b);
     })(i);
   }
 
   // ── jobs ──
-  function loadStatsJobs() {
-    return TwAdminSession.fetch('/jobs').then(function (r) { return r.ok ? r.json() : { jobs: [] }; })
-      .then(function (d) { if (!S.jobsLoaded) S.jobs = d.jobs || []; updateStats(); })
-      .catch(function (e) { console.error('[admin] jobs stats:', e); });
-  }
   function loadJobs() {
     return getJson('/admin/jobs').then(function (d) {
       S.jobs = d.jobs || [];
-      S.jobsLoaded = true;
-      updateStats();
-      renderJobs('');
+      renderJobs(($('jobSearch') || {}).value || '');
     }).catch(function (e) { console.error('[admin] jobs:', e); msg(BODY.jobs, 'admin.load_error'); });
   }
   function renderJobs(q) {
@@ -342,7 +560,6 @@
   function loadKYC() {
     return getJson('/admin/kyc').then(function (d) {
       S.kyc = d.submissions || [];
-      updateStats();
       renderKYC();
     }).catch(function (e) { console.error('[admin] kyc:', e); if (BODY.kyc) msg(BODY.kyc, 'admin.load_error'); });
   }
@@ -520,10 +737,12 @@
     TwAdminShell.mount();
     build();
     window.addEventListener('hashchange', show);
+    // unified search → a job result opens the jobs section filtered by that title
+    document.addEventListener('tw-adm:pick', function (e) {
+      var d = (e && e.detail) || {};
+      if (d.section === 'jobs' && $('jobSearch')) { $('jobSearch').value = d.q || ''; renderJobs(d.q || ''); }
+    });
     show();
-    loadUsers();
-    loadStatsJobs();
-    loadKYC();
   }
   function showLogin(expired) {
     $('main-content').hidden = true;
