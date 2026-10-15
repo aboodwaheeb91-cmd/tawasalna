@@ -8,7 +8,8 @@
 //     (confirm first, via run) · audit = GET /admin/audit (read only) · activity = GET /admin/activity (paged)
 //   - jobs = GET /admin/jobs (task 5.3j): every state (active · paused · closed · expired · hidden · archived — state
 //     from the server), status tabs with counts, search title / company, server pages, applicants per job ·
-//     actions per row (jobActions): hide (reason) / unhide · reactivate · extend (durations from the server) · delete
+//     actions per row (jobActions): hide (reason) / unhide · pause / resume / close (reason) · reactivate · extend
+//     (durations from the server) · unarchive · delete
 //   - counts shown with twFormatNumber (tw_shared.js — §59a)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
@@ -51,6 +52,23 @@
       confirm: { title: 'admin.jobs.extend.title', message: 'admin.jobs.extend.message', confirm: 'admin.jobs.extend' },
       request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/extend', method: 'POST', body: { duration_days: Number(c.days) } }; },
       ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_extended' },
+    // state changes (task 5.3j phase 3) — the same set_job_status as the company; close needs a reason
+    'job.pause': {
+      confirm: { title: 'admin.jobs.pause.title', message: 'admin.jobs.pause.message', confirm: 'admin.jobs.pause' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'paused' } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_paused' },
+    'job.resume': {
+      confirm: { title: 'admin.jobs.resume.title', message: 'admin.jobs.resume.message', confirm: 'admin.jobs.resume' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'active' } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_resumed' },
+    'job.close': {
+      confirm: { title: 'admin.jobs.close.title', message: 'admin.jobs.close.message', confirm: 'admin.jobs.close', danger: true },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'closed', reason: c.reason } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_closed' },
+    'job.unarchive': {
+      confirm: { title: 'admin.jobs.unarchive.title', message: 'admin.jobs.unarchive.message', confirm: 'admin.jobs.unarchive' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/unarchive', method: 'POST' }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_unarchived' },
     'kyc.approve': {
       confirm: { title: 'admin.kyc.approve.title', message: 'admin.kyc.approve.message', confirm: 'admin.kyc.approve.confirm' },
       request: function (c) { return { url: '/admin/kyc/' + Number(c.id) + '/approve', method: 'PUT', body: { note: '' } }; },
@@ -620,13 +638,15 @@
   var JOB_STATES = ['active', 'paused', 'closed', 'expired', 'hidden', 'archived'];
   var JOB_PILL = { active: 'ok', paused: 'warn', closed: 'muted', expired: 'muted', hidden: 'danger', archived: 'muted' };
   var JV = { q: '', status: '', page: 1, seq: 0, durations: [] };
-  // which admin actions fit a job row (pure — tests read it). Archived rows: delete only.
+  // which admin actions fit a job row (pure — tests read it). Archived rows: unarchive · delete.
   function jobActions(j) {
-    var out = [];
-    if (j.status === 'archived') return ['delete'];
+    var out = [], eff = j.effective_status;
+    if (j.status === 'archived') return ['unarchive', 'delete'];
     out.push(j.admin_hidden_at ? 'unhide' : 'hide');
-    if (j.effective_status === 'closed' || j.effective_status === 'expired') out.push('reactivate');
-    if (j.effective_status === 'active' || j.effective_status === 'paused') out.push('extend');
+    if (eff === 'active') out.push('pause');
+    if (eff === 'paused') out.push('resume');
+    if (eff === 'closed' || eff === 'expired') out.push('reactivate');
+    if (eff === 'active' || eff === 'paused') out.push('extend', 'close');
     out.push('delete');
     return out;
   }
@@ -707,19 +727,24 @@
       },
     });
   }
+  function askReason(kind, ctx) {   // hide / close: a reason (sent to the company), then run (its confirm on top)
+    TwAdminShell.formDialog({
+      titleKey: 'admin.jobs.' + kind + '.title', labelKey: 'admin.jobs.' + kind + '.reason', kind: 'textarea',
+      sendKey: 'admin.jobs.' + kind, hintKey: 'admin.jobs.' + kind + '.hint', danger: true, vars: ctx,
+      onSend: function (v) {
+        v = String(v || '').trim();
+        if (!v) { showToast(twT('admin.jobs.reason.empty'), 'error'); return false; }
+        return run('job.' + kind, Object.assign({ reason: v }, ctx)).then(reloadJobsIfOk);
+      },
+    });
+  }
   function jobButton(a, j) {
     var ctx = { id: Number(j.id), title: j.title || '' };
-    if (a === 'hide') return btn('secondary', 'eye-off', 'admin.jobs.hide', function () {
-      TwAdminShell.formDialog({
-        titleKey: 'admin.jobs.hide.title', labelKey: 'admin.jobs.hide.reason', kind: 'textarea', sendKey: 'admin.jobs.hide',
-        hintKey: 'admin.jobs.hide.hint', danger: true,
-        onSend: function (v) {
-          v = String(v || '').trim();
-          if (!v) { showToast(twT('admin.jobs.hide.empty'), 'error'); return false; }
-          return run('job.hide', Object.assign({ reason: v }, ctx)).then(reloadJobsIfOk);
-        },
-      });
-    });
+    if (a === 'hide') return btn('secondary', 'eye-off', 'admin.jobs.hide', function () { askReason('hide', ctx); });
+    if (a === 'close') return btn('secondary', 'lock', 'admin.jobs.close', function () { askReason('close', ctx); });
+    if (a === 'pause') return btn('secondary', null, 'admin.jobs.pause', function () { run('job.pause', ctx).then(reloadJobsIfOk); });
+    if (a === 'resume') return btn('secondary', 'refresh-cw', 'admin.jobs.resume', function () { run('job.resume', ctx).then(reloadJobsIfOk); });
+    if (a === 'unarchive') return btn('secondary', 'archive', 'admin.jobs.unarchive', function () { run('job.unarchive', ctx).then(reloadJobsIfOk); });
     if (a === 'unhide') return btn('secondary', 'eye', 'admin.jobs.unhide', function () { run('job.unhide', ctx).then(reloadJobsIfOk); });
     if (a === 'reactivate') return btn('secondary', 'refresh', 'admin.jobs.reactivate', function () { askDays('reactivate', j); });
     if (a === 'extend') return btn('secondary', 'clock', 'admin.jobs.extend', function () { askDays('extend', j); });

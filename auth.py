@@ -3721,10 +3721,7 @@ def admin_reactivate_job(job_id: int, duration_days) -> dict:
             raise JobActionError("الوظيفة مؤرشفة — لا يمكن إعادة تفعيلها")
         if job["eff"] not in ("closed", "expired"):
             raise JobActionError("إعادة التفعيل للوظائف المغلقة أو المنتهية بس")
-        exp = conn.run(
-            f"UPDATE jobs SET status='active', closed_at=NULL, paused_at=NULL, duration_days={dur}, "
-            f"expires_at=NOW() + INTERVAL '{dur} days' WHERE id=:id RETURNING expires_at", id=job["id"])[0][0]
-        return {"expires_at": exp, "duration_days": dur}
+        return {"expires_at": _reopen_job(conn, job["id"], dur), "duration_days": dur}
     out = _job_action(job_id, fn)
     schedule_job_expiry_reminder(out["id"], out["expires_at"])
     return out
@@ -3791,71 +3788,93 @@ def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
     finally:
         release_conn(conn)
 
-def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
+def _reopen_job(conn, job_id: int, dur: int):
+    """closed / expired → active with a new duration counted from now — the ONE reopen write (company reopen of
+    its closed job · admin reactivate — task 5.3j). dur MUST already be in _ALLOWED_DURATIONS. → new expires_at."""
+    return conn.run(
+        f"UPDATE jobs SET status='active', closed_at=NULL, paused_at=NULL, duration_days={int(dur)}, "
+        f"expires_at=NOW() + INTERVAL '{int(dur)} days' WHERE id=:id RETURNING expires_at", id=job_id)[0][0]
+
+
+def set_job_status(job_id: int, company_id, new_status: str, duration_days=None) -> dict:
+    """The ONE job status change — the company (company_id = owner, checked here) and the admin (company_id=None,
+    task 5.3j) both go through it. Transitions (effective status):
+      active → paused (paused_at = now, the duration freezes — #7) · paused → active (expires_at + paused time,
+      new reminder — #13) · active / paused → closed (closed_at = now) · closed → active ONLY with duration_days
+      from _ALLOWED_DURATIONS (company reopen — product decision 5.3j; expired = admin reactivate only).
+    Anything else (no-op, wrong state, archived) → JobActionError (ValueError — Arabic message).
+    → {id, title, company_id, status, expires_at}."""
     _ALLOWED = ('active', 'paused', 'closed')
     if new_status not in _ALLOWED:
         raise ValueError(f"Invalid status '{new_status}'. Allowed: {_ALLOWED}")
+    dur = None
+    if duration_days not in (None, ""):
+        dur = _duration(duration_days)
 
     new_expires = None
-    conn = get_conn()
-    try:
-        rows = conn.run(
-            "SELECT status, closed_at, expires_at, paused_at "
-            "FROM jobs WHERE id=:id AND company_id=:cid",
-            id=job_id, cid=company_id
-        )
-        if not rows:
-            raise ValueError("الوظيفة غير موجودة أو ليست ملكك")
+    with db_conn() as conn:
+        committed = False
+        try:
+            conn.run("BEGIN")
+            owner = " AND company_id=:cid" if company_id is not None else ""
+            params = {"id": job_id, **({"cid": int(company_id)} if company_id is not None else {})}
+            rows = conn.run(
+                "SELECT status, closed_at, expires_at, paused_at, archived_at, title, company_id "
+                f"FROM jobs WHERE id=:id{owner} FOR UPDATE", **params)
+            if not rows:
+                if company_id is None:
+                    raise LookupError("الوظيفة غير موجودة")
+                raise ValueError("الوظيفة غير موجودة أو ليست ملكك")
+            cur_status, cur_closed_at, cur_expires_at, cur_paused_at, archived_at, title, owner_id = rows[0]
+            eff = _eff_status(cur_status, cur_closed_at, cur_expires_at, cur_paused_at)
+            if archived_at is not None:
+                raise JobActionError("الوظيفة مؤرشفة — لا يمكن تغيير حالتها")
 
-        cur_status, cur_closed_at, cur_expires_at, cur_paused_at = rows[0]
-        eff = _eff_status(cur_status, cur_closed_at, cur_expires_at, cur_paused_at)
-
-        # Block re-opening closed/expired jobs
-        if eff in ('closed', 'expired') and new_status in ('active', 'paused'):
-            raise ValueError("لا يمكن إعادة فتح إعلان منتهٍ أو انتهت صلاحيته")
-
-        # Block closing an already-closed/expired job
-        if eff in ('closed', 'expired') and new_status == 'closed':
-            raise ValueError("الإعلان منتهٍ بالفعل")
-
-        # Build UPDATE based on transition
-        if new_status == 'paused' and eff == 'active':
-            conn.run(
-                "UPDATE jobs SET status='paused', paused_at=NOW() WHERE id=:id AND company_id=:cid",
-                id=job_id, cid=company_id
-            )
-        elif new_status == 'active' and eff == 'paused' and cur_paused_at:
-            # Resume: extend expires_at by the paused duration so the timer doesn't count paused time
-            # (the duration is frozen while paused — _eff_status, #7) → a new reminder (#13)
-            new_expires = conn.run(
-                "UPDATE jobs SET status='active', paused_at=NULL, "
-                "expires_at = expires_at + (NOW() - paused_at) "
-                "WHERE id=:id AND company_id=:cid RETURNING expires_at",
-                id=job_id, cid=company_id
-            )[0][0]
-        elif new_status == 'active' and eff == 'paused':
-            # paused_at was NULL (edge case) — just resume without extending
-            conn.run(
-                "UPDATE jobs SET status='active', paused_at=NULL WHERE id=:id AND company_id=:cid",
-                id=job_id, cid=company_id
-            )
-        elif new_status == 'closed':
-            conn.run(
-                "UPDATE jobs SET status='closed', closed_at=NOW(), paused_at=NULL "
-                "WHERE id=:id AND company_id=:cid",
-                id=job_id, cid=company_id
-            )
-        else:
-            # Fallback (same-status no-op or unhandled edge)
-            conn.run(
-                "UPDATE jobs SET status=:s WHERE id=:id AND company_id=:cid",
-                s=new_status, id=job_id, cid=company_id
-            )
-    finally:
-        release_conn(conn)
+            if new_status == 'paused':
+                if eff != 'active':
+                    raise JobActionError("الإيقاف للوظائف النشطة بس")
+                conn.run("UPDATE jobs SET status='paused', paused_at=NOW() WHERE id=:id", id=job_id)
+            elif new_status == 'active' and eff == 'paused':
+                # Resume: expires_at + the paused time (the duration is frozen while paused — #7) → new reminder (#13)
+                new_expires = conn.run(
+                    "UPDATE jobs SET status='active', "
+                    "expires_at = CASE WHEN paused_at IS NULL THEN expires_at "
+                    "ELSE expires_at + (NOW() - paused_at) END, paused_at=NULL "
+                    "WHERE id=:id RETURNING expires_at", id=job_id)[0][0]
+            elif new_status == 'active' and eff == 'closed':
+                if dur is None:
+                    raise JobActionError("اختر مدة جديدة لإعادة فتح الوظيفة")
+                new_expires = _reopen_job(conn, job_id, dur)
+            elif new_status == 'active':
+                raise JobActionError("الوظيفة نشطة أصلاً" if eff == 'active'
+                                     else "انتهت صلاحية الوظيفة — إعادة تفعيلها من الإدارة بس")
+            elif new_status == 'closed':
+                if eff not in ('active', 'paused'):
+                    raise JobActionError("الإعلان منتهٍ بالفعل")
+                conn.run("UPDATE jobs SET status='closed', closed_at=NOW(), paused_at=NULL WHERE id=:id", id=job_id)
+            conn.run("COMMIT")
+            committed = True
+        finally:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception as e:
+                    print(f"[set_job_status] rollback failed job={job_id}: {type(e).__name__}")
     _cache_del('jobs:')  # Invalidate public listings immediately
     if new_expires is not None:
         schedule_job_expiry_reminder(job_id, new_expires)
+    return {"id": int(job_id), "title": title or "", "company_id": int(owner_id), "status": new_status,
+            "expires_at": new_expires}
+
+
+def admin_unarchive_job(job_id: int) -> dict:
+    """Archived → back to its own state (task 5.3j). Not archived → JobActionError."""
+    def fn(conn, job):
+        if not job["archived"]:
+            raise JobActionError("الوظيفة مش مؤرشفة")
+        conn.run("UPDATE jobs SET archived_at=NULL, archived_by=NULL WHERE id=:id", id=job["id"])
+        return {}
+    return _job_action(job_id, fn)
 
 
 # ══ KYC System ══

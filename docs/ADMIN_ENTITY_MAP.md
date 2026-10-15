@@ -142,11 +142,13 @@
 | active → closed | — | **تلقائي** (محسوب عند القراءة) | `expires_at` مضى (الموقوفة ما بتنغلق تلقائياً — 5.3j #7) |
 | closed → expired | — | **تلقائي** (محسوب) | 30 يوم بعد الإغلاق |
 | active (مدة جديدة) | الشركة | يدوي | `PUT /company/jobs/{id}` مع `duration_days` → `expires_at = NOW() + المدة` (active / paused بس) |
-| closed / expired → active | الأدمن | يدوي | `POST /admin/jobs/{id}/reactivate {duration_days}` → `expires_at = NOW() + المدة` + تذكير + إشعار (5.3j) · الشركة: المغلقة بس → المرحلة 3 (قرار منتج مؤكَّد) |
+| closed / expired → active | الأدمن | يدوي | `POST /admin/jobs/{id}/reactivate {duration_days}` → `expires_at = NOW() + المدة` + تذكير + إشعار (5.3j) |
+| closed → active (مش expired) | الشركة | يدوي | `PATCH /company/jobs/{id}/status {active, duration_days}` → `_reopen_job` + تذكير (5.3j المرحلة 3) |
+| active ↔ paused · → closed | الأدمن | يدوي | `POST /admin/jobs/{id}/status {status, reason}` = نفس `set_job_status` · سبب إلزامي للإغلاق + إشعار (5.3j المرحلة 3) |
 | active / paused (مدة أطول) | الأدمن | يدوي | `POST /admin/jobs/{id}/extend {duration_days}` → `expires_at += المدة` + إشعار (5.3j) |
 | أي حالة ↔ مخفية | الأدمن | يدوي | `POST /admin/jobs/{id}/hide {reason}` / `unhide` + إشعار (5.3j) |
 | أي حالة → مؤرشفة | الشركة | يدوي | `DELETE /company/jobs/{id}` → `archive_job` (حذف ناعم) |
-| مؤرشفة → غير مؤرشفة | — | **ما في endpoint** | — |
+| مؤرشفة → غير مؤرشفة | الأدمن | يدوي | `POST /admin/jobs/{id}/unarchive` + إشعار (5.3j المرحلة 3) |
 | أي حالة → محذوفة | الأدمن | يدوي | `DELETE /admin/jobs/{id}` (حذف نهائي — مراحل التوظيف + الوظيفة بنفس الـ transaction، 5.3j) |
 
 ### 2.4 الأدمن هلق
@@ -158,25 +160,23 @@
 | إخفاء (بسبب) / إرجاع | `POST /admin/jobs/{id}/hide` · `/unhide` | ✅ (نافذة السبب + تأكيد) |
 | إعادة تفعيل (مغلقة / منتهية) | `POST /admin/jobs/{id}/reactivate` | ✅ (اختيار مدة + تأكيد) |
 | تمديد (نشطة / موقوفة) | `POST /admin/jobs/{id}/extend` | ✅ (اختيار مدة + تأكيد) |
-| أي شي تاني | — | ❌ (المرحلة 3) |
+| إيقاف / استئناف / إغلاق (بسبب) | `POST /admin/jobs/{id}/status` | ✅ |
+| إلغاء الأرشفة | `POST /admin/jobs/{id}/unarchive` | ✅ |
+| تعديل الحقول · المتقدمون · معاينة الحذف | — | ❌ (المرحلة 4) |
 
 ### 2.5 ناقص للتحكم الكامل
 
 - ~~قائمة أدمن بكل الحالات + فلتر + بحث + pagination + عدد المتقدمين~~ ✅ 5.3j.
 - ~~إخفاء / إرجاع من الأدمن بسبب~~ · ~~إعادة التفعيل~~ · ~~تمديد المدة~~ · ~~#7~~ · ~~#13~~ ✅ 5.3j المرحلة 2.
-- **الباقي = المرحلة 3 (PR تالت):**
-- إيقاف / استئناف / إغلاق من الأدمن (نفس `set_job_status`).
-- إلغاء الأرشفة.
-- تعديل الحقول من الأدمن (العنوان / الوصف / المهنة…) بنفس قواعد تحقق الشركة.
-- عرض المتقدمين على وظيفة من الأدمن (قراءة بس) + endpoint معاينة قبل الحذف.
-- الشركة بتعيد فتح وظيفتها **المغلقة** (مش المنتهية) بمدة جديدة من `_ALLOWED_DURATIONS` — قرار منتج مؤكَّد؛ المنتهية للأدمن بس.
+- ~~إيقاف / استئناف / إغلاق من الأدمن~~ · ~~إلغاء الأرشفة~~ · ~~إعادة فتح الشركة لوظيفتها المغلقة~~ ✅ 5.3j المرحلة 3.
+- **الباقي = المرحلة 4:** صفحة تفاصيل أدمن للوظيفة (تعديل كل الحقول بنفس قواعد تحقق الشركة + المتقدمون قراءة بس) · endpoint معاينة قبل الحذف.
 
 ### 2.6 ملاحظات خطر
 
 - **حذف الأدمن النهائي:** `job_applications` CASCADE · `company_candidate_job_refs` CASCADE · `job_profession_targets` · `company_saved_candidates.job_id` → NULL · `appointments.job_id` → NULL · **`job_pipeline_entries.job_id` = RESTRICT** → من 5.3j الحذف بيشيلهم أول بنفس الـ transaction (أحداثهم وملاحظاتهم CASCADE).
 - `status` المخزّن ≠ الحالة الحقيقية (محسوبة) → أي فلترة بالـ DB على `status='active'` لحالها غلط — من 5.3j كلها عبر `job_active_sql()`.
 - ~~`paused` ما بيوقف العدّاد فعلياً~~ ✅ 5.3j #7: الموقوفة بتضل `paused` والاستئناف بيكمّل المدة الباقية.
-- `closed` و `expired`: مخرجها هلق إعادة تفعيل الأدمن (5.3j)؛ الشركة لسا ما بتقدر (المرحلة 3).
+- `closed`: الشركة بتعيد فتحها بمدة جديدة أو الأدمن بيعيد تفعيلها · `expired`: الأدمن بس (5.3j).
 
 ---
 

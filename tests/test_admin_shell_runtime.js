@@ -78,7 +78,7 @@ function shell(opts) {
       const st = (method === 'GET' && opts.getStatus) || opts.status || 200;
       // POST /admin/message answers like the server (task 5.3b2): {ok, data: {notification_id}} ·
       // the admin job actions (task 5.3j) answer {ok: true, data} like api_ok
-      const jobAct = /^\/admin\/jobs\/\d+\/(hide|unhide|reactivate|extend)$/.test(url);
+      const jobAct = /^\/admin\/jobs\/\d+\/(hide|unhide|reactivate|extend|status|unarchive)$/.test(url);
       const body = opts.json || (st < 300 && url === '/admin/message' ? { ok: true, data: { notification_id: 1 } }
         : st < 300 && jobAct ? { ok: true, data: { id: 3 } } : {});
       return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(body),
@@ -370,10 +370,13 @@ const tick = () => new Promise(r => setImmediate(r));
       D.usersQuery({ fixed: 'co', type: '', status: '', sort: 'newest', q: '', page: 2 }, false) === 'type=co&sort=newest');
     // task 5.3j phase 2 — row actions follow the server's state / effective_status
     const acts = j => D.jobActions(j).join();
-    check('G1b job actions: active → hide · extend · delete', acts({ status: 'active', effective_status: 'active' }) === 'hide,extend,delete');
+    check('G1b job actions: active → hide · pause · extend · close · delete',
+      acts({ status: 'active', effective_status: 'active' }) === 'hide,pause,extend,close,delete');
+    check('G1b2 job actions: paused → hide · resume · extend · close · delete',
+      acts({ status: 'paused', effective_status: 'paused' }) === 'hide,resume,extend,close,delete');
     check('G1c job actions: hidden + closed → unhide · reactivate · delete',
       acts({ status: 'hidden', effective_status: 'closed', admin_hidden_at: '2026-01-01' }) === 'unhide,reactivate,delete');
-    check('G1d job actions: archived → delete only', acts({ status: 'archived', effective_status: 'active' }) === 'delete');
+    check('G1d job actions: archived → unarchive · delete', acts({ status: 'archived', effective_status: 'active' }) === 'unarchive,delete');
     check('G1e job query: hidden is a status tab', D.jobsQuery({ q: '', status: 'hidden', page: 1 }) === 'status=hidden&page=1&limit=20');
     check('G3 page numbers: first · around current · last, gaps as 0',
       D.pageList(5, 20).join() === '1,0,4,5,6,0,20' && D.pageList(1, 3).join() === '1,2,3' && D.pageList(1, 1).join() === '1');

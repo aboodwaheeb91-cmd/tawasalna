@@ -11,6 +11,9 @@ real startup migrations:
   - extend: active → expires_at + days · paused → frozen remaining + days · closed → 409
   - #7: a paused job past its expires_at stays «paused» (Python + SQL) and resume continues the remaining time
     (+ a new reminder — #13)
+  - phase 3: admin pause / resume / close (reason required) through set_job_status + company notified ·
+    wrong state / archived → 409 · unarchive (not archived → 409) · the company reopens its CLOSED job with a
+    new duration (expires_at = now + days, reminder) — no duration / expired / bad duration / active → 422
 Run: python -m pytest tests/test_admin_jobs_control.py -q
 """
 import os
@@ -111,7 +114,7 @@ def _close_to(a, b, minutes=5):
 # ── access ──
 def test_actions_need_an_admin_session(db):
     user_jwt = _h(1)["Authorization"].split(" ", 1)[1]
-    for path in ("hide", "unhide", "reactivate", "extend"):
+    for path in ("hide", "unhide", "reactivate", "extend", "status", "unarchive"):
         for h in ({}, {"X-Admin-Token": PASSWORD}, {"X-Admin-Token": user_jwt}):
             assert client.post(f"/admin/jobs/1/{path}", json={}, headers=h).status_code == 401, path
 
@@ -200,3 +203,61 @@ def test_pause_freezes_the_duration_and_resume_continues_it(db):
     auth._cache_del("jobs:")
     assert jid in [j["id"] for j in client.get("/jobs").json()["jobs"]]
     assert _reminders(jid) == 1
+
+
+# ── phase 3: admin status · unarchive · company reopen ──
+def _status(jid):
+    return tuple(_sql("SELECT status, " + auth.job_eff_status_sql("j") + " FROM jobs j WHERE id=:j", j=jid)[0])
+
+
+def _last_notice(co):
+    return _sql("SELECT type, title, body FROM notifications WHERE user_id=:u ORDER BY id DESC LIMIT 1", u=co)[0]
+
+
+def test_admin_pause_resume_close_use_set_job_status(db):
+    co = _user()
+    jid = _job(co)
+    h = _admin()
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "paused"}, headers=h).status_code == 200
+    assert _status(jid)[1] == "paused" and _last_notice(co)[0] == "job_admin"
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "paused"}, headers=h).status_code == 409
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "active"}, headers=h).status_code == 200
+    assert _status(jid)[1] == "active"
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "closed"}, headers=h).status_code == 422   # no reason
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "deleted", "reason": "x"}, headers=h).status_code == 422
+    r = client.post(f"/admin/jobs/{jid}/status", json={"status": "closed", "reason": "إعلان مكرر"}, headers=h)
+    assert r.status_code == 200 and _status(jid) == ("closed", "closed")
+    assert "إعلان مكرر" in _last_notice(co)[2]
+    assert client.post(f"/admin/jobs/{jid}/status", json={"status": "active"}, headers=h).status_code == 409    # → /reactivate
+    assert client.post("/admin/jobs/999999/status", json={"status": "paused"}, headers=h).status_code == 404
+    arch = _job(co, archived="NOW()")
+    assert client.post(f"/admin/jobs/{arch}/status", json={"status": "paused"}, headers=h).status_code == 409
+
+
+def test_admin_unarchive(db):
+    co = _user()
+    arch, live = _job(co, archived="NOW()"), _job(co)
+    h = _admin()
+    assert client.post(f"/admin/jobs/{arch}/unarchive", headers=h).status_code == 200
+    assert _sql("SELECT archived_at FROM jobs WHERE id=:j", j=arch)[0][0] is None
+    auth._cache_del("jobs:")
+    assert client.get(f"/jobs/{arch}").status_code == 200                       # active again → public
+    assert client.post(f"/admin/jobs/{live}/unarchive", headers=h).status_code == 409
+
+
+def test_company_reopens_its_closed_job_only(db):
+    co, other = _user(), _user()
+    closed = _job(co, "closed", closed="NOW() - INTERVAL '3 days'")
+    expired = _job(co, "closed", expires="NOW() - INTERVAL '50 days'", closed="NOW() - INTERVAL '40 days'")
+    act = _job(co)
+    url = lambda j: f"/company/jobs/{j}/status"
+    assert client.patch(url(closed), json={"status": "active"}, headers=_h(co)).status_code == 422             # no duration
+    assert client.patch(url(closed), json={"status": "active", "duration_days": 5}, headers=_h(co)).status_code == 422
+    assert client.patch(url(closed), json={"status": "active", "duration_days": 14}, headers=_h(other)).status_code == 403
+    r = client.patch(url(closed), json={"status": "active", "duration_days": 14}, headers=_h(co))
+    assert r.status_code == 200, r.text
+    assert _status(closed) == ("active", "active")
+    assert _close_to(_expires(closed), _now() + timedelta(days=14)) and _reminders(closed) == 1
+    assert client.patch(url(expired), json={"status": "active", "duration_days": 7}, headers=_h(co)).status_code == 422
+    assert _status(expired)[1] == "expired"
+    assert client.patch(url(act), json={"status": "active", "duration_days": 7}, headers=_h(co)).status_code == 422
