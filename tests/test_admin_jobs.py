@@ -5,7 +5,7 @@ Behaviour only — real FastAPI app + real PostgreSQL (TW_TEST_DB_URL — run_te
   - GET /admin/jobs returns every state (active · paused · closed · expired · archived) with counts per
     state, status filter, search (title / company), server pages and applicant_count (#8)
   - job_eff_status_sql (SQL) gives the same state as _eff_status (Python) for every row
-  - /stats counts only effectively active jobs (#14)
+  - /stats + the dashboard «active jobs» card count only effectively active jobs (#14 — job_active_sql)
   - deleting a job with applicants + pipeline entries → 200, everything gone, never 500 (#1) · unknown → 404
 Run: python -m pytest tests/test_admin_jobs.py -q
 """
@@ -43,7 +43,7 @@ def env(monkeypatch):
         pytest.skip(f"test PostgreSQL unavailable: {e}")
     try:
         for t in ("admin_audit_log", "pipeline_stage_events", "job_pipeline_entries", "job_applications",
-                  "jobs", "users"):
+                  "jobs", "users", "profiles", "kyc_submissions", "messages", "email_send_log", "reports"):
             c.run(f"DROP TABLE IF EXISTS {t} CASCADE")
         c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, full_name TEXT, email TEXT, user_type TEXT DEFAULT 'emp', "
               "tw_id TEXT, created_at TIMESTAMP DEFAULT NOW())")
@@ -120,6 +120,21 @@ def test_sql_status_matches_eff_status():
 def test_stats_counts_only_active_jobs():
     _seed()
     assert client.get("/stats").json()["jobs_count"] == 1
+
+
+def test_dashboard_active_jobs_card_uses_the_status_source():
+    """Card = job_active_sql: paused / closed / duration over / expired / archived are not counted."""
+    _seed()
+    with auth.db_conn() as c:   # the other tables the summary reads (empty)
+        c.run("CREATE TABLE profiles (id SERIAL PRIMARY KEY, user_id INTEGER, is_verified BOOLEAN DEFAULT FALSE)")
+        c.run("CREATE TABLE kyc_submissions (id SERIAL PRIMARY KEY, user_id INTEGER, step TEXT)")
+        c.run("CREATE TABLE messages (id SERIAL PRIMARY KEY, created_at TIMESTAMP DEFAULT NOW())")
+        c.run("CREATE TABLE email_send_log (id SERIAL PRIMARY KEY, status TEXT, created_at TIMESTAMPTZ DEFAULT NOW())")
+    r = client.get("/admin/stats/summary", headers=_admin())
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["active_jobs"]["value"] == 1
+    want = _sql("SELECT COUNT(*) FROM jobs j WHERE " + auth.job_active_sql("j"))[0][0]
+    assert want == 1
 
 
 # ── list (#8) ──
