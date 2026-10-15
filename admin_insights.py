@@ -16,8 +16,19 @@ Stats (§25c) — read-only, check_admin, one SQL query per number:
   stats_summary()     → the dashboard cards (+ change vs the previous period where the data allows)
   stats_timeseries()  → daily counts for one metric of TIMESERIES_METRICS (allowlist — table / column
                         names never come from the request)
-  activity()          → latest registrations / jobs / KYC submissions / reports
+  activity()          → latest registrations / jobs / KYC submissions / reports (paged — task 5.3a3)
+
+Users table (§25d — task 5.3a3) — read-only, check_admin:
+  users_list()  = GET /admin/users         (search · type · verification · sort · page / limit ≤ USERS_PAGE_MAX)
+  users_csv()   = GET /admin/users/export  (same filters, same columns minus the image — the export is
+                  recorded in the audit log by the middleware: AUDIT_READ_ROUTES in server.py)
+  One SQL builder (_users_where) for both. Fields: id · tw_id · full_name · avatar_url (profiles, else the
+  company logo in company_profiles — the existing image source) · user_type · email · verification
+  (verified | pending | unverified) · created_at. Nothing else (no password hash, phone, tokens …).
 """
+import csv
+import io
+
 from auth import db_conn
 
 AUDIT_RESULTS = ("ok", "denied", "failed")
@@ -31,7 +42,15 @@ TIMESERIES_METRICS = {
     "applications": ("job_applications", "applied_at"),
 }
 TIMESERIES_DAYS_MAX = 90
-ACTIVITY_LIMIT = 15
+ACTIVITY_LIMIT = 8          # dashboard card (task 5.3a3 — «عرض الكل» opens the paged list)
+ACTIVITY_PAGE_MAX = 50
+
+USER_TYPES = ("emp", "co", "edu")
+USER_VERIFICATION = ("verified", "pending", "unverified")
+USER_SORTS = ("newest", "oldest")
+USERS_PAGE_MAX = 100
+USERS_EXPORT_MAX = 50000
+USERS_Q_MAX = 100
 
 
 def migrate_admin_audit_log():
@@ -175,23 +194,117 @@ def stats_timeseries(metric: str, days: int) -> dict:
             "in_range": sum(p["count"] for p in points), "total": total}
 
 
-def activity(limit: int = ACTIVITY_LIMIT) -> list:
-    """Latest events from the existing tables — names / titles only (no emails, no report text)."""
+def activity(page: int = 1, limit: int = ACTIVITY_LIMIT) -> dict:
+    """Latest events from the existing tables, newest first, paged (task 5.3a3) — names / titles only
+    (no emails, no report text). Each source is cut at page * limit rows before the merge."""
+    page = max(1, int(page))
+    limit = max(1, min(ACTIVITY_PAGE_MAX, int(limit)))
+    upto = page * limit
     parts = [
         "(SELECT 'register' AS kind, u.created_at::timestamptz AS at, u.full_name AS title, "
-        "u.user_type AS sub, u.id AS ref FROM users u ORDER BY u.created_at DESC NULLS LAST LIMIT :lim)",
+        "u.user_type AS sub, u.id AS ref FROM users u ORDER BY u.created_at DESC NULLS LAST LIMIT :upto)",
         "(SELECT 'job' AS kind, j.created_at::timestamptz, j.title, c.full_name, j.id FROM jobs j "
-        "LEFT JOIN users c ON c.id = j.company_id ORDER BY j.created_at DESC NULLS LAST LIMIT :lim)",
+        "LEFT JOIN users c ON c.id = j.company_id ORDER BY j.created_at DESC NULLS LAST LIMIT :upto)",
         "(SELECT 'kyc' AS kind, k.submitted_at::timestamptz, u.full_name, u.user_type, k.user_id "
         "FROM kyc_submissions k JOIN users u ON u.id = k.user_id WHERE k.step = 'review' "
-        "ORDER BY k.submitted_at DESC NULLS LAST LIMIT :lim)",
+        "ORDER BY k.submitted_at DESC NULLS LAST LIMIT :upto)",
     ]
+    counts = ["(SELECT COUNT(*) FROM users)", "(SELECT COUNT(*) FROM jobs)",
+              "(SELECT COUNT(*) FROM kyc_submissions k JOIN users u ON u.id = k.user_id WHERE k.step = 'review')"]
     with db_conn() as conn:
         if _table_exists(conn, "reports"):
             parts.append(
                 "(SELECT 'report' AS kind, r.created_at::timestamptz, u.full_name, r.report_type, r.id "
                 "FROM reports r LEFT JOIN users u ON u.id = r.reported_id "
-                "ORDER BY r.created_at DESC NULLS LAST LIMIT :lim)")
-        rows = conn.run(" UNION ALL ".join(parts) + " ORDER BY 2 DESC NULLS LAST LIMIT :lim", lim=int(limit))
-    return [{"kind": r[0], "at": r[1].isoformat() if r[1] else None, "title": r[2], "sub": r[3], "ref": r[4]}
-            for r in rows]
+                "ORDER BY r.created_at DESC NULLS LAST LIMIT :upto)")
+            counts.append("(SELECT COUNT(*) FROM reports)")
+        rows = conn.run(" UNION ALL ".join(parts) + " ORDER BY 2 DESC NULLS LAST LIMIT :lim OFFSET :off",
+                        upto=upto, lim=limit, off=(page - 1) * limit)
+        total = int(conn.run("SELECT " + " + ".join(counts))[0][0] or 0)
+    items = [{"kind": r[0], "at": r[1].isoformat() if r[1] else None, "title": r[2], "sub": r[3], "ref": r[4]}
+             for r in rows]
+    return {"items": items, "total": total, "page": page, "limit": limit}
+
+
+# ── users table (§25d — task 5.3a3) ──
+# verification of one account — the same rule as the dashboard card (users.is_verified or
+# profiles.is_verified); "pending" = not verified + a KYC submission in review.
+_VERIFIED_SQL = "(COALESCE(u.is_verified, FALSE) OR COALESCE(p.is_verified, FALSE))"
+_PENDING_SQL = "EXISTS (SELECT 1 FROM kyc_submissions k WHERE k.user_id = u.id AND k.step = 'review')"
+_USERS_FROM = (" FROM users u LEFT JOIN profiles p ON p.user_id = u.id"
+               " LEFT JOIN company_profiles cp ON cp.user_id = u.id")
+USERS_COLUMNS = ("id", "tw_id", "full_name", "avatar_url", "user_type", "email", "verification", "created_at")
+
+
+def _like(q: str) -> str:
+    return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _users_where(q: str = "", user_type: str = "", verification: str = ""):
+    """→ (where SQL, params). Values are validated by the caller (server.py) — only allowlisted
+    type / verification reach here; q is always a bound parameter."""
+    conds, params = [], {}
+    q = (q or "").strip()
+    if q:
+        conds.append("(u.full_name ILIKE :q OR u.email ILIKE :q OR u.tw_id ILIKE :q)")
+        params["q"] = _like(q)
+    if user_type:
+        conds.append("u.user_type = :t")
+        params["t"] = user_type
+    if verification == "verified":
+        conds.append(_VERIFIED_SQL)
+    elif verification == "pending":
+        conds.append("NOT " + _VERIFIED_SQL + " AND " + _PENDING_SQL)
+    elif verification == "unverified":
+        conds.append("NOT " + _VERIFIED_SQL + " AND NOT " + _PENDING_SQL)
+    return (" WHERE " + " AND ".join(conds)) if conds else "", params
+
+
+def _users_rows(conn, where, params, sort, limit, offset):
+    order = "ASC" if sort == "oldest" else "DESC"
+    return conn.run(
+        "SELECT u.id, u.tw_id, u.full_name, COALESCE(NULLIF(p.avatar_url, ''), cp.avatar_url), u.user_type, u.email, "
+        "CASE WHEN " + _VERIFIED_SQL + " THEN 'verified' WHEN " + _PENDING_SQL + " THEN 'pending' ELSE 'unverified' END, "
+        "u.created_at" + _USERS_FROM + where +
+        f" ORDER BY u.created_at {order} NULLS LAST, u.id {order} LIMIT :lim OFFSET :off",
+        lim=int(limit), off=int(offset), **params)
+
+
+def _user_item(r) -> dict:
+    it = dict(zip(USERS_COLUMNS, r))
+    it["created_at"] = it["created_at"].isoformat() if it["created_at"] else None
+    return it
+
+
+def users_list(q: str = "", user_type: str = "", verification: str = "", sort: str = "newest",
+               page: int = 1, limit: int = 20) -> dict:
+    page = max(1, int(page))
+    limit = max(1, min(USERS_PAGE_MAX, int(limit)))
+    where, params = _users_where(q, user_type, verification)
+    with db_conn() as conn:
+        total = int(conn.run("SELECT COUNT(*)" + _USERS_FROM + where, **params)[0][0] or 0)
+        rows = _users_rows(conn, where, params, sort, limit, (page - 1) * limit)
+    return {"items": [_user_item(r) for r in rows], "total": total, "page": page, "limit": limit}
+
+
+# CSV columns = the table columns without the image (header names are data, not UI text)
+_CSV_FIELDS = ("id", "tw_id", "full_name", "user_type", "email", "verification", "created_at")
+
+
+def _csv_cell(v) -> str:
+    s = "" if v is None else str(v)
+    # spreadsheet formula injection: a cell that starts with = + - @ (or tab / CR) is read as text
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
+def users_csv(q: str = "", user_type: str = "", verification: str = "", sort: str = "newest") -> str:
+    where, params = _users_where(q, user_type, verification)
+    with db_conn() as conn:
+        rows = _users_rows(conn, where, params, sort, USERS_EXPORT_MAX, 0)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(_CSV_FIELDS)
+    for r in rows:
+        it = _user_item(r)
+        w.writerow([_csv_cell(it[f]) for f in _CSV_FIELDS])
+    return "\ufeff" + buf.getvalue()   # BOM → Arabic names open correctly in Excel

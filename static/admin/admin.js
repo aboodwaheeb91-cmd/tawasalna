@@ -3,24 +3,24 @@
 //   - one section shown at a time, chosen by the menu (#users · #jobs · … → TW_ADMIN_SECTIONS key)
 //   - overview = dashboard (task 5.3a2): cards (GET /admin/stats/summary) · 30-day charts (GET /admin/stats/timeseries,
 //     drawn by twChart) · review queues · live activity (GET /admin/activity) · system (/health) · recent audit
-//   - companies = the users view with a fixed type filter · audit = GET /admin/audit (read only)
+//   - users / companies = one table view (task 5.3a3): GET /admin/users (search · type · verification · sort ·
+//     server pages) — companies = the same view with a fixed type filter · CSV = GET /admin/users/export
+//     (confirm first, via run) · audit = GET /admin/audit (read only) · activity = GET /admin/activity (paged)
+//   - counts shown with twFormatNumber (tw_shared.js — §59a)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
 //   - text: twT (admin.*) · icons: twIcon · colors: --color-* tokens · dialogs: DS-OVL
 (function () {
   'use strict';
-  var PAG = 20;
-  var S = { users: null, jobs: [], kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '' };
+  var PAG = 20, SEARCH_DELAY = 300;
+  var S = { jobs: [], kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '', actPage: 1 };
   // users table views — 'companies' = the same view with a fixed type filter (task 5.3a2, no 2nd table code)
-  var VIEWS = { users: { fixed: '', filter: '', page: 1 }, companies: { fixed: 'co', filter: 'co', page: 1 } };
+  function view(fixed) { return { fixed: fixed, type: fixed, status: '', sort: 'newest', q: '', page: 1, seq: 0 }; }
+  var VIEWS = { users: view(''), companies: view('co') };
 
   // ── actions (the only writes on this page) ──
   var DEL_WORD = 'admin.confirm.word.delete';
   var ACTIONS = {
-    'user.verify': {
-      confirm: { title: 'admin.verify.title', message: 'admin.verify.message', confirm: 'admin.verify.confirm' },
-      request: function (c) { return { url: '/admin/user/' + Number(c.id) + '/verify', method: 'PUT', body: { verified: true } }; },
-      done: 'admin.done.verified' },
     'user.delete': {
       confirm: { title: 'admin.delete_user.title', message: 'admin.delete_user.message', confirm: 'admin.delete.confirm',
                  danger: true, typeWord: DEL_WORD },
@@ -56,13 +56,13 @@
     'maintenance.scan': {
       request: function () { return { url: '/admin/maintenance/migrate-data-images?dry_run=1', method: 'POST' }; },
       done: 'admin.done.scanned' },
-    // the message dialog itself is the confirm step (recipient + text shown before «إرسال»)
-    'message.send': {
-      request: function (c) { return { url: '/admin/message', method: 'POST',
-                                       body: { user_id: Number(c.id), subject: twT('admin.msg.subject'), message: c.text } }; },
-      done: 'admin.done.sent' },
+    // CSV of the users table with its current filters — confirm before the download (task 5.3a3)
+    'users.export': {
+      confirm: { title: 'admin.users.export.title', message: 'admin.users.export.message', confirm: 'admin.users.export.confirm' },
+      request: function (c) { return { url: '/admin/users/export?' + c.query, method: 'GET' }; },
+      as: 'blob', done: 'admin.done.exported' },
   };
-  window.TwAdminDash = { ACTIONS: ACTIONS };
+  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, pageList: pageList };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -111,6 +111,7 @@
     buildUsersView('users', $('sec-users'), 'admin.users.title', 'admin.users.hint', 'users');
     buildUsersView('companies', $('sec-companies'), 'admin.companies.title', 'admin.companies.hint', 'building-2');
     buildAudit($('sec-audit'));
+    buildActivity($('sec-activity'));
 
     var bj = TwAdminShell.card($('sec-jobs'), { titleKey: 'admin.jobs.title', hintKey: 'admin.jobs.hint', icon: 'briefcase' });
     var js = el('input', 'tw-input');
@@ -180,7 +181,7 @@
     ['jobs', 'bar', 'admin.chart.jobs', 'briefcase'],
     ['applications', 'line', 'admin.chart.applications', 'file-text'],
   ];
-  var DAYS = 30, QUEUE_MAX = 5, OV = {};
+  var DAYS = 30, QUEUE_MAX = 5, ACT_DASH = 8, OV = {};
   function sectionHref(key) {
     var s = (window.TW_ADMIN_SECTIONS || []).filter(function (x) { return x.key === key; })[0];
     return s ? TwAdminShell.hrefFor(s) : '';
@@ -232,7 +233,7 @@
   function renderKpis(sum) {
     KPIS.forEach(function (k) {
       var c = sum[k[0]] || {}, ui = OV.kpi[k[0]];
-      ui.val.textContent = String(Number(c.value) || 0);
+      ui.val.textContent = twFormatNumber(Number(c.value) || 0);
       ui.chg.textContent = '';
       ui.chg.className = 'adm-kpi-chg';
       if (c.change === null || c.change === undefined || !c.period) return;
@@ -243,7 +244,8 @@
   }
   function renderChart(metric, d) {
     var c = OV.chart[metric];
-    c.sum.textContent = twT('admin.chart.sum', { n: Number(d.in_range) || 0, days: DAYS, total: Number(d.total) || 0 });
+    c.sum.textContent = twT('admin.chart.sum', { n: twFormatNumber(Number(d.in_range) || 0), days: DAYS,
+                                                  total: twFormatNumber(Number(d.total) || 0) });
     twChart(c.box, { type: c.type, title: twT(c.title),
                      points: (d.points || []).map(function (p) { return { label: twFormatDate(p.date), value: p.count }; }) });
   }
@@ -274,8 +276,7 @@
     if (r.length) moreLink(OV.qRep, 'reports');
   }
   var ACT_SECTION = { job: 'jobs', kyc: 'kyc', report: 'reports' };
-  function renderActivity(list) {
-    var box = OV.activity;
+  function renderActivity(box, list) {
     box.textContent = '';
     if (!list.length) { msg(box, 'admin.activity.empty'); return; }
     list.forEach(function (a) {
@@ -315,7 +316,7 @@
   }
   var AUDIT_LABELS = ['admin_login', 'delete_user', 'verify_user', 'change_user_type', 'admin_reset_password', 'admin_update_profile',
                       'admin_delete_job', 'admin_kyc_approve', 'admin_kyc_reject', 'resolve_report', 'upload_logo',
-                      'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email'];
+                      'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email', 'admin_users_export'];
   function auditLabel(a) { return AUDIT_LABELS.indexOf(a) !== -1 ? twT('admin.audit.action.' + a) : String(a || '—'); }
   var RESULT_MOD = { ok: 'ok', denied: 'danger', failed: 'warn' };
   function auditRows(box, items) {
@@ -346,7 +347,11 @@
       S.reports = r[1].reports || [];
       renderQueues();
     }).catch(failBox(OV.qKyc));
-    apiData('/admin/activity').then(function (d) { renderActivity(d || []); }).catch(failBox(OV.activity));
+    // the card shows the latest ACT_DASH events; «عرض الكل» opens the paged list (#activity — task 5.3a3)
+    apiData('/admin/activity?limit=' + ACT_DASH).then(function (d) {
+      renderActivity(OV.activity, (d && d.items) || []);
+      if (d && d.total > d.items.length) moreLink(OV.activity, 'activity');
+    }).catch(failBox(OV.activity));
     TwAdminShell.health(true).then(renderSystem);
     apiData('/admin/audit?limit=5').then(renderRecentAudit).catch(failBox(OV.audit));
   }
@@ -383,17 +388,58 @@
       BODY.auditPag.textContent = '';
       if (!d.items.length) { msg(BODY.audit, 'admin.audit.empty'); return; }
       auditRows(BODY.audit, d.items);
-      var pages = Math.ceil(d.total / d.limit);
-      if (pages > 1) {
-        var prev = btn('secondary', 'prev', 'admin.pag.prev', function () { S.auditPage--; loadAudit(); });
-        var next = btn('secondary', 'next', 'admin.pag.next', function () { S.auditPage++; loadAudit(); });
-        prev.disabled = d.page <= 1;
-        next.disabled = d.page >= pages;
-        BODY.auditPag.appendChild(prev);
-        BODY.auditPag.appendChild(el('span', 'adm-pag-txt', twT('admin.pag.of', { page: d.page, pages: pages })));
-        BODY.auditPag.appendChild(next);
-      }
+      pager(BODY.auditPag, d.page, Math.ceil(d.total / d.limit), function (p) { S.auditPage = p; loadAudit(); });
     }).catch(function (e) { console.error('[admin] audit:', e); msg(BODY.audit, 'admin.load_error'); });
+  }
+
+  // ── live activity — all events, server pages (GET /admin/activity — task 5.3a3) ──
+  var ACT_PAG = 20;
+  function buildActivity(sec) {
+    var box = TwAdminShell.card(sec, { titleKey: 'admin.activity.all', hintKey: 'admin.activity.hint', icon: 'activity' });
+    BODY.activity = el('div');
+    box.appendChild(BODY.activity);
+    BODY.actPag = el('div', 'tw-adm-pag');
+    box.appendChild(BODY.actPag);
+  }
+  function loadActivity() {
+    msg(BODY.activity, 'common.loading');
+    BODY.actPag.textContent = '';
+    return apiData('/admin/activity?page=' + S.actPage + '&limit=' + ACT_PAG).then(function (d) {
+      renderActivity(BODY.activity, d.items || []);
+      pager(BODY.actPag, d.page, Math.ceil(d.total / d.limit), function (p) { S.actPage = p; loadActivity(); });
+    }).catch(function (e) { console.error('[admin] activity:', e); msg(BODY.activity, 'admin.load_error'); });
+  }
+
+  // ── page numbers (server pages): 1 … p-1 p p+1 … last — pure, tests read it ──
+  function pageList(page, pages) {
+    var out = [], last = 0;
+    for (var p = 1; p <= pages; p++) {
+      if (p === 1 || p === pages || Math.abs(p - page) <= 1) {
+        if (last && p - last > 1) out.push(0);   // 0 = gap («…»)
+        out.push(p);
+        last = p;
+      }
+    }
+    return out;
+  }
+  function pager(box, page, pages, go) {
+    box.textContent = '';
+    if (!(pages > 1)) return;
+    var prev = btn('secondary', 'prev', 'admin.pag.prev', function () { go(page - 1); });
+    prev.disabled = page <= 1;
+    box.appendChild(prev);
+    pageList(page, pages).forEach(function (p) {
+      if (!p) { box.appendChild(el('span', 'adm-pag-txt', '…')); return; }
+      var b = el('button', 'tw-act tw-act-secondary' + (p === page ? ' is-current' : ''), twFormatNumber(p));
+      b.type = 'button';
+      b.setAttribute('aria-label', twT('admin.pag.of', { page: p, pages: pages }));
+      if (p === page) b.setAttribute('aria-current', 'page');
+      b.addEventListener('click', function () { go(p); });
+      box.appendChild(b);
+    });
+    var next = btn('secondary', 'next', 'admin.pag.next', function () { go(page + 1); });
+    next.disabled = page >= pages;
+    box.appendChild(next);
   }
 
   // ── section switching (menu → hash) ──
@@ -402,6 +448,7 @@
     users: function () { showUsers('users'); },
     companies: function () { showUsers('companies'); },
     audit: function () { loadAudit(); },
+    activity: function () { loadActivity(); },
     jobs: loadJobs, reports: loadReports, kyc: loadKYC, errors: loadErrors,
     system: function () { if (!S.logoLoaded) loadLogo(); },
   };
@@ -412,88 +459,149 @@
     if (LOADERS[key]) LOADERS[key]();
   }
 
-  // ── users / companies (one view, VIEWS[name]) ──
+  // ── users / companies (one view, VIEWS[name] — task 5.3a3: server search / filters / pages) ──
   function typeLabel(t) { return twT('admin.user.type.' + (t === 'co' || t === 'edu' ? t : 'emp')); }
+  var VERIFY = { verified: 'ok', pending: 'warn', unverified: '' };
+  // view state → query string of GET /admin/users and /admin/users/export (pure — tests read it)
+  function usersQuery(v, withPage) {
+    var p = [];
+    if (v.q) p.push('q=' + encodeURIComponent(v.q));
+    if (v.fixed || v.type) p.push('type=' + encodeURIComponent(v.fixed || v.type));
+    if (v.status) p.push('status=' + encodeURIComponent(v.status));
+    p.push('sort=' + (v.sort === 'oldest' ? 'oldest' : 'newest'));
+    if (withPage) p.push('page=' + v.page, 'limit=' + PAG);
+    return p.join('&');
+  }
+  function selectField(labelKey, opts, onChange) {
+    var lbl = el('label', 'adm-field');
+    lbl.appendChild(el('span', null, twT(labelKey)));
+    var sel = el('select', 'tw-input ep-select');
+    opts.forEach(function (o) { sel.appendChild(new Option(twT(o[1]), o[0])); });
+    sel.addEventListener('change', function () { onChange(sel.value); });
+    lbl.appendChild(sel);
+    return lbl;
+  }
   function buildUsersView(name, sec, titleKey, hintKey, icon) {
     var v = VIEWS[name];
     var box = TwAdminShell.card(sec, { titleKey: titleKey, hintKey: hintKey, icon: icon });
+    var tools = el('div', 'adm-utools');
     v.search = el('input', 'tw-input');
     v.search.type = 'search';
     v.search.setAttribute('placeholder', twT('admin.users.search'));
     v.search.setAttribute('aria-label', twT('admin.users.search'));
-    v.search.addEventListener('input', function () { v.page = 1; renderUsers(name); });
-    box.appendChild(v.search);
-    if (!v.fixed) {
-      var chips = el('div', 'adm-btns');
-      chips.setAttribute('role', 'group');
-      ['', 'emp', 'co', 'edu'].forEach(function (t) {
-        var c = btn('secondary', null, t ? 'admin.user.type.' + t : 'common.all', function () {
-          v.filter = t; v.page = 1;
-          chips.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === c)); });
-          renderUsers(name);
-        });
-        c.setAttribute('aria-pressed', String(!t));
-        chips.appendChild(c);
-      });
-      box.appendChild(chips);
-    }
-    v.body = el('div');
+    var timer = null;
+    // wait until typing stops, then ask the server
+    v.search.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var q = v.search.value.trim();
+        if (q === v.q) return;
+        v.q = q; v.page = 1; loadUsers(name);
+      }, SEARCH_DELAY);
+    });
+    var sw = el('div', 'adm-usearch');
+    sw.appendChild(v.search);
+    tools.appendChild(sw);
+    var set = function (key) { return function (val) { v[key] = val; v.page = 1; loadUsers(name); }; };
+    if (!v.fixed) tools.appendChild(selectField('admin.users.f.type',
+      [['', 'common.all'], ['emp', 'admin.user.type.emp'], ['co', 'admin.user.type.co'], ['edu', 'admin.user.type.edu']], set('type')));
+    tools.appendChild(selectField('admin.users.f.status',
+      [['', 'common.all'], ['verified', 'admin.users.v.verified'], ['pending', 'admin.users.v.pending'],
+       ['unverified', 'admin.users.v.unverified']], set('status')));
+    tools.appendChild(selectField('admin.users.f.sort',
+      [['newest', 'admin.users.sort.newest'], ['oldest', 'admin.users.sort.oldest']], set('sort')));
+    var exp = btn('secondary', 'download', 'admin.users.export', function () { exportUsers(name, exp); });
+    tools.appendChild(exp);
+    box.appendChild(tools);
+    v.count = el('p', 'tw-adm-hint adm-ucount');
+    box.appendChild(v.count);
+    v.body = el('div', 'adm-uwrap');
     box.appendChild(v.body);
     v.pag = el('div', 'tw-adm-pag');
     box.appendChild(v.pag);
     msg(v.body, 'common.loading');
+    if (typeof window.scSelectInit === 'function') window.scSelectInit();
   }
-  function showUsers(name) { if (S.users) renderUsers(name); else loadUsers(); }
-  function loadUsers() {
-    return getJson('/auth/users').then(function (d) {
-      S.users = d.users || [];
-      renderUsers('users');
-      renderUsers('companies');
+  function showUsers(name) { loadUsers(name); }
+  function loadUsers(name) {
+    var v = VIEWS[name], seq = ++v.seq;
+    return apiData('/admin/users?' + usersQuery(v, true)).then(function (d) {
+      if (seq !== v.seq) return;   // a newer search / filter answered first
+      renderUsers(name, d);
     }).catch(function (e) {
+      if (seq !== v.seq) return;
       console.error('[admin] users:', e);
-      msg(VIEWS.users.body, 'admin.load_error');
-      msg(VIEWS.companies.body, 'admin.load_error');
+      msg(v.body, 'admin.load_error');
+      v.pag.textContent = '';
     });
   }
-  function filteredUsers(v) {
-    var q = String(v.search.value || '').toLowerCase();
-    return (S.users || []).filter(function (u) {
-      var hit = !q || String(u.full_name || '').toLowerCase().indexOf(q) !== -1 || String(u.email || '').toLowerCase().indexOf(q) !== -1;
-      return hit && (!v.filter || u.user_type === v.filter);
+  function exportUsers(name, b) {
+    b.disabled = true;
+    run('users.export', { query: usersQuery(VIEWS[name], false) }).then(function (res) {
+      b.disabled = false;
+      if (!res || !res.ok || !res.data || typeof res.data.size !== 'number') return;
+      var url = URL.createObjectURL(res.data), a = el('a');
+      a.href = url;
+      a.download = 'users-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     });
   }
-  function renderUsers(name) {
-    var v = VIEWS[name], list = filteredUsers(v), box = v.body;
+  function linkAct(icon, labelKey, href) {
+    var a = el('a', 'tw-act tw-act-secondary');
+    a.href = href;
+    a.setAttribute('aria-label', twT(labelKey));
+    a.appendChild(twIconEl(icon, { size: 'xs' }));
+    a.appendChild(el('span', null, twT(labelKey)));
+    return a;
+  }
+  function cell(tr, cls) { return tr.appendChild(el('td', cls)); }
+  // wide = table · narrow container (< 720px — CSS container query on .adm-uwrap) = compact rows,
+  // no horizontal scroll at 390px
+  function renderUsers(name, d) {
+    var v = VIEWS[name], list = d.items || [], box = v.body;
     box.textContent = '';
-    v.pag.textContent = '';
+    v.count.textContent = twT('admin.users.count', { n: twFormatNumber(d.total || 0) });
+    pager(v.pag, d.page, Math.ceil((d.total || 0) / d.limit), function (p) { v.page = p; loadUsers(name); });
     if (!list.length) { msg(box, 'admin.users.empty'); return; }
-    list.slice((v.page - 1) * PAG, v.page * PAG).forEach(function (u) {
-      var id = Number(u.id), uname = u.full_name || twT('admin.user.unnamed');
-      var t = u.user_type === 'co' || u.user_type === 'edu' ? u.user_type : '';
-      var r = row(u.full_name, [u.email], pill(typeLabel(u.user_type), t));
-      r.main.classList.add('is-link');
-      r.main.setAttribute('role', 'link');
-      r.main.setAttribute('tabindex', '0');
-      var open = function () { location.href = '/admin-view?id=' + id; };
-      r.main.addEventListener('click', open);
-      r.main.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(); });
-      r.acts.appendChild(btn('secondary', 'mail', 'admin.users.message', function () { openMsg(id, uname); }));
-      r.acts.appendChild(btn('primary', 'verified', 'admin.users.verify', function () {
-        run('user.verify', { id: id }).then(function (res) { if (res && res.ok) loadUsers(); });
-      }));
-      r.acts.appendChild(btn('danger', 'delete', 'admin.users.delete', function () {
-        run('user.delete', { id: id }).then(function (res) { if (res && res.ok) loadUsers(); });
-      }));
-      box.appendChild(r.row);
+    var table = el('table', 'adm-utable'), head = el('tr');
+    ['admin.users.col.user', 'admin.users.col.type', 'admin.users.col.email', 'admin.users.col.verify',
+     'admin.users.col.joined', 'admin.users.col.actions'].forEach(function (k) {
+      var th = el('th', null, twT(k));
+      th.scope = 'col';
+      head.appendChild(th);
     });
-    var pages = Math.ceil(list.length / PAG);
-    if (pages > 1) for (var i = 1; i <= pages; i++) (function (p) {
-      var b = el('button', 'tw-act tw-act-secondary' + (p === v.page ? ' is-current' : ''), String(p));
-      b.type = 'button';
-      if (p === v.page) b.setAttribute('aria-current', 'page');
-      b.addEventListener('click', function () { v.page = p; renderUsers(name); });
-      v.pag.appendChild(b);
-    })(i);
+    table.appendChild(el('thead')).appendChild(head);
+    var tbody = el('tbody');
+    table.appendChild(tbody);
+    list.forEach(function (u) {
+      var id = Number(u.id), t = u.user_type === 'co' || u.user_type === 'edu' ? u.user_type : 'emp';
+      var tr = el('tr'), view = '/admin-view?id=' + id;
+      var who = cell(tr, 'adm-u-who');
+      var a = el('a', 'adm-u-link');
+      a.href = view;
+      a.appendChild(twAvatarEl({ full_name: u.full_name, avatar_url: u.avatar_url, user_type: t }, 'md'));
+      var nm = el('span', 'adm-u-name');
+      nm.appendChild(el('span', 'adm-u-title', u.full_name || twT('admin.user.unnamed')));
+      if (u.tw_id) nm.appendChild(el('span', 'adm-u-sub', u.tw_id));
+      a.appendChild(nm);
+      who.appendChild(a);
+      cell(tr, 'adm-u-type').appendChild(pill(typeLabel(t), t === 'emp' ? '' : t));
+      cell(tr, 'adm-u-email').textContent = u.email || '—';
+      var vs = VERIFY.hasOwnProperty(u.verification) ? u.verification : 'unverified';
+      cell(tr, 'adm-u-ver').appendChild(pill(twT('admin.users.v.' + vs), VERIFY[vs]));
+      cell(tr, 'adm-u-date').textContent = u.created_at ? twFormatDate(u.created_at) : '—';
+      var acts = cell(tr, 'adm-u-acts').appendChild(el('div', 'adm-u-btns'));
+      acts.appendChild(linkAct('eye', 'admin.users.view', view));
+      acts.appendChild(linkAct('edit', 'admin.users.edit', view + '#edit'));
+      acts.appendChild(btn('danger', 'delete', 'admin.users.delete', function () {
+        run('user.delete', { id: id }).then(function (res) { if (res && res.ok) loadUsers(name); });
+      }));
+      tbody.appendChild(tr);
+    });
+    box.appendChild(table);
   }
 
   // ── jobs ──
@@ -691,42 +799,6 @@
     run(name).then(function (res) {
       b.disabled = false;
       if (res && res.ok) renderMig(res.data || {});
-    });
-  }
-
-  // ── message dialog ──
-  var TEMPLATES = ['welcome', 'verify', 'warning', 'interview'];
-  function openMsg(id, name) {
-    var form = el('div', 'adm-msg-form');
-    var to = el('label', 'adm-field');
-    to.appendChild(el('span', null, twT('admin.msg.to')));
-    var toIn = el('input', 'tw-input');
-    toIn.readOnly = true;
-    toIn.value = name;
-    to.appendChild(toIn);
-    form.appendChild(to);
-    var tl = el('div', 'adm-field');
-    tl.appendChild(el('span', null, twT('admin.msg.templates')));
-    var tb = el('div', 'adm-btns');
-    var ta = el('textarea', 'tw-input');
-    ta.setAttribute('aria-label', twT('admin.msg.body'));
-    ta.setAttribute('placeholder', twT('admin.msg.body'));
-    TEMPLATES.forEach(function (t) {
-      tb.appendChild(btn('secondary', null, 'admin.msg.tpl.' + t, function () { ta.value = twT('admin.msg.tpl.' + t + '.text'); }));
-    });
-    tl.appendChild(tb);
-    form.appendChild(tl);
-    form.appendChild(ta);
-    twModal({
-      title: twT('admin.msg.title'), content: form,
-      actions: [
-        { text: twT('common.cancel'), variant: 'secondary' },
-        { text: twT('admin.msg.send'), variant: 'primary', onClick: function () {
-            var text = ta.value.trim();
-            if (!text) { showToast(twT('admin.msg.empty'), 'error'); return false; }
-            return run('message.send', { id: id, text: text }).then(function (res) { return !!(res && res.ok); });
-          } },
-      ],
     });
   }
 

@@ -12,6 +12,8 @@
  *      cancel → no request · every confirm / done text key exists
  *   F  (task 5.3a2) desktop: side menu from the registry · mobile: menu button → the same links in a DS-OVL
  *      dialog that closes on a link · unified search groups · /health state · twChart geometry
+ *   G  (task 5.3a3) users table: query from the view state (fixed type for companies) · page numbers ·
+ *      CSV export needs a confirm and returns the file · unified search asks GET /admin/users only after typing stops
  *
  * Run: node tests/test_admin_shell_runtime.js
  */
@@ -51,7 +53,7 @@ function shell(opts) {
     sessionStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); },
                       removeItem: k => { delete store[k]; } },
     atob: s => Buffer.from(s, 'base64').toString('binary'),
-    setTimeout: () => 0, clearTimeout: noop,
+    setTimeout: opts.timers ? ((fn, ms) => { opts.timers.push([fn, ms]); return opts.timers.length; }) : () => 0, clearTimeout: noop,
     document: { readyState: 'loading', addEventListener: noop, querySelector: opts.header ? (q => (q === '[data-tw-header="admin"]' ? opts.header : null)) : () => null,
                 querySelectorAll: () => [], createElement: fakeEl, getElementById: () => null, head: fakeEl('head'),
                 body: { classList: { list: [], add(c) { this.list.push(c); } } } },
@@ -74,7 +76,8 @@ function shell(opts) {
       const method = (init && init.method) || 'GET';
       rec.requests.push([url, method, init && init.body]);
       const st = (method === 'GET' && opts.getStatus) || opts.status || 200;
-      return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve({}) });
+      return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(opts.json || {}),
+                               blob: () => Promise.resolve({ size: 3, type: 'text/csv' }) });
     },
   };
   ctx.window = ctx;
@@ -134,7 +137,7 @@ const tick = () => new Promise(r => setImmediate(r));
     check('C1 every big action has a confirm step', BIG.every(k => A[k] && A[k].confirm), BIG.filter(k => !(A[k] && A[k].confirm)));
     check('C2 delete / migrate need a typed word and are danger', TYPED.every(k => A[k].confirm.typeWord && A[k].confirm.danger));
     check('C3 actions without a confirm are read-only or carry their own dialog',
-      Object.keys(A).filter(k => !A[k].confirm).sort().join() === 'maintenance.scan,message.send');
+      Object.keys(A).filter(k => !A[k].confirm).sort().join() === 'maintenance.scan');
   }
   for (const k of Object.keys(shell({ page: true }).ctx.TwAdminDash.ACTIONS)) {
     const s = shell({ page: true, token: LIVE, confirmAnswer: false });
@@ -186,7 +189,7 @@ const tick = () => new Promise(r => setImmediate(r));
     await s.ctx.TwAdminSession.fetch('/admin/email');
     check('D4 a second 401 does not navigate again', s.rec.replaced.length === 1);
     const f = shell({ path: PANEL, token: LIVE, status: 403 });
-    await f.ctx.TwAdminSession.fetch('/auth/users');
+    await f.ctx.TwAdminSession.fetch('/admin/users');
     check('D5 403 → same', f.rec.replaced[0] === PANEL + '?session=expired');
   }
   {
@@ -288,7 +291,7 @@ const tick = () => new Promise(r => setImmediate(r));
     const parts = {};
     const header = {
       innerHTML: '', hidden: true, classList: { add: noop },
-      querySelector: q => (parts[q] = parts[q] || Object.assign(fakeEl('x'), { contains: () => false })),
+      querySelector: q => (parts[q] = parts[q] || Object.assign(fakeEl('x'), { contains: () => false, querySelector: () => fakeEl('y') })),
       querySelectorAll: () => [],
     };
     const s = shell({ token: LIVE, hash: '#kyc', header });
@@ -343,6 +346,52 @@ const tick = () => new Promise(r => setImmediate(r));
     check('F13 chart: drawn into the container, accessible name, labels escaped',
       box.children[0] === w && w.attrs.role === 'img' && /^T: /.test(w.attrs['aria-label'])
       && (w.innerHTML.match(/<rect /g) || []).length === 2 && w.innerHTML.indexOf('<b>') === -1);
+  }
+
+  console.log('\nG — users table · CSV export · server search (task 5.3a3)');
+  {
+    const D = shell({ page: true }).ctx.TwAdminDash;
+    const q = D.usersQuery({ fixed: '', type: 'edu', status: 'pending', sort: 'oldest', q: 'سارة & co', page: 3 }, true);
+    check('G1 view state → query (search encoded · type · status · sort · page · limit)',
+      q === 'q=' + encodeURIComponent('سارة & co') + '&type=edu&status=pending&sort=oldest&page=3&limit=20', q);
+    check('G2 companies view: the fixed type wins · export query has no page',
+      D.usersQuery({ fixed: 'co', type: '', status: '', sort: 'newest', q: '', page: 2 }, false) === 'type=co&sort=newest');
+    check('G3 page numbers: first · around current · last, gaps as 0',
+      D.pageList(5, 20).join() === '1,0,4,5,6,0,20' && D.pageList(1, 3).join() === '1,2,3' && D.pageList(1, 1).join() === '1');
+    const A = D.ACTIONS['users.export'];
+    check('G4 export: a confirm step + a download (blob) answer', !!(A && A.confirm && A.as === 'blob'));
+    const n = shell({ page: true, token: LIVE, confirmAnswer: false });
+    const r0 = await n.ctx.TwAdminShell.run(n.ctx.TwAdminDash.ACTIONS['users.export'], { query: 'type=co&sort=newest' });
+    check('G5 export cancelled → no request', r0 === null && n.rec.requests.length === 0 && n.rec.confirms.length === 1);
+    const y = shell({ page: true, token: LIVE, confirmAnswer: true });
+    const r1 = await y.ctx.TwAdminShell.run(y.ctx.TwAdminDash.ACTIONS['users.export'], { query: 'type=co&sort=newest' });
+    check('G6 export confirmed → one GET to /admin/users/export with the filters → the file',
+      r1 && r1.ok && r1.data.size === 3 && y.rec.requests.length === 1
+      && y.rec.requests[0][0] === '/admin/users/export?type=co&sort=newest' && y.rec.requests[0][1] === 'GET',
+      JSON.stringify(y.rec.requests));
+  }
+  {
+    const timers = [];
+    const parts = {};
+    const mk = sel => { const e = fakeEl('x'); e.contains = () => true; e.querySelector = () => fakeEl('y'); parts[sel] = e; return e; };
+    const header = fakeEl('header');
+    header.querySelector = sel => parts[sel] || mk(sel);
+    header.querySelectorAll = () => [];
+    const s = shell({ token: LIVE, header, timers, json: { ok: true, data: { items: [{ id: 7, full_name: 'Tech Co', email: 'hr@t', user_type: 'co' }] } } });
+    s.ctx.TwAdminShell.mount();
+    const input = parts['[data-adm-search]'];
+    s.rec.requests.length = 0;
+    input.value = 'te';
+    input.fire('input');
+    input.value = 'tech';
+    input.fire('input');
+    check('G7 search: nothing asked while typing', !s.rec.requests.some(r => /^\/admin\/users/.test(r[0])));
+    const last = timers[timers.length - 1];
+    check('G8 search waits a short pause', !!last && last[1] >= 200);
+    last[0]();
+    await tick(); await tick();
+    const ureq = s.rec.requests.filter(r => /^\/admin\/users/.test(r[0]));
+    check('G9 then one server search for the final text', ureq.length === 1 && /[?&]q=tech(&|$)/.test(ureq[0][0]), JSON.stringify(ureq));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

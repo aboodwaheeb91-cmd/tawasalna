@@ -21,7 +21,7 @@
 
 8. **الغلاف (IMG-10):** 4:1 للموظف والشركة — التنفيذ بالمرحلة C.
 
-9. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة: `job-detail` (`static/job/job-detail.js`) · `appointments.html` + `appointment-room.html` (الطرف التاني `twAvatarEl` lg) · `edu-profile.html` (لوغو الجهة `twAvatarEl` xl — PR 1.7) · `static/company/company.main.js` (المتقدمون / المتابعون / بنك المواهب / الاقتراحات `md` — PR 4.3c). أي صفحة جديدة بتنضاف لـ `PHASE_C` بـ `test_ds_image_runtime.js` (B3) بنفس الـ PR.
+9. **المرحلة C صفحة صفحة بموافقة صريحة.** الصفحات المحوّلة: `job-detail` (`static/job/job-detail.js`) · `appointments.html` + `appointment-room.html` (الطرف التاني `twAvatarEl` lg) · `edu-profile.html` (لوغو الجهة `twAvatarEl` xl — PR 1.7) · `static/company/company.main.js` (المتقدمون / المتابعون / بنك المواهب / الاقتراحات `md` — PR 4.3c) · `static/admin/admin.js` (جدول المستخدمين / الشركات بالأدمن `twAvatarEl` md — task 5.3a3). أي صفحة جديدة بتنضاف لـ `PHASE_C` بـ `test_ds_image_runtime.js` (B3) بنفس الـ PR.
 
 ### Forbidden (permanent)
 

@@ -2,6 +2,7 @@
  * test_login_jobdetail_runtime.js — PR 4.8: index.html (Auth Gateway) + job-detail.html on the
  * unified page checklist. Runs the REAL shared code / page scripts in Node vm contexts.
  *   A  twFormatDate (real tw_shared.js) — Gregorian, one format, Western digits, invalid → ''
+ *   A3 twFormatNumber (real tw_shared.js) — thousands separator, Western digits, invalid → '' (task 5.3a3)
  *   B  TwAuthSync.startSession (real auth-sync.js) — the one session writer after login / register
  *   C  index.auth.js (real) — login / register through twApi, clear messages per status, no storage
  *   D  static/job/job-detail.js (real) — twApi only · apply = twAction('apply_job') · Gregorian date
@@ -116,6 +117,17 @@ function gateway(opts) {
       f(15, 5).indexOf(ctx.twFormatDate(new Date(2026, 9, 8))) === 0);
     check('A11 empty / null / invalid → \'\'',
       ['', null, undefined, 'not-a-date'].every(v => ctx.twFormatDateTime(v) === ''));
+  }
+
+  console.log('\nA3 — twFormatNumber (tw_shared.js — task 5.3a3)');
+  {
+    const { ctx } = gateway();
+    const f = ctx.twFormatNumber;
+    check('A12 thousands separator, Western digits',
+      f(0) === '0' && f(999) === '999' && f(1000) === '1,000' && f(1234567) === '1,234,567', [f(1000), f(1234567)]);
+    check('A13 numeric string · negative · decimals', f('25000') === '25,000' && f(-1234.5) === '-1,234.5');
+    check('A14 empty / null / not a number → \'\'',
+      ['', null, undefined, 'abc', NaN, Infinity, true].every(v => f(v) === ''));
   }
 
   console.log('\nB — TwAuthSync.startSession (auth-sync.js)');
