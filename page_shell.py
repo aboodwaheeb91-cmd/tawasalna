@@ -44,6 +44,7 @@ PAGE_ASSETS = {
     "admin-sections.js": os.path.join("static", "shared", "admin-sections.js"),
     "admin-shell.js": os.path.join("static", "shared", "admin-shell.js"),
     "admin-shell.css": os.path.join("static", "shared", "admin-shell.css"),
+    "tw-chart.js": os.path.join("static", "shared", "tw-chart.js"),   # task 5.3a2 — dashboard charts
     "admin.js": os.path.join("static", "admin", "admin.js"),
 }
 

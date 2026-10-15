@@ -102,6 +102,7 @@ PY_DB=(
   pytest:test_pr2b_flow_fixes.py
   pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py
+  pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────
