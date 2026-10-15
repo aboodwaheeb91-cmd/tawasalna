@@ -4860,7 +4860,7 @@ Test: `python -m pytest tests/test_otp_rate_limit_security.py -q`.
 
 قيمة غلط لـ `CLIENT_IP_SOURCE` / `TRUSTED_PROXY_HOPS`، أو IP مش صالح (`ipaddress.ip_address`) → `request.client.host` + سطر تحذير `[client-ip]` **مرة وحدة** لكل نوع.
 
-**الـ rate limiter** (`rate_limit_middleware` + `_rate_store` واحد): `_RATE_LIMITED_PATHS` = `/auth/login` · `/auth/register` · `/auth/password` · `/tw-ctrl-login` · `/tw-ctrl-{ADMIN_URL_TOKEN}/login` (5.3a) · `/kyc/email/send` · `/kyc/phone/send` · `/kyc/email/verify` · `/kyc/phone/verify` + `DELETE /auth/user/{id}/delete` (prefix) — **20 طلب/دقيقة لكل IP** (كان 60) → 429 `{"error": "طلبات كثيرة جداً، حاول بعد دقيقة"}`.
+**الـ rate limiter** (`rate_limit_middleware` + `_rate_store` واحد): `_RATE_LIMITED_PATHS` = `/auth/login` · `/auth/register` · `/auth/password` · `/tw-ctrl-{ADMIN_URL_TOKEN}/login` (5.3a — the old `/tw-ctrl-login` deleted in 5.3b) · `/kyc/email/send` · `/kyc/phone/send` · `/kyc/email/verify` · `/kyc/phone/verify` + `DELETE /auth/user/{id}/delete` (prefix) — **20 طلب/دقيقة لكل IP** (كان 60) → 429 `{"error": "طلبات كثيرة جداً، حاول بعد دقيقة"}`.
 
 **حد الإيميل بالدخول (الحماية الأساسية — ما بيعتمد على الـ IP أبداً):** نفس `_rate_store` بمفتاح `login-email:{email.strip().lower()}`. 5 محاولات فاشلة بـ 15 دقيقة (`_LOGIN_EMAIL_MAX_FAILS` / `_LOGIN_EMAIL_WINDOW`) → 429 `{"error": msg, "detail": {"code": "login_email_locked", "message": msg}}` حتى لو كلمة السر صح، لحد ما تخلص النافذة. دخول ناجح بيصفّر العدّاد. `index.auth.js` بيعرض نص ثابت لما `detail.code === 'login_email_locked'`. ⚠️ trade-off معروف: أي حدا بيعرف إيميل ممكن يقفله 15 دقيقة — مقبول مقابل منع التخمين.
 
@@ -6295,16 +6295,16 @@ def check_admin(request, perm=None) -> dict:
 
 **Startup behaviour:**
 - `JWT_SECRET` missing → `RuntimeError` at startup → server refuses to start
-- `ADMIN_TOKEN` missing → warning → `/tw-ctrl-login` returns 503
-- `ADMIN_JWT_SECRET` missing / invalid → warning → `/tw-ctrl-login` **and** every admin endpoint return 503 (fail closed — never falls back to `JWT_SECRET`)
+- `ADMIN_TOKEN` missing → warning → `<panel>/login` returns 503
+- `ADMIN_JWT_SECRET` missing / invalid → warning → `<panel>/login` **and** every admin endpoint return 503 (fail closed — never falls back to `JWT_SECRET`)
 - `ADMIN_URL_TOKEN` missing → warning logged → admin panel URL not accessible
 
 **Admin Login Flow:**
-1. POST `<panel>/login` `{password}` (task 5.3a — `admin.html` posts relative to its own path; the same handler also answers `/tw-ctrl-login`; both rate limited — `_RATE_LIMITED_PATHS`)
+1. POST `<panel>/login` `{password}` (task 5.3a — `admin.html` posts relative to its own path; rate limited — `_RATE_LIMITED_PATHS`). The old fixed `POST /tw-ctrl-login` is deleted (task 5.3b) → 404
 2. Server compares with `ADMIN_TOKEN` via `hmac.compare_digest` (timing-safe) → 401 on mismatch
 3. Returns `{"success": true, "token": <admin JWT>, "expires_in": 3600}` — the raw `ADMIN_TOKEN` never reaches the browser
 4. `static/shared/admin-session.js` (`TwAdminSession`) stores it in `sessionStorage.tw_adm_token` (per tab, never `localStorage`) and sends it as `X-Admin-Token` through `TwAdminSession.fetch()`
-5. Expiry: `TwAdminSession` fires `onExpired` at `exp` (timer) **or** on any 401/403 from an admin call → on Admin Shell pages (`admin.html` · `admin-email.html`) ONE handler in `TwAdminShell` → `location.replace(<panel>?session=expired)` → the login screen shows `admin.session.expired` (task 5.3a — SYSTEMS_INDEX §25a) · `admin-view.html` stops with the same message + «ارجع للوحة الإدارة.» (it cannot link to the secret panel URL). No silent hang, no reload loop.
+5. Expiry: `TwAdminSession` fires `onExpired` at `exp` (timer) **or** on any 401/403 from an admin call → on every admin page (`admin.html` · `admin-email.html` · `admin-view.html` — 5.3b) ONE handler in `TwAdminShell` → `location.replace(<panel>?session=expired)` → the login screen shows `admin.session.expired` (task 5.3a — SYSTEMS_INDEX §25a). `admin-view.html` is outside the panel path → the panel root saved by this tab (`TwAdminSession.panelHref()`); a tab that never opened the panel shows `admin.view.open_panel` (no link to the secret URL). No silent hang, no reload loop.
 
 **`TwAdminSession` API (admin pages only):** `getToken()` · `setToken(t)` · `clear()` · `hasLiveToken()` · `headers()` · `fetch(url, opts)` · `onExpired(cb)` · `EXPIRED_MSG` · `setPanelHref(path)` / `panelHref()` (panel root of this tab, runtime only — 5.3a). ❌ reading `tw_adm_token` directly in a page · ❌ routing a **user** endpoint (Bearer JWT) through `TwAdminSession.fetch` (its 401 would end the admin session). (The old `edu-profile.html → sendContact()` read of `tw_adm_token` was removed in PR 1.7.)
 
@@ -6325,22 +6325,25 @@ Header + menu = `TwAdminShell` from `TW_ADMIN_SECTIONS` (`static/shared/admin-se
 
 ### admin-view.html — Individual User Page
 
-الوصول: من قسم المستخدمين ← `/admin-view?id={user_id}` · زر «رجوع للإدارة» ← `TwAdminSession.panelHref() + '#users'` (5.3a) وإلا `history.back()`. يتحوّل للـ Admin Shell بمهمة 5.3b.
+الوصول: من قسم المستخدمين ← `/admin-view?id={user_id}` (مش بالقائمة — صفحة مستخدم واحد). **Admin Shell (task 5.3b):** `TwAdminShell.start({outside: true, current: 'users'})` — جذر اللوحة = اللي حفظه هالتاب (`TwAdminSession.panelHref()`)؛ الهيدر + القائمة (المستخدمون معلَّم) · 401 → دخول اللوحة · ما في جلسة → جذر اللوحة · تاب ما فتح اللوحة → رسالة `admin.view.open_panel` بدون تحويل. المنطق `static/admin-view/admin-view.js` · Page Shell أدمن · ألوان tokens · DS-ICON · `twT` (`admin.view.*`) · DS-OVL · `page_audit` = 0.
 
-| القسم | الوظيفة |
-|-------|---------|
-| Sidebar | avatar، name، email، type badge، ID، تاريخ الإنضمام |
-| Quick Actions | تغيير النوع، verify/unverify، reset password، إرسال رسالة، حذف الحساب |
-| Basic Info | full_name، headline، location، bio، is_verified، tw_id |
-| Experience / Education / Courses | قائمة مع زر حذف لكل عنصر |
+| الكرت (`TwAdminShell.card` + ⓘ) | الوظيفة | الإجراء (`TwAdminShell.run` — `TwAdminUserView.ACTIONS`) |
+|-------|---------|---------|
+| الحساب | الاسم، الإيميل، tw_id، النوع، التوثيق، تاريخ الانضمام | — |
+| إجراءات | توثيق / إلغاء توثيق · تغيير كلمة المرور · مراسلة · حذف الحساب | `user.verify` (تأكيد) · `user.unverify` (تحذيري) · `user.password` (تحذيري: خروج من كل الأجهزة + إلغاء روابط الإيميل المعلّقة) · `message.send` (تأكيد قبل الإرسال) · `user.delete` (تحذيري + كتابة «حذف») |
+| نوع الحساب | 3 أزرار (الحالي مطفّي) | `user.type` (تحذيري بيشرح شو بيتغيّر + زر التأكيد مطفّي لحد ما تنكتب «تغيير») |
+| المعلومات الأساسية | full_name، headline، location، bio + تعديل (`twModal`) | `profile.edit` (تأكيد بيشرح) |
+| الخبرات / الشهادات / الدورات | قائمة مع زر حذف لكل عنصر | `exp.delete` · `edu.delete` · `course.delete` (تحذيري) |
+
+النتيجة بتنفحص قبل «تم» (`run` → `res.ok` → toast + إعادة تحميل؛ فشل → رسالة الخادم). حذف الحساب الناجح → `<panel>#users`.
 
 ### Admin Endpoints (source: `server.py` — single table; PR-3b moved it from `CLAUDE.md`, PR-4 merged the §66c pipeline table into it)
 
-All rows below call `check_admin(request)` (`X-Admin-Token` header = admin session JWT from `/tw-ctrl-login` — PR 1.5) unless marked otherwise.
+All rows below call `check_admin(request)` (`X-Admin-Token` header = admin session JWT from `<panel>/login` — PR 1.5 / 5.3a) unless marked otherwise.
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
-| POST | `/tw-ctrl-login` | `admin_login` | Admin login (password = `ADMIN_TOKEN`) — **no** `check_admin`; rate-limited |
+| POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Admin login (password = `ADMIN_TOKEN`) — **no** `check_admin`; rate-limited. The old fixed `/tw-ctrl-login` is deleted (task 5.3b) → 404 |
 | POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Same handler under the panel path (task 5.3a) — what admin pages call (relative to their own path, no panel prefix in served files); rate-limited |
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
@@ -6451,7 +6454,7 @@ Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages a
 
 **Route change:** `GET /admin.html` public route removed from `server.py`. Admin panel is served exclusively via `/tw-ctrl-{ADMIN_URL_TOKEN}`.
 
-**Rate limiting:** `/tw-ctrl-login` added to `rate_limit_middleware` list alongside `/auth/login`.
+**Rate limiting:** the admin login (`<panel>/login` since 5.3a; the old `/tw-ctrl-login` deleted in 5.3b) is in `rate_limit_middleware` alongside `/auth/login`.
 
 ```
 ❌ ممنوع استخدام ${apiData} مباشرة داخل innerHTML — استخدم twEscHtml()
@@ -8630,7 +8633,7 @@ Three cards = a native radio group (PR 4.8): `#typeRow[role=radiogroup]` → `<l
 | `emp` | `/u/{tw_id}` | Canonical public profile URL; fallback `/profile-showcase` if tw_id missing |
 | `co` | `/company-profile` | Modern route (no `?id=` query param) |
 | `edu` | `/edu-profile` | Modern route (no `?id=` query param) |
-| `admin` | `/admin` | Defensive branch only — admin auth uses `/tw-ctrl-login` |
+| `admin` | `/admin` | Defensive branch only — admin auth uses `<panel>/login` |
 
 ### localStorage Rules
 

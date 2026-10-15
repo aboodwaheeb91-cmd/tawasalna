@@ -7,6 +7,9 @@
 //   TwAdminShell.start({loginPage})  → one call first thing in the page script.
 //        live admin session → true. None → login page: false (page shows its form) ·
 //        any other admin page: location.replace(panel root) and false.
+//   TwAdminShell.start({outside, current}) → a page served outside the panel path (admin-view.html, 5.3b):
+//        panel root = the one this tab saved (TwAdminSession.panelHref) · menu item `current` marked.
+//        No saved root (tab never opened the panel) → false, no navigation (page asks to open the panel).
 //   TwAdminShell.mount()             → renders header + menu from TW_ADMIN_SECTIONS, loads badges.
 //   TwAdminShell.run(action, ctx)    → the ONE way an admin page changes data: confirm (twConfirm,
 //        or typed-word confirm for the most dangerous) → TwAdminSession.fetch → toast. No confirm → no request.
@@ -30,8 +33,12 @@
 
   function sections() { return window.TW_ADMIN_SECTIONS || []; }
 
+  var _outside = false, _outsideKey = '';
+
   // Panel root = first path segment of the current admin page (runtime only, never in a file).
+  // Outside page → the root this tab saved when it opened the panel ('' = unknown).
   function base() {
+    if (_outside) return TwAdminSession.panelHref();
     var seg = String(location.pathname || '/').split('/')[1] || '';
     return '/' + seg;
   }
@@ -48,6 +55,7 @@
   }
 
   function currentKey() {
+    if (_outside) return _outsideKey;
     var pg = page(), hash = String(location.hash || '').replace(/^#/, ''), list = sections(), i;
     for (i = 0; i < list.length; i++) {
       var p = list[i].path || '';
@@ -140,12 +148,22 @@
 
   // ── session gate ──
   function goLogin(expired) {
-    location.replace(base() + (expired ? '?' + EXPIRED_PARAM : ''));
+    var b = base();
+    if (!b) return;   // outside page in a tab that never opened the panel — the page shows its message
+    location.replace(b + (expired ? '?' + EXPIRED_PARAM : ''));
   }
   function wasExpired() { return String(location.search || '').indexOf(EXPIRED_PARAM) !== -1; }
 
   function start(opts) {
     opts = opts || {};
+    if (opts.outside) {
+      _outside = true;
+      _outsideKey = opts.current || '';
+      if (!base()) return false;
+      if (TwAdminSession.hasLiveToken()) return true;
+      goLogin(false);
+      return false;
+    }
     try { TwAdminSession.setPanelHref(base()); } catch (e) { console.error('[TwAdminShell] panel href:', e); }
     if (TwAdminSession.hasLiveToken()) return true;
     if (!opts.loginPage) goLogin(false);

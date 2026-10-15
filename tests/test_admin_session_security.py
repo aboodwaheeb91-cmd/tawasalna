@@ -21,6 +21,7 @@ import auth
 import server as srv
 
 client = TestClient(srv.app)
+LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"   # the admin login, under the panel path (task 5.3a)
 
 
 @pytest.fixture(autouse=True)
@@ -52,7 +53,7 @@ def _status(fn, *a):
 # ── PR 1.5 — admin session JWT ───────────────────────────────────────────────
 
 def test_login_returns_short_admin_jwt_not_raw_secret():
-    r = client.post("/tw-ctrl-login", json={"password": "a" * 40})
+    r = client.post(LOGIN, json={"password": "a" * 40})
     assert r.status_code == 200
     tok = r.json()["token"]
     assert tok != srv.ADMIN_TOKEN and srv.ADMIN_TOKEN not in tok
@@ -60,16 +61,22 @@ def test_login_returns_short_admin_jwt_not_raw_secret():
     assert c["role"] == "admin" and c["sub"] == "owner" and c["perms"] == ["*"]
     assert 0 < c["exp"] - c["iat"] <= 3600
     assert srv.check_admin(_req(tok))["sub"] == "owner"
-    assert client.post("/tw-ctrl-login", json={"password": "b" * 40}).status_code == 401
+    assert client.post(LOGIN, json={"password": "b" * 40}).status_code == 401
 
 
-def test_login_under_panel_path_same_handler_and_rate_limited():
-    """Task 5.3a — admin pages post the login to <panel>/login (no panel prefix in served files)."""
-    path = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"
-    r = client.post(path, json={"password": "a" * 40})
-    assert r.status_code == 200 and srv._admin_jwt_claims(r.json()["token"])["role"] == "admin"
-    assert client.post(path, json={"password": "b" * 40}).status_code == 401
-    assert path in srv._RATE_LIMITED_PATHS
+def test_login_under_panel_path_rate_limited():
+    """Task 5.3a — admin pages post the login to <panel>/login. Wrong password → 401;
+    past the per-IP limit → 429 (rate_limit_middleware)."""
+    for _ in range(srv._RATE_LIMIT):
+        assert client.post(LOGIN, json={"password": "b" * 40}).status_code == 401
+    assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 429
+
+
+def test_old_fixed_login_route_is_gone():
+    """Task 5.3b — the old /tw-ctrl-login route is deleted: 404, never a token."""
+    for pw in ("a" * 40, "b" * 40):
+        r = client.post("/tw-ctrl-login", json={"password": pw})
+        assert r.status_code == 404 and "token" not in r.text
 
 
 def test_raw_admin_token_rejected_as_session():
@@ -102,10 +109,10 @@ def test_user_jwt_rejected_by_admin_and_admin_jwt_rejected_as_user():
 
 def test_admin_jwt_secret_missing_or_shared_fails_closed(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "")
-    assert client.post("/tw-ctrl-login", json={"password": "a" * 40}).status_code == 503
+    assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 503
     assert _status(srv.check_admin, _req("x")) == 503
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", srv.JWT_SECRET)   # never reuse JWT_SECRET
-    assert client.post("/tw-ctrl-login", json={"password": "a" * 40}).status_code == 503
+    assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 503
 
 
 def test_report_no_longer_notifies_user_1():
