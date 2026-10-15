@@ -17,6 +17,9 @@ real startup migrations:
     reactivates it (expires_at = now + days, reminder) · the removed company reopen button does not come back
   - 5.3j5 (owner decision): PUT /company/jobs/{id} → 403 for the company, nothing changes · pause / resume / close /
     archive still work · the removed company edit mode does not come back
+  - phase 4 (owner decisions): GET /admin/jobs/{id} (job + applicants) · PUT /admin/jobs/{id} = the publish rules +
+    a required reason → company notice with the reason · ONE notice per applicant per edit (without the reason) ·
+    no change → 409 · GET …/delete-preview counts applicants / pipeline / appointments (kept, detached) · 401 without admin
 Run: python -m pytest tests/test_admin_jobs_control.py -q
 """
 import os
@@ -304,3 +307,81 @@ def test_company_job_edit_mode_is_gone():
     """The removed company edit flow does not come back (functions absent)."""
     src = open("static/company/company.jobs.js", encoding="utf-8").read()
     assert "function openEditJob" not in src and "function hydrateEditJobForm" not in src
+
+
+# ── phase 4 (owner decisions): admin job page — detail · edit (reason + notices) · delete preview ──
+def _apply(jid, uid):
+    return int(_sql("INSERT INTO job_applications (job_id, user_id) VALUES (:j, :u) RETURNING id", j=jid, u=uid)[0][0])
+
+
+def _notices(uid, type_):
+    return _sql("SELECT title, body FROM notifications WHERE user_id=:u AND type=:t ORDER BY id", u=uid, t=type_)
+
+
+def test_phase4_endpoints_need_an_admin_session(db):
+    user_jwt = _h(1)["Authorization"].split(" ", 1)[1]
+    for h in ({}, {"X-Admin-Token": PASSWORD}, {"X-Admin-Token": user_jwt}):
+        assert client.get("/admin/jobs/1", headers=h).status_code == 401
+        assert client.put("/admin/jobs/1", json={"title": "x", "reason": "r"}, headers=h).status_code == 401
+        assert client.get("/admin/jobs/1/delete-preview", headers=h).status_code == 401
+
+
+def test_admin_job_detail_with_applicants(db):
+    co, e1, e2 = _user(), _user("emp"), _user("emp")
+    jid = _job(co)
+    _apply(jid, e1), _apply(jid, e2)
+    h = _admin()
+    d = client.get(f"/admin/jobs/{jid}", headers=h).json()["data"]
+    assert d["job"]["id"] == jid and d["job"]["admin_status"] == "active" and d["job"]["company_id"] == co
+    assert sorted(a["user_id"] for a in d["applicants"]) == sorted([e1, e2]) and d["durations"] == [3, 7, 14, 30]
+    assert "password_hash" not in str(d)
+    assert client.get("/admin/jobs/999999", headers=h).status_code == 404
+
+
+def test_admin_edit_reason_company_notice_and_one_notice_per_applicant_per_edit(db):
+    co, e1, e2 = _user(), _user("emp"), _user("emp")
+    jid = _job(co)
+    _apply(jid, e1), _apply(jid, e2)
+    h = _admin()
+    base = {"title": "مطوّر واجهات", "description": "d", "job_type": "دوام كامل", "work_mode": "عن بُعد"}
+    url = f"/admin/jobs/{jid}"
+    assert client.put(url, json=base, headers=h).status_code == 422                                   # no reason
+    r = client.put(url, json=dict(base, reason="تصحيح العنوان"), headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert "title" in d["changed"] and d["notified"] is True and d["applicants_notified"] == 2
+    row = _sql("SELECT title, work_mode FROM jobs WHERE id=:j", j=jid)[0]
+    assert list(row) == ["مطوّر واجهات", "عن بُعد"]
+    co_n = _notices(co, "job_admin")
+    assert co_n and "تصحيح العنوان" in co_n[-1][1]                                                   # reason → company
+    for e in (e1, e2):
+        n = _notices(e, "job_updated")
+        assert len(n) == 1 and "تصحيح العنوان" not in n[0][1]                                         # no internal reason
+    assert client.put(url, json=dict(base, reason="مرة تانية"), headers=h).status_code == 409           # nothing changed
+    assert len(_notices(e1, "job_updated")) == 1
+    r = client.put(url, json=dict(base, title="مطوّر واجهات أول", reason="تعديل تاني"), headers=h)
+    assert r.status_code == 200 and len(_notices(e1, "job_updated")) == 2                              # one per edit
+    # the publish rules (same function): an unknown accepted profession → 422, nothing written
+    bad = client.put(url, json=dict(base, title="X", accepted_profession_ids=[987654], reason="r"), headers=h)
+    assert bad.status_code == 422
+    assert _sql("SELECT title FROM jobs WHERE id=:j", j=jid)[0][0] == "مطوّر واجهات أول"
+    assert client.put("/admin/jobs/999999", json=dict(base, reason="r"), headers=h).status_code == 404
+    assert client.put(url, json=dict(base, title="Y", reason="r"), headers=_h(co)).status_code == 401  # company ≠ admin
+
+
+def test_delete_preview_counts_then_delete(db):
+    co, e1, e2 = _user(), _user("emp"), _user("emp")
+    jid = _job(co)
+    a1 = _apply(jid, e1)
+    _apply(jid, e2)
+    entry = int(_sql("INSERT INTO job_pipeline_entries (company_id, candidate_id, job_id, application_id, stage, source) "
+                     "VALUES (:c, :e, :j, :a, 'new', 'application') RETURNING id", c=co, e=e1, j=jid, a=a1)[0][0])
+    _sql("INSERT INTO appointments (company_id, applicant_id, created_by, job_id, pipeline_entry_id) "
+         "VALUES (:c, :e, :c, :j, :p)", c=co, e=e1, j=jid, p=entry)
+    h = _admin()
+    p = client.get(f"/admin/jobs/{jid}/delete-preview", headers=h).json()["data"]
+    assert (p["applicants"], p["pipeline_entries"], p["appointments"]) == (2, 1, 1)
+    assert client.get("/admin/jobs/999999/delete-preview", headers=h).status_code == 404
+    r = client.delete(f"/admin/jobs/{jid}", headers=h)
+    assert r.status_code == 200 and r.json()["removed"] == {"applicants": 2, "pipeline_entries": 1}
+    assert _sql("SELECT COUNT(*) FROM appointments WHERE company_id=:c AND job_id IS NULL", c=co)[0][0] == 1   # kept, detached

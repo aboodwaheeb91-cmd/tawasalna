@@ -378,3 +378,41 @@ def jobs_list(q: str = "", status: str = "", page: int = 1, limit: int = 20) -> 
     # durations = the only allowed listing durations (auth._ALLOWED_DURATIONS) — the page's reactivate / extend choices
     return {"items": items, "total": total, "page": page, "limit": limit, "counts": counts,
             "durations": sorted(_ALLOWED_DURATIONS)}
+
+
+# ── one job for the admin job page (§25e — task 5.3j phase 4) — read only ──
+JOB_DETAIL_FIELDS = ("id", "title", "description", "location", "job_type", "work_mode", "salary_min", "salary_max",
+                     "currency", "salary_hidden", "experience_years", "skills", "category", "profession_id",
+                     "accepts_all_professions", "status", "created_at", "expires_at", "closed_at", "paused_at",
+                     "archived_at", "duration_days", "views", "admin_hidden_at", "admin_hidden_reason",
+                     "company_id", "company_name", "company_tw_id")
+
+
+def job_detail(job_id: int):
+    """→ the job (every editable field + state) + accepted professions + its applicants (read only), or None."""
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT j.id, j.title, j.description, j.location, j.job_type, j.work_mode, j.salary_min, j.salary_max, "
+            "j.currency, COALESCE(j.salary_hidden, FALSE), j.experience_years, j.skills, j.category, j.profession_id, "
+            "COALESCE(j.accepts_all_professions, FALSE), j.status, j.created_at, j.expires_at, j.closed_at, "
+            "j.paused_at, j.archived_at, j.duration_days, COALESCE(j.views, 0), j.admin_hidden_at, "
+            "j.admin_hidden_reason, j.company_id, u.full_name, u.tw_id, "
+            + _JOB_STATE_SQL + ", " + job_eff_status_sql("j") +
+            " FROM jobs j LEFT JOIN users u ON u.id = j.company_id WHERE j.id = :id", id=job_id)
+        if not rows:
+            return None
+        r = rows[0]
+        job = dict(zip(JOB_DETAIL_FIELDS, r[:len(JOB_DETAIL_FIELDS)]))
+        job["admin_status"], job["effective_status"] = r[-2], r[-1]
+        for k in ("created_at", "expires_at", "closed_at", "paused_at", "archived_at", "admin_hidden_at"):
+            job[k] = _iso(job[k])
+        job["skills"] = list(job["skills"] or [])
+        job["accepted_profession_ids"] = [int(x[0]) for x in conn.run(
+            "SELECT profession_id FROM job_profession_targets WHERE job_id=:id ORDER BY display_order", id=job_id)]
+        apps = conn.run(
+            "SELECT a.id, a.user_id, u.full_name, u.tw_id, a.status, a.applied_at FROM job_applications a "
+            "LEFT JOIN users u ON u.id = a.user_id WHERE a.job_id = :id ORDER BY a.applied_at DESC NULLS LAST, a.id DESC",
+            id=job_id)
+    applicants = [{"id": int(a[0]), "user_id": a[1], "full_name": a[2], "tw_id": a[3], "status": a[4],
+                   "applied_at": _iso(a[5])} for a in apps]
+    return {"job": job, "applicants": applicants, "durations": sorted(_ALLOWED_DURATIONS)}

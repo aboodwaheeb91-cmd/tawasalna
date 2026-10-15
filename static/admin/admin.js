@@ -8,8 +8,7 @@
 //     (confirm first, via run) · audit = GET /admin/audit (read only) · activity = GET /admin/activity (paged)
 //   - jobs = GET /admin/jobs (task 5.3j): every state (active · paused · closed · expired · hidden · archived — state
 //     from the server), status tabs with counts, search title / company, server pages, applicants per job ·
-//     actions per row (jobActions): hide (reason) / unhide · pause / resume / close (reason) · reactivate · extend
-//     (durations from the server) · unarchive · delete
+//     actions per row: TwAdminJobs (static/shared/admin-jobs.js — shared with the job page /admin-job?id=N)
 //   - counts shown with twFormatNumber (tw_shared.js — §59a)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
@@ -30,45 +29,6 @@
                  danger: true, typeWord: DEL_WORD },
       request: function (c) { return { url: '/admin/user/' + Number(c.id), method: 'DELETE' }; },
       done: 'admin.done.deleted' },
-    'job.delete': {
-      confirm: { title: 'admin.delete_job.title', message: 'admin.delete_job.message', confirm: 'admin.delete.confirm',
-                 danger: true, typeWord: DEL_WORD },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id), method: 'DELETE' }; },
-      done: 'admin.done.deleted' },
-    // jobs (task 5.3j phase 2) — every change tells the company (server); «تم» only on {ok: true}
-    'job.hide': {
-      confirm: { title: 'admin.jobs.hide.title', message: 'admin.jobs.hide.message', confirm: 'admin.jobs.hide', danger: true },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/hide', method: 'POST', body: { reason: c.reason } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_hidden' },
-    'job.unhide': {
-      confirm: { title: 'admin.jobs.unhide.title', message: 'admin.jobs.unhide.message', confirm: 'admin.jobs.unhide' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/unhide', method: 'POST' }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_unhidden' },
-    'job.reactivate': {
-      confirm: { title: 'admin.jobs.reactivate.title', message: 'admin.jobs.reactivate.message', confirm: 'admin.jobs.reactivate' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/reactivate', method: 'POST', body: { duration_days: Number(c.days) } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_reactivated' },
-    'job.extend': {
-      confirm: { title: 'admin.jobs.extend.title', message: 'admin.jobs.extend.message', confirm: 'admin.jobs.extend' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/extend', method: 'POST', body: { duration_days: Number(c.days) } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_extended' },
-    // state changes (task 5.3j phase 3) — the same set_job_status as the company; close needs a reason
-    'job.pause': {
-      confirm: { title: 'admin.jobs.pause.title', message: 'admin.jobs.pause.message', confirm: 'admin.jobs.pause' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'paused' } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_paused' },
-    'job.resume': {
-      confirm: { title: 'admin.jobs.resume.title', message: 'admin.jobs.resume.message', confirm: 'admin.jobs.resume' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'active' } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_resumed' },
-    'job.close': {
-      confirm: { title: 'admin.jobs.close.title', message: 'admin.jobs.close.message', confirm: 'admin.jobs.close', danger: true },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/status', method: 'POST', body: { status: 'closed', reason: c.reason } }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_closed' },
-    'job.unarchive': {
-      confirm: { title: 'admin.jobs.unarchive.title', message: 'admin.jobs.unarchive.message', confirm: 'admin.jobs.unarchive' },
-      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/unarchive', method: 'POST' }; },
-      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_unarchived' },
     'kyc.approve': {
       confirm: { title: 'admin.kyc.approve.title', message: 'admin.kyc.approve.message', confirm: 'admin.kyc.approve.confirm' },
       request: function (c) { return { url: '/admin/kyc/' + Number(c.id) + '/approve', method: 'PUT', body: { note: '' } }; },
@@ -100,7 +60,9 @@
       request: function (c) { return { url: '/admin/users/export?' + c.query, method: 'GET' }; },
       as: 'blob', done: 'admin.done.exported' },
   };
-  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: jobActions, pageList: pageList };
+  // job writes live in the shared TwAdminJobs (static/shared/admin-jobs.js — also the job page, task 5.3j phase 4)
+  Object.keys(TwAdminJobs.ACTIONS).forEach(function (k) { ACTIONS[k] = TwAdminJobs.ACTIONS[k]; });
+  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: TwAdminJobs.actions, pageList: pageList };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -638,18 +600,6 @@
   var JOB_STATES = ['active', 'paused', 'closed', 'expired', 'hidden', 'archived'];
   var JOB_PILL = { active: 'ok', paused: 'warn', closed: 'muted', expired: 'muted', hidden: 'danger', archived: 'muted' };
   var JV = { q: '', status: '', page: 1, seq: 0, durations: [] };
-  // which admin actions fit a job row (pure — tests read it). Archived rows: unarchive · delete.
-  function jobActions(j) {
-    var out = [], eff = j.effective_status;
-    if (j.status === 'archived') return ['unarchive', 'delete'];
-    out.push(j.admin_hidden_at ? 'unhide' : 'hide');
-    if (eff === 'active') out.push('pause');
-    if (eff === 'paused') out.push('resume');
-    if (eff === 'closed' || eff === 'expired') out.push('reactivate');
-    if (eff === 'active' || eff === 'paused') out.push('extend', 'close');
-    out.push('delete');
-    return out;
-  }
   // view state → query string of GET /admin/jobs (pure — tests read it)
   function jobsQuery(v) {
     var p = [];
@@ -716,42 +666,6 @@
       JV.tabs.appendChild(b);
     });
   }
-  function reloadJobsIfOk(res) { if (res && res.ok) loadJobs(); return !!(res && res.ok); }
-  function askDays(kind, j) {   // reactivate / extend: pick a duration (server list), then run (its confirm on top)
-    TwAdminShell.formDialog({
-      titleKey: 'admin.jobs.' + kind + '.title', labelKey: 'admin.jobs.days', kind: 'select',
-      options: JV.durations.map(function (n) { return [String(n), twT('admin.jobs.days.n', { n: twFormatNumber(n) })]; }),
-      value: String(JV.durations[JV.durations.length - 1] || ''), sendKey: 'admin.jobs.' + kind, vars: { title: j.title || '' },
-      onSend: function (v) {
-        return run('job.' + kind, { id: j.id, title: j.title || '', days: v, n: twFormatNumber(Number(v)) }).then(reloadJobsIfOk);
-      },
-    });
-  }
-  function askReason(kind, ctx) {   // hide / close: a reason (sent to the company), then run (its confirm on top)
-    TwAdminShell.formDialog({
-      titleKey: 'admin.jobs.' + kind + '.title', labelKey: 'admin.jobs.' + kind + '.reason', kind: 'textarea',
-      sendKey: 'admin.jobs.' + kind, hintKey: 'admin.jobs.' + kind + '.hint', danger: true, vars: ctx,
-      onSend: function (v) {
-        v = String(v || '').trim();
-        if (!v) { showToast(twT('admin.jobs.reason.empty'), 'error'); return false; }
-        return run('job.' + kind, Object.assign({ reason: v }, ctx)).then(reloadJobsIfOk);
-      },
-    });
-  }
-  function jobButton(a, j) {
-    var ctx = { id: Number(j.id), title: j.title || '' };
-    if (a === 'hide') return btn('secondary', 'eye-off', 'admin.jobs.hide', function () { askReason('hide', ctx); });
-    if (a === 'close') return btn('secondary', 'lock', 'admin.jobs.close', function () { askReason('close', ctx); });
-    if (a === 'pause') return btn('secondary', null, 'admin.jobs.pause', function () { run('job.pause', ctx).then(reloadJobsIfOk); });
-    if (a === 'resume') return btn('secondary', 'refresh-cw', 'admin.jobs.resume', function () { run('job.resume', ctx).then(reloadJobsIfOk); });
-    if (a === 'unarchive') return btn('secondary', 'archive', 'admin.jobs.unarchive', function () { run('job.unarchive', ctx).then(reloadJobsIfOk); });
-    if (a === 'unhide') return btn('secondary', 'eye', 'admin.jobs.unhide', function () { run('job.unhide', ctx).then(reloadJobsIfOk); });
-    if (a === 'reactivate') return btn('secondary', 'refresh', 'admin.jobs.reactivate', function () { askDays('reactivate', j); });
-    if (a === 'extend') return btn('secondary', 'clock', 'admin.jobs.extend', function () { askDays('extend', j); });
-    return btn('danger', 'delete', 'admin.jobs.delete', function () {
-      run('job.delete', { id: Number(j.id), title: j.title || '', n: twFormatNumber(j.applicant_count || 0) }).then(reloadJobsIfOk);
-    });
-  }
   function renderJobs(d) {
     var list = d.items || [], box = JV.body;
     JV.durations = d.durations || [];
@@ -773,7 +687,9 @@
     list.forEach(function (j) {
       var id = Number(j.id), st = jobState(j.status), tr = el('tr');
       var who = cell(tr, 'adm-u-who'), nm = el('span', 'adm-u-name');
-      nm.appendChild(el('span', 'adm-u-title', j.title || '—'));
+      var ttl = el('a', 'adm-u-title', j.title || '—');   // → the job page (task 5.3j phase 4)
+      ttl.href = '/admin-job?id=' + id;
+      nm.appendChild(ttl);
       if (j.company_id) {
         var co = el('a', 'adm-u-sub', j.company_name || twT('admin.user.unnamed'));
         co.href = '/admin-view?id=' + Number(j.company_id);
@@ -786,7 +702,8 @@
       cell(tr, 'adm-u-date').textContent = j.created_at ? twFormatDate(j.created_at) : '—';
       if (j.admin_hidden_reason) nm.appendChild(el('span', 'adm-u-sub', twT('admin.jobs.hidden_reason', { reason: j.admin_hidden_reason })));
       var acts = cell(tr, 'adm-u-acts').appendChild(el('div', 'adm-u-btns'));
-      jobActions(j).forEach(function (a) { acts.appendChild(jobButton(a, j)); });
+      var jopts = { durations: JV.durations, done: function () { loadJobs(); } };
+      TwAdminJobs.actions(j).forEach(function (a) { acts.appendChild(TwAdminJobs.button(a, j, jopts)); });
       tbody.appendChild(tr);
     });
     box.appendChild(table);

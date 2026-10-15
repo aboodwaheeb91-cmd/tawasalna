@@ -4686,6 +4686,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/appointments` | `appointments.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/appointment-room` | `appointment-room.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
+| `/admin-job` | `admin-job.html` | Admin — one job (task 5.3j phase 4, see §57) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
 
 ### Legacy Redirect Page (PR-4)
@@ -6347,6 +6348,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Same handler under the panel path (task 5.3a) — what admin pages call (relative to their own path, no panel prefix in served files); rate-limited |
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
+| GET | `/admin-job` · `/admin-job.html` | `admin_job_page` | Serves `admin-job.html` — one job (task 5.3j phase 4; HTML only — data calls are guarded) |
 | GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` |
 | PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
@@ -6365,6 +6367,9 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
 | PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
 | GET | `/admin/jobs` | `admin_list_jobs` | Every job in every state — `?q=&status=active\|paused\|closed\|expired\|archived&page=&limit≤100` → `{ok, data:{items, total, page, limit, counts}}` (task 5.3j · SYSTEMS_INDEX §25e) |
+| GET | `/admin/jobs/{job_id}` | `admin_job_detail` | One job: every field + `admin_status` + `effective_status` + accepted professions + applicants (read only) + `durations` → `{ok, data}` · 404 (task 5.3j phase 4) |
+| PUT | `/admin/jobs/{job_id}` | `admin_update_job_endpoint` | Admin edit — `JobInput` fields + `reason` (required) · same field rules as publishing (`_job_columns_from_input`) · company notice with the reason + one `job_updated` notice per applicant (no reason) → `{ok, data:{changed, notified, applicants_notified}}` · 404 · 409 no change · 422 |
+| GET | `/admin/jobs/{job_id}/delete-preview` | `admin_job_delete_preview_endpoint` | What a hard delete removes / detaches: `{applicants, pipeline_entries, appointments}` → shown in the delete confirm · 404 |
 | POST | `/admin/jobs/{job_id}/hide` | `admin_hide_job` | Hide from every public place — body `{reason}` (required, ≤ 500) → `{ok, data:{id, hidden, notified}}` · 404 · 409 already hidden · 422 no reason (task 5.3j phase 2 · §25e) |
 | POST | `/admin/jobs/{job_id}/unhide` | `admin_unhide_job` | Back to its own state → `{ok, data}` · 409 not hidden |
 | POST | `/admin/jobs/{job_id}/reactivate` | `admin_reactivate_job_endpoint` | closed / expired → active, `{duration_days}` ∈ 3 · 7 · 14 · 30 → `expires_at = NOW() + days` · 409 other state / archived · 422 bad duration |
