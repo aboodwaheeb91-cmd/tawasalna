@@ -512,6 +512,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Do not recreate:** ❌ a table / column name from the request in stats SQL (allowlist only) · ❌ a chart library or a second chart helper · ❌ a card / number without a real data source (placeholder, demo or hard-coded values).
 
 
+### 25d. Admin Entity Map — خريطة الحالات والتحكم (task 5.3m) 📄
+**Purpose:** reference before building any admin control: for every entity (accounts · jobs · applications · pipeline · talent bank · appointments · posts · comments · messages · reports · KYC · news · profile items · notifications · follows · ratings · profession suggestions · scheduler jobs) — its real states (stored column or computed function), who sees it, transitions (manual / automatic), what the admin can do today (endpoint + screen), what is missing, CASCADE / dead-end risks, found problems, and the build priority (jobs first).
+**Source of Truth:** `docs/ADMIN_ENTITY_MAP.md` (written from `auth.py` / `server.py` / `admin_insights.py`, not from older docs — documentation only, no behaviour).
+**Do not recreate:** ❌ an admin control for an entity without reading its section first · ❌ fixing a problem listed in its «مشاكل لقيتها» table without updating that row in the same PR.
+
 ---
 
 ## F — Shared Systems & Infrastructure
@@ -1353,4 +1358,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-14 — PR 5.1b · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-15 — PR 5.3m · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

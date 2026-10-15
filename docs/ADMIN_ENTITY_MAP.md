@@ -1,0 +1,501 @@
+# خريطة الحالات والتحكم لكل كيان — ADMIN ENTITY MAP (task 5.3m)
+
+> **الهدف:** قبل بناء تحكم الأدمن — لكل كيان بالموقع: شو حالاته، مين بيشوفه، شو بيقدر يعمل فيه، وشو الأدمن بيقدر يعمل هلق وشو ناقص.
+> **المصدر:** الكود الحقيقي فقط (`auth.py` · `server.py` · `admin_insights.py` · `static/admin/admin.js` · `static/admin-view/admin-view.js`) — مش التوثيق القديم. أرقام الأسطر تقريبية (حالة `main` بتاريخ 2026-10-15).
+> **توثيق فقط:** هالملف ما بيغيّر أي سلوك. المشاكل اللي انلقت مسجّلة بقسم «مشاكل لقيتها» — ما انصلحت.
+> **شاشة الأدمن:** «لوحة» = `admin.html` + `static/admin/admin.js` (أقسام `admin-sections.js`: المستخدمون · الشركات · الوظائف · التوثيق · البلاغات · السجل · الأخطاء · الإيميل · النظام). «صفحة المستخدم» = `admin-view.html` + `static/admin-view/admin-view.js`.
+> **مفتاح الأدوار:** زائر = بدون جلسة · صاحبه = المالك (JWT `user_id`) · الشركة = حساب `co` (و `edu` حيث الكود بيسمح `co`/`edu`) · المتقدم = الحساب الشخصي `emp` · الأدمن = admin JWT (`check_admin`).
+> **السجل الأمني:** كل `POST/PUT/PATCH/DELETE` تحت `/admin/` بيتسجّل تلقائياً بـ `admin_audit_log` (`server.py → admin_audit_middleware`) — بدون الـ body (يعني ما في «قبل / بعد»).
+
+---
+
+## فهرس الكيانات
+
+1. [الحسابات (حساب شخصي / حساب شركة / حساب جهة تعليمية)](#1-الحسابات)
+2. [الوظائف](#2-الوظائف--jobs) ← **الأولوية الأولى**
+3. [طلبات التوظيف](#3-طلبات-التوظيف--job_applications)
+4. [مراحل التوظيف (Pipeline)](#4-مراحل-التوظيف--job_pipeline_entries)
+5. [بنك المواهب + تصنيف المرشحين لكل وظيفة](#5-بنك-المواهب--company_saved_candidates--company_candidate_job_refs)
+6. [المواعيد](#6-المواعيد--appointments)
+7. [المنشورات](#7-المنشورات--company_posts)
+8. [التعليقات](#8-التعليقات--company_post_comments)
+9. [الرسائل](#9-الرسائل--messages)
+10. [البلاغات](#10-البلاغات--reports)
+11. [التوثيق (KYC)](#11-التوثيق-kyc--kyc_submissions)
+12. [الأخبار](#12-الأخبار--news_posts)
+13. [الخبرات / الشهادات / الدورات / المهارات / اللغات / الروابط](#13-الخبرات--الشهادات--الدورات--المهارات--اللغات--الروابط)
+14. [الإشعارات](#14-الإشعارات--notifications)
+15. [المتابعة + الاهتمام + المشاهدات](#15-المتابعة--الاهتمام--مشاهدات-البروفايل)
+16. [تقييمات الشركات](#16-تقييمات-الشركات--company_ratings)
+17. [اقتراحات المهن](#17-اقتراحات-المهن--profession_suggestions)
+18. [مهام المجدول](#18-مهام-المجدول--scheduler_jobs)
+19. [كيانات تانية (بدون حالات — للعلم)](#19-كيانات-تانية-بدون-حالات)
+20. [مشاكل لقيتها](#20-مشاكل-لقيتها)
+21. [جدول الأولويات المقترح](#21-جدول-الأولويات-المقترح)
+
+---
+
+## 1. الحسابات
+
+**الجداول:** `users` (`auth.py → init_db`) + `profiles` (1:1) + `company_profiles` (1:1 للشركة).
+
+### 1.1 الحالات
+
+| الحالة | المصدر (عمود / دالة) | مخزّنة / محسوبة |
+|---|---|---|
+| نوع الحساب `emp` / `co` / `edu` | `users.user_type` | مخزّنة |
+| موجود (فعّال) | وجود الصف بـ `users` | — لا يوجد عمود حالة (لا `status` ولا `suspended` ولا `deleted_at`) |
+| موثّق (شارة عامة) | `profiles.is_verified` — هو اللي بيطلع بالبروفايل العام والوظائف (`auth.py ~1481` · `get_job ~2869`) | مخزّنة |
+| موثّق (KYC) | `users.is_verified` — بيكتبه `admin_approve_kyc` بس | مخزّنة |
+| شركة موثّقة | `company_profiles.verified_co` — بينقرأ بس، **ما في ولا كاتب** | مخزّنة (دايماً FALSE) |
+| الإيميل / الجوال موثّق | `users.email_verified` / `users.phone_verified` (من KYC OTP) | مخزّنة |
+| نسخة الجلسة | `users.session_version` + `password_changed_at` — تغيير كلمة السر بينهي الجلسات | مخزّنة |
+| محذوف | حذف نهائي للصف (`DELETE FROM users`) | — |
+
+### 1.2 مين بيشوف شو
+
+| الدور | بيشوف | بيقدر يعمل |
+|---|---|---|
+| زائر | `/u/{tw_id}` — Tier 1 العام (`project_public_profile`) | يبلّغ (بعد الدخول) |
+| صاحبه | Tier 2 (`GET /profile/{id}/full`) + KYC Tier 3 | يعدّل البروفايل · كلمة السر · الإيميل · حذف الحساب (الواجهة مخفية — F27) |
+| حساب تاني مسجّل | نفس الزائر + متابعة / مراسلة / اهتمام | — |
+| الأدمن | كل البروفايل (`GET /admin/profile/{id}`) · قائمة كل الحسابات (`GET /auth/users` — بدون pagination) | تحت |
+
+### 1.3 الانتقالات
+
+| من → إلى | مين | كيف |
+|---|---|---|
+| (لا شي) → موجود | المستخدم | `POST /auth/register` |
+| غير موثّق ↔ موثّق (شارة) | الأدمن | `PUT /admin/user/{id}/verify` → `profiles.is_verified` |
+| غير موثّق → موثّق KYC | الأدمن | `PUT /admin/kyc/{id}/approve` → `users.is_verified` فقط |
+| نوع → نوع | الأدمن | `PUT /admin/user/{id}/type` |
+| موجود → محذوف | صاحبه (`DELETE /auth/user/{id}/delete` + كلمة السر) أو الأدمن (`DELETE /admin/user/{id}`) | حذف نهائي |
+| تلقائي | — | لا يوجد أي انتقال تلقائي |
+
+### 1.4 الأدمن هلق
+
+| الإجراء | Endpoint | شاشة |
+|---|---|---|
+| قائمة الحسابات | `GET /auth/users` | ✅ لوحة → المستخدمون / الشركات |
+| عرض / تعديل البروفايل | `GET` / `PUT /admin/profile/{id}` | ✅ صفحة المستخدم |
+| توثيق / إلغاء توثيق (شارة) | `PUT /admin/user/{id}/verify` | ✅ (اللوحة: توثيق بس · صفحة المستخدم: الاتنين) |
+| تغيير النوع | `PUT /admin/user/{id}/type` | ✅ صفحة المستخدم (كتابة «تغيير») |
+| تغيير كلمة السر | `PUT /admin/user/{id}/password` | ✅ صفحة المستخدم |
+| حذف نهائي | `DELETE /admin/user/{id}` | ✅ (كتابة «حذف») |
+| «رسالة للمستخدم» | `POST /admin/message` | ✅ شاشة — **بس الـ endpoint ما بيبعت شي** (مشكلة #9) |
+
+### 1.5 ناقص للتحكم الكامل
+
+- **إيقاف / تعليق حساب** (`users.status` أو `suspended_at` + فحص بالـ login و `verify_token` + `_ws_revoke_user`) — هلق الخيار الوحيد للأدمن مع حساب مخالف هو الحذف النهائي.
+- **حذف ناعم** (`deleted_at`) بدل الحذف النهائي (F27) + إرجاع الحساب.
+- مصدر واحد للتوثيق (اليوم 3 أعمدة — مشكلة #4).
+- تعديل الإيميل / الاسم من الأدمن (`PUT /admin/profile` بيمشي على قواعد `_apply_profile_update` بس).
+- pagination + فلترة لقائمة الحسابات.
+- إنهاء جلسات الحساب بدون تغيير كلمة السر.
+
+### 1.6 ملاحظات خطر
+
+- **الحذف النهائي بيمسح بـ CASCADE:** profiles · company_profiles · experience / education / courses / skills / langs / links · jobs (→ طلباتها، refs، targets) · job_applications · messages (الطرفين) · notifications · company_posts (→ تعليقات، تقديرات، حفظ، مشاهدات) · تعليقات الشخص على منشورات غيره · company_ratings (اللي عطاها واللي أخدها) · profile_follows / interests / views · company_saved_candidates · job_pipeline_entries (→ stage events + notes) · candidate_bank_notes · appointments (→ participants / events / messages) · **reports المرفوعة ضده** (دليل البلاغ بينمسح) · kyc_submissions · password_reset_tokens · company_settings · company_branches. ملفات Storage (أفاتار / غلاف / وثائق KYC) **ما بتنحذف**.
+- تغيير النوع (`co` → `emp` مثلاً): الوظائف والمنشورات والـ pipeline بتضل مربوطة بحساب صار `emp`؛ `tw_id` بيضل ببادئته القديمة (C/U/T) — حالة متضاربة.
+- ما في حالة «معلّق» → ما في مخرج وسط بين «فعّال» و«محذوف للأبد».
+
+---
+
+## 2. الوظائف — `jobs`
+
+**الأعمدة الحالية:** `status` (`active` / `paused` / `closed`) · `expires_at` · `duration_days` (3 / 7 / 14 / 30 — `_ALLOWED_DURATIONS`) · `paused_at` · `closed_at` · `archived_at` + `archived_by` · `views`.
+
+### 2.1 الحالات
+
+| الحالة | المصدر | مخزّنة / محسوبة |
+|---|---|---|
+| `active` — نشطة، بتستقبل طلبات | `jobs.status='active'` و `expires_at` لسا ما خلص | مخزّنة |
+| `paused` — موقوفة مؤقتاً | `jobs.status='paused'` + `paused_at` | مخزّنة |
+| `closed` — مغلقة (يدوياً أو انتهت مدتها) | `status='closed'` + `closed_at` **أو** `active`/`paused` و `expires_at` مضى (< 30 يوم) | مخزّنة أو **محسوبة** — `_eff_status()` (`auth.py ~2650`) |
+| `expired` — انتهت صلاحيتها (30 يوم بعد الإغلاق) | `_eff_status()`: مرجع الإغلاق + 30 يوم | **محسوبة فقط** (`effective_status` بالرد) |
+| مؤرشفة (محذوفة من الشركة) | `jobs.archived_at IS NOT NULL` — مستقلة عن `status` | مخزّنة |
+| محذوفة نهائياً | `DELETE FROM jobs` (أدمن بس) | — |
+
+> `status` بالـ DB ممكن يضل `active` لوظيفة فعلياً `closed` / `expired` — الحقيقة بـ `effective_status` المحسوبة.
+
+### 2.2 مين بيشوف شو
+
+| الحالة | زائر / حساب شخصي | الشركة صاحبتها | المتقدم عليها | الأدمن |
+|---|---|---|---|---|
+| active | بالفيد العام (`GET /jobs` · `/home/feed`) + صفحة الشركة + `/job-detail` · يقدّم | كل شي: تعديل · إيقاف · إغلاق · تغيير المدة · أرشفة · المتقدمون | بيشوفها بـ «طلباتي» | ✅ `GET /admin/jobs` |
+| paused | مش بالفيد · بصفحة الشركة (ما بيقدر يقدّم) · `/job-detail` | استئناف · إغلاق · تعديل · أرشفة | بطلباته | ❌ ما بتطلع بقائمة الأدمن |
+| closed | مش بالفيد · مش بصفحة الشركة (بتنعدّ بـ `closed_count`) · `/job-detail` بيفتح (التقديم مرفوض) | تعديل الحقول (بدون المدة) · أرشفة · المتقدمون | بطلباته | ❌ |
+| expired | متل closed | **ممنوع التعديل** (403) · أرشفة بس | بطلباته | ❌ |
+| مؤرشفة | 404 بكل مكان عام | بتبويب «المؤرشفة» (`GET /company/jobs?view=archived`) — قراءة بس | بطلباته (`get_user_applications` ما بيفلتر الأرشيف) | ❌ |
+
+### 2.3 الانتقالات
+
+| من → إلى | مين | تلقائي / يدوي | كيف |
+|---|---|---|---|
+| (جديد) → active | الشركة (`co`/`edu`) | يدوي | `POST /company/jobs` · `expires_at = NOW() + duration` · تذكير `job_expiring_soon` قبل 48 ساعة (scheduler) |
+| active → paused | الشركة | يدوي | `PATCH /company/jobs/{id}/status {paused}` |
+| paused → active | الشركة | يدوي | نفسه — `expires_at += مدة الإيقاف` |
+| active / paused → closed | الشركة | يدوي | `{closed}` → `closed_at=NOW()` |
+| active / paused → closed | — | **تلقائي** (محسوب عند القراءة) | `expires_at` مضى |
+| closed → expired | — | **تلقائي** (محسوب) | 30 يوم بعد الإغلاق |
+| active (مدة جديدة) | الشركة | يدوي | `PUT /company/jobs/{id}` مع `duration_days` → `expires_at = NOW() + المدة` (active / paused بس) |
+| closed / expired → active | — | **ممنوع** | `set_job_status` بيرفض «لا يمكن إعادة فتح…» |
+| أي حالة → مؤرشفة | الشركة | يدوي | `DELETE /company/jobs/{id}` → `archive_job` (حذف ناعم) |
+| مؤرشفة → غير مؤرشفة | — | **ما في endpoint** | — |
+| أي حالة → محذوفة | الأدمن | يدوي | `DELETE /admin/jobs/{id}` (حذف نهائي) |
+
+### 2.4 الأدمن هلق
+
+| الإجراء | Endpoint | شاشة |
+|---|---|---|
+| قائمة | `GET /admin/jobs` = `get_jobs({})` = **نفس الفيد العام** (active وغير منتهية بس) | ✅ لوحة → الوظائف |
+| حذف نهائي | `DELETE /admin/jobs/{id}` | ✅ (تأكيد) — **بيفشل غالباً** (مشكلة #1) |
+| أي شي تاني | — | ❌ |
+
+### 2.5 ناقص للتحكم الكامل
+
+- قائمة أدمن بكل الحالات (active / paused / closed / expired / مؤرشفة) + فلتر + بحث + pagination + `effective_status` + عدد المتقدمين.
+- **إخفاء / تعليق من الأدمن** (حالة منفصلة عن حالات الشركة، مثلاً `admin_hidden_at` + سبب) بدل الحذف النهائي.
+- **إرجاع التفعيل** (closed / expired → active) و**تمديد المدة** — هلق ولا حدا بيقدر (ولا الشركة نفسها).
+- إلغاء الأرشفة.
+- تعديل الحقول من الأدمن (العنوان / الوصف / المهنة…).
+- تعديل الحالة يدوياً من الأدمن مع سبب + إشعار للشركة.
+- عرض المتقدمين على وظيفة من الأدمن.
+
+### 2.6 ملاحظات خطر
+
+- **حذف الأدمن النهائي:** `job_applications` CASCADE · `company_candidate_job_refs` CASCADE · `job_profession_targets` · `company_saved_candidates.job_id` → NULL · `appointments.job_id` → NULL · **`job_pipeline_entries.job_id` = RESTRICT** → الحذف بيفشل لأي وظيفة إلها متقدم (كل تقديم بيعمل entry).
+- `status` المخزّن ≠ الحالة الحقيقية (محسوبة) → أي فلترة بالـ DB على `status='active'` لحالها غلط (مثال: `/stats` بيعدّ وظائف منتهية المدة كـ «نشطة»).
+- `paused` ما بيوقف العدّاد فعلياً: إذا `expires_at` مضى وهي موقوفة → بتصير `closed` محسوبة، والاستئناف بعدها مرفوض (مشكلة #6).
+- `closed` و `expired` = **حالات بلا مخرج** (لا للشركة ولا للأدمن).
+
+---
+
+## 3. طلبات التوظيف — `job_applications`
+
+**الحالة:** `job_applications.status` — المسموح بـ `PUT /jobs/applications/{id}/status`: `pending` · `viewed` · `accepted` · `contacted` · `interview` · `hired` · `rejected`. `UNIQUE(job_id, user_id)`.
+
+### 3.1 الحالات ومين بيشوف
+
+| الحالة | المتقدم | الشركة | الأدمن |
+|---|---|---|---|
+| `pending` (افتراضي) | بـ «طلباتي» (`GET /my/applications`) — **بيشوف الحالة الخام** | بالمتقدمون (`GET /jobs/{id}/applicants`) | ❌ |
+| `viewed` · `accepted` · `contacted` · `interview` | نفس الشي — الحالة الداخلية ظاهرة إله | تغيير الحالة · ترقية لمرشح (`promote`) | ❌ |
+| `hired` / `rejected` | + إشعار + إيميل مرة وحدة (5.1d — `notify_application_result`، حسب `company_settings.notify_applicant_result`) | — | ❌ |
+
+### 3.2 الانتقالات
+
+| من → إلى | مين | كيف |
+|---|---|---|
+| (جديد) → pending | المتقدم (`emp`) | `POST /jobs/{id}/apply` — بس إذا `effective_status='active'` وغير مؤرشفة · بيكتب entry بالـ pipeline (`source='application'`) بنفس الـ transaction |
+| أي → أي (من القائمة) | الشركة صاحبة الوظيفة | `PUT /jobs/applications/{id}/status` — ذرّي مع `company_candidate_job_refs.candidate_status` + `job_pipeline_entries.stage` (`_APP_TO_CANDIDATE_STATUS` · `LEGACY_APP_STATUS_TO_PIPELINE_STAGE`) |
+| → accepted + مرشح قوي | الشركة | `POST /jobs/applications/{id}/promote` |
+| سحب الطلب | المتقدم | **ما في endpoint** (المرحلة `withdrawn` موجودة بالـ CHECK بس) |
+| تلقائي | — | ما في (إغلاق الوظيفة ما بيغيّر الطلبات) |
+
+### 3.3 الأدمن
+
+- هلق: **ولا شي** (لا endpoint ولا شاشة).
+- ناقص: عرض طلبات حساب / وظيفة · تصحيح حالة غلط · حذف ناعم لطلب (سبام).
+- خطر: حذف الوظيفة أو أي من الطرفين → حذف الطلب نهائياً (CASCADE)؛ `appointments.application_id` و `job_pipeline_entries.application_id` → NULL.
+- تضارب ممكن: الحالة مكتوبة بـ 3 أماكن (application · job ref · pipeline) — الكتابة ذرّية من مسار الشركة، بس أي تعديل أدمن مستقبلي لازم يمرق من نفس الدوال.
+
+---
+
+## 4. مراحل التوظيف — `job_pipeline_entries`
+
+**الأعمدة:** `stage` CHECK (`new` · `reviewing` · `shortlisted` · `contacted` · `interview` · `offer` · `hired` · `rejected` · `withdrawn`) · `source` CHECK (`application` · `company_add` · `bank_link` · `migration` · `legacy_unknown`) · `archived_at` · سجل ثابت `pipeline_stage_events` · ملاحظات `pipeline_notes` (حذف ناعم `deleted_at`).
+
+| البند | الحقيقة بالكود |
+|---|---|
+| مين بيشوف | الشركة صاحبتها بس (ملاحظات: `GET/POST/PATCH/DELETE /company/pipeline/...`) · المتقدم ما بيشوف المرحلة |
+| الانتقالات | dual-write من تغيير حالة الطلب / تصنيف المرشح لكل وظيفة / الترقية؛ ما في endpoint مباشر لتغيير `stage` |
+| مراحل ما بيكتبها أي مسار | `offer` · `withdrawn` (بالـ CHECK والـ rank بس) · `archived_at` ما في كاتب |
+| الأدمن هلق | `POST /admin/pipeline/backfill` · `GET /admin/pipeline/backfill/dry-run` · `POST /admin/pipeline/migrate-index` — صيانة بس، **بدون شاشة** |
+| ناقص | قراءة الـ pipeline لوظيفة / شركة من الأدمن (للدعم الفني) |
+| خطر | `job_id` RESTRICT (بيمنع حذف الوظيفة) · `company_id` / `candidate_id` CASCADE → حذف الحساب بيمسح السجل والملاحظات |
+
+---
+
+## 5. بنك المواهب — `company_saved_candidates` + `company_candidate_job_refs`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات (بنك عام) | `company_saved_candidates.status` ∈ `VALID_CANDIDATE_STATUSES` = `saved` · `shortlisted` · `contacted` · `interview` · `hired` · `rejected` · + `priority` (low/medium/high) · `rating` 1–5 · `follow_up_status` (none/pending/done) + `follow_up_at` · `save_source` |
+| الحالات (لكل وظيفة) | `company_candidate_job_refs.candidate_status` (نفس القيم أو NULL) |
+| حد | `TALENT_BANK_FREE_LIMIT = 25` لكل شركة (`/company/saved-candidates/quota`) |
+| مين بيشوف | الشركة بس. المرشح ما بيعرف إنه محفوظ |
+| الانتقالات | الشركة: حفظ `POST` · تعديل `PATCH /company/saved-candidates/{id}` · تصنيف لوظيفة `PATCH …/jobs/{job_id}` · إزالة `DELETE` (حذف نهائي) · تلقائي: ولا شي (`follow_up_at` ما إله scheduler) |
+| الأدمن هلق | ولا شي |
+| ناقص | قراءة فقط للدعم + رفع الحد لشركة معيّنة (الحد ثابت بالكود — يخالف «التحكم الكامل») |
+| خطر | حذف الوظيفة → refs CASCADE + `job_id` NULL · حذف أي طرف → الصف ينمسح · 3 مصادر حقيقة (`docs/rules/saved-candidates.md`) |
+
+---
+
+## 6. المواعيد — `appointments`
+
+**الحالة:** `appointments.status` ∈ `_APPT_VALID_STATUSES` = `draft` · `pending_response` · `reschedule_requested` · `confirmed` · `cancelled` · `expired` · `missed` · `completed` · `closed`. نهائية (ما في رسائل ولا قرار): `cancelled` · `expired` · `closed`. سجل ثابت `appointment_events`، رسائل `appointment_messages` (حذف ناعم).
+
+### 6.1 مين بيشوف
+
+المشاركين بس (`appointment_participants`: الشركة + المدعو + الممثل) — `GET /api/appointments`, `/appointment-room`. ما في زائر ولا أدمن.
+
+### 6.2 الانتقالات
+
+| من → إلى | مين | تلقائي / يدوي |
+|---|---|---|
+| (جديد) → draft | الشركة | يدوي `POST /api/appointments` (مربوط بوظيفة — PR 3.10؛ مرفوض إذا الشخص `rejected` / `withdrawn` على الوظيفة) |
+| draft → pending_response | الشركة | يدوي `…/send` (موعد + مهلة رد 24/48/72/168 ساعة) |
+| pending_response → confirmed | المدعو | يدوي `…/accept` |
+| pending_response → reschedule_requested | المدعو | يدوي `…/request-reschedule` |
+| reschedule_requested → pending_response | الشركة | يدوي `…/reschedule` |
+| pending_response → expired | — | **تلقائي** (scheduler `_handle_appointment_deadline_expire`) + محسوب عند القراءة `_appt_computed_status` |
+| confirmed → missed | — | **تلقائي** (scheduler `_handle_appointment_missed` — النهاية + 15 د، أو الموعد + 2 س) |
+| confirmed / missed → completed | الشركة | يدوي `…/complete` |
+| completed / cancelled / missed / expired → closed | الشركة | يدوي `…/close` |
+| draft / pending_response / confirmed / reschedule_requested → cancelled | أي مشارك | يدوي `…/cancel` |
+
+### 6.3 الأدمن
+
+- هلق: **ولا شي**.
+- ناقص: قراءة موعد + سجله (نزاع / شكوى) · إلغاء من الأدمن مع سبب · إخفاء رسالة مسيئة بغرفة الموعد.
+- خطر / حالات بلا مخرج: `draft` ما إلها انتهاء تلقائي (بتضل للأبد إذا ما انبعتت) · `reschedule_requested` ما إلها مهلة — إذا الشركة ما ردّت بتضل معلّقة (المخرج الوحيد الإلغاء اليدوي) · حذف الشركة أو المدعو → الموعد وسجله ورسائله بينمسحوا (CASCADE)؛ حذف الوظيفة / الطلب → `job_id` / `application_id` NULL (الموعد بيضل بدون سياق وظيفة).
+
+---
+
+## 7. المنشورات — `company_posts`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | **ما في عمود حالة.** موجود أو محذوف نهائياً. خاصية واحدة: `comments_enabled` (TRUE/FALSE) |
+| مين بيشوف | الكل (`GET /company/posts/{company_id}` عام · `/home/feed`) |
+| صاحبه (`co`/`edu`) | نشر `POST /company/posts` · تعديل `PATCH` (نص / وسوم / لون / تفعيل التعليقات) · حذف `DELETE` |
+| أي مسجّل | تقدير (`PUT …/appreciation`) · حفظ (`PUT …/save`) · تعليق · مشاهدة |
+| تلقائي | ولا شي |
+| الأدمن هلق | **ولا شي** (لا endpoint ولا شاشة) — المنشور حتى ما بينبلّغ عنه (`twReportDialog` مش موصول بالمنشورات) |
+| ناقص | قائمة منشورات للأدمن · إخفاء (حالة `hidden` + سبب) بدل الحذف · حذف ناعم (F27) · قفل التعليقات من الأدمن · بلاغ على منشور |
+| خطر | حذف صاحبه = **حذف نهائي** → CASCADE على التعليقات + الإشارات + التقديرات + الحفظ + المشاهدات |
+
+---
+
+## 8. التعليقات — `company_post_comments`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `status` = `active` / `deleted` (+ `deleted_at`) — حذف ناعم ✅ · `updated_at` = معدّل |
+| مين بيشوف | الكل بيشوف `active` (`GET /company/posts/{id}/comments`) |
+| صاحب التعليق | تعديل (`PATCH /company/posts/comments/{id}`) · حذف |
+| صاحب المنشور | حذف تعليقات غيره على منشوره |
+| الانتقالات | active → deleted (يدوي، صاحب التعليق أو صاحب المنشور) · deleted → active: **ما في** |
+| الأدمن هلق | ولا شي |
+| ناقص | إخفاء / حذف من الأدمن · إرجاع تعليق محذوف · قراءة المحذوف (الجسم محفوظ) |
+| خطر | ردّ على تعليق محذوف: `reply_to_comment_id` بيضل يشاور على تعليق `deleted` · حذف المنشور نهائياً بيمسح حتى المحذوف ناعماً |
+
+---
+
+## 9. الرسائل — `messages`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `is_read` · `delivered_at` · `read_at` — بس. ما في حذف ولا إخفاء ولا حظر |
+| مين بيشوف | المرسل والمستقبل بس (`GET /messages/{user_id}/{other_id}` — JWT) |
+| مين بيبعت | **أي حساب لأي حساب** (`POST /messages/send` — بس ممنوع لنفسك) · إيميل تنبيه للرسالة غير المقروءة (5.1c) |
+| الانتقالات | مُرسلة → مُسلّمة (WS) → مقروءة (فتح المحادثة) — تلقائية |
+| الأدمن هلق | ولا شي |
+| ناقص | **حظر مستخدم** (block) · بلاغ على رسالة / محادثة · قراءة محادثة مبلّغ عنها (بموافقة وسجل) · حذف / إخفاء رسالة مسيئة |
+| خطر | حذف أي طرف → كل المحادثة بتنمسح للطرف التاني كمان (CASCADE على `sender_id` و `receiver_id`) |
+
+---
+
+## 10. البلاغات — `reports`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `status` = `pending` (افتراضي) → `resolved`. بس |
+| أنواع | `reported_type`: `user` · `job` · `company` (من `twReportDialog`) — **بدون تحقق** بالسيرفر · `report_type` (سبب) بدون تحقق |
+| مين بيشوف | المبلِّغ: ولا شي بعد الإرسال (ما في «بلاغاتي») · المبلَّغ عنه: ما بيعرف · الأدمن: الكل |
+| الانتقالات | أي مسجّل → pending (`POST /reports/submit`) · الأدمن pending → resolved (`PUT /admin/reports/{id}/resolve`) · ما في رجوع |
+| الأدمن هلق | ✅ قائمة `GET /admin/reports` + شارة العدد · ✅ «حل» — **ما في إجراء على الهدف من البلاغ نفسه** |
+| ناقص | حالات أكتر (`reviewing` · `dismissed` · `action_taken`) · ملاحظة الأدمن + مين حلّه + متى · إجراء مباشر (إخفاء الوظيفة / تعليق الحساب) · بلاغ على منشور / تعليق / رسالة · pagination |
+| خطر | `reported_id` FK → `users` **ON DELETE CASCADE** → حذف المبلَّغ عنه بيمسح البلاغات (الدليل) · بلاغ الوظيفة بيحط رقم الوظيفة بعمود بيشاور على `users` (مشكلة #2) |
+
+---
+
+## 11. التوثيق (KYC) — `kyc_submissions`
+
+**الأعمدة:** `step` (`email` → `phone` → `id_upload` → `review` / `rejected`) · `status` (`pending` افتراضي → `approved` / `rejected`) · `email_verified` · `phone_verified` · `admin_note` · `submitted_at` · `reviewed_at` · `UNIQUE(user_id)`.
+
+### 11.1 الانتقالات
+
+| من → إلى | مين | كيف |
+|---|---|---|
+| (لا شي) → step=email | صاحبه | `POST /kyc/start` |
+| email → phone | صاحبه | `POST /kyc/email/verify` (OTP) + `users.email_verified=TRUE` |
+| phone → id_upload | صاحبه | `POST /kyc/phone/verify` + `users.phone_verified=TRUE` |
+| أي step → review | صاحبه | `POST /kyc/docs` — **ما بيفحص الـ step الحالي** |
+| review → status=approved | الأدمن | `PUT /admin/kyc/{user_id}/approve` → `users.is_verified=TRUE` — **الـ step بيضل `review`** |
+| → status=rejected, step=rejected | الأدمن | `PUT /admin/kyc/{user_id}/reject` — `users.is_verified` ما بيتغيّر |
+| rejected → إعادة المحاولة | — | ما في مسار واضح (`start` بيرجّع نفس الصف؛ `docs` بيرجّع step=review بس status بيضل rejected) |
+
+### 11.2 مين بيشوف
+
+صاحبه: Tier 3 (7 حقول — `GET /kyc/status/{id}`). الأدمن: القائمة (`GET /admin/kyc` — allowlist) + روابط موقّعة للوثائق 5 دقائق (`GET /admin/kyc/{submission_id}/docs`). ما في غيرهم.
+
+### 11.3 الأدمن
+
+- هلق: ✅ قائمة · ✅ موافقة · ✅ رفض (الشاشة بتبعت `note: ''` دايماً — ما في خانة سبب) · ✅ عرض الوثائق.
+- ناقص: سبب الرفض بالواجهة + إشعار المستخدم · سحب التوثيق بعد الموافقة · فتح إعادة المحاولة بعد الرفض · ربط الموافقة بالشارة العامة.
+- خطر: موافقة KYC ما بتظهر بالشارة العامة (مشكلة #4) · الموافقة بتضل معدودة «بانتظار المراجعة» (مشكلة #3) · حذف الحساب → صف KYC بينمسح بس **الوثائق بالـ Storage بتضل**.
+
+---
+
+## 12. الأخبار — `news_posts`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `status` = `draft` (افتراضي) · `published` · `archived` (`server.py → admin_create_news`) |
+| مين بيشوف | `published` بس بالفيد (`/home/feed` فلتر `news`/`all`) · draft / archived: الأدمن بس |
+| الانتقالات | كلها يدوية من الأدمن (`POST` / `PUT /admin/news/{id}`) — قيمة غلط بتنقلب `draft` بصمت · ما في نشر مجدول ولا انتهاء |
+| الأدمن هلق | API كامل: `GET` / `POST` / `PUT` / `DELETE /admin/news` — **بدون أي شاشة** (ولا ملف بالواجهة بينادي `/admin/news`) |
+| ناقص | شاشة أخبار · `published_at` (الفيد بيرتّب بـ `created_at` — خبر منشور اليوم من مسودة قديمة بيطلع تحت) |
+| خطر | `DELETE` = حذف نهائي (في `archived` كبديل ناعم موجود) · `created_by` ما بينكتب أبداً (الأدمن مش user) |
+
+---
+
+## 13. الخبرات / الشهادات / الدورات / المهارات / اللغات / الروابط
+
+**الجداول:** `experience` (`is_current`, `sort_order`) · `education` (`is_current`) · `courses` · `user_skills` · `user_langs` · `user_links`.
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | ما في حالة — موجود أو محذوف نهائياً. `is_current` = بيانات عرض مش حالة |
+| مين بيشوف | الكل (Tier 1 بالبروفايل العام) |
+| صاحبه | إضافة / تعديل / حذف (`/experience` · `/education` · `/course` · `/skills` · `/langs` · `/links`) · ترتيب الخبرات |
+| الأدمن هلق | ✅ حذف خبرة / شهادة / دورة (`DELETE /admin/experience|education|course/{id}`) — صفحة المستخدم · ❌ مهارات / لغات / روابط · ❌ تعديل أي عنصر |
+| ناقص | إخفاء عنصر مخالف بدل حذفه · تعديل · حذف رابط مسيء (روابط خارجية = أعلى خطر محتوى) |
+| خطر | حذف الحساب → كلها CASCADE · حذف الأدمن نهائي بدون نسخة |
+
+> «الدورات / التعليم» للجهة التعليمية: ما في كيان «دورة منشورة» من حساب `edu` — جدول `courses` هو دورات الشخص على بروفايله بس. حساب `edu` بينشر وظائف ومنشورات متل الشركة.
+
+---
+
+## 14. الإشعارات — `notifications`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `is_read` (+ تجميع `aggregation_*`) · `event_key` UNIQUE لكل مستخدم (منع التكرار) |
+| مين بيشوف | صاحبه بس (`GET /notifications/{user_id}` — JWT) |
+| الانتقالات | تلقائي عند الحدث (`create_notification`) → مقروء (`PUT …/read` كلها أو وحدة) · ما في حذف |
+| الأدمن هلق | ولا شي — والأدمن ما بيقدر يبعت إشعار (مش user) |
+| ناقص | إشعار نظام من الأدمن (لمستخدم / للكل) · سياسة تنظيف القديم |
+| خطر | ما في حذف → الجدول بيكبر للأبد · روابط قديمة (`link="/company-profile"` بإشعار `job_expiring_soon`) بتمرق على redirect |
+
+---
+
+## 15. المتابعة + الاهتمام + مشاهدات البروفايل
+
+| الجدول | الحالات | مين | الأدمن |
+|---|---|---|---|
+| `profile_follows` | موجود / لا (UNIQUE + منع متابعة النفس) | أي مسجّل بيتابع أي حساب · الأعداد عامة · القوائم `GET /profile/{id}/followers|following` | ولا شي |
+| `profile_interests` | `interest_type` (من نوع الفاعل) | أي مسجّل · `POST` / `DELETE /profile/{id}/interest` | ولا شي |
+| `profile_views` | سجل أحداث | تلقائي عند الزيارة · صاحبه بيشوف الأعداد | ولا شي |
+
+ناقص: لا شي ضروري للأدمن هلق (قراءة بس للدعم). خطر: كلها CASCADE من الطرفين.
+
+---
+
+## 16. تقييمات الشركات — `company_ratings`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | ما في — `score` 1–5 + `comment` نص حر · UNIQUE (شركة، مقيّم) |
+| مين | أي مسجّل بيقيّم (`POST /company/rate/{id}`) · الكل بيشوف (`GET /company/{id}/ratings`) |
+| الأدمن هلق | ولا شي |
+| ناقص | **إخفاء تعليق تقييم مسيء** (نص حر عام بدون أي إشراف) · بلاغ على تقييم |
+| خطر | حذف المقيّم → التقييم بينمسح ومتوسط الشركة بيتغيّر |
+
+---
+
+## 17. اقتراحات المهن — `profession_suggestions`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `status` افتراضي `pending` + `reviewed_by` · `reviewed_at` · `review_note` |
+| مين | المستخدم بيقترح (`POST /profession-suggestions`) |
+| الانتقالات | **ما في أي كود بيغيّر الحالة** → كل اقتراح `pending` للأبد |
+| الأدمن هلق | ولا شي |
+| ناقص | قائمة + قبول (إضافة لـ `profession_categories`) / رفض · تفعيل / إيقاف مهنة (`profession_categories.is_active` موجود بدون endpoint) |
+| خطر | `reviewed_by` → `users` بدون ON DELETE (NO ACTION) — بيمنع حذف حساب كان مراجِع (ما بينكتب حالياً) |
+
+---
+
+## 18. مهام المجدول — `scheduler_jobs`
+
+| البند | الحقيقة بالكود |
+|---|---|
+| الحالات | `status` CHECK: `pending` · `running` · `done` · `failed` · `cancelled` · `attempts` / `max_attempts` (5) |
+| مين | داخلي — `POST /internal/run-due-jobs` (`X-Scheduler-Secret`) |
+| الانتقالات | تلقائية (pending → running → done / pending (retry) / failed) |
+| الأدمن هلق | ولا شي (ولا عدد الفاشلة بـ `/health`) |
+| ناقص | قراءة الفاشلة + إعادة تشغيل وحدة |
+| خطر | `failed` = نهائية بدون تنبيه → تذكير موعد / انتهاء مهلة ممكن ما يصير بصمت |
+
+---
+
+## 19. كيانات تانية (بدون حالات)
+
+| الكيان | الجدول | ملاحظة للأدمن |
+|---|---|---|
+| فروع الشركة | `company_branches` | صاحبها بس · ما في أدمن |
+| إعدادات الشركة | `company_settings` (`notify_applicant_result`) | صاحبها بس |
+| ملاحظات بنك المواهب | `candidate_bank_notes` (حذف ناعم `deleted_at`) | الشركة بس |
+| تفضيلات الإيميل | `email_notify_prefs` | صاحبها · (إعداد الإيميل العام = `/admin/email` ✅ شاشة) |
+| سجل الإيميل | `email_send_log` | عدّاد — ما في شاشة قراءة تفصيلية |
+| روابط الإيميل | `password_reset_tokens` (`purpose`) | داخلي · مرة وحدة · 30 د |
+| إعدادات الموقع | `site_settings` (نصوص `/admin/strings` · أزرار `/admin/actions` · ألوان `/admin/theme/colors` · لوغو) | لوغو ✅ شاشة · النصوص / الأزرار / الألوان: API بس **بدون شاشة** |
+| السجل الأمني | `admin_audit_log` | ✅ لوحة → السجل |
+
+---
+
+## 20. مشاكل لقيتها
+
+> مسجّلة فقط — **ما انصلحت بهالمهمة** (توثيق بس). كل وحدة بتحتاج مهمة لحالها.
+
+| # | الخطورة | المشكلة | المكان | الأثر |
+|---|---|---|---|---|
+| 1 | عالية | حذف الأدمن للوظيفة بيفشل لأي وظيفة إلها متقدم: `job_pipeline_entries.job_id` = `ON DELETE RESTRICT` وكل تقديم بيعمل entry، والـ endpoint ما بيلتقط الخطأ | `server.py → admin_delete_job` | زر «حذف» باللوحة بيرجّع 500 للوظائف الحقيقية؛ الحذف بينجح بس لوظيفة بدون متقدمين |
+| 2 | عالية | بلاغ على وظيفة: `twReportDialog({reportedId: _jobId, reportedType: 'job'})` بيحط **رقم الوظيفة** بـ `reports.reported_id` اللي هو FK → `users(id)` | `static/job/job-detail.js ~642` · `server.py → submit_report` · `auth.py → ensure_reports_table` | إذا ما في user بنفس الرقم → FK error → 500 «خطأ في الخادم»؛ إذا في → البلاغ بينربط بحساب ما إله علاقة (اسم غلط باللوحة، وحذف هالحساب بيمسح البلاغ) |
+| 3 | متوسطة | موافقة KYC ما بتغيّر `step` (بيضل `review`) | `auth.py → admin_approve_kyc` | لوحة القيادة `pending_kyc` و «النشاط» (`step='review'`) بيعدّوا الموثّقين كـ «بانتظار المراجعة» للأبد |
+| 4 | متوسطة | 3 مصادر للتوثيق: `users.is_verified` (KYC) · `profiles.is_verified` (زر الأدمن — **هو اللي بيطلع بالشارة العامة**) · `company_profiles.verified_co` (ما في كاتب) | `auth.py` · `server.py → verify_user` | موافقة KYC ما بتعطي شارة؛ رفض KYC ما بيلغي `users.is_verified` إذا كان موافق عليه قبل |
+| 5 | متوسطة | `admin_approve_kyc` / `admin_reject_kyc` ما بيفحصوا وجود طلب ولا إنه بـ `review` | `auth.py` | موافقة على حساب ما قدّم شي = `users.is_verified=TRUE` (الـ UPDATE على KYC بيأثر على 0 صف) |
+| 6 | متوسطة | `POST /kyc/docs` ما بيفحص الـ step | `auth.py → upload_kyc_docs` | بيقدر يتخطى توثيق الإيميل / الجوال ويوصل `review` مباشرة؛ بدون صف KYC بيرجّع «submitted» وهو ما حفظ شي |
+| 7 | متوسطة | الإيقاف المؤقت ما بيجمّد المدة: `_eff_status` بيعتبر `paused` منتهية إذا `expires_at` مضى | `auth.py → _eff_status` / `set_job_status` | شركة بتوقف وظيفة أطول من المدة الباقية → بتصير «مغلقة» وما بتقدر ترجّعها |
+| 8 | متوسطة | `GET /admin/jobs` = `get_jobs({})` = الفيد العام | `server.py → admin_list_jobs` | الأدمن ما بيشوف الوظائف الموقوفة / المغلقة / المنتهية / المؤرشفة أبداً |
+| 9 | متوسطة | `POST /admin/message` بيطبع الرسالة بالـ log وبيرجّع `success` بدون إرسال | `server.py → admin_send_message` | الأدمن بيشوف «تم» والمستخدم ما بيوصله شي (F9) · نص الرسالة بالـ log |
+| 10 | متوسطة | `PUT /admin/user/{id}/password` بيقبل ≥ 6 أحرف — مش `_password_policy_error` | `server.py → admin_reset_password` | قاعدة كلمة سر تانية (CLAUDE.md: قاعدة وحدة) |
+| 11 | منخفضة | `GET /admin/reports` بيبلع أي خطأ وبيرجّع قائمة فاضية | `server.py → admin_get_reports` | عطل DB بيبين «ما في بلاغات» (F9) |
+| 12 | منخفضة | `reports.reported_id` CASCADE | `auth.py → ensure_reports_table` | حذف الحساب المبلَّغ عنه بيمسح الدليل |
+| 13 | منخفضة | استئناف وظيفة أو تغيير مدتها ما بيجدول تذكير `job_expiring_soon` جديد | `server.py → update_job_endpoint` · `auth.py → set_job_status` | التذكير القديم بيتخطّى نفسه (stale) وما في جديد → الشركة ما بتنبّه |
+| 14 | منخفضة | `/stats` بيعدّ `status='active'` بدون فحص `expires_at` | `server.py → stats` | رقم «الوظائف» أعلى من الحقيقي |
+| 15 | منخفضة | `/home/feed` بيفلتر `status IN ('active','open')` — `open` مش حالة موجودة | `server.py ~1171` | قيمة ميتة (بدون أثر حالياً) |
+| 16 | منخفضة | `admin.js` بيبعت `{verified: true}` والسيرفر بيقرأ `is_verified` (افتراضي TRUE) | `static/admin/admin.js:22` | بيشتغل بالصدفة؛ أي «إلغاء» من هالمسار رح يوثّق بدل ما يلغي |
+| 17 | منخفضة | `my/applications` بيرجّع الحالة الداخلية للمتقدم (`viewed` / `interview` / `rejected`…) بينما 5.1d بيعتبر المراحل الوسطى داخلية للشركة | `auth.py → get_user_applications` · `profile-v2.apps.js` | قرار منتج مش محسوم — للمراجعة |
+| 18 | منخفضة | مراحل / حالات بدون كاتب: `pipeline.stage` `offer` / `withdrawn` · `job_pipeline_entries.archived_at` · `profession_suggestions.status` · `company_profiles.verified_co` | — | قيم بالـ schema بدون مسار — أي شاشة أدمن لازم تعرف إنها ما بتصير |
+
+---
+
+## 21. جدول الأولويات المقترح
+
+| الترتيب | الكيان | ليش أول | أول خطوة مقترحة |
+|---|---|---|---|
+| **1** | **الوظائف** | أكتر كيان عام بالموقع؛ إلها 5 حالات وأكتر من مخرج مسدود (closed / expired بلا رجوع)؛ قائمة الأدمن عمياء عن 4 حالات (#8) والحذف الوحيد مكسور (#1) | قائمة أدمن بكل الحالات + `effective_status` · إخفاء من الأدمن بسبب (بدل الحذف) · إرجاع تفعيل + تمديد مدة (نفس قواعد `_ALLOWED_DURATIONS`) · إلغاء أرشفة · إصلاح #1 / #7 / #13 |
+| 2 | الحسابات | الأدمن ما عنده إلا «حذف للأبد» لحساب مخالف؛ والحذف بيمسح بلاغات ومحادثات الناس التانيين | حالة تعليق (login + `verify_token` + WS) · حذف ناعم · مصدر توثيق واحد (#4) |
+| 3 | البلاغات | هي مدخل الأدمن لكل مشكلة محتوى؛ بلاغ الوظيفة مكسور (#2) والإجراء الوحيد «حل» | إصلاح #2 (عمود هدف حسب النوع) · حالات + ملاحظة + إجراء مباشر من البلاغ (إخفاء وظيفة / تعليق حساب) · بلاغ منشور / تعليق / رسالة |
+| 4 | التوثيق (KYC) | فيه شاشة، بس الحالات متضاربة (#3 · #5 · #6) والشارة ما بتظهر | توحيد الحالة (step + status) · سبب رفض + إشعار · إعادة المحاولة · سحب التوثيق |
+| 5 | المنشورات + التعليقات + التقييمات | محتوى عام بدون أي إشراف أدمن | إخفاء / إرجاع (منشور: حذف ناعم أولاً) |
+| 6 | الأخبار | الـ API جاهز — ناقص شاشة بس | شاشة بالـ Admin Shell + `published_at` |
+| 7 | الرسائل | خصوصية — بحاجة قرار منتج قبل أي قراءة أدمن | حظر مستخدم + بلاغ على محادثة أولاً |
+| 8 | طلبات التوظيف + Pipeline + بنك المواهب + المواعيد | خاصة بين الشركة والشخص — الأدمن بيحتاجهم للدعم بس | قراءة فقط (بدون تعديل) |
+| 9 | اقتراحات المهن · مهام المجدول · الإعدادات بدون شاشة (نصوص / أزرار / ألوان) | تشغيلي | شاشات صغيرة على الـ Admin Shell |
+
+**قاعدة لكل كيان رح يتبنى تحكمه:** الإخفاء / التعليق قبل الحذف (F27) · كل إجراء عبر `TwAdminShell.run` (تأكيد) وبيتسجّل تلقائياً بـ `admin_audit_log` · الحالة المحسوبة (`effective_status`) من دالة وحدة بالسيرفر — ما تنحسب بالواجهة.
