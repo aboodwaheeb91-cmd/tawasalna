@@ -6,8 +6,9 @@
 //   - users / companies = one table view (task 5.3a3): GET /admin/users (search · type · verification · sort ·
 //     server pages) — companies = the same view with a fixed type filter · CSV = GET /admin/users/export
 //     (confirm first, via run) · audit = GET /admin/audit (read only) · activity = GET /admin/activity (paged)
-//   - jobs = GET /admin/jobs (task 5.3j): every state (active · paused · closed · expired · archived — state from
-//     the server), status tabs with counts, search title / company, server pages, applicants per job
+//   - jobs = GET /admin/jobs (task 5.3j): every state (active · paused · closed · expired · hidden · archived — state
+//     from the server), status tabs with counts, search title / company, server pages, applicants per job ·
+//     actions per row (jobActions): hide (reason) / unhide · reactivate · extend (durations from the server) · delete
 //   - counts shown with twFormatNumber (tw_shared.js — §59a)
 //   - every change goes through TwAdminShell.run(ACTIONS[x], ctx): confirm first (typed word for
 //     delete / migrate), then TwAdminSession.fetch. Same endpoints as before (no API change).
@@ -33,6 +34,23 @@
                  danger: true, typeWord: DEL_WORD },
       request: function (c) { return { url: '/admin/jobs/' + Number(c.id), method: 'DELETE' }; },
       done: 'admin.done.deleted' },
+    // jobs (task 5.3j phase 2) — every change tells the company (server); «تم» only on {ok: true}
+    'job.hide': {
+      confirm: { title: 'admin.jobs.hide.title', message: 'admin.jobs.hide.message', confirm: 'admin.jobs.hide', danger: true },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/hide', method: 'POST', body: { reason: c.reason } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_hidden' },
+    'job.unhide': {
+      confirm: { title: 'admin.jobs.unhide.title', message: 'admin.jobs.unhide.message', confirm: 'admin.jobs.unhide' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/unhide', method: 'POST' }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_unhidden' },
+    'job.reactivate': {
+      confirm: { title: 'admin.jobs.reactivate.title', message: 'admin.jobs.reactivate.message', confirm: 'admin.jobs.reactivate' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/reactivate', method: 'POST', body: { duration_days: Number(c.days) } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_reactivated' },
+    'job.extend': {
+      confirm: { title: 'admin.jobs.extend.title', message: 'admin.jobs.extend.message', confirm: 'admin.jobs.extend' },
+      request: function (c) { return { url: '/admin/jobs/' + Number(c.id) + '/extend', method: 'POST', body: { duration_days: Number(c.days) } }; },
+      ok: function (d) { return !!(d && d.ok); }, done: 'admin.done.job_extended' },
     'kyc.approve': {
       confirm: { title: 'admin.kyc.approve.title', message: 'admin.kyc.approve.message', confirm: 'admin.kyc.approve.confirm' },
       request: function (c) { return { url: '/admin/kyc/' + Number(c.id) + '/approve', method: 'PUT', body: { note: '' } }; },
@@ -64,7 +82,7 @@
       request: function (c) { return { url: '/admin/users/export?' + c.query, method: 'GET' }; },
       as: 'blob', done: 'admin.done.exported' },
   };
-  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, pageList: pageList };
+  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: jobActions, pageList: pageList };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -597,10 +615,21 @@
   }
 
   // ── jobs — every state, server search / status / pages (GET /admin/jobs — task 5.3j · §25e) ──
-  // status = one value per job from the server (archived · or the effective status) — never computed here
-  var JOB_STATES = ['active', 'paused', 'closed', 'expired', 'archived'];
-  var JOB_PILL = { active: 'ok', paused: 'warn', closed: 'muted', expired: 'danger', archived: 'muted' };
-  var JV = { q: '', status: '', page: 1, seq: 0 };
+  // status = one value per job from the server (archived · hidden · or the effective status) — never computed
+  // here; effective_status (server) picks the actions: reactivate = closed / expired · extend = active / paused
+  var JOB_STATES = ['active', 'paused', 'closed', 'expired', 'hidden', 'archived'];
+  var JOB_PILL = { active: 'ok', paused: 'warn', closed: 'muted', expired: 'muted', hidden: 'danger', archived: 'muted' };
+  var JV = { q: '', status: '', page: 1, seq: 0, durations: [] };
+  // which admin actions fit a job row (pure — tests read it). Archived rows: delete only.
+  function jobActions(j) {
+    var out = [];
+    if (j.status === 'archived') return ['delete'];
+    out.push(j.admin_hidden_at ? 'unhide' : 'hide');
+    if (j.effective_status === 'closed' || j.effective_status === 'expired') out.push('reactivate');
+    if (j.effective_status === 'active' || j.effective_status === 'paused') out.push('extend');
+    out.push('delete');
+    return out;
+  }
   // view state → query string of GET /admin/jobs (pure — tests read it)
   function jobsQuery(v) {
     var p = [];
@@ -667,8 +696,40 @@
       JV.tabs.appendChild(b);
     });
   }
+  function reloadJobsIfOk(res) { if (res && res.ok) loadJobs(); return !!(res && res.ok); }
+  function askDays(kind, j) {   // reactivate / extend: pick a duration (server list), then run (its confirm on top)
+    TwAdminShell.formDialog({
+      titleKey: 'admin.jobs.' + kind + '.title', labelKey: 'admin.jobs.days', kind: 'select',
+      options: JV.durations.map(function (n) { return [String(n), twT('admin.jobs.days.n', { n: twFormatNumber(n) })]; }),
+      value: String(JV.durations[JV.durations.length - 1] || ''), sendKey: 'admin.jobs.' + kind, vars: { title: j.title || '' },
+      onSend: function (v) {
+        return run('job.' + kind, { id: j.id, title: j.title || '', days: v, n: twFormatNumber(Number(v)) }).then(reloadJobsIfOk);
+      },
+    });
+  }
+  function jobButton(a, j) {
+    var ctx = { id: Number(j.id), title: j.title || '' };
+    if (a === 'hide') return btn('secondary', 'eye-off', 'admin.jobs.hide', function () {
+      TwAdminShell.formDialog({
+        titleKey: 'admin.jobs.hide.title', labelKey: 'admin.jobs.hide.reason', kind: 'textarea', sendKey: 'admin.jobs.hide',
+        hintKey: 'admin.jobs.hide.hint', danger: true,
+        onSend: function (v) {
+          v = String(v || '').trim();
+          if (!v) { showToast(twT('admin.jobs.hide.empty'), 'error'); return false; }
+          return run('job.hide', Object.assign({ reason: v }, ctx)).then(reloadJobsIfOk);
+        },
+      });
+    });
+    if (a === 'unhide') return btn('secondary', 'eye', 'admin.jobs.unhide', function () { run('job.unhide', ctx).then(reloadJobsIfOk); });
+    if (a === 'reactivate') return btn('secondary', 'refresh', 'admin.jobs.reactivate', function () { askDays('reactivate', j); });
+    if (a === 'extend') return btn('secondary', 'clock', 'admin.jobs.extend', function () { askDays('extend', j); });
+    return btn('danger', 'delete', 'admin.jobs.delete', function () {
+      run('job.delete', { id: Number(j.id), title: j.title || '', n: twFormatNumber(j.applicant_count || 0) }).then(reloadJobsIfOk);
+    });
+  }
   function renderJobs(d) {
     var list = d.items || [], box = JV.body;
+    JV.durations = d.durations || [];
     renderJobTabs(d.counts || {});
     box.textContent = '';
     JV.count.textContent = twT('admin.jobs.count', { n: twFormatNumber(d.total || 0) });
@@ -698,11 +759,9 @@
       cell(tr, 'adm-u-email').textContent = twT('admin.jobs.applicants', { n: twFormatNumber(j.applicant_count || 0) });
       cell(tr, 'adm-u-date').textContent = j.expires_at ? twFormatDate(j.expires_at) : '—';
       cell(tr, 'adm-u-date').textContent = j.created_at ? twFormatDate(j.created_at) : '—';
+      if (j.admin_hidden_reason) nm.appendChild(el('span', 'adm-u-sub', twT('admin.jobs.hidden_reason', { reason: j.admin_hidden_reason })));
       var acts = cell(tr, 'adm-u-acts').appendChild(el('div', 'adm-u-btns'));
-      acts.appendChild(btn('danger', 'delete', 'admin.jobs.delete', function () {
-        run('job.delete', { id: id, title: j.title || '', n: twFormatNumber(j.applicant_count || 0) })
-          .then(function (res) { if (res && res.ok) loadJobs(); });
-      }));
+      jobActions(j).forEach(function (a) { acts.appendChild(jobButton(a, j)); });
       tbody.appendChild(tr);
     });
     box.appendChild(table);

@@ -122,22 +122,9 @@
   }
   function typeLabel(t) { return twT('admin.user.type.' + (TYPES.indexOf(t) === -1 ? 'emp' : t)); }
 
-  // ── dialogs that collect a value — the form's button runs the action (its confirm stacks on top) ──
+  // ── dialogs that collect a value — TwAdminShell.formDialog (shared since task 5.3j) ──
   function formDialog(titleKey, labelKey, kind, value, sendKey, onSend) {
-    var form = el('label', 'av-form', twT(labelKey));
-    var input = el(kind === 'textarea' ? 'textarea' : 'input', 'tw-input');
-    if (kind !== 'textarea') input.type = kind;
-    if (kind === 'password') input.autocomplete = 'new-password';
-    else input.autocomplete = 'off';
-    input.value = value || '';
-    form.appendChild(input);
-    twModal({
-      title: twT(titleKey), content: form,
-      actions: [
-        { text: twT('common.cancel'), variant: 'secondary' },
-        { text: twT(sendKey), variant: 'primary', onClick: function () { return onSend(input.value); } },
-      ],
-    });
+    TwAdminShell.formDialog({ titleKey: titleKey, labelKey: labelKey, kind: kind, value: value, sendKey: sendKey, onSend: onSend });
   }
   function editField(field) {
     var f = FIELDS[field];

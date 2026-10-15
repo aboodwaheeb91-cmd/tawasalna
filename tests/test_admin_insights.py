@@ -57,7 +57,7 @@ def env(monkeypatch):
         c.run("CREATE TABLE company_profiles (id SERIAL PRIMARY KEY, user_id INTEGER, avatar_url TEXT)")
         c.run("CREATE TABLE jobs (id SERIAL PRIMARY KEY, company_id INTEGER, title TEXT, status TEXT DEFAULT 'active', "
               "created_at TIMESTAMP DEFAULT NOW(), expires_at TIMESTAMP, closed_at TIMESTAMP, "
-              "archived_at TIMESTAMPTZ)")
+              "archived_at TIMESTAMPTZ, admin_hidden_at TIMESTAMPTZ)")
         c.run("CREATE TABLE job_applications (id SERIAL PRIMARY KEY, job_id INTEGER, user_id INTEGER, "
               "applied_at TIMESTAMP DEFAULT NOW())")
         c.run("CREATE TABLE kyc_submissions (id SERIAL PRIMARY KEY, user_id INTEGER, step TEXT, "

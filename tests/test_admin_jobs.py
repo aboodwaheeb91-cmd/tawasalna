@@ -50,7 +50,7 @@ def env(monkeypatch):
         c.run("CREATE TABLE jobs (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES users(id) ON DELETE CASCADE, "
               "title TEXT, status TEXT DEFAULT 'active', views INTEGER DEFAULT 0, duration_days SMALLINT DEFAULT 7, "
               "created_at TIMESTAMP DEFAULT NOW(), expires_at TIMESTAMP, closed_at TIMESTAMP, paused_at TIMESTAMP, "
-              "archived_at TIMESTAMPTZ, archived_by INTEGER)")
+              "archived_at TIMESTAMPTZ, archived_by INTEGER, admin_hidden_at TIMESTAMPTZ, admin_hidden_reason TEXT)")
         c.run("CREATE TABLE job_applications (id SERIAL PRIMARY KEY, "
               "job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE, user_id INTEGER, "
               "applied_at TIMESTAMP DEFAULT NOW())")
@@ -151,7 +151,7 @@ def test_list_returns_every_state_with_counts():
             "expired": "expired", "old": "expired", "archived": "archived"}
     for key, state in want.items():
         assert by_id[ids[key]]["status"] == state, key
-    assert d["counts"] == {"all": 7, "active": 1, "paused": 1, "closed": 2, "expired": 2, "archived": 1}
+    assert d["counts"] == {"all": 7, "active": 1, "paused": 1, "closed": 2, "expired": 2, "hidden": 0, "archived": 1}
     assert by_id[ids["active"]]["applicant_count"] == 2 and by_id[ids["closed"]]["applicant_count"] == 1
     assert by_id[ids["paused"]]["company_name"] == "Beta Co"
     assert "password_hash" not in by_id[ids["active"]] and "email" not in by_id[ids["active"]]
@@ -170,7 +170,7 @@ def test_list_filter_search_pages():
     p1 = client.get("/admin/jobs?limit=3&page=1", headers=h).json()["data"]
     p3 = client.get("/admin/jobs?limit=3&page=3", headers=h).json()["data"]
     assert len(p1["items"]) == 3 and len(p3["items"]) == 1 and p1["total"] == 7
-    for bad in ("status=open", "status=hidden", "page=0", "limit=101", "limit=abc"):
+    for bad in ("status=open", "status=deleted", "page=0", "limit=101", "limit=abc"):
         assert client.get("/admin/jobs?" + bad, headers=h).status_code == 422, bad
 
 

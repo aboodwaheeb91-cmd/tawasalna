@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     location TEXT, job_type TEXT, status TEXT NOT NULL DEFAULT 'active',
     salary_min INTEGER, salary_max INTEGER, skills TEXT[],
     closed_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, archived_at TIMESTAMPTZ,
+    admin_hidden_at TIMESTAMPTZ, admin_hidden_reason TEXT,
     views INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS job_applications (
