@@ -961,8 +961,8 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, tw_id, full_name, email, password_hash, user_type, country_code, created_at "
-            "FROM users WHERE email = :email",
+            "SELECT id, tw_id, full_name, email, password_hash, user_type, country_code, created_at, "
+            "session_version FROM users WHERE email = :email",
             email=email.lower().strip()
         )
         if not rows:
@@ -995,35 +995,37 @@ def check_user_password(user_id: int, password: str) -> Optional[bool]:
         release_conn(conn)
 
 
-def set_user_password(user_id: int, new_password: str) -> int:
-    """Store a new bcrypt hash + stamp users.password_changed_at (Session Invalidation —
-    PR 1.8). Caller has already verified the current password (or is the admin).
-    Returns the stamp as epoch seconds — taken from the app clock, the same clock that
-    sets JWT iat, so a token issued right after is never older than the stamp."""
+def set_user_password(user_id: int, new_password: str) -> Optional[dict]:
+    """Store a new bcrypt hash + stamp users.password_changed_at + bump users.session_version
+    (Session Invalidation — PR 1.8 / 5.0b), and delete every emailed one-time token of the user
+    (password_reset_tokens, all purposes — a pending email_change link dies with the old
+    password). One statement → one transaction. Caller has already verified the current
+    password (or is the admin / holds a valid reset token).
+    Returns the new session state {changed, sv} (see get_session_state); None = no such user.
+    changed is taken from the app clock, the same clock that sets JWT iat."""
     import time
     changed = int(time.time())
-    conn = get_conn()
-    try:
-        conn.run("UPDATE users SET password_hash = :pw, password_changed_at = to_timestamp(:ts) "
-                 "WHERE id = :uid",
-                 pw=hash_password(new_password), ts=changed, uid=user_id)
-    finally:
-        release_conn(conn)
-    return changed
+    with db_conn() as conn:
+        rows = conn.run(
+            "WITH gone AS (DELETE FROM password_reset_tokens WHERE user_id = :uid) "
+            "UPDATE users SET password_hash = :pw, password_changed_at = to_timestamp(:ts), "
+            "session_version = session_version + 1 WHERE id = :uid RETURNING session_version",
+            pw=hash_password(new_password), ts=changed, uid=user_id)
+    if not rows:
+        return None
+    return {"changed": changed, "sv": int(rows[0][0])}
 
 
-def get_password_changed_epoch(user_id: int) -> Optional[int]:
-    """users.password_changed_at as epoch seconds; None = never changed / no such user.
-    Read only through server._password_changed_epoch (cached) — never per request."""
-    conn = get_conn()
-    try:
-        rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at) FROM users WHERE id = :uid",
-                        uid=user_id)
-        if not rows or rows[0][0] is None:
-            return None
-        return int(rows[0][0])
-    finally:
-        release_conn(conn)
+def get_session_state(user_id: int) -> Optional[dict]:
+    """{changed: password_changed_at epoch seconds | None, sv: users.session_version};
+    None = no such user. Read only through server._session_state (cached) — never per request."""
+    with db_conn() as conn:
+        rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at), session_version "
+                        "FROM users WHERE id = :uid", uid=user_id)
+    if not rows:
+        return None
+    changed = rows[0][0]
+    return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1] or 0)}
 
 
 def _migrate_password_changed_at():
@@ -1034,6 +1036,13 @@ def _migrate_password_changed_at():
         conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ")
     finally:
         release_conn(conn)
+
+
+def _migrate_session_version():
+    """5.0b — idempotent: users.session_version (0 for every existing row). Bumped by
+    set_user_password; a JWT carrying claim sv is valid only while sv == this column."""
+    with db_conn() as conn:
+        conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0")
 
 
 # ── One-time email tokens (task 5.1a password reset · 5.1b email change — SYSTEMS_INDEX §1b) ──

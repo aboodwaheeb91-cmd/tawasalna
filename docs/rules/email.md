@@ -18,7 +18,7 @@
 1. **طلب الرابط** `POST /auth/password-reset/request {email}` → **نفس الرد دايماً** `{ok:true, data:{sent:true}}` لإيميل موجود وغير موجود؛ البحث + التوكن + الإيميل بـ `BackgroundTasks` بعد الرد (ما في فرق وقت). حدود على `_rate_store` المشترك: لكل IP (`get_client_ip`) 10 / ساعة → 429 · لكل إيميل 3 / ساعة → نفس الرد بدون إرسال. خدمة الإيميل غير متاحة / النوع مطفّى → 503 `email_unavailable` (عام — ما بيكشف شي).
 2. **التوكن** (`auth.py`): `secrets.token_urlsafe(32)` · مخزّن HMAC بس (`v1$` — متل الـ OTP) بجدول `password_reset_tokens` · 30 دقيقة (ساعة الـ DB) · استعمال مرة (`DELETE … RETURNING`) · توكن جديد بيحذف كل الأقدم لنفس المستخدم.
 3. **الرابط** `{site_url}/reset-password#token=…` — بالـ fragment (ما بيوصل للسيرفر / الـ logs / Referer)؛ الصفحة بتشيله من شريط العنوان فوراً.
-4. **التعيين** `POST /auth/password-reset/confirm {token, new_password}` → `_password_policy_error` (نفس قاعدة التسجيل) → `set_user_password` (بيكتب `password_changed_at`) → `_password_changed_cache_set` + `_ws_revoke_user(uid, "password_reset")` (كل الجلسات القديمة بتطلع) + فك قفل الدخول للإيميل + إيميل «تغيّرت كلمة مرورك». ما في دخول تلقائي.
+4. **التعيين** `POST /auth/password-reset/confirm {token, new_password}` → `_password_policy_error` (نفس قاعدة التسجيل) → `set_user_password` (بيكتب `password_changed_at` + بيزيد `session_version` + بيحذف كل توكنات الإيميل تبع المستخدم — 5.0b) → `_password_changed_cache_set` + `_ws_revoke_user(uid, "password_reset")` (كل الجلسات القديمة بتطلع) + فك قفل الدخول للإيميل + إيميل «تغيّرت كلمة مرورك». ما في دخول تلقائي.
 - ❌ رد بيختلف حسب وجود الإيميل · ❌ التوكن نص عادي بالـ DB أو بالـ log · ❌ التوكن بـ query string · ❌ كتابة `password_hash` بدون `set_user_password` · ❌ مسار بينهي جلسات بدون `_ws_revoke_user`.
 
 Test: `python -m pytest tests/test_password_reset_email.py -q` (Resend مزيّف على مستوى HTTP + PostgreSQL حقيقي).
@@ -27,6 +27,7 @@ Test: `python -m pytest tests/test_password_reset_email.py -q` (Resend مزيّ�
 
 1. **الطلب** `POST /auth/email-change/request {new_email, current_password}` (JWT) → كلمة السر الحالية (bcrypt) · صيغة الإيميل · نفس الإيميل الحالي · مستعمل لحساب تاني → 422 `new_email/email_taken` عبر `EmailTakenError` (مش نص الخطأ) · 5 / ساعة لكل مستخدم (قبل فحص كلمة السر) + `_RATE_LIMITED_PATHS`.
 2. **التوكن = نفس كود نسيت كلمة المرور:** `auth.email_token_issue` / `email_token_consume` (purpose `email_change`، الإيميل الجديد بـ `payload`) — hash بس · 30 دقيقة · مرة وحدة · الجديد بيلغي القديم. ❌ جدول أو دالة توكن تانية.
+2b. **تغيير كلمة السر بيلغي كل الروابط المعلّقة (5.0b):** `set_user_password` بيحذف كل صفوف المستخدم بـ `password_reset_tokens` (كل الأغراض) بنفس الـ statement — رابط `email_change` صادر قبل تغيير / استعادة / تعيين أدمن لكلمة السر → confirm = 400 `invalid_token` والإيميل ما بيتغيّر. ❌ غرض توكن جديد بجدول تاني (بيفلت من الحذف). Test: `python -m pytest tests/test_session_version_tokens.py -q`.
 3. **الرابط** `{site_url}/confirm-email#token=…` للإيميل **الجديد** · الصفحة بتبعت التوكن بس بكبسة زر (مش عند التحميل — ماسحات الروابط).
 4. **التأكيد** `POST /auth/email-change/confirm {token}` → وقتها بس `users.email` بيتغيّر · مستعمل بالوقت (سباق) → 409 `email_taken` عبر `EmailTakenError` (UNIQUE) · بعدها إيميل «تغيّر بريدك الإلكتروني» (`email_changed`) للعنوان **القديم** — بدون رابط إلغاء بهالمرحلة.
 - ❌ تغيير `users.email` قبل الرابط · ❌ إرسال برّا `send_email`.

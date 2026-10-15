@@ -39,6 +39,14 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 }
 ```
 
+### Session Version + Password Change (task 5.0b — SYSTEMS_INDEX §2a)
+1. **`auth.set_user_password(uid, pw)` is the only writer of `password_hash`** — one statement (one transaction): new hash + `password_changed_at` + `users.session_version + 1` + **DELETE every row of the user in `password_reset_tokens` (all purposes: `email_change`, `password_reset`, any future one)**. Returns `{changed, sv}` (`None` = no such user). Covers all three paths: `PUT /auth/password` · `POST /auth/password-reset/confirm` · `PUT /admin/user/{id}/password`.
+2. **User JWT claim `sv`** = `users.session_version` at issue: login (read with the password check — `session_version` is popped, never sent to the client) · register (`0`) · `PUT /auth/password` (the new `sv` from `set_user_password`). A token with `sv` is valid only while `sv == users.session_version` — no clock, so a token issued in the same second as the change dies too.
+3. **Tokens without `sv` (issued before 5.0b)** keep the PR 1.8 check (`iat < password_changed_at` → rejected) until they expire — nobody is logged out by the rollout.
+4. **One check, one cache:** `server._jwt_decode` → `_jwt_revoked_by_password_change` → `_session_state(uid)` (`auth.get_session_state` → `{changed, sv}` through `_pwd_changed_cache`, TTL 60s) · `_password_changed_cache_set(uid, state)` right after every write.
+- ❌ writing `password_hash` / `session_version` outside `set_user_password` · ❌ a password change that leaves emailed tokens alive · ❌ a second session-version cache or check · ❌ `sv` in an API response body.
+- Test: `python -m pytest tests/test_session_version_tokens.py -q` (PostgreSQL).
+
 ### Admin Authentication
 - All secrets are environment variables — no hardcoded values in source
 - `ADMIN_TOKEN` (Railway Variable): random 32+ byte hex — the admin **login password only** (PR 1.5)

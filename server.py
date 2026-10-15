@@ -113,7 +113,7 @@ from auth import (
     create_appointment_message,
     AppointmentRuleError, list_jobs_for_scheduling, get_open_appointments,
     search_schedule_people,
-    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at,
+    create_user, authenticate_user, get_user_by_id, check_user_password, set_user_password, _migrate_password_changed_at, _migrate_session_version,
     _migrate_password_reset_tokens, get_user_for_password_reset, password_reset_issue, password_reset_consume,
     PASSWORD_RESET_TTL_MINUTES, EMAIL_TOKEN_TTL_MINUTES, email_change_request, email_change_apply,
     _migrate_email_notify, email_notify_reserve, email_log_write, email_send_stats,
@@ -257,29 +257,34 @@ def _jwt_decode(token: str) -> dict:
     return payload
 
 
-# ── Session invalidation after password change (PR 1.8) ──
-# users.password_changed_at (NULL = never changed). A user JWT whose iat is earlier
-# than that second is rejected. Read through a short in-memory cache (no DB query per
-# request); PUT /auth/password + admin password reset refresh the entry immediately.
-# Other worker processes (if any) pick the change up within _PWD_CHANGED_TTL.
+# ── Session invalidation after password change (PR 1.8 · session_version 5.0b) ──
+# users.session_version (bumped by set_user_password) + users.password_changed_at.
+# A user JWT carrying claim sv is valid only while sv == the current session_version
+# (no clock involved — a token issued in the same second as the change dies too).
+# Older JWTs without sv keep the PR 1.8 check (iat earlier than the change second → rejected)
+# until they expire — nobody is logged out by the rollout.
+# Read through a short in-memory cache (no DB query per request); every password-change path
+# refreshes the entry immediately. Other worker processes (if any) pick the change up within
+# _PWD_CHANGED_TTL.
 _PWD_CHANGED_TTL = 60.0  # seconds
-_pwd_changed_cache: dict = {}   # user_id → (changed_at epoch seconds | None, cached_at monotonic)
+_pwd_changed_cache: dict = {}   # user_id → ({changed, sv} | None, cached_at monotonic)
 
-def _password_changed_epoch(user_id: int):
+def _session_state(user_id: int):
     import time
     hit = _pwd_changed_cache.get(user_id)
     now = time.monotonic()
     if hit is not None and now - hit[1] < _PWD_CHANGED_TTL:
         return hit[0]
-    from auth import get_password_changed_epoch
-    value = get_password_changed_epoch(user_id)   # raises on DB error — not cached
+    from auth import get_session_state
+    value = get_session_state(user_id)   # raises on DB error — not cached
     _pwd_changed_cache[user_id] = (value, now)
     return value
 
-def _password_changed_cache_set(user_id: int, epoch) -> None:
-    """Called by the password-change paths — the new value is effective at once in this process."""
+def _password_changed_cache_set(user_id: int, state) -> None:
+    """Called by the password-change paths with set_user_password()'s {changed, sv} —
+    the new value is effective at once in this process."""
     import time
-    _pwd_changed_cache[int(user_id)] = (epoch, time.monotonic())
+    _pwd_changed_cache[int(user_id)] = (state, time.monotonic())
 
 def _jwt_revoked_by_password_change(payload: dict) -> bool:
     uid = payload.get("user_id")
@@ -288,12 +293,20 @@ def _jwt_revoked_by_password_change(payload: dict) -> bool:
     except (TypeError, ValueError):
         return False
     try:
-        changed = _password_changed_epoch(uid)
+        state = _session_state(uid)
     except Exception as e:
         # DB unreachable: the request fails at its own DB call anyway; rejecting here
         # would log every user out on a DB blip. Logged, not cached (F9).
-        print(f"[session-invalidation] password_changed_at lookup failed user={uid}: {e}")
+        print(f"[session-invalidation] session state lookup failed user={uid}: {e}")
         return False
+    if state is None:
+        return False
+    if "sv" in payload:
+        sv = payload.get("sv")
+        if not isinstance(sv, int) or isinstance(sv, bool):
+            return True
+        return sv != int(state.get("sv") or 0)
+    changed = state.get("changed")
     if changed is None:
         return False
     try:
@@ -755,6 +768,7 @@ def _startup_migrations():
         ("company_candidate_job_refs",        _migrate_company_candidate_job_refs, True),
         ("candidate_status_per_job",          _migrate_candidate_status_per_job,   True),
         ("password_changed_at",               _migrate_password_changed_at,        True),
+        ("session_version",                   _migrate_session_version,            True),
         ("password_reset_tokens",             _migrate_password_reset_tokens,      True),
         ("email_notify",                      _migrate_email_notify,               True),
         ("company_settings",                  _migrate_company_settings,           False),
@@ -3745,7 +3759,8 @@ def register(data: RegisterInput, request: Request):
             full_name, data.email, data.password, data.user_type, country_code,
             first_name=first_name_val, middle_name=middle_name_val, last_name=last_name_val
         )
-        token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
+        token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
+                             "tw_id": user.get("tw_id",""), "sv": 0})   # new account → session_version 0
         return {"status": "success", "user": user, "token": token}
     except EmailTakenError as e:
         raise HTTPException(409, detail=str(e))
@@ -3770,7 +3785,9 @@ def login(data: LoginInput, request: Request):
         _login_email_fail(data.email)
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
     _login_email_reset(data.email)
-    token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
+    sv = int(user.pop("session_version", 0) or 0)   # read with the password check — never sent to the client
+    token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
+                         "tw_id": user.get("tw_id",""), "sv": sv})
     return {"status": "success", "user": user, "token": token}
 
 @app.put("/auth/password")
@@ -3793,13 +3810,15 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
         if not ok:
             raise AccountFieldError("current_password", "wrong_password",
                                     "كلمة المرور الحالية غير صحيحة")
-        changed_epoch = set_user_password(uid, data.new_password)
-        _password_changed_cache_set(uid, changed_epoch)
+        state = set_user_password(uid, data.new_password)
+        if state is None:
+            raise HTTPException(404, detail="المستخدم غير موجود")
+        _password_changed_cache_set(uid, state)
         _ws_revoke_user(uid, "password_changed")
-        # Fresh token for THIS device — its iat is ≥ password_changed_at, so it survives
+        # Fresh token for THIS device — carries the new session_version, so it survives
         # the invalidation; every older JWT of this user is rejected from now on.
         new_token = _jwt_encode({"user_id": uid, "user_type": token.get("user_type"),
-                                 "tw_id": token.get("tw_id") or ""})
+                                 "tw_id": token.get("tw_id") or "", "sv": state["sv"]})
     except (HTTPException, AccountFieldError):
         raise
     except Exception as e:
@@ -3872,10 +3891,10 @@ def password_reset_confirm(data: PasswordResetConfirmInput, background_tasks: Ba
         return api_error(400, "invalid_token", _PWRESET_INVALID_MSG)
     uid = int(user["id"])
     try:
-        changed_epoch = set_user_password(uid, data.new_password)
+        state = set_user_password(uid, data.new_password)   # also deletes every pending email token
     except Exception as e:
         raise _server_error("password_reset_confirm", e)
-    _password_changed_cache_set(uid, changed_epoch)   # every older JWT of this user → 401
+    _password_changed_cache_set(uid, state)   # every older JWT of this user → 401
     _ws_revoke_user(uid, "password_reset")
     _login_email_reset(user["email"])
     background_tasks.add_task(email_service.send_email, user["email"], "password_changed",
@@ -6126,7 +6145,8 @@ def admin_reset_password(user_id: int, request: Request, data: dict = Body(...))
     if not pw or len(pw) < 6:
         raise HTTPException(400, "كلمة المرور قصيرة جداً")
     try:
-        # Same helper as PUT /auth/password → bumps password_changed_at (user's sessions end).
+        # Same helper as PUT /auth/password → bumps session_version (user's sessions end)
+        # and deletes the user's pending email tokens.
         _password_changed_cache_set(user_id, set_user_password(user_id, pw))
         _ws_revoke_user(user_id, "admin_password_reset")
         return {"success": True}

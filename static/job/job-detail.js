@@ -20,6 +20,17 @@
   var _authed = !!(_snap && _snap.isAuthenticated);
   var _user   = _authed ? getTwUser() : null;   // display cache (tw_id / skills) — tw_shared.js
 
+  // Session change while the page is open (5.0b): login / logout / another account →
+  // location.reload(), so every _snap-based decision is taken again — same behaviour as
+  // twRequireAuth, no partial refresh. Same identity (focus / pageshow / visibilitychange) → nothing.
+  var _identity = _authed ? String(_snap.userId) : '';
+  if (window.TwAuthSync && typeof TwAuthSync.onSessionChange === 'function') {
+    TwAuthSync.onSessionChange(function (info) {
+      var s = (info && info.snapshot) || TwAuthSync.getSessionSnapshot();
+      if (((s && s.isAuthenticated) ? String(s.userId) : '') !== _identity) location.reload();
+    });
+  }
+
   // twLoginHref (tw_shared.js) validates the internal path and encodes it as ?next=.
   function _toLogin() { location.href = twLoginHref(location.pathname + location.search); }
 

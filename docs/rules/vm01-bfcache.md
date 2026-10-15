@@ -16,6 +16,8 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-01-BFCACH
 
 4. **`window._scOwnerHydrationGeneration` is a numeric counter, not a boolean.** It is incremented by `renderProfile` (on each new hydration including non-owner results) AND by the session revoke handler. Both `.then()` AND `.catch()` callbacks must guard with `if (_capturedHydGen !== window._scOwnerHydrationGeneration) return;` before modifying any owner state.
 
+4b. **Every `getProfile` request in `profile-v2.render.js` is generation-guarded (5.0b).** The initial `_loadProfile` and both `onSessionChange` re-verify paths capture `_scOwnerHydrationGeneration` before sending and drop the reply (`.then` and `.catch`) when it changed — a reply that lands after a logout / account switch never calls `renderProfile` (no stale `viewer_type: owner`). Same counter, no second mechanism. Test: `node tests/test_session_change_stale_runtime.js`.
+
 5. **`renderProfile` with a non-owner response must immediately discard private owner state.** When `_vt !== 'owner'`, increment `_scOwnerHydrationGeneration`, clear `_scOwnerProfile`, clear `_scOwnerProfilePromise`. This runs on every renderProfile call, including background re-verify results.
 
 6. **`_isCurrentEduOwner()` is fail-closed.** Without TwAuthSync available → always returns `false`. No localStorage fallback is permitted. Covered operations: `openEditModal()`, `saveEdit()` (`uploadCover()` removed in PR 1.7). Any new owner-only function in `edu-profile.html` must call this guard first.

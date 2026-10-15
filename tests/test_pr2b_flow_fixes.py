@@ -37,7 +37,7 @@ needs_db = pytest.mark.skipif(not _DB_URL, reason="TW_TEST_DB_URL not set")
 def _env(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-" + "s" * 32)
-    monkeypatch.setattr(auth, "get_password_changed_epoch", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
     srv._pwd_changed_cache.clear()
     yield
 

@@ -30,7 +30,7 @@ def _env(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-" + "s" * 32)
     srv._pwd_changed_cache.clear()
     srv._rate_store.clear()
-    monkeypatch.setattr(auth, "get_password_changed_epoch", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
     yield
     srv._pwd_changed_cache.clear()
 
@@ -115,10 +115,10 @@ def test_old_jwt_rejected_after_password_change_new_accepted(monkeypatch):
         return stamp["v"]
 
     def _set(uid, pw):
-        stamp["v"] = int(time.time())
+        stamp["v"] = {"changed": int(time.time()), "sv": 1}
         return stamp["v"]
 
-    monkeypatch.setattr(auth, "get_password_changed_epoch", _epoch)
+    monkeypatch.setattr(auth, "get_session_state", _epoch)
     monkeypatch.setattr(srv, "check_user_password", lambda uid, pw: True)
     monkeypatch.setattr(srv, "set_user_password", _set)
 

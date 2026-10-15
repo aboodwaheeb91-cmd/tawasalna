@@ -98,6 +98,7 @@ PY_DB=(
   pytest:test_email_notify.py
   pytest:test_application_result_notify.py
   pytest:test_password_reset_email.py
+  pytest:test_session_version_tokens.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_register_profiles_unique.py
   pytest:test_schedule_interview.py
@@ -121,6 +122,7 @@ NODE_TESTS=(
   test_home_landing_runtime.js
   test_pr2c_session_sockets_runtime.js
   test_schedule_interview_runtime.js
+  test_session_change_stale_runtime.js   # task 5.0b — stale profile reply · job-detail session reload (vm)
   test_settings_edu_runtime.js
   test_stale_session_entry_runtime.js
   test_sw_cache_allowlist_runtime.js

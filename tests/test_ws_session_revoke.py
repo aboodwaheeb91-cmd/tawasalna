@@ -40,13 +40,14 @@ UID = 4242
 _changed = {"epoch": None}
 
 # DB fakes — the code under test (endpoint, JWT check, ws_manager) is real.
-auth.get_password_changed_epoch = lambda uid: _changed["epoch"] if uid == UID else None
+auth.get_session_state = lambda uid: ({"changed": _changed["epoch"], "sv": 1 if _changed["epoch"] else 0}
+                                      if uid == UID else None)
 server.check_user_password = lambda uid, pw: True
 
 
 def _fake_set_password(uid, pw):
     _changed["epoch"] = int(time.time())
-    return _changed["epoch"]
+    return {"changed": _changed["epoch"], "sv": 1}
 
 
 server.set_user_password = _fake_set_password
