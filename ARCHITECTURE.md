@@ -6501,8 +6501,9 @@ Legacy regex `/^(https?:\/\/|\/(?!\/))/` (admin pages) stays until those pages a
 CREATE TABLE reports (
     id            SERIAL PRIMARY KEY,
     reporter_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    reported_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    reported_type TEXT DEFAULT 'user',   -- 'user'|'job'|'company'
+    reported_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,  -- user / company target (5.0c)
+    job_id        INTEGER REFERENCES jobs(id)  ON DELETE SET NULL,  -- job target (5.0c)
+    reported_type TEXT DEFAULT 'user',   -- 'user'|'job'|'company' (validated — else 422)
     report_type   TEXT NOT NULL,         -- 'sexual'|'fraud'|'harassment'|'spam'|'other'
     reason        TEXT,
     target_url    TEXT,
@@ -6516,7 +6517,7 @@ CREATE TABLE reports (
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/reports/submit` | JWT | تقديم بلاغ |
-| GET | `/admin/reports` | Admin | قائمة كل البلاغات |
+| GET | `/admin/reports` | Admin | قائمة كل البلاغات + `target: {kind, id, name, href, deleted}` · عطل DB → 500 (task 5.0c) |
 | PUT | `/admin/reports/{report_id}/resolve` | Admin | تغيير status إلى 'resolved' |
 
 **Request for POST /reports/submit:**
@@ -6528,7 +6529,9 @@ CREATE TABLE reports (
 
 ```
 ✅ reporter_id: ON DELETE SET NULL — البلاغ يبقى حتى بعد حذف المُبلِّغ
-✅ reported_id: ON DELETE CASCADE — البلاغ يُحذف بحذف المُبلَّغ عنه
+✅ reported_id / job_id: ON DELETE SET NULL — البلاغ يبقى بعد حذف الحساب / الوظيفة المُبلَّغ عنها (task 5.0c — migration `reports_targets`)
+✅ reported_type='job' → job_id (رقم الوظيفة) · 'user' / 'company' → reported_id · الهدف مش موجود → 404
+❌ رقم وظيفة بـ reported_id · ❌ ensure_reports_table (محذوفة — الـ migration هي المصدر)
 ❌ لا حذف فردي للبلاغات من الـ UI (resolve فقط)
 ```
 
@@ -12794,8 +12797,8 @@ Every FK to `users(id)` is `ON DELETE CASCADE` or `SET NULL` except `profession_
 | Effect of `DELETE FROM users` | Tables |
 |------------------------------|--------|
 | CASCADE — user's own data | profiles · experience · education · courses · user_skills · user_langs · user_links · kyc_submissions · notifications (recipient) · profession_suggestions · company_profiles · company_branches · company_posts (→ views / appreciations / saves / comments) |
-| CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) · reports (reported) |
-| SET NULL — history kept | notifications.actor_id · reports.reporter_id · company_post_views.viewer_user_id · company_saved_candidates.saved_by · appointments.representative_user_id · appointment_events.actor_id · jobs.archived_by · job_pipeline_entries created_by / stage_updated_by / archived_by · pipeline_stage_events.changed_by · pipeline_notes.created_by · candidate_bank_notes.created_by · news_posts.created_by |
+| CASCADE — data other users see | messages (both sides) · profile_follows · profile_interests · profile_views · company_ratings · post appreciations / saves / comments by the user · comment mentions · job_applications · jobs of a company (→ all their applications) · company_saved_candidates · company_candidate_job_refs · candidate_bank_notes · job_pipeline_entries (company or candidate) · appointments (company / applicant / created_by → participants / events / messages) · appointment_participants · appointment_messages (sender) |
+| SET NULL — history kept | notifications.actor_id · reports.reporter_id · reports.reported_id (5.0c) · company_post_views.viewer_user_id · company_saved_candidates.saved_by · appointments.representative_user_id · appointment_events.actor_id · jobs.archived_by · job_pipeline_entries created_by / stage_updated_by / archived_by · pipeline_stage_events.changed_by · pipeline_notes.created_by · candidate_bank_notes.created_by · news_posts.created_by |
 
 Test: `python -m pytest tests/test_account_security.py -q`.
 

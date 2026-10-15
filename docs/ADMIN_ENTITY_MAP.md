@@ -2,7 +2,7 @@
 
 > **الهدف:** قبل بناء تحكم الأدمن — لكل كيان بالموقع: شو حالاته، مين بيشوفه، شو بيقدر يعمل فيه، وشو الأدمن بيقدر يعمل هلق وشو ناقص.
 > **المصدر:** الكود الحقيقي فقط (`auth.py` · `server.py` · `admin_insights.py` · `static/admin/admin.js` · `static/admin-view/admin-view.js`) — مش التوثيق القديم. أرقام الأسطر تقريبية (حالة `main` بتاريخ 2026-10-15).
-> **توثيق فقط:** هالملف ما بيغيّر أي سلوك. المشاكل اللي انلقت مسجّلة بقسم «مشاكل لقيتها» — ما انصلحت.
+> **توثيق فقط:** هالملف ما بيغيّر أي سلوك. المشاكل اللي انلقت مسجّلة بقسم «مشاكل لقيتها» — المشطوبة انصلحت (task 5.0c: #2 #3 #4 #5 #6 #10 #11 #12 #16 #17)، الباقي مفتوح.
 > **شاشة الأدمن:** «لوحة» = `admin.html` + `static/admin/admin.js` (أقسام `admin-sections.js`: المستخدمون · الشركات · الوظائف · التوثيق · البلاغات · السجل · الأخطاء · الإيميل · النظام). «صفحة المستخدم» = `admin-view.html` + `static/admin-view/admin-view.js`.
 > **مفتاح الأدوار:** زائر = بدون جلسة · صاحبه = المالك (JWT `user_id`) · الشركة = حساب `co` (و `edu` حيث الكود بيسمح `co`/`edu`) · المتقدم = الحساب الشخصي `emp` · الأدمن = admin JWT (`check_admin`).
 > **السجل الأمني:** كل `POST/PUT/PATCH/DELETE` تحت `/admin/` بيتسجّل تلقائياً بـ `admin_audit_log` (`server.py → admin_audit_middleware`) — بدون الـ body (يعني ما في «قبل / بعد»).
@@ -45,9 +45,9 @@
 |---|---|---|
 | نوع الحساب `emp` / `co` / `edu` | `users.user_type` | مخزّنة |
 | موجود (فعّال) | وجود الصف بـ `users` | — لا يوجد عمود حالة (لا `status` ولا `suspended` ولا `deleted_at`) |
-| موثّق (شارة عامة) | `profiles.is_verified` — هو اللي بيطلع بالبروفايل العام والوظائف (`auth.py ~1481` · `get_job ~2869`) | مخزّنة |
-| موثّق (KYC) | `users.is_verified` — بيكتبه `admin_approve_kyc` بس | مخزّنة |
-| شركة موثّقة | `company_profiles.verified_co` — بينقرأ بس، **ما في ولا كاتب** | مخزّنة (دايماً FALSE) |
+| موثّق (شارة عامة) | `profiles.is_verified` — **المصدر الوحيد** (5.0c): بيطلع بالبروفايل العام والوظائف والأدمن · الكاتب الوحيد `auth.set_user_verified` (موافقة KYC · رفض KYC · توثيق / إلغاء يدوي) | مخزّنة |
+| ~~موثّق (KYC)~~ | `users.is_verified` — legacy: ما حدا بيكتبه ولا بيقراه (5.0c) | — |
+| شركة موثّقة | `company_profiles.verified_co` — بينقرأ بس، **ما في ولا كاتب** (F30 — مفتوح) | مخزّنة (دايماً FALSE) |
 | الإيميل / الجوال موثّق | `users.email_verified` / `users.phone_verified` (من KYC OTP) | مخزّنة |
 | نسخة الجلسة | `users.session_version` + `password_changed_at` — تغيير كلمة السر بينهي الجلسات | مخزّنة |
 | محذوف | حذف نهائي للصف (`DELETE FROM users`) | — |
@@ -66,8 +66,8 @@
 | من → إلى | مين | كيف |
 |---|---|---|
 | (لا شي) → موجود | المستخدم | `POST /auth/register` |
-| غير موثّق ↔ موثّق (شارة) | الأدمن | `PUT /admin/user/{id}/verify` → `profiles.is_verified` |
-| غير موثّق → موثّق KYC | الأدمن | `PUT /admin/kyc/{id}/approve` → `users.is_verified` فقط |
+| غير موثّق ↔ موثّق (شارة) | الأدمن | `PUT /admin/user/{id}/verify` `{is_verified: true\|false}` (إلزامي) → `set_user_verified` |
+| غير موثّق → موثّق (KYC) | الأدمن | `PUT /admin/kyc/{id}/approve` (طلب بانتظار المراجعة بس — غير هيك 409) → `set_user_verified(TRUE)` · الرفض → FALSE |
 | نوع → نوع | الأدمن | `PUT /admin/user/{id}/type` |
 | موجود → محذوف | صاحبه (`DELETE /auth/user/{id}/delete` + كلمة السر) أو الأدمن (`DELETE /admin/user/{id}`) | حذف نهائي |
 | تلقائي | — | لا يوجد أي انتقال تلقائي |
@@ -78,9 +78,9 @@
 |---|---|---|
 | قائمة الحسابات | `GET /auth/users` | ✅ لوحة → المستخدمون / الشركات |
 | عرض / تعديل البروفايل | `GET` / `PUT /admin/profile/{id}` | ✅ صفحة المستخدم |
-| توثيق / إلغاء توثيق (شارة) | `PUT /admin/user/{id}/verify` | ✅ (اللوحة: توثيق بس · صفحة المستخدم: الاتنين) |
+| توثيق / إلغاء توثيق (شارة) | `PUT /admin/user/{id}/verify` | ✅ صفحة المستخدم (الاتنين) |
 | تغيير النوع | `PUT /admin/user/{id}/type` | ✅ صفحة المستخدم (كتابة «تغيير») |
-| تغيير كلمة السر | `PUT /admin/user/{id}/password` | ✅ صفحة المستخدم |
+| تغيير كلمة السر | `PUT /admin/user/{id}/password` — نفس `_password_policy_error` (ضعيفة → 422) | ✅ صفحة المستخدم |
 | حذف نهائي | `DELETE /admin/user/{id}` | ✅ (كتابة «حذف») |
 | «رسالة للمستخدم» | `POST /admin/message` | ✅ شاشة — **بس الـ endpoint ما بيبعت شي** (مشكلة #9) |
 
@@ -88,14 +88,15 @@
 
 - **إيقاف / تعليق حساب** (`users.status` أو `suspended_at` + فحص بالـ login و `verify_token` + `_ws_revoke_user`) — هلق الخيار الوحيد للأدمن مع حساب مخالف هو الحذف النهائي.
 - **حذف ناعم** (`deleted_at`) بدل الحذف النهائي (F27) + إرجاع الحساب.
-- مصدر واحد للتوثيق (اليوم 3 أعمدة — مشكلة #4).
+- ~~مصدر واحد للتوثيق (مشكلة #4)~~ — انعمل (5.0c). باقي: `company_profiles.verified_co` بلا كاتب.
 - تعديل الإيميل / الاسم من الأدمن (`PUT /admin/profile` بيمشي على قواعد `_apply_profile_update` بس).
 - pagination + فلترة لقائمة الحسابات.
 - إنهاء جلسات الحساب بدون تغيير كلمة السر.
 
 ### 1.6 ملاحظات خطر
 
-- **الحذف النهائي بيمسح بـ CASCADE:** profiles · company_profiles · experience / education / courses / skills / langs / links · jobs (→ طلباتها، refs، targets) · job_applications · messages (الطرفين) · notifications · company_posts (→ تعليقات، تقديرات، حفظ، مشاهدات) · تعليقات الشخص على منشورات غيره · company_ratings (اللي عطاها واللي أخدها) · profile_follows / interests / views · company_saved_candidates · job_pipeline_entries (→ stage events + notes) · candidate_bank_notes · appointments (→ participants / events / messages) · **reports المرفوعة ضده** (دليل البلاغ بينمسح) · kyc_submissions · password_reset_tokens · company_settings · company_branches. ملفات Storage (أفاتار / غلاف / وثائق KYC) **ما بتنحذف**.
+- البلاغات ضد الحساب **ما بتنمسح** (5.0c — `reported_id` SET NULL، اللوحة بتبيّن «حساب محذوف»).
+- **الحذف النهائي بيمسح بـ CASCADE:** profiles · company_profiles · experience / education / courses / skills / langs / links · jobs (→ طلباتها، refs، targets) · job_applications · messages (الطرفين) · notifications · company_posts (→ تعليقات، تقديرات، حفظ، مشاهدات) · تعليقات الشخص على منشورات غيره · company_ratings (اللي عطاها واللي أخدها) · profile_follows / interests / views · company_saved_candidates · job_pipeline_entries (→ stage events + notes) · candidate_bank_notes · appointments (→ participants / events / messages) · kyc_submissions · password_reset_tokens · company_settings · company_branches. ملفات Storage (أفاتار / غلاف / وثائق KYC) **ما بتنحذف**.
 - تغيير النوع (`co` → `emp` مثلاً): الوظائف والمنشورات والـ pipeline بتضل مربوطة بحساب صار `emp`؛ `tw_id` بيضل ببادئته القديمة (C/U/T) — حالة متضاربة.
 - ما في حالة «معلّق» → ما في مخرج وسط بين «فعّال» و«محذوف للأبد».
 
@@ -179,9 +180,9 @@
 
 | الحالة | المتقدم | الشركة | الأدمن |
 |---|---|---|---|
-| `pending` (افتراضي) | بـ «طلباتي» (`GET /my/applications`) — **بيشوف الحالة الخام** | بالمتقدمون (`GET /jobs/{id}/applicants`) | ❌ |
-| `viewed` · `accepted` · `contacted` · `interview` | نفس الشي — الحالة الداخلية ظاهرة إله | تغيير الحالة · ترقية لمرشح (`promote`) | ❌ |
-| `hired` / `rejected` | + إشعار + إيميل مرة وحدة (5.1d — `notify_application_result`، حسب `company_settings.notify_applicant_result`) | — | ❌ |
+| `pending` (افتراضي) | بـ «طلباتي» (`GET /my/applications`) — «قيد المراجعة» (`in_review` — 5.0c) | بالمتقدمون (`GET /jobs/{id}/applicants`) | ❌ |
+| `viewed` · `accepted` · `contacted` · `interview` | «قيد المراجعة» — الحالة الداخلية ما بتطلع من السيرفر (`auth.applicant_visible_status`) | تغيير الحالة · ترقية لمرشح (`promote`) | ❌ |
+| `hired` / `rejected` | «مقبول» / «غير مقبول» + إشعار + إيميل مرة وحدة (5.1d — `notify_application_result`، حسب `company_settings.notify_applicant_result`) | — | ❌ |
 
 ### 3.2 الانتقالات
 
@@ -312,12 +313,12 @@
 | البند | الحقيقة بالكود |
 |---|---|
 | الحالات | `status` = `pending` (افتراضي) → `resolved`. بس |
-| أنواع | `reported_type`: `user` · `job` · `company` (من `twReportDialog`) — **بدون تحقق** بالسيرفر · `report_type` (سبب) بدون تحقق |
+| أنواع | `reported_type`: `user` · `company` → `reported_id` (users) · `job` → `job_id` (jobs) — تحقق بالسيرفر (غير هيك 422 · الهدف مش موجود 404 — 5.0c) · `report_type` (سبب) بدون تحقق |
 | مين بيشوف | المبلِّغ: ولا شي بعد الإرسال (ما في «بلاغاتي») · المبلَّغ عنه: ما بيعرف · الأدمن: الكل |
 | الانتقالات | أي مسجّل → pending (`POST /reports/submit`) · الأدمن pending → resolved (`PUT /admin/reports/{id}/resolve`) · ما في رجوع |
-| الأدمن هلق | ✅ قائمة `GET /admin/reports` + شارة العدد · ✅ «حل» — **ما في إجراء على الهدف من البلاغ نفسه** |
+| الأدمن هلق | ✅ قائمة `GET /admin/reports` + شارة العدد — الهدف الصح (`target`: اسم الوظيفة أو الحساب + رابط · «محذوف») · عطل DB → خطأ واضح · ✅ «حل» · «حذف الحساب» لهدف حساب بس |
 | ناقص | حالات أكتر (`reviewing` · `dismissed` · `action_taken`) · ملاحظة الأدمن + مين حلّه + متى · إجراء مباشر (إخفاء الوظيفة / تعليق الحساب) · بلاغ على منشور / تعليق / رسالة · pagination |
-| خطر | `reported_id` FK → `users` **ON DELETE CASCADE** → حذف المبلَّغ عنه بيمسح البلاغات (الدليل) · بلاغ الوظيفة بيحط رقم الوظيفة بعمود بيشاور على `users` (مشكلة #2) |
+| خطر | ~~CASCADE (#12) · رقم الوظيفة بـ `reported_id` (#2)~~ — انصلحوا (5.0c): `reported_id` / `job_id` = SET NULL، والبلاغات القديمة انقلبت لـ `job_id` بالـ migration |
 
 ---
 
@@ -332,10 +333,10 @@
 | (لا شي) → step=email | صاحبه | `POST /kyc/start` |
 | email → phone | صاحبه | `POST /kyc/email/verify` (OTP) + `users.email_verified=TRUE` |
 | phone → id_upload | صاحبه | `POST /kyc/phone/verify` + `users.phone_verified=TRUE` |
-| أي step → review | صاحبه | `POST /kyc/docs` — **ما بيفحص الـ step الحالي** |
-| review → status=approved | الأدمن | `PUT /admin/kyc/{user_id}/approve` → `users.is_verified=TRUE` — **الـ step بيضل `review`** |
-| → status=rejected, step=rejected | الأدمن | `PUT /admin/kyc/{user_id}/reject` — `users.is_verified` ما بيتغيّر |
-| rejected → إعادة المحاولة | — | ما في مسار واضح (`start` بيرجّع نفس الصف؛ `docs` بيرجّع step=review بس status بيضل rejected) |
+| id_upload / rejected → review (status pending) | صاحبه | `POST /kyc/docs` — بس بعد توثيق الإيميل + الجوال، غير هيك 409 (5.0c) |
+| review → step=status=approved | الأدمن | `PUT /admin/kyc/{user_id}/approve` → الشارة العامة (`set_user_verified`) · بدون طلب بانتظار المراجعة → 409 |
+| review → step=status=rejected | الأدمن | `PUT /admin/kyc/{user_id}/reject` → الشارة بتنشال · بدون طلب بانتظار المراجعة → 409 |
+| rejected → إعادة المحاولة | صاحبه | `POST /kyc/docs` من جديد (الإيميل والجوال موثّقين) → review / pending |
 
 ### 11.2 مين بيشوف
 
@@ -343,9 +344,9 @@
 
 ### 11.3 الأدمن
 
-- هلق: ✅ قائمة · ✅ موافقة · ✅ رفض (الشاشة بتبعت `note: ''` دايماً — ما في خانة سبب) · ✅ عرض الوثائق.
-- ناقص: سبب الرفض بالواجهة + إشعار المستخدم · سحب التوثيق بعد الموافقة · فتح إعادة المحاولة بعد الرفض · ربط الموافقة بالشارة العامة.
-- خطر: موافقة KYC ما بتظهر بالشارة العامة (مشكلة #4) · الموافقة بتضل معدودة «بانتظار المراجعة» (مشكلة #3) · حذف الحساب → صف KYC بينمسح بس **الوثائق بالـ Storage بتضل**.
+- هلق: ✅ قائمة · ✅ موافقة / ✅ رفض (للطلبات بانتظار المراجعة بس — الشاشة بتبعت `note: ''` دايماً، ما في خانة سبب) · ✅ عرض الوثائق · سحب التوثيق بعد الموافقة = «إلغاء التوثيق» من صفحة المستخدم.
+- ناقص: سبب الرفض بالواجهة + إشعار المستخدم.
+- خطر: حذف الحساب → صف KYC بينمسح بس **الوثائق بالـ Storage بتضل**.
 
 ---
 
@@ -459,28 +460,28 @@
 
 ## 20. مشاكل لقيتها
 
-> مسجّلة فقط — **ما انصلحت بهالمهمة** (توثيق بس). كل وحدة بتحتاج مهمة لحالها.
+> مسجّلة بمهمة 5.3m (توثيق بس). المشطوب انصلح بـ task 5.0c — الباقي مفتوح، كل وحدة بتحتاج مهمة لحالها.
 
 | # | الخطورة | المشكلة | المكان | الأثر |
 |---|---|---|---|---|
 | 1 | عالية | حذف الأدمن للوظيفة بيفشل لأي وظيفة إلها متقدم: `job_pipeline_entries.job_id` = `ON DELETE RESTRICT` وكل تقديم بيعمل entry، والـ endpoint ما بيلتقط الخطأ | `server.py → admin_delete_job` | زر «حذف» باللوحة بيرجّع 500 للوظائف الحقيقية؛ الحذف بينجح بس لوظيفة بدون متقدمين |
-| 2 | عالية | بلاغ على وظيفة: `twReportDialog({reportedId: _jobId, reportedType: 'job'})` بيحط **رقم الوظيفة** بـ `reports.reported_id` اللي هو FK → `users(id)` | `static/job/job-detail.js ~642` · `server.py → submit_report` · `auth.py → ensure_reports_table` | إذا ما في user بنفس الرقم → FK error → 500 «خطأ في الخادم»؛ إذا في → البلاغ بينربط بحساب ما إله علاقة (اسم غلط باللوحة، وحذف هالحساب بيمسح البلاغ) |
-| 3 | متوسطة | موافقة KYC ما بتغيّر `step` (بيضل `review`) | `auth.py → admin_approve_kyc` | لوحة القيادة `pending_kyc` و «النشاط» (`step='review'`) بيعدّوا الموثّقين كـ «بانتظار المراجعة» للأبد |
-| 4 | متوسطة | 3 مصادر للتوثيق: `users.is_verified` (KYC) · `profiles.is_verified` (زر الأدمن — **هو اللي بيطلع بالشارة العامة**) · `company_profiles.verified_co` (ما في كاتب) | `auth.py` · `server.py → verify_user` | موافقة KYC ما بتعطي شارة؛ رفض KYC ما بيلغي `users.is_verified` إذا كان موافق عليه قبل |
-| 5 | متوسطة | `admin_approve_kyc` / `admin_reject_kyc` ما بيفحصوا وجود طلب ولا إنه بـ `review` | `auth.py` | موافقة على حساب ما قدّم شي = `users.is_verified=TRUE` (الـ UPDATE على KYC بيأثر على 0 صف) |
-| 6 | متوسطة | `POST /kyc/docs` ما بيفحص الـ step | `auth.py → upload_kyc_docs` | بيقدر يتخطى توثيق الإيميل / الجوال ويوصل `review` مباشرة؛ بدون صف KYC بيرجّع «submitted» وهو ما حفظ شي |
+| 2 | عالية | ~~بلاغ على وظيفة: `twReportDialog({reportedId: _jobId, reportedType: 'job'})` بيحط **رقم الوظيفة** بـ `reports.reported_id` اللي هو FK → `users(id)`~~ ✅ انصلحت (5.0c) | `static/job/job-detail.js ~642` · `server.py → submit_report` · `auth.py → ensure_reports_table` | إذا ما في user بنفس الرقم → FK error → 500 «خطأ في الخادم»؛ إذا في → البلاغ بينربط بحساب ما إله علاقة (اسم غلط باللوحة، وحذف هالحساب بيمسح البلاغ) |
+| 3 | متوسطة | ~~موافقة KYC ما بتغيّر `step` (بيضل `review`)~~ ✅ انصلحت (5.0c) | `auth.py → admin_approve_kyc` | لوحة القيادة `pending_kyc` و «النشاط» (`step='review'`) بيعدّوا الموثّقين كـ «بانتظار المراجعة» للأبد |
+| 4 | متوسطة | ~~3 مصادر للتوثيق: `users.is_verified` (KYC) · `profiles.is_verified` (زر الأدمن — **هو اللي بيطلع بالشارة العامة**) · `company_profiles.verified_co` (ما في كاتب)~~ ✅ انصلحت (5.0c) | `auth.py` · `server.py → verify_user` | موافقة KYC ما بتعطي شارة؛ رفض KYC ما بيلغي `users.is_verified` إذا كان موافق عليه قبل |
+| 5 | متوسطة | ~~`admin_approve_kyc` / `admin_reject_kyc` ما بيفحصوا وجود طلب ولا إنه بـ `review`~~ ✅ انصلحت (5.0c) | `auth.py` | موافقة على حساب ما قدّم شي = `users.is_verified=TRUE` (الـ UPDATE على KYC بيأثر على 0 صف) |
+| 6 | متوسطة | ~~`POST /kyc/docs` ما بيفحص الـ step~~ ✅ انصلحت (5.0c) | `auth.py → upload_kyc_docs` | بيقدر يتخطى توثيق الإيميل / الجوال ويوصل `review` مباشرة؛ بدون صف KYC بيرجّع «submitted» وهو ما حفظ شي |
 | 7 | متوسطة | الإيقاف المؤقت ما بيجمّد المدة: `_eff_status` بيعتبر `paused` منتهية إذا `expires_at` مضى | `auth.py → _eff_status` / `set_job_status` | شركة بتوقف وظيفة أطول من المدة الباقية → بتصير «مغلقة» وما بتقدر ترجّعها |
 | 8 | متوسطة | `GET /admin/jobs` = `get_jobs({})` = الفيد العام | `server.py → admin_list_jobs` | الأدمن ما بيشوف الوظائف الموقوفة / المغلقة / المنتهية / المؤرشفة أبداً |
 | 9 | متوسطة | `POST /admin/message` بيطبع الرسالة بالـ log وبيرجّع `success` بدون إرسال | `server.py → admin_send_message` | الأدمن بيشوف «تم» والمستخدم ما بيوصله شي (F9) · نص الرسالة بالـ log |
-| 10 | متوسطة | `PUT /admin/user/{id}/password` بيقبل ≥ 6 أحرف — مش `_password_policy_error` | `server.py → admin_reset_password` | قاعدة كلمة سر تانية (CLAUDE.md: قاعدة وحدة) |
-| 11 | منخفضة | `GET /admin/reports` بيبلع أي خطأ وبيرجّع قائمة فاضية | `server.py → admin_get_reports` | عطل DB بيبين «ما في بلاغات» (F9) |
-| 12 | منخفضة | `reports.reported_id` CASCADE | `auth.py → ensure_reports_table` | حذف الحساب المبلَّغ عنه بيمسح الدليل |
+| 10 | متوسطة | ~~`PUT /admin/user/{id}/password` بيقبل ≥ 6 أحرف — مش `_password_policy_error`~~ ✅ انصلحت (5.0c) | `server.py → admin_reset_password` | قاعدة كلمة سر تانية (CLAUDE.md: قاعدة وحدة) |
+| 11 | منخفضة | ~~`GET /admin/reports` بيبلع أي خطأ وبيرجّع قائمة فاضية~~ ✅ انصلحت (5.0c) | `server.py → admin_get_reports` | عطل DB بيبين «ما في بلاغات» (F9) |
+| 12 | منخفضة | ~~`reports.reported_id` CASCADE~~ ✅ انصلحت (5.0c) | `auth.py → ensure_reports_table` | حذف الحساب المبلَّغ عنه بيمسح الدليل |
 | 13 | منخفضة | استئناف وظيفة أو تغيير مدتها ما بيجدول تذكير `job_expiring_soon` جديد | `server.py → update_job_endpoint` · `auth.py → set_job_status` | التذكير القديم بيتخطّى نفسه (stale) وما في جديد → الشركة ما بتنبّه |
 | 14 | منخفضة | `/stats` بيعدّ `status='active'` بدون فحص `expires_at` | `server.py → stats` | رقم «الوظائف» أعلى من الحقيقي |
 | 15 | منخفضة | `/home/feed` بيفلتر `status IN ('active','open')` — `open` مش حالة موجودة | `server.py ~1171` | قيمة ميتة (بدون أثر حالياً) |
-| 16 | منخفضة | `admin.js` بيبعت `{verified: true}` والسيرفر بيقرأ `is_verified` (افتراضي TRUE) | `static/admin/admin.js:22` | بيشتغل بالصدفة؛ أي «إلغاء» من هالمسار رح يوثّق بدل ما يلغي |
-| 17 | منخفضة | `my/applications` بيرجّع الحالة الداخلية للمتقدم (`viewed` / `interview` / `rejected`…) بينما 5.1d بيعتبر المراحل الوسطى داخلية للشركة | `auth.py → get_user_applications` · `profile-v2.apps.js` | قرار منتج مش محسوم — للمراجعة |
-| 18 | منخفضة | مراحل / حالات بدون كاتب: `pipeline.stage` `offer` / `withdrawn` · `job_pipeline_entries.archived_at` · `profession_suggestions.status` · `company_profiles.verified_co` | — | قيم بالـ schema بدون مسار — أي شاشة أدمن لازم تعرف إنها ما بتصير |
+| 16 | منخفضة | ~~`admin.js` بيبعت `{verified: true}` والسيرفر بيقرأ `is_verified` (افتراضي TRUE)~~ ✅ انصلحت (5.0c) | `static/admin/admin.js:22` | بيشتغل بالصدفة؛ أي «إلغاء» من هالمسار رح يوثّق بدل ما يلغي |
+| 17 | منخفضة | ~~`my/applications` بيرجّع الحالة الداخلية للمتقدم (`viewed` / `interview` / `rejected`…) بينما 5.1d بيعتبر المراحل الوسطى داخلية للشركة~~ ✅ انصلحت (5.0c) | `auth.py → get_user_applications` · `profile-v2.apps.js` | قرار منتج مش محسوم — للمراجعة |
+| 18 | منخفضة | مراحل / حالات بدون كاتب: `pipeline.stage` `offer` / `withdrawn` · `job_pipeline_entries.archived_at` · `profession_suggestions.status` · `company_profiles.verified_co` · `users.is_verified` (legacy من 5.0c) | — | قيم بالـ schema بدون مسار — أي شاشة أدمن لازم تعرف إنها ما بتصير |
 
 ---
 

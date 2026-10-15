@@ -270,7 +270,7 @@
     OV.qRep.textContent = '';
     if (!r.length) msg(OV.qRep, 'admin.queue.reports.empty');
     r.slice(0, QUEUE_MAX).forEach(function (x) {
-      queueRow(OV.qRep, x.reported_name || twT('admin.reports.unknown'),
+      queueRow(OV.qRep, reportTarget(x),
                [(x.report_type || twT('admin.reports.default_type')) + (x.created_at ? ' · ' + twFormatDate(x.created_at) : '')], 'reports');
     });
     if (r.length) moreLink(OV.qRep, 'reports');
@@ -629,6 +629,14 @@
   }
 
   // ── reports ──
+  // target = the server's resolved target (GET /admin/reports → target · task 5.0c): job or account
+  function reportTarget(rep) {
+    var t = rep.target || {};
+    if (t.kind === 'job') return t.deleted ? twT('admin.reports.target.job_deleted')
+                                           : twT('admin.reports.target.job', { name: t.name || '—' });
+    if (t.deleted) return twT('admin.reports.target.user_deleted');
+    return t.name || twT('admin.reports.unknown');
+  }
   function loadReports() {
     msg(BODY.reports, 'common.loading');
     return getJson('/admin/reports').then(function (d) {
@@ -638,12 +646,13 @@
       if (!S.reports.length) { msg(BODY.reports, 'admin.reports.empty'); return; }
       S.reports.forEach(function (rep) {
         var pending = rep.status === 'pending';
-        var r = row(rep.reported_name || twT('admin.reports.unknown'), [
+        var t = rep.target || {};
+        var r = row(reportTarget(rep), [
           (rep.report_type || twT('admin.reports.default_type')) + (rep.created_at ? ' · ' + twFormatDate(rep.created_at) : ''),
           rep.reason || '—',
           twT('admin.reports.from', { name: rep.reporter_name || twT('admin.reports.unknown') }),
         ], pill(twT(pending ? 'admin.reports.new' : 'admin.reports.resolved'), pending ? 'danger' : 'ok'));
-        var href = rep.target_url ? (twSafeNext(rep.target_url) || twSafeLinkUrl(rep.target_url)) : '';
+        var href = t.href ? twSafeNext(t.href) : '';
         if (href) {
           var a = el('a', 'tw-act tw-act-secondary');
           a.href = href;
@@ -653,7 +662,7 @@
           a.appendChild(el('span', null, twT('admin.reports.view')));
           r.acts.appendChild(a);
         }
-        if (rep.reported_id) r.acts.appendChild(btn('danger', 'delete', 'admin.reports.delete_user', function () {
+        if (t.kind === 'user' && !t.deleted) r.acts.appendChild(btn('danger', 'delete', 'admin.reports.delete_user', function () {
           run('user.delete', { id: rep.reported_id }).then(function (res) { if (res && res.ok) loadReports(); });
         }));
         if (pending) r.acts.appendChild(btn('primary', 'check', 'admin.reports.resolve', function () {
@@ -691,8 +700,11 @@
       var st = kycStatus(k.step), uid = Number(k.user_id);
       var r = row(k.full_name, [k.email], pill(st[0], st[1]));
       r.acts.appendChild(btn('secondary', 'id-card', 'admin.kyc.docs', function () { openKYCDocs(Number(k.id), uid); }));
-      r.acts.appendChild(btn('primary', 'check', 'admin.kyc.approve', function () { kycAct('kyc.approve', uid); }));
-      r.acts.appendChild(btn('danger', 'close', 'admin.kyc.reject', function () { kycAct('kyc.reject', uid); }));
+      // approve / reject only for a submission in review — the server refuses anything else (409 · task 5.0c)
+      if (k.step === 'review') {
+        r.acts.appendChild(btn('primary', 'check', 'admin.kyc.approve', function () { kycAct('kyc.approve', uid); }));
+        r.acts.appendChild(btn('danger', 'close', 'admin.kyc.reject', function () { kycAct('kyc.reject', uid); }));
+      }
       box.appendChild(r.row);
     });
   }

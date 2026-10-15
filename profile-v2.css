@@ -1758,9 +1758,8 @@ body.view-owner #scTabApps { display:inline-flex; }
   flex-shrink:0; padding:3px 9px; border-radius:6px;
   font-size:.68rem; font-weight:700; white-space:nowrap;
 }
-.sc-app-status--pending  { background:rgba(var(--color-text-meta-rgb), .12); color:var(--color-text-meta); }
-.sc-app-status--viewed   { background:rgba(var(--color-brand-secondary-text-rgb), .12);  color:var(--color-brand-secondary-text); }
-.sc-app-status--accepted { background:rgba(var(--color-status-success-rgb), .12);  color:var(--color-status-success); }
+.sc-app-status--in_review { background:rgba(var(--color-brand-secondary-text-rgb), .12);  color:var(--color-brand-secondary-text); }
+.sc-app-status--hired    { background:rgba(var(--color-status-success-rgb), .12);  color:var(--color-status-success); }
 .sc-app-status--rejected { background:rgba(var(--color-status-danger-rgb), .12); color:var(--color-status-danger); }
 
 /* Empty / loading states */

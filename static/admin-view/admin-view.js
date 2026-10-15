@@ -148,7 +148,8 @@
   }
   function openPassword() {
     formDialog('admin.view.password.title', 'admin.view.password.label', 'password', '', 'admin.view.password.confirm', function (v) {
-      if (!v || v.trim().length < 6) { showToast(twT('admin.view.password.short'), 'error'); return false; }
+      // length rule = the server's _password_policy_error (task 5.0c) — its message is shown by run()
+      if (!v) { showToast(twT('admin.view.password.required'), 'error'); return false; }
       return run('user.password', { password: v }).then(function (res) { return !!(res && res.ok); });
     });
   }

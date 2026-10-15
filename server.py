@@ -127,7 +127,8 @@ from auth import (
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
-    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
+    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table,
+    set_user_verified, KycStateError, REPORT_TARGET_TYPES, _migrate_reports_targets, _migrate_verified_source,
     send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, mark_notification_read,
     get_unread_notifications, _migrate_notifications_schema_v2,
@@ -826,6 +827,8 @@ def _startup_migrations():
         ("pr5_pipeline_linking",              _migrate_pr5_pipeline_linking,       True),
         ("applicants_candidates_split",       _migrate_applicants_candidates_split, True),
         ("admin_audit_log",                   admin_insights.migrate_admin_audit_log, True),
+        ("reports_targets",                   _migrate_reports_targets,            False),
+        ("verified_source",                   _migrate_verified_source,            False),
     )
 
 
@@ -3237,25 +3240,30 @@ def company_candidate_suggestions(
 
 
 @app.post("/reports/submit")
-def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
-    """Submit a report against a user or content"""
+def submit_report(data: ReportInput, token=Depends(verify_token)):
+    """Submit a report — the target is stored by type (task 5.0c): user / company → reported_id
+    (users) · job → job_id (jobs). Unknown type → 422 · missing target → 404."""
+    rtype = (data.reported_type or "").strip()
+    if rtype not in REPORT_TARGET_TYPES:
+        return api_error(422, "invalid_target_type", "نوع البلاغ غير صحيح", "reported_type")
+    reporter_id = token.get("user_id")
     try:
-        ensure_reports_table()
-        # Get reporter from JWT
-        auth = request.headers.get("Authorization","")
-        token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
-        reporter_id = None
-        if token:
-            payload = _jwt_decode(token)
-            reporter_id = payload.get("user_id")
-        
         with db_conn() as conn:
-            conn.run("""
-                INSERT INTO reports (reporter_id, reported_id, reported_type, report_type, reason, target_url, status)
-                VALUES (:rid, :tid, :rtype, :rpt, :reason, :url, 'pending')
-            """, rid=reporter_id, tid=data.reported_id, rtype=data.reported_type,
-                rpt=data.report_type, reason=data.reason, url=data.target_url)
-        
+            if rtype == "job":
+                exists = conn.run("SELECT 1 FROM jobs WHERE id = :id", id=data.reported_id)
+            else:
+                exists = conn.run("SELECT 1 FROM users WHERE id = :id", id=data.reported_id)
+            if not exists:
+                return api_error(404, "target_not_found",
+                                 "الوظيفة غير موجودة" if rtype == "job" else "الحساب غير موجود")
+            conn.run(
+                "INSERT INTO reports (reporter_id, reported_id, job_id, reported_type, report_type, "
+                "reason, target_url, status) "
+                "VALUES (:rid, :uid, :jid, :rtype, :rpt, :reason, :url, 'pending')",
+                rid=reporter_id,
+                uid=None if rtype == "job" else data.reported_id,
+                jid=data.reported_id if rtype == "job" else None,
+                rtype=rtype, rpt=data.report_type, reason=data.reason, url=data.target_url)
         # No user notification: admins are not user accounts. The report stays in
         # `reports` (status 'pending') and appears in the admin panel → البلاغات tab
         # (GET /admin/reports + pending badge).
@@ -3263,38 +3271,45 @@ def submit_report(data: ReportInput, request: Request, token=Depends(verify_toke
     except Exception as e:
         raise _server_error("submit_report", e)
 
+
+def _report_target(rep: dict) -> dict:
+    """The report's target for the admin list — {kind, id, name, href, deleted} (task 5.0c)."""
+    if rep.get("reported_type") == "job":
+        jid = rep.get("job_id")
+        return {"kind": "job", "id": jid, "name": rep.get("job_title"),
+                "href": f"/job-detail?id={int(jid)}" if jid else None, "deleted": jid is None}
+    uid, tw = rep.get("reported_id"), rep.get("reported_tw_id")
+    return {"kind": "user", "id": uid, "name": rep.get("reported_name"),
+            "href": f"/u/{tw}" if uid and tw else None, "deleted": uid is None}
+
+
 @app.get("/admin/reports")
 def admin_get_reports(request: Request):
-    """Get all reports"""
+    """All reports with their resolved target. A DB error → 500 (never an empty list — F9)."""
     check_admin(request)
     try:
-        # Ensure table exists
-        ensure_reports_table()
-        conn = get_conn()
-        try:
+        with db_conn() as conn:
             rows = conn.run("""
-                SELECT r.id, r.reporter_id, r.reported_id, r.reported_type,
+                SELECT r.id, r.reporter_id, r.reported_id, r.job_id, r.reported_type,
                        r.report_type, r.reason, r.target_url, r.status, r.created_at,
-                       u1.full_name as reporter_name,
-                       u2.full_name as reported_name
+                       u1.full_name AS reporter_name,
+                       u2.full_name AS reported_name, u2.tw_id AS reported_tw_id,
+                       j.title AS job_title
                 FROM reports r
                 LEFT JOIN users u1 ON r.reporter_id = u1.id
                 LEFT JOIN users u2 ON r.reported_id = u2.id
+                LEFT JOIN jobs j ON r.job_id = j.id
                 ORDER BY r.created_at DESC
             """)
-            cols = ['id','reporter_id','reported_id','reported_type','report_type',
-                    'reason','target_url','status','created_at','reporter_name','reported_name']
-            reports = [dict(zip(cols,row)) for row in rows]
-            for rep in reports:
-                if rep.get('created_at'):
-                    rep['created_at'] = str(rep['created_at'])
-        finally:
-            release_conn(conn)
+            cols = [c["name"] for c in conn.columns]
+        reports = [dict(zip(cols, row)) for row in rows]
+        for rep in reports:
+            if rep.get('created_at'):
+                rep['created_at'] = str(rep['created_at'])
+            rep["target"] = _report_target(rep)
         return {"reports": reports, "count": len(reports)}
     except Exception as e:
-        print(f"[Reports] Error: {e}")
-        # Return empty if table doesn't exist yet
-        return {"reports": [], "count": 0}
+        raise _server_error("admin_get_reports", e)
 
 @app.put("/admin/reports/{report_id}/resolve")
 def resolve_report(report_id: int, request: Request):
@@ -5530,6 +5545,8 @@ def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
             _validate_stored_image_url(data.selfie_url, "kyc-selfie", uid, _cur.get("selfie_url"))
         result = upload_kyc_docs(uid, data.id_front_url, data.selfie_url)
         return {"status": "success", **result}
+    except KycStateError as e:
+        return api_error(409, "kyc_step", str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -5552,6 +5569,8 @@ def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
     try:
         result = admin_approve_kyc(user_id, data.note)
         return {"status": "success", **result}
+    except KycStateError as e:
+        return api_error(409, "kyc_not_in_review", str(e))
     except Exception as e:
         raise _server_error("admin_kyc_approve", e)
 
@@ -5561,6 +5580,8 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
     try:
         result = admin_reject_kyc(user_id, data.note)
         return {"status": "success", **result}
+    except KycStateError as e:
+        return api_error(409, "kyc_not_in_review", str(e))
     except Exception as e:
         raise _server_error("admin_kyc_reject", e)
 
@@ -6259,27 +6280,27 @@ def change_user_type(user_id: int, request: Request, data: dict = Body(...)):
 
 @app.put("/admin/user/{user_id}/verify")
 def verify_user(user_id: int, request: Request, data: dict = Body(...)):
+    """Manual badge on / off — body {is_verified: true|false} (required boolean, no default — task 5.0c)."""
     check_admin(request)
-    is_v = data.get("is_verified", True)
-    conn = get_conn()
+    is_v = data.get("is_verified")
+    if not isinstance(is_v, bool):
+        return api_error(422, "invalid_value", "قيمة التوثيق مطلوبة (true / false)", "is_verified")
     try:
-        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
-        if rows:
-            conn.run("UPDATE profiles SET is_verified = :v WHERE user_id = :uid", v=is_v, uid=user_id)
-        else:
-            conn.run("INSERT INTO profiles (user_id, is_verified) VALUES (:uid, :v)", uid=user_id, v=is_v)
+        with db_conn() as conn:
+            if not conn.run("SELECT 1 FROM users WHERE id = :uid", uid=user_id):
+                return api_error(404, "not_found", "الحساب غير موجود")
+            set_user_verified(user_id, is_v, conn)
         return {"success": True}
     except Exception as e:
         raise _server_error("verify_user", e)
-    finally:
-        release_conn(conn)
 
 @app.put("/admin/user/{user_id}/password")
 def admin_reset_password(user_id: int, request: Request, data: dict = Body(...)):
     check_admin(request)
-    pw = data.get("password","").strip()
-    if not pw or len(pw) < 6:
-        raise HTTPException(400, "كلمة المرور قصيرة جداً")
+    pw = data.get("password")
+    err = _password_policy_error(pw)            # the one password rule (task 5.0c — #10)
+    if err:
+        return api_error(422, "weak_password", err, "password")
     try:
         # Same helper as PUT /auth/password → bumps session_version (user's sessions end)
         # and deletes the user's pending email tokens.
