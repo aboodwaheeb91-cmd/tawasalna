@@ -76,7 +76,9 @@ function shell(opts) {
       const method = (init && init.method) || 'GET';
       rec.requests.push([url, method, init && init.body]);
       const st = (method === 'GET' && opts.getStatus) || opts.status || 200;
-      return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(opts.json || {}),
+      // POST /admin/message answers like the server (task 5.3b2): {ok, data: {notification_id}}
+      const body = opts.json || (url === '/admin/message' && st < 300 ? { ok: true, data: { notification_id: 1 } } : {});
+      return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(body),
                                blob: () => Promise.resolve({ size: 3, type: 'text/csv' }) });
     },
   };
@@ -283,6 +285,13 @@ const tick = () => new Promise(r => setImmediate(r));
     const res = await s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS['profile.edit'], VCTX);
     check('E17 a failed write → no «done» toast (result checked first)', res && !res.ok
       && s.rec.toasts.every(t => t[1] !== 'success'), JSON.stringify(s.rec.toasts));
+  }
+  {
+    // 5.3b2: a 2xx reply without notification_id = the message did not arrive → no «done»
+    const s = view({ panel: PANEL, token: LIVE, confirmAnswer: true, json: { success: true } });
+    const res = await s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS['message.send'], VCTX);
+    check('E18 message.send: 200 without notification_id → not ok, no «done» toast', res && !res.ok
+      && s.rec.toasts.every(t => t[1] !== 'success') && s.rec.toasts.length === 1, JSON.stringify(s.rec.toasts));
   }
 
   console.log('\nF — side menu (desktop) · menu dialog (mobile) · search · health · chart (task 5.3a2)');
