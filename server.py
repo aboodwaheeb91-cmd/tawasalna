@@ -2825,7 +2825,7 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
         # Merged in a single UNION ALL (1 DB roundtrip).
         # Unique param names per branch (:vid_a/b, :lim_a/b, :q_a/b) guarantee
         # unambiguous pg8000 $N positional mapping across UNION branches.
-        # Avatar: profiles.avatar_url, else company_profiles.avatar_url (company logo).
+        # Avatar: profiles.avatar_url — the one image source for every account type (company logo included).
         q_like = f"%{q}%" if q else None
         q_a = " AND u.full_name ILIKE :q_a" if q else ""
         q_b = " AND u.full_name ILIKE :q_b" if q else ""
@@ -2834,18 +2834,16 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
         if q:
             params.update(q_a=q_like, q_b=q_like)
         _add(conn.run(
-            "(SELECT u.tw_id, u.full_name, COALESCE(p.avatar_url, cp.avatar_url), u.user_type"
+            "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
             " FROM profile_follows pf"
             " JOIN users u ON u.id = pf.followed_id"
             " LEFT JOIN profiles p ON p.user_id = u.id"
-            " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
             " WHERE pf.follower_id = :vid_a" + q_a + " LIMIT :lim_a)"
             " UNION ALL"
-            " (SELECT u.tw_id, u.full_name, COALESCE(p.avatar_url, cp.avatar_url), u.user_type"
+            " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
             " FROM profile_follows pf"
             " JOIN users u ON u.id = pf.follower_id"
             " LEFT JOIN profiles p ON p.user_id = u.id"
-            " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
             " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" + q_b + " LIMIT :lim_b)",
             **params))
         # Priority 4 — any matching user (only when q provided + space left)

@@ -34,6 +34,12 @@ NEW_ENDPOINTS = ("/admin/stats/summary", "/admin/stats/timeseries?metric=users&d
                  "/admin/activity", "/admin/audit", "/admin/users", "/admin/users/export")
 
 
+# every table auth.ensure_company_tables() creates (dropped so the real migration rebuilds them)
+_COMPANY_TABLES = ("company_post_comment_mentions", "company_post_comments", "company_post_saves",
+                   "company_post_appreciations", "company_post_views", "company_posts", "company_ratings",
+                   "company_profiles")
+
+
 def _sql(q, **kw):
     with auth.db_conn() as c:
         return c.run(q, **kw)
@@ -47,14 +53,16 @@ def env(monkeypatch):
         pytest.skip(f"test PostgreSQL unavailable: {e}")
     try:
         for t in ("admin_audit_log", "reports", "email_send_log", "messages", "kyc_submissions",
-                  "job_applications", "jobs", "company_profiles", "profiles", "users"):
+                  "job_applications", "jobs", "profile_follows", *_COMPANY_TABLES, "profiles", "users"):
             c.run(f"DROP TABLE IF EXISTS {t} CASCADE")
         c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, full_name TEXT, email TEXT, user_type TEXT DEFAULT 'emp', "
               "is_verified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW(), tw_id TEXT, "
               "password_hash TEXT DEFAULT 'HASH-SECRET', phone TEXT DEFAULT '0790000000')")
         c.run("CREATE TABLE profiles (id SERIAL PRIMARY KEY, user_id INTEGER, is_verified BOOLEAN DEFAULT FALSE, "
               "avatar_url TEXT)")
-        c.run("CREATE TABLE company_profiles (id SERIAL PRIMARY KEY, user_id INTEGER, avatar_url TEXT)")
+        # profile_follows — same columns as auth.init_db (needed by /mention/search)
+        c.run("CREATE TABLE profile_follows (id SERIAL PRIMARY KEY, follower_id INTEGER NOT NULL, "
+              "followed_id INTEGER NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())")
         c.run("CREATE TABLE jobs (id SERIAL PRIMARY KEY, company_id INTEGER, title TEXT, status TEXT DEFAULT 'active', "
               "created_at TIMESTAMP DEFAULT NOW(), expires_at TIMESTAMP, closed_at TIMESTAMP, "
               "archived_at TIMESTAMPTZ, admin_hidden_at TIMESTAMPTZ)")
@@ -72,6 +80,8 @@ def env(monkeypatch):
     finally:
         auth.release_conn(c)
     admin_insights.migrate_admin_audit_log()
+    auth.ensure_company_tables()   # company_profiles from the real migration — never a hand-made column (5.3a4)
+    assert _sql("SELECT to_regclass('company_profiles')")[0][0], "company_profiles migration failed"
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-53a2-" + "s" * 32)
     srv._rate_store.clear()
@@ -234,8 +244,10 @@ def _seed_users():
          "('شركة النور','info@noor.co','co', TRUE, 'C200', NOW() - INTERVAL '2 days'), "     # 2 verified (profile)
          "('=HYPERLINK(1)','evil@x.com','co', FALSE, 'C300', NOW() - INTERVAL '1 days'), "   # 3 verified (profile)
          "('معهد 100%','edu@x.com','edu', FALSE, 'T400', NOW())")                            # 4 unverified
-    _sql("INSERT INTO profiles (user_id, is_verified, avatar_url) VALUES (1, FALSE, 'https://cdn.x/a.png'), (2, TRUE, NULL), (3, TRUE, NULL)")
-    _sql("INSERT INTO company_profiles (user_id, avatar_url) VALUES (2, 'https://cdn.x/logo.png')")
+    # the company logo lives in profiles.avatar_url (company_profiles has no image column)
+    _sql("INSERT INTO profiles (user_id, is_verified, avatar_url) VALUES (1, FALSE, 'https://cdn.x/a.png'), "
+         "(2, TRUE, 'https://cdn.x/logo.png'), (3, TRUE, NULL)")
+    _sql("INSERT INTO company_profiles (user_id, industry) VALUES (2, 'tech')")
     _sql("INSERT INTO kyc_submissions (user_id, step) VALUES (1, 'review'), (4, 'rejected')")
 
 
@@ -278,6 +290,31 @@ def test_admin_users_fields_filters_search_pages():
                 {"page": "0"}, {"limit": "abc"}, {"q": "x" * 101}):
         assert client.get("/admin/users", params=bad, headers=h).status_code == 422, bad
     assert _sql("SELECT COUNT(*) FROM users")[0][0] == 4
+
+
+def test_admin_users_and_export_ok_with_company_row_and_logo():
+    # 5.3a4: a company with a company_profiles row + a logo in profiles → 200, the logo comes back
+    _seed_users()
+    h = _admin()
+    d = _users(h, type="co")
+    assert {u["id"]: u["avatar_url"] for u in d["items"]} == {2: "https://cdn.x/logo.png", 3: None}
+    r = client.get("/admin/users/export", params={"type": "co"}, headers=h)
+    assert r.status_code == 200 and "info@noor.co" in r.text
+
+
+def test_mention_search_returns_company_logo_from_profiles():
+    # 5.3a4: the follow branch of /mention/search used to fail on company_profiles.avatar_url → ok:false
+    _seed_users()
+    _sql("INSERT INTO profile_follows (follower_id, followed_id) VALUES (1, 2)")
+    h = {"Authorization": "Bearer " + srv._jwt_encode({"user_id": 1, "user_type": "emp"})}
+    r = client.get("/mention/search", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["candidates"] == [{"tw_id": "C200", "name": "شركة النور",
+                                   "avatar": "https://cdn.x/logo.png", "user_type": "co"}]
+    r = client.get("/mention/search", params={"q": "النور"}, headers=h)
+    assert r.json()["ok"] is True and [c["tw_id"] for c in r.json()["candidates"]] == ["C200"]
 
 
 def test_admin_users_export_csv_same_filters_and_audited():

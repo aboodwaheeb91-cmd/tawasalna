@@ -22,8 +22,8 @@ Users table (§25d — task 5.3a3) — read-only, check_admin:
   users_list()  = GET /admin/users         (search · type · verification · sort · page / limit ≤ USERS_PAGE_MAX)
   users_csv()   = GET /admin/users/export  (same filters, same columns minus the image — the export is
                   recorded in the audit log by the middleware: AUDIT_READ_ROUTES in server.py)
-  One SQL builder (_users_where) for both. Fields: id · tw_id · full_name · avatar_url (profiles, else the
-  company logo in company_profiles — the existing image source) · user_type · email · verification
+  One SQL builder (_users_where) for both. Fields: id · tw_id · full_name · avatar_url (profiles.avatar_url —
+  the one image source for every account type, company logo included) · user_type · email · verification
   (verified | pending | unverified) · created_at. Nothing else (no password hash, phone, tokens …).
 
 Jobs table (§25e — task 5.3j) — read-only, check_admin:
@@ -236,8 +236,7 @@ def activity(page: int = 1, limit: int = ACTIVITY_LIMIT) -> dict:
 # auth.set_user_verified); "pending" = not verified + a KYC submission in review.
 _VERIFIED_SQL = "COALESCE(p.is_verified, FALSE)"
 _PENDING_SQL = "EXISTS (SELECT 1 FROM kyc_submissions k WHERE k.user_id = u.id AND k.step = 'review')"
-_USERS_FROM = (" FROM users u LEFT JOIN profiles p ON p.user_id = u.id"
-               " LEFT JOIN company_profiles cp ON cp.user_id = u.id")
+_USERS_FROM = " FROM users u LEFT JOIN profiles p ON p.user_id = u.id"
 USERS_COLUMNS = ("id", "tw_id", "full_name", "avatar_url", "user_type", "email", "verification", "created_at")
 
 
@@ -268,7 +267,7 @@ def _users_where(q: str = "", user_type: str = "", verification: str = ""):
 def _users_rows(conn, where, params, sort, limit, offset):
     order = "ASC" if sort == "oldest" else "DESC"
     return conn.run(
-        "SELECT u.id, u.tw_id, u.full_name, COALESCE(NULLIF(p.avatar_url, ''), cp.avatar_url), u.user_type, u.email, "
+        "SELECT u.id, u.tw_id, u.full_name, NULLIF(p.avatar_url, ''), u.user_type, u.email, "
         "CASE WHEN " + _VERIFIED_SQL + " THEN 'verified' WHEN " + _PENDING_SQL + " THEN 'pending' ELSE 'unverified' END, "
         "u.created_at" + _USERS_FROM + where +
         f" ORDER BY u.created_at {order} NULLS LAST, u.id {order} LIMIT :lim OFFSET :off",
