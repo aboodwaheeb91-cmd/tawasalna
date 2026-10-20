@@ -2599,7 +2599,8 @@ def _fetch_accepted_professions_batch(conn, job_ids):
 
 def _fetch_applicant_counts_batch(conn, job_ids):
     """Batch-fetch job_applications counts for a list of job IDs.
-    Returns {job_id: int}. Never raises — returns {} on any error.
+    Returns {job_id: int} (a job with no applications is absent → 0). A read error is logged and
+    RAISED (task 5.0e) — a failed read must never show «0 applicants»; the caller's endpoint answers 500.
     """
     if not job_ids:
         return {}
@@ -2612,8 +2613,9 @@ def _fetch_applicant_counts_batch(conn, job_ids):
             **params
         )
         return {r[0]: int(r[1]) for r in (rows or [])}
-    except Exception:
-        return {}
+    except Exception as e:
+        print(f"[applicant_counts] read FAILED jobs={len(job_ids)}: {type(e).__name__}: {e}")
+        raise
 
 
 def _validate_accepted_profession_ids(conn, primary_pid, accepted_ids):

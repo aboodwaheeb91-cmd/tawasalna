@@ -29,6 +29,10 @@
       "labelKey": "settings.kyc.start", "icon": "shield-check", "type": "primary",
       "visibleTo": ["emp", "co", "edu"], "auth": true, "enabled": false
     },
+    "login_google": {
+      "labelKey": "login.google", "icon": "globe", "type": "secondary",
+      "visibleTo": ["guest"], "auth": false, "enabled": false
+    },
     "report": {
       "labelKey": "action.report", "icon": "report", "type": "ghost",
       "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
