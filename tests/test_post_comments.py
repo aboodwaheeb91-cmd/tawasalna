@@ -5397,8 +5397,8 @@ check(
 
 # ── server.py security (58–62) ────────────────────────────────────────────
 check(
-    "171-58. server.py: POST /api/appointments checks user_type == co",
-    "user_type" in _server171.split('@app.post("/api/appointments")')[1].split('@app.')[0]
+    "171-58. server.py: POST /api/appointments calls the company gate (current type — task 5.0f)",
+    '_require_org_account_api(token, ("co",)' in _server171.split('@app.post("/api/appointments")')[1].split('@app.')[0]
     if '@app.post("/api/appointments")' in _server171 else False
 )
 check(
@@ -5754,16 +5754,16 @@ check(
     '"count": len(result)' in _list_ep and '"total":' not in _list_ep
 )
 check(
-    "172-18. BUG13 fixed: /send endpoint has explicit user_type co guard",
-    'user_type' in _send_ep and '"co"' in _send_ep
+    "172-18. BUG13 fixed: /send endpoint calls the company gate (current type — task 5.0f)",
+    '_require_org_account(token, ("co",)' in _send_ep
 )
 check(
-    "172-19. /send endpoint raises 403 for non-company users",
-    'HTTPException(403' in _send_ep
+    "172-19. /send endpoint: 403 for non-company users comes from the gate (behaviour: tests/test_security_50f.py)",
+    '_require_org_account(' in _send_ep and 'def _require_org_account(' in _server172
 )
 check(
-    "172-20. create endpoint already has user_type co guard (pre-existing)",
-    'user_type' in (_server172.split('def api_create_appointment(')[1].split('\n@app.')[0]
+    "172-20. create endpoint calls the company gate (task 5.0f)",
+    '_require_org_account_api(' in (_server172.split('def api_create_appointment(')[1].split('\n@app.')[0]
                     if 'def api_create_appointment(' in _server172 else '')
 )
 
@@ -9080,7 +9080,7 @@ if _srv_sec2 is not None:
     import hmac as _hmac_sec2, hashlib as _hash_sec2
     import base64 as _b64_sec2, json as _json_sec2, time as _time_sec2
     _secret = _srv_sec2.JWT_SECRET
-    _payload = {"user_id": 42, "user_type": "emp",
+    _payload = {"sv": 0, "user_id": 42, "user_type": "emp",
                 "iat": int(_time_sec2.time()),
                 "exp": int(_time_sec2.time()) + 3600}
     _hdr = _b64_sec2.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()

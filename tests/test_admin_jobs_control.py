@@ -65,7 +65,7 @@ def env(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-53j2-" + "s" * 32)
     monkeypatch.setattr(srv, "JWT_SECRET", USER_SECRET)
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
     srv._pwd_changed_cache.clear()
     srv._rate_store.clear()
     auth._cache_del("jobs:")
@@ -93,7 +93,7 @@ def _user(ut="co"):
 
 
 def _h(uid, ut="co"):
-    return {"Authorization": "Bearer " + srv._jwt_encode({"user_id": uid, "user_type": ut, "tw_id": "X"})}
+    return {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": uid, "user_type": ut, "tw_id": "X"})}
 
 
 def _job(co, status="active", expires="NOW() + INTERVAL '5 days'", closed="NULL", paused="NULL", archived="NULL"):

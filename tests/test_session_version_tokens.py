@@ -4,7 +4,7 @@
    link issued before the password change → confirm = invalid_token, email unchanged.
 2. A JWT carrying sv is valid only while sv == users.session_version — even when it was issued
    in the same second as the change. The token returned by PUT /auth/password carries the new sv.
-   Old tokens without sv keep the iat check.
+   Old tokens without sv keep the iat check until server._NO_SV_REJECT_FROM (task 5.0f → 401 after).
 
 Real PostgreSQL (tables created here; Resend faked at the HTTP layer):
   TW_TEST_DB_URL=postgresql://user:pass@127.0.0.1:5432/db  (run_tests.sh sets it)
@@ -147,8 +147,9 @@ def test_same_second_token_dies_new_token_lives(env):
     assert _ok(_login(PW2)) == 200            # a new login carries the current sv
 
 
-def test_legacy_token_without_sv_keeps_iat_check(env):
+def test_legacy_token_without_sv_keeps_iat_check(env, monkeypatch):
     now = int(time.time())
+    monkeypatch.setattr(server, "_NO_SV_REJECT_FROM", now + 86400)   # compatibility window still open
     legacy_old = server._jwt_sign({"user_id": _uid(), "user_type": "emp", "iat": now - 60,
                                    "exp": now + 3600}, server.JWT_SECRET)
     assert _ok(legacy_old) == 200             # no password change yet → still valid
@@ -158,3 +159,5 @@ def test_legacy_token_without_sv_keeps_iat_check(env):
     legacy_new = server._jwt_sign({"user_id": _uid(), "user_type": "emp", "iat": now + 5,
                                    "exp": now + 3600}, server.JWT_SECRET)
     assert _ok(legacy_new) == 200
+    monkeypatch.setattr(server, "_NO_SV_REJECT_FROM", now - 1)       # task 5.0f — window closed
+    assert _ok(legacy_new) == 401

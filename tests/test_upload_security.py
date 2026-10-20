@@ -31,7 +31,7 @@ def durl(mime, raw):
 
 
 def auth(uid=7):
-    return {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": "emp"})}
+    return {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": "emp"})}
 
 
 class FakeStorage:
@@ -184,7 +184,7 @@ def db(monkeypatch):
 
 
 def put_profile(body, uid=7, utype="emp"):
-    h = {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": utype})}
+    h = {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": utype})}
     return client.put(f"/profile/{uid}", json=body, headers=h)
 
 
@@ -219,7 +219,7 @@ def test_company_logo_and_cover(db):
     logo = f"{SB}/avatars/9_company-logo_abcdef012345.png"
     assert put_profile({"avatar_url": logo}, uid=9, utype="co").status_code == 200
     assert put_profile({"avatar_url": GOOD_AVATAR}, uid=9, utype="co").status_code == 400
-    h = {"Authorization": "Bearer " + server._jwt_encode({"user_id": 9, "user_type": "co"})}
+    h = {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": 9, "user_type": "co"})}
     cover = f"{SB}/avatars/9_company-cover_abcdef012345.jpg"
     assert client.put("/company/cover/9", json={"cover_url": cover}, headers=h).status_code == 200
     assert client.put("/company/cover/9", json={"cover_url": "https://evil.example/c.jpg"}, headers=h).status_code == 400

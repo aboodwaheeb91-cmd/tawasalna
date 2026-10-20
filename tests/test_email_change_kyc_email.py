@@ -87,7 +87,7 @@ def _uid(email=OLD):
 
 
 def _hdr(uid):
-    return {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": "emp", "tw_id": ""})}
+    return {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": "emp", "tw_id": ""})}
 
 
 def _request(new=NEW, pw=PW, uid=None):

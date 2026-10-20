@@ -54,9 +54,9 @@
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Backend framework | FastAPI | 0.111.0 |
+| Backend framework | FastAPI (Starlette 0.50.0 pinned — task 5.0f) | 0.121.3 |
 | ASGI server | Uvicorn | 0.30.1 |
-| Database | PostgreSQL via Supabase (pg8000) | pg8000 1.31.2 |
+| Database | PostgreSQL via Supabase (pg8000) | pg8000 1.31.5 |
 | Password hashing | bcrypt | 4.1.3 |
 | Frontend | Vanilla HTML/CSS/JS | — |
 | Font | Google Cairo | — |
@@ -450,7 +450,8 @@ These rules are permanent and apply to all future AI sessions.
 1. **كل migration بيشتغل عند الـ startup مسجّل بـ `_startup_migrations()` في `server.py`** كـ `(name, fn, critical)` — بالترتيب (الاعتماديات أولاً). `on_startup` بيستدعي `_run_startup_migrations()` بس. ❌ `try: _migrate_x() except: print(...)` جوّا `on_startup`.
 2. **حرجة (`True`)** = الكود بيقرأ هالـ schema بمسار أساسي (auth / profiles / jobs / applications / pipeline / appointments / notifications / scheduler) أو migration حرجة بعدها بتعتمد عليها → فشلها **بيوقف التشغيل**. **اختيارية (`False`)** = ميزة وحدة أو أداء بس → فشلها بيتسجّل وبيضل الموقع شغّال.
 3. **الحالة بـ `/health` → `migrations: {name: "ok" | "failed"}`** — بدون تفاصيل الخطأ (التفاصيل بالـ log بس). أي `failed` → `status: "degraded"`.
-4. **دالة الـ migration ما بتبلع خطأها** (`except: pass` ممنوع جوّاها) — بترفعه للـ runner. UNIQUE على بيانات قديمة: احذف المكرر (بيضل الأقدم) ثم `CREATE UNIQUE INDEX IF NOT EXISTS` بنفس الـ transaction (مثال: `_ensure_user_unique_index` بـ `auth.py`). ❌ `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح).
+4. **أمان القاعدة + migration لمرة وحدة (task 5.0f — SYSTEMS_INDEX §54k):** `rls_lockdown` (حرجة، آخر وحدة بالقائمة) بتفعّل RLS على كل جدول بـ `public` وبتسحب كل صلاحيات `anon` / `authenticated` (جداول + sequences + default privileges) — التطبيق بيتصل بالدور اللي بيملك الجداول فما بيتأثر. migration بيانات لازم تشتغل مرة وحدة بس → `auth._migration_claim_once(conn, name)` (علامة بجدول `app_migrations` بنفس الـ transaction). ❌ `FORCE ROW LEVEL SECURITY` · ❌ `GRANT` لـ `anon` / `authenticated` · ❌ migration بيانات بتنعاد بكل تشغيل.
+5. **دالة الـ migration ما بتبلع خطأها** (`except: pass` ممنوع جوّاها) — بترفعه للـ runner. UNIQUE على بيانات قديمة: احذف المكرر (بيضل الأقدم) ثم `CREATE UNIQUE INDEX IF NOT EXISTS` بنفس الـ transaction (مثال: `_ensure_user_unique_index` بـ `auth.py`). ❌ `ADD CONSTRAINT IF NOT EXISTS` (مش PostgreSQL صالح).
 - Spec: SYSTEMS_INDEX §54f · test `python -m pytest tests/test_pr2b_flow_fixes.py -q`.
 
 ---
@@ -520,7 +521,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |
-| Authentication System (Password · tw_id / User ID Format · Session Management · Admin Authentication) | `docs/rules/auth-identity.md` |
+| Authentication System (Password · tw_id / User ID Format · Session Management · Admin Authentication · Organisation Account Gate — كل إجراء شركة عبر `_require_org_account` بنوع الحساب الحالي من القاعدة (task 5.0f)) | `docs/rules/auth-identity.md` |
 | Development Guidelines for AI Assistants (incl. WebSocket / real-time contract) | `docs/rules/dev-guidelines.md` |
 | Pre-PR System Registry Check · Rule Index First | `docs/rules/system-registry.md` |
 | AI Usage Budget — Minimal Execution | `docs/rules/ai-usage-budget.md` |

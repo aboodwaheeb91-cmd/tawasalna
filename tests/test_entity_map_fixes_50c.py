@@ -51,7 +51,7 @@ def _doc(uid):
 
 
 def _bearer(uid, utype="emp"):
-    return {"Authorization": "Bearer " + srv._jwt_encode({"user_id": uid, "user_type": utype})}
+    return {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": uid, "user_type": utype})}
 
 
 @pytest.fixture(autouse=True)

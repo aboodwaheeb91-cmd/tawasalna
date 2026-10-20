@@ -54,7 +54,7 @@ server.set_user_password = _fake_set_password
 server._pwd_changed_cache.clear()
 
 now = int(time.time())
-old_jwt = server._jwt_sign({"user_id": UID, "user_type": "emp", "tw_id": "U1",
+old_jwt = server._jwt_sign({"sv": 0, "user_id": UID, "user_type": "emp", "tw_id": "U1",
                             "iat": now - 60, "exp": now + 3600}, server.JWT_SECRET)
 
 client = TestClient(server.app)

@@ -221,9 +221,9 @@ def test_token_expires_after_30_minutes(fake, db):
 def test_reset_revokes_sessions_and_notifies(fake, db, monkeypatch):
     uid = _sql("SELECT id FROM users WHERE email = :e", e=EMAIL)[0][0]
     now = int(time.time())
-    old_jwt = server._jwt_sign({"user_id": uid, "user_type": "emp", "iat": now - 120, "exp": now + 3600},
+    old_jwt = server._jwt_sign({"sv": 0, "user_id": uid, "user_type": "emp", "iat": now - 120, "exp": now + 3600},
                                server.JWT_SECRET)
-    _sql("UPDATE users SET password_changed_at = NULL")
+    _sql("UPDATE users SET password_changed_at = NULL, session_version = 0")
     server._pwd_changed_cache.clear()
     assert server._jwt_decode(old_jwt)                                   # valid before the reset
     revoked = []

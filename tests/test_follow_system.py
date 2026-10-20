@@ -33,7 +33,7 @@ _DB_URL = os.environ.get("TW_TEST_DB_URL", "").strip()
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
     srv._pwd_changed_cache.clear()
     yield
 
@@ -66,7 +66,7 @@ def _user(conn, ut="emp"):
 
 
 def _h(uid, ut="emp"):
-    return {"Authorization": "Bearer " + srv._jwt_encode({"user_id": uid, "user_type": ut, "tw_id": "X"})}
+    return {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": uid, "user_type": ut, "tw_id": "X"})}
 
 
 def _pf(conn, follower, followed):

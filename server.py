@@ -129,6 +129,7 @@ from auth import (
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table,
     set_user_verified, KycStateError, REPORT_TARGET_TYPES, _migrate_reports_targets, _migrate_verified_source,
+    get_current_user_type, _migrate_rls_lockdown,
     send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, mark_notification_read,
     get_unread_notifications, _migrate_notifications_schema_v2,
@@ -264,13 +265,15 @@ def _jwt_decode(token: str) -> dict:
 # users.session_version (bumped by set_user_password) + users.password_changed_at.
 # A user JWT carrying claim sv is valid only while sv == the current session_version
 # (no clock involved — a token issued in the same second as the change dies too).
-# Older JWTs without sv keep the PR 1.8 check (iat earlier than the change second → rejected)
-# until they expire — nobody is logged out by the rollout.
+# Older JWTs without sv kept the PR 1.8 check (iat earlier than the change second → rejected)
+# until they expired (issued ≤ 2026-10-15 + 7 days); from _NO_SV_REJECT_FROM a token without sv
+# is rejected outright (task 5.0f). A token of an account that no longer exists → rejected.
 # Read through a short in-memory cache (no DB query per request); every password-change path
 # refreshes the entry immediately. Other worker processes (if any) pick the change up within
 # _PWD_CHANGED_TTL.
 _PWD_CHANGED_TTL = 60.0  # seconds
 _pwd_changed_cache: dict = {}   # user_id → ({changed, sv} | None, cached_at monotonic)
+_NO_SV_REJECT_FROM = 1792713600   # 2026-10-23T00:00:00Z — every pre-5.0b token has expired by then
 
 def _session_state(user_id: int):
     import time
@@ -280,7 +283,8 @@ def _session_state(user_id: int):
         return hit[0]
     from auth import get_session_state
     value = get_session_state(user_id)   # raises on DB error — not cached
-    _pwd_changed_cache[user_id] = (value, now)
+    if value is not None:                # no such user → not cached: checked in the DB every time (5.0f)
+        _pwd_changed_cache[user_id] = (value, now)
     return value
 
 def _password_changed_cache_set(user_id: int, state) -> None:
@@ -298,11 +302,14 @@ def _end_user_sessions(user_id: int, state, reason: str) -> None:
     _ws_revoke_user(user_id, reason)
 
 def _jwt_revoked_by_password_change(payload: dict) -> bool:
+    import time
     uid = payload.get("user_id")
     try:
         uid = int(uid)
     except (TypeError, ValueError):
         return False
+    if "sv" not in payload and time.time() >= _NO_SV_REJECT_FROM:
+        return True   # pre-5.0b token — the compatibility path is closed (task 5.0f)
     try:
         state = _session_state(uid)
     except Exception as e:
@@ -311,7 +318,7 @@ def _jwt_revoked_by_password_change(payload: dict) -> bool:
         print(f"[session-invalidation] session state lookup failed user={uid}: {e}")
         return False
     if state is None:
-        return False
+        return True   # account deleted — its tokens die with it (task 5.0f); DB down is handled above
     if "sv" in payload:
         sv = payload.get("sv")
         if not isinstance(sv, int) or isinstance(sv, bool):
@@ -839,6 +846,7 @@ def _startup_migrations():
         ("admin_audit_log",                   admin_insights.migrate_admin_audit_log, True),
         ("reports_targets",                   _migrate_reports_targets,            False),
         ("verified_source",                   _migrate_verified_source,            False),
+        ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
 
@@ -2580,13 +2588,10 @@ def company_posts_list(company_id: str, request: Request):
 @app.post("/company/posts")
 def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
     user_id   = token.get("user_id")
-    user_type = token.get("user_type")
     if not user_id:
         print("[SECURITY] INVALID_TOKEN: POST /company/posts")
         raise HTTPException(401, "رمز غير صالح")
-    if user_type not in ("co", "edu"):
-        print(f"[SECURITY] POST_FORBIDDEN: user_type={user_type} tried create post")
-        raise HTTPException(403, "الشركات فقط يمكنها النشر")
+    _require_org_account(token, message="الشركات فقط يمكنها النشر")
     body = (data.body or "").strip()
     if not body:
         raise HTTPException(400, "المنشور فارغ")
@@ -2603,6 +2608,7 @@ def company_post_delete(post_id: int, token=Depends(verify_token)):
     if not user_id:
         print("[SECURITY] INVALID_TOKEN: DELETE /company/posts")
         raise HTTPException(401, "رمز غير صالح")
+    _require_org_account(token)
     owner = get_post_owner(post_id)
     if owner is None:
         raise HTTPException(404, "المنشور غير موجود")
@@ -2620,6 +2626,7 @@ def company_post_update(post_id: int, data: CompanyPostUpdateInput, token=Depend
     if not user_id:
         print("[SECURITY] INVALID_TOKEN: PATCH /company/posts")
         raise HTTPException(401, "رمز غير صالح")
+    _require_org_account(token)
     owner = get_post_owner(post_id)
     if owner is None:
         raise HTTPException(404, "المنشور غير موجود")
@@ -2865,19 +2872,46 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     return {"ok": True, "candidates": results}
 
 
+# ── Organisation-account gate (task 5.0f — AUD-P1-07) ──────────────────────
+# Every company action (applicants, application status, promote, appointments, Talent Bank,
+# company posts) checks the account type as it is NOW in users — not the JWT claim, not job
+# ownership alone. A company turned personal account → 403 on all of them.
+_ORG_TYPES = ("co", "edu")
+
+def _require_org_account(token: dict, allowed=_ORG_TYPES,
+                         message: str = "هذه العملية متاحة لحسابات الشركات والجهات التعليمية فقط") -> int:
+    """JWT user_id → int after checking users.user_type ∈ allowed. No user → 401 · other type → 403."""
+    try:
+        user_id = int(token.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(401, "رمز غير صالح")
+    try:
+        current = get_current_user_type(user_id)
+    except Exception as e:
+        raise _server_error("require_org_account", e)
+    if current is None:
+        raise HTTPException(401, "رمز غير صالح")
+    if current not in allowed:
+        print(f"[SECURITY] ORG_ACCOUNT_REQUIRED: user={user_id} type={current} allowed={allowed}")
+        raise HTTPException(403, message)
+    return user_id
+
+def _require_org_account_api(token: dict, allowed, message: str):
+    """Same gate for {ok, error} endpoints (API Contract) → (user_id, None) | (None, api_error response)."""
+    try:
+        return _require_org_account(token, allowed, message), None
+    except HTTPException as e:
+        if e.status_code >= 500:
+            raise
+        code = "forbidden" if e.status_code == 403 else "unauthorized"
+        return None, api_error(e.status_code, code, e.detail)
+
+
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
 
 def _require_company_owner(token: dict) -> int:
-    """Extract and validate company owner from JWT. Returns company_id (int)."""
-    user_id   = token.get("user_id")
-    user_type = token.get("user_type")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: saved-candidates")
-        raise HTTPException(401, "رمز غير صالح")
-    if user_type != "co":
-        print(f"[SECURITY] SAVED_CANDS_FORBIDDEN: user_type={user_type}")
-        raise HTTPException(403, "الشركات فقط يمكنها الوصول للمرشحين المحفوظين")
-    return int(user_id)
+    """Talent Bank / suggestions gate — company accounts only (current type from the DB). Returns company_id."""
+    return _require_org_account(token, ("co",), "الشركات فقط يمكنها الوصول للمرشحين المحفوظين")
 
 
 @app.get("/company/saved-candidates")
@@ -5962,6 +5996,7 @@ def job_applicants(
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
         raise HTTPException(401, "رمز غير صالح")
+    _require_org_account(token)
 
     # ── Validation ────────────────────────────────────────────────────────────
     if view not in ("", "applicants", "candidates"):
@@ -6040,6 +6075,7 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: PUT /jobs/applications/{app_id}/status")
         raise HTTPException(401, "رمز غير صالح")
+    _require_org_account(token)
     allowed_statuses = {"pending", "viewed", "accepted", "contacted", "interview", "hired", "rejected"}
     if data.status not in allowed_statuses:
         raise HTTPException(400, f"حالة غير صالحة. المسموح: {', '.join(sorted(allowed_statuses))}")
@@ -6068,6 +6104,7 @@ def promote_applicant(app_id: int, token=Depends(verify_token)):
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: POST /jobs/applications/{app_id}/promote")
         raise HTTPException(401, "رمز غير صالح")
+    _require_org_account(token)
     try:
         return promote_application_to_shortlist(app_id, int(user_id))
     except KeyError as e:
@@ -6356,6 +6393,7 @@ def delete_own_account(user_id: int, data: AccountDeleteInput, token=Depends(ver
     finally:
         release_conn(conn)
     _cache_del('profile:' + str(user_id))
+    _pwd_changed_cache.pop(user_id, None)   # next request reads the DB → no user → 401 (task 5.0f)
     _ws_revoke_user(user_id, "account_deleted")
     print(f"[DELETE account] deleted user={user_id}")
     return {"ok": True, "success": True}
@@ -6369,6 +6407,7 @@ def delete_user(user_id: int, request: Request):
         if not rows:
             raise HTTPException(404, "المستخدم غير موجود")
         conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
+        _pwd_changed_cache.pop(user_id, None)   # next request reads the DB → no user → 401 (task 5.0f)
         _ws_revoke_user(user_id, "admin_deleted")
         return {"success": True, "message": "تم حذف الحساب"}
     except HTTPException:
@@ -6741,9 +6780,9 @@ def api_create_appointment(body: AppointmentCreateInput,
     company_id always derived from JWT. Contract (PR 3.10): {ok, data} /
     {ok:false, error:{code, message}} — every caller goes through twApi (tw-schedule.js).
     """
-    user_id = int(token["user_id"])
-    if token.get("user_type") != "co":
-        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+    user_id, denied = _require_org_account_api(token, ("co",), "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+    if denied:
+        return denied
 
     # Path A: application_id only · Path B: candidate_id + job_id only
     _app_set  = body.application_id is not None
@@ -6799,8 +6838,9 @@ def api_create_appointment(body: AppointmentCreateInput,
 @app.get("/api/schedule/jobs")
 def api_jobs_for_scheduling(token=Depends(verify_token)):
     """The company's active jobs for the scheduling job picker → {ok, data:[{id, title}]}."""
-    if token.get("user_type") != "co":
-        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    _, denied = _require_org_account_api(token, ("co",), "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    if denied:
+        return denied
     try:
         return api_ok(list_jobs_for_scheduling(int(token["user_id"])))
     except Exception as e:
@@ -6813,8 +6853,9 @@ def api_schedule_open(candidate_ids: str = Query("", max_length=600),
                       token=Depends(verify_token)):
     """Open appointment per person (for «فتح الموعد») → {ok, data:{"<uid>": appt | null}}.
     candidate_ids = comma-separated ids (max 50); job_id → that job only."""
-    if token.get("user_type") != "co":
-        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    _, denied = _require_org_account_api(token, ("co",), "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    if denied:
+        return denied
     parts = [p.strip() for p in candidate_ids.split(",") if p.strip()]
     if not parts or len(parts) > 50 or not all(p.isascii() and p.isdigit() and len(p) <= 18 for p in parts):
         return api_error(400, "invalid", "قائمة الأشخاص غير صالحة", field="candidate_ids")
@@ -6830,8 +6871,9 @@ def api_schedule_people(q: str = Query("", max_length=100),
                         token=Depends(verify_token)):
     """Name search among the company's applicants, candidates and Talent Bank (emp only)
     → {ok, data:[{id, full_name, tw_id, avatar_url, sources}]}."""
-    if token.get("user_type") != "co":
-        return api_error(403, "forbidden", "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    _, denied = _require_org_account_api(token, ("co",), "فقط حسابات الشركات يمكنها تحديد المواعيد")
+    if denied:
+        return denied
     try:
         return api_ok(search_schedule_people(int(token["user_id"]), q))
     except Exception as e:
@@ -6870,9 +6912,7 @@ def api_get_appointment_room(appointment_id: int, token=Depends(verify_token)):
 @app.post("/api/appointments/{appointment_id}/send")
 def api_send_appointment(appointment_id: int, body: AppointmentSendInput,
                           token=Depends(verify_token)):
-    user_id = int(token["user_id"])
-    if token.get("user_type") != "co":
-        raise HTTPException(403, "فقط حسابات الشركات يمكنها إرسال دعوات المقابلة")
+    user_id = _require_org_account(token, ("co",), "فقط حسابات الشركات يمكنها إرسال دعوات المقابلة")
     try:
         appt = send_appointment(
             appointment_id=appointment_id,
@@ -6930,7 +6970,7 @@ def api_request_reschedule(appointment_id: int, body: CancelInput,
 @app.post("/api/appointments/{appointment_id}/reschedule")
 def api_reschedule_appointment(appointment_id: int, body: RescheduleInput,
                                 token=Depends(verify_token)):
-    user_id = int(token["user_id"])
+    user_id = _require_org_account(token, ("co",), "فقط حسابات الشركات يمكنها إدارة المقابلة")
     try:
         appt = reschedule_appointment(
             appointment_id=appointment_id,
@@ -6969,7 +7009,7 @@ def api_cancel_appointment(appointment_id: int, body: CancelInput,
 
 @app.post("/api/appointments/{appointment_id}/complete")
 def api_complete_appointment(appointment_id: int, token=Depends(verify_token)):
-    user_id = int(token["user_id"])
+    user_id = _require_org_account(token, ("co",), "فقط حسابات الشركات يمكنها إدارة المقابلة")
     try:
         appt = complete_appointment(appointment_id, user_id)
         return {"ok": True, "data": appt}
@@ -6984,7 +7024,7 @@ def api_complete_appointment(appointment_id: int, token=Depends(verify_token)):
 
 @app.post("/api/appointments/{appointment_id}/close")
 def api_close_appointment(appointment_id: int, token=Depends(verify_token)):
-    user_id = int(token["user_id"])
+    user_id = _require_org_account(token, ("co",), "فقط حسابات الشركات يمكنها إدارة المقابلة")
     try:
         appt = close_appointment(appointment_id, user_id)
         return {"ok": True, "data": appt}
