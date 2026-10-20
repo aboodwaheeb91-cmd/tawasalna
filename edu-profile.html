@@ -157,6 +157,7 @@ function _isCurrentEduOwner() {
   return !_urlId || String(_snap.userId) === String(_urlId);
 }
 
+var _eduMsgSeq = 0;
 // Owner «تعديل الملف» / visitor «مراسلة» — visibility + guest → login are twAction's (BTN-19)
 function _renderEduActions() {
   var ownerEl   = document.getElementById('ownerActions');
@@ -167,8 +168,13 @@ function _renderEduActions() {
     var edit = twAction('edit_profile', { mode: 'owner', onClick: openEditModal });
     if (edit) ownerEl.appendChild(edit);
   } else if (_data.twId) {
-    var msg = twAction('message', { ownerId: _urlId, onClick: openContact });
-    if (msg) visitorEl.appendChild(msg);
+    // «مراسلة» only when the server rule allows it (twCanMessage — task 5.0g)
+    var seq = ++_eduMsgSeq;
+    twCanMessage(_urlId).then(function (st) {
+      if (seq !== _eduMsgSeq || _isOwner) return;   // a newer render won
+      var msg = twAction('message', { ownerId: _urlId, canMessage: st.can_message, onClick: openContact });
+      if (msg) visitorEl.appendChild(msg);
+    });
   }
 }
 

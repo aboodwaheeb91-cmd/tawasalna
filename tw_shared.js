@@ -779,6 +779,8 @@ function _twActAudience(ctx) {
   return (snap && snap.isAuthenticated && snap.userType) || 'guest';
 }
 
+var _TW_ACT_VISIBLE_WHEN = { can_message: 'canMessage', can_end: 'canEnd' };   // registry key → ctx flag
+
 function twActionState(id, ctx) {
   ctx = ctx || {};
   var d = _twActDef(id);
@@ -787,6 +789,9 @@ function twActionState(id, ctx) {
   if ((d.visibleTo || []).indexOf(who) === -1) return 'hidden';
   if (d.targets && d.targets.indexOf(ctx.targetType) === -1) return 'hidden';
   if (who === 'guest' && d.auth) return 'login';
+  // visibleWhen (task 5.0g): the server decided (twCanMessage) — no flag = hidden (fail closed)
+  var vw = d.visibleWhen || [];
+  for (var i = 0; i < vw.length; i++) if (ctx[_TW_ACT_VISIBLE_WHEN[vw[i]]] !== true) return 'hidden';
   if (ctx.disabled) return 'disabled';
   if ((d.enabledWhen || []).indexOf('verified') !== -1 && ctx.verified !== true) return 'disabled';
   return 'enabled';
@@ -838,6 +843,23 @@ function twAction(id, ctx) {
   return el;
 }
 window.twAction = twAction;
+
+// ══ Conversation Policy — twCanMessage (task 5.0g · docs/rules/messenger.md) ══
+// The ONE client read of the server rule (auth.can_send_message) — GET /messages/can-send/{id}.
+// Resolves {can_message, reason, reason_key (twT), ended, can_end}; never rejects (guest / error → all false).
+// Pages pass canMessage / canEnd to twAction('message' | 'end_conversation') — ❌ own rules.
+function twCanMessage(otherId) {
+  var no = { can_message: false, reason: null, reason_key: null, ended: false, can_end: false };
+  var snap = (window.TwAuthSync && typeof TwAuthSync.getSessionSnapshot === 'function')
+    ? TwAuthSync.getSessionSnapshot() : null;
+  if (!snap || !snap.isAuthenticated || otherId == null || String(otherId) === String(snap.userId)) {
+    return Promise.resolve(no);
+  }
+  return twApi('/messages/can-send/' + encodeURIComponent(otherId)).then(function (res) {
+    return (res.ok && res.data) ? res.data : no;
+  });
+}
+window.twCanMessage = twCanMessage;
 
 // ══ Report dialog — twReportDialog (Reports System SYSTEMS_INDEX §24 · PR 4.2a) ══
 // The ONE report form for every page: twAction('report', { onClick: function () {

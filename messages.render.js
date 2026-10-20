@@ -307,6 +307,54 @@ function _renderChatSchedule(otherId, name, type) {
   if (btn) slot.appendChild(btn);
 }
 
+// ── Conversation Policy (task 5.0g) ───────────────────────────────────────
+// The server rule (GET /messages/can-send) decides: composer or the reason in its place, and the
+// company's «إنهاء المحادثة» (twAction 'end_conversation' — confirm from the registry).
+// Composer stays hidden until the answer arrives (fail closed). Tied to conversation + _threadSeq.
+function _renderConvPolicy(otherId, st) {
+  var chatInput = document.getElementById('chatInput');
+  var locked    = document.getElementById('chatLocked');
+  var endSlot   = document.getElementById('chatEndSlot');
+  var allowed   = !!(st && st.can_message);
+  if (chatInput) chatInput.hidden = !allowed;
+  if (locked) {
+    locked.hidden = allowed || !st;
+    locked.textContent = (!allowed && st) ? twT(st.reason_key || 'msg.policy.forbidden') : '';
+  }
+  if (!endSlot) return;
+  endSlot.innerHTML = '';
+  if (!st || !otherId) return;
+  var type = (_activeConvMeta && _activeConvMeta.type) || 'emp';
+  var btn = twAction('end_conversation', {
+    targetType: type, canEnd: st.can_end === true,
+    onClick: function() { _endConversation(otherId); }
+  });
+  if (btn) endSlot.appendChild(btn);
+}
+
+function _loadConvPolicy(otherId) {
+  var seq = _threadSeq;
+  return apiCanSend(otherId).then(function(st) {
+    if (seq !== _threadSeq || _currentConvId !== otherId) return;   // stale response
+    _renderConvPolicy(otherId, st);
+  }).catch(function(status) {
+    if (seq !== _threadSeq || _currentConvId !== otherId) return;
+    console.error('[messages] can-send failed, status:', status);
+    _renderConvPolicy(otherId, null);
+    showToast(twT('msg.thread_error'), 'error');
+  });
+}
+
+function _endConversation(otherId) {
+  apiEndConversation(otherId).then(function() {
+    showToast(twT('msg.ended_ok'), 'success');
+    if (_currentConvId === otherId) _loadConvPolicy(otherId);
+  }).catch(function(status) {
+    console.error('[messages] end failed, status:', status);
+    showToast(twT('msg.end_failed'), 'error');
+  });
+}
+
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
 function openConversation(otherId, name, type, avatarUrl, headline, twId) {
@@ -370,9 +418,8 @@ function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   // Schedule Interview (PR 3.10 — shared tw-schedule.js): only for a company talking to an emp
   _renderChatSchedule(otherId, name, type);
 
-  // Show composer — only visible when a conversation is active
-  var chatInput = document.getElementById('chatInput');
-  if (chatInput) chatInput.hidden = false;
+  // Composer: hidden until the Conversation Policy answers (_loadConvPolicy below)
+  _renderConvPolicy(null, null);
 
   var convListEl = document.getElementById('convList');
   if (convListEl) convListEl.classList.remove('mobile-show');
@@ -381,6 +428,7 @@ function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   msgArea.innerHTML = threadNoteHtml('msg.loading');
 
   var seq = ++_threadSeq;
+  _loadConvPolicy(otherId);
   apiGetMessages(otherId).then(function(data) {
     if (seq !== _threadSeq || _currentConvId !== otherId) return;   // stale response
     var list = data.messages || [];
@@ -465,7 +513,9 @@ function doSendMessage() {
       if (el) { el.classList.remove('is-pending'); el.classList.add('msg-failed'); }
       var st = document.getElementById(pid + 'st');
       if (st) { st.className = 'msg-status failed'; st.textContent = '✗'; }
-      showToast(twT('msg.send_failed'), 'error');
+      // 403 = the Conversation Policy refused (e.g. the company ended it) → show the reason in place
+      if (status === 403 && _currentConvId === sendConvId) _loadConvPolicy(sendConvId);
+      else showToast(twT('msg.send_failed'), 'error');
       var inp = document.getElementById('msgInput');
       // Give the text back only if the user is still in the same conversation
       if (inp && _currentConvId === sendConvId) {
@@ -577,6 +627,7 @@ function closeConversationUI() {
   var statusEl = document.getElementById('chatStatus');
   if (statusEl) statusEl.textContent = '';
 
+  _renderConvPolicy(null, null);   // composer + reason + «إنهاء المحادثة» cleared
   var chatInput = document.getElementById('chatInput');
   if (chatInput) chatInput.hidden = true;
   var msgArea = document.getElementById('messages');

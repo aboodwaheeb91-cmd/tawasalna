@@ -1,5 +1,5 @@
 {
-  "_doc": "Actions Registry (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60). One entry per action id. Validated by tw_actions.py at server start; delivered to pages as window.TW_ACTIONS (with admin overrides) at <!--tw:strings-->; rendered only by twAction(id, ctx) in tw_shared.js.",
+  "_doc": "Actions Registry (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60). One entry per action id. visibleWhen = server decision the page passes as a ctx flag (can_message → ctx.canMessage · can_end → ctx.canEnd — task 5.0g). Validated by tw_actions.py at server start; delivered to pages as window.TW_ACTIONS (with admin overrides) at <!--tw:strings-->; rendered only by twAction(id, ctx) in tw_shared.js.",
   "actions": {
     "schedule": {
       "labelKey": "action.schedule", "icon": "calendar", "type": "primary",
@@ -19,7 +19,13 @@
     },
     "message": {
       "labelKey": "action.message", "icon": "messages", "type": "secondary",
-      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
+      "visibleTo": ["guest", "emp", "co", "edu"], "auth": true, "visibleWhen": ["can_message"]
+    },
+    "end_conversation": {
+      "labelKey": "msg.end", "icon": "lock", "type": "danger",
+      "visibleTo": ["co"], "targets": ["emp"], "auth": true, "visibleWhen": ["can_end"],
+      "confirm": { "titleKey": "msg.end_title", "messageKey": "msg.end_msg",
+                   "confirmKey": "msg.end", "danger": true }
     },
     "edit_profile": {
       "labelKey": "action.edit_profile", "icon": "edit", "type": "secondary",
