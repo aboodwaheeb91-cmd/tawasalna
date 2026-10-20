@@ -4288,17 +4288,160 @@ def get_all_kyc_submissions() -> list:
         release_conn(conn)
 
 
+# ══ Conversation Policy (task 5.0g — docs/rules/messenger.md) ══
+# can_send_message() is the ONE rule for who may send a direct message to whom. Facts come
+# from the DB (users.user_type · messages history · profile_follows · conversation_endings),
+# never from the JWT. Every send path checks it in the SAME transaction as the INSERT, under
+# a per-pair advisory lock (_MESSAGE_PAIR_LOCK_SQL) shared with end_conversation(), so a send
+# and an end (or two sends) on one pair are serialised.
+#   existing conversation (any earlier message, either direction) → open for both sides,
+#       unless the company ended it: then only the company sends (its first message re-opens).
+#   new conversation: co / edu → anyone · emp → edu · emp → emp only with mutual follow ·
+#       emp → co never (the company starts).
+
+class MessagePolicyError(Exception):
+    """Send / end refused. code = MESSAGE_POLICY_REASONS key; status = HTTP status."""
+    def __init__(self, code: str, status: int = 403):
+        super().__init__(code)
+        self.code = code
+        self.status = status
+
+
+# reason code → twT key (tw_strings.json) — the server sends the merged text, the page the key
+MESSAGE_POLICY_REASONS = {
+    "company_start": "msg.policy.company_start",
+    "mutual_follow": "msg.policy.mutual_follow",
+    "ended":         "msg.policy.ended",
+    "forbidden":     "msg.policy.forbidden",
+    "not_found":     "msg.policy.not_found",
+    "end_forbidden": "msg.policy.end_forbidden",
+    "no_conversation": "msg.policy.no_conversation",
+}
+
+# One facts query for both drivers — {s} / {r} become :s / :r (pg8000) or $1 / $2 (asyncpg).
+_MESSAGE_POLICY_FACTS_SQL = (
+    "SELECT su.user_type, ru.user_type, "
+    "EXISTS(SELECT 1 FROM messages WHERE (sender_id={s} AND receiver_id={r}) "
+    "OR (sender_id={r} AND receiver_id={s})), "
+    "EXISTS(SELECT 1 FROM profile_follows WHERE follower_id={s} AND followed_id={r}) "
+    "AND EXISTS(SELECT 1 FROM profile_follows WHERE follower_id={r} AND followed_id={s}), "
+    "(SELECT ended_by FROM conversation_endings "
+    "WHERE user_a=LEAST({s},{r}) AND user_b=GREATEST({s},{r})) "
+    "FROM users su, users ru WHERE su.id={s} AND ru.id={r}"
+)
+MESSAGE_POLICY_FACTS_SQL_PG8000  = _MESSAGE_POLICY_FACTS_SQL.format(s=":s::int", r=":r::int")
+MESSAGE_POLICY_FACTS_SQL_ASYNCPG = _MESSAGE_POLICY_FACTS_SQL.format(s="$1::int", r="$2::int")
+# Transaction-scoped lock on the unordered pair — released by COMMIT / ROLLBACK.
+_MESSAGE_PAIR_LOCK = "SELECT pg_advisory_xact_lock(hashtextextended('tw_msg_pair:' || LEAST({s},{r}) || ':' || GREATEST({s},{r}), 0))"
+MESSAGE_PAIR_LOCK_SQL_PG8000  = _MESSAGE_PAIR_LOCK.format(s=":s::int", r=":r::int")
+MESSAGE_PAIR_LOCK_SQL_ASYNCPG = _MESSAGE_PAIR_LOCK.format(s="$1::int", r="$2::int")
+MESSAGE_REOPEN_SQL_PG8000  = "DELETE FROM conversation_endings WHERE user_a=LEAST(:s::int,:r::int) AND user_b=GREATEST(:s::int,:r::int)"
+MESSAGE_REOPEN_SQL_ASYNCPG = "DELETE FROM conversation_endings WHERE user_a=LEAST($1::int,$2::int) AND user_b=GREATEST($1::int,$2::int)"
+
+
+def message_policy_decide(sender_id: int, row) -> dict:
+    """Pure decision from one facts row (or None = an account is missing).
+    → {allowed, reason, reopen, ended, can_end}."""
+    if not row:
+        return {"allowed": False, "reason": "not_found", "reopen": False, "ended": False, "can_end": False}
+    s_type, r_type, has_history, mutual, ended_by = row[0], row[1], bool(row[2]), bool(row[3]), row[4]
+    ended = ended_by is not None
+    can_end = s_type == "co" and r_type == "emp" and has_history and not ended
+    out = {"allowed": False, "reason": None, "reopen": False, "ended": ended, "can_end": can_end}
+    if ended:
+        if int(ended_by) == int(sender_id):
+            out.update(allowed=True, reopen=True)
+        else:
+            out["reason"] = "ended"
+        return out
+    if has_history or s_type in ("co", "edu"):
+        out["allowed"] = True
+    elif s_type == "emp" and r_type == "edu":
+        out["allowed"] = True
+    elif s_type == "emp" and r_type == "co":
+        out["reason"] = "company_start"
+    elif s_type == "emp" and r_type == "emp":
+        if mutual:
+            out["allowed"] = True
+        else:
+            out["reason"] = "mutual_follow"
+    else:
+        out["reason"] = "forbidden"   # unknown account type — fail closed
+    return out
+
+
+def can_send_message(sender_id: int, receiver_id: int, conn=None) -> dict:
+    """THE conversation rule (task 5.0g). conn = an open pg8000 connection inside the caller's
+    transaction (send / end hold the pair lock first); None → own connection (read-only check
+    for the «مراسلة» button / composer)."""
+    if int(sender_id) == int(receiver_id):
+        return {"allowed": False, "reason": "forbidden", "reopen": False, "ended": False, "can_end": False}
+    if conn is None:
+        with db_conn() as c:
+            return can_send_message(sender_id, receiver_id, c)
+    rows = conn.run(MESSAGE_POLICY_FACTS_SQL_PG8000, s=int(sender_id), r=int(receiver_id))
+    return message_policy_decide(sender_id, rows[0] if rows else None)
+
+
+def _migrate_conversation_endings():
+    """task 5.0g — one row per ended company ↔ emp conversation (user_a < user_b).
+    Row present = ended by ended_by; the company's next message deletes it (re-open)."""
+    with db_conn() as conn:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS conversation_endings (
+                user_a   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                user_b   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                ended_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                ended_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_a, user_b),
+                CHECK (user_a < user_b)
+            )
+        """)
+
+
+def end_conversation(company_id: int, other_id: int) -> dict:
+    """Company ends its conversation with an emp (task 5.0g). Idempotent. No notification.
+    Raises MessagePolicyError: not_found (404) · end_forbidden (403 — caller not co / other not
+    emp) · no_conversation (404 — no message between them)."""
+    if int(company_id) == int(other_id):
+        raise MessagePolicyError("end_forbidden", 403)
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run(MESSAGE_PAIR_LOCK_SQL_PG8000, s=int(company_id), r=int(other_id))
+            rows = conn.run(MESSAGE_POLICY_FACTS_SQL_PG8000, s=int(company_id), r=int(other_id))
+            if not rows:
+                raise MessagePolicyError("not_found", 404)
+            s_type, r_type, has_history = rows[0][0], rows[0][1], bool(rows[0][2])
+            if s_type != "co" or r_type != "emp":
+                raise MessagePolicyError("end_forbidden", 403)
+            if not has_history:
+                raise MessagePolicyError("no_conversation", 404)
+            a, b = sorted((int(company_id), int(other_id)))
+            conn.run(
+                "INSERT INTO conversation_endings (user_a, user_b, ended_by) VALUES (:a, :b, :c) "
+                "ON CONFLICT (user_a, user_b) DO NOTHING",
+                a=a, b=b, c=int(company_id))
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return {"ended": True}
+
+
 # ══ Messages System ══
 
 def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_as_read: bool) -> tuple:
     """Single-connection send pipeline — two optimised paths:
 
-    Hot  (mark_as_read=True):  1 query  — INSERT already-read (no UPDATE, no COUNT).
+    Hot  (mark_as_read=True):  INSERT already-read (no UPDATE, no COUNT).
                                 Returns (msg, None, timing). Caller skips badge update.
-    Cold (mark_as_read=False): 2 queries — INSERT unread + COUNT for badge.
+    Cold (mark_as_read=False): INSERT unread + COUNT for badge.
                                 Returns (msg, unread_count, timing). Badge pushed in background.
 
-    One DB connection, one SELECT 1 ping regardless of path.
+    task 5.0g — the INSERT runs in one transaction with the pair lock + can_send_message()
+    (refused → MessagePolicyError, nothing written); the company's message re-opens an ended
+    conversation in the same transaction.
     """
     t0 = _time_mod.perf_counter()
     conn = get_conn()
@@ -4310,21 +4453,42 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
 
         if mark_as_read:
             # Save message as already delivered+read in one INSERT — no UPDATE needed
-            rows = conn.run(
+            insert_sql = (
                 "INSERT INTO messages (sender_id, receiver_id, content, is_read, delivered_at, read_at) "
                 "VALUES (:sid, :rid, :content, TRUE, NOW(), NOW()) "
-                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
-                sid=sender_id, rid=receiver_id, content=content
-            )
+                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at")
+        else:
+            insert_sql = (
+                "INSERT INTO messages (sender_id, receiver_id, content) "
+                "VALUES (:sid, :rid, :content) "
+                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at")
+
+        conn.run("BEGIN")
+        try:
+            conn.run(MESSAGE_PAIR_LOCK_SQL_PG8000, s=sender_id, r=receiver_id)
+            policy = can_send_message(sender_id, receiver_id, conn)
+            if not policy["allowed"]:
+                raise MessagePolicyError(policy["reason"], 404 if policy["reason"] == "not_found" else 403)
+            if policy["reopen"]:
+                conn.run(MESSAGE_REOPEN_SQL_PG8000, s=sender_id, r=receiver_id)
+            t_after_policy = _time_mod.perf_counter()
+            rows = conn.run(insert_sql, sid=sender_id, rid=receiver_id, content=content)
             cols = [c["name"] for c in conn.columns]
-            msg = _serialize(_row_to_dict(cols, rows[0]))
-            t_after_insert = _time_mod.perf_counter()
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+        msg = _serialize(_row_to_dict(cols, rows[0]))
+        t_after_insert = _time_mod.perf_counter()
+
+        if mark_as_read:
             msg["delivered_at"] = True
             msg["read_at"] = True
             timing = {
                 "conn_ms":        round((t_after_conn   - t0)            * 1000),
                 "sync_set_ms":    round((t_after_set    - t_after_conn)   * 1000),
-                "insert_exec_ms": round((t_after_insert - t_after_set)    * 1000),
+                "policy_ms":      round((t_after_policy - t_after_set)    * 1000),
+                "insert_exec_ms": round((t_after_insert - t_after_policy) * 1000),
                 "insert_ms":      round((t_after_insert - t_after_conn)   * 1000),
                 "update_ms": 0,   # skipped — inserted as read directly
                 "count_ms":  0,   # skipped — badge unchanged when receiver is reading
@@ -4332,35 +4496,25 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
             }
             return msg, None, timing  # None = badge update not needed
 
-        else:
-            # Cold path: save unread, then count for badge (2 queries, 1 connection)
-            rows = conn.run(
-                "INSERT INTO messages (sender_id, receiver_id, content) "
-                "VALUES (:sid, :rid, :content) "
-                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
-                sid=sender_id, rid=receiver_id, content=content
-            )
-            cols = [c["name"] for c in conn.columns]
-            msg = _serialize(_row_to_dict(cols, rows[0]))
-            t_after_insert = _time_mod.perf_counter()
+        # Cold path: count for badge (same connection)
+        uc = conn.run(
+            "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
+            rid=receiver_id
+        )
+        unread = int(uc[0][0]) if uc else 0
+        t_after_count = _time_mod.perf_counter()
 
-            uc = conn.run(
-                "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
-                rid=receiver_id
-            )
-            unread = int(uc[0][0]) if uc else 0
-            t_after_count = _time_mod.perf_counter()
-
-            timing = {
-                "conn_ms":        round((t_after_conn   - t0)              * 1000),
-                "sync_set_ms":    round((t_after_set    - t_after_conn)    * 1000),
-                "insert_exec_ms": round((t_after_insert - t_after_set)     * 1000),
-                "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
-                "update_ms": 0,
-                "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
-                "db_ms":          round((t_after_count  - t0)              * 1000),
-            }
-            return msg, unread, timing
+        timing = {
+            "conn_ms":        round((t_after_conn   - t0)              * 1000),
+            "sync_set_ms":    round((t_after_set    - t_after_conn)    * 1000),
+            "policy_ms":      round((t_after_policy - t_after_set)     * 1000),
+            "insert_exec_ms": round((t_after_insert - t_after_policy)  * 1000),
+            "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
+            "update_ms": 0,
+            "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
+            "db_ms":          round((t_after_count  - t0)              * 1000),
+        }
+        return msg, unread, timing
     finally:
         release_conn(conn)
 

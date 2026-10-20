@@ -2,7 +2,8 @@
 
 One definition per UI action (follow, message, schedule, …):
   tw_actions.json        → the registry: labelKey (twT) · icon (DS-ICON) · type · visibleTo ·
-                           targets · auth · enabledWhen · confirm (DS-OVL) · enabled (default true;
+                           targets · auth · enabledWhen · visibleWhen (server decision the page passes
+                           in ctx — task 5.0g) · confirm (DS-OVL) · enabled (default true;
                            false = off until an admin override {"enabled": true} — PR 4.7)
   site_settings          → admin override (key `actions_override`, JSON {id: {enabled, visibleTo}})
   page_block(overrides)  → `<script>window.TW_ACTIONS=…</script>`, appended to the Strings block at
@@ -26,6 +27,8 @@ AUDIENCES = ("guest", "owner", "emp", "co", "edu")
 TARGETS = ("emp", "co", "edu")
 TYPES = ("primary", "secondary", "danger", "ghost")
 CONDITIONS = ("verified",)
+# visibleWhen: signed-in viewer sees the button only when the server said yes (ctx flag) — task 5.0g
+VISIBLE_WHEN = ("can_message", "can_end")
 OVERRIDE_FIELDS = ("enabled", "visibleTo")
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -68,6 +71,8 @@ def load_registry(path: str = os.path.join(_ROOT, "tw_actions.json")) -> dict:
             raise bad("auth must be true / false")
         if "enabledWhen" in a and not _subset(a["enabledWhen"], CONDITIONS):
             raise bad(f"enabledWhen must be a subset of {CONDITIONS}")
+        if "visibleWhen" in a and not _subset(a["visibleWhen"], VISIBLE_WHEN):
+            raise bad(f"visibleWhen must be a subset of {VISIBLE_WHEN}")
         c = a.get("confirm")
         if c is not None:
             if (not isinstance(c, dict) or not isinstance(c.get("danger"), bool)
@@ -75,7 +80,7 @@ def load_registry(path: str = os.path.join(_ROOT, "tw_actions.json")) -> dict:
                 raise bad("confirm needs titleKey / messageKey / confirmKey (twT keys) + danger")
         if "enabled" in a and not isinstance(a["enabled"], bool):
             raise bad("enabled must be true / false (default true — false = off until an admin turns it on)")
-        extra = set(a) - {"labelKey", "icon", "type", "visibleTo", "targets", "auth", "enabledWhen", "confirm", "enabled"}
+        extra = set(a) - {"labelKey", "icon", "type", "visibleTo", "targets", "auth", "enabledWhen", "visibleWhen", "confirm", "enabled"}
         if extra:
             raise bad(f"unknown fields {sorted(extra)}")
     return actions

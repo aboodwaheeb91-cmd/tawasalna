@@ -5,7 +5,7 @@
 <!-- Unified app header (HEADER-NAV.md) -->
 <link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
-<link rel="stylesheet" href="/static/messages.css?v=v26">
+<link rel="stylesheet" href="/static/messages.css?v=v27">
 <title></title>
 <meta name="tw-page" content="auth">
 <!-- This page owns the one WebSocket (messages.ws.js) — the shared badge socket stands down (HNAV-05) -->
@@ -81,6 +81,7 @@
         </div>
       </div>
       <div class="ch-sched" id="chatSchedSlot"></div>
+      <div class="ch-sched" id="chatEndSlot"></div>
     </div>
 
     <!-- Connection notice: shown only after the retry limit is reached (msgShowConnBar) -->
@@ -98,6 +99,8 @@
       </div>
       <button class="send-btn" type="button" data-msg-act="send" data-tw-t-label="msg.send"><i data-tw-icon="send"></i></button>
     </div>
+    <!-- Sending not allowed (Conversation Policy — task 5.0g): the reason replaces the composer -->
+    <div class="chat-locked" id="chatLocked" role="status" hidden></div>
 
   </div>
 </div>
@@ -108,8 +111,8 @@
 <script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <script src="/static/shared/tw-schedule.js?v={{v:tw-schedule.js}}"></script>
 <script src="/static/messages.state.js?v=v23"></script>
-<script src="/static/messages.api.js?v=v23"></script>
+<script src="/static/messages.api.js?v=v24"></script>
 <script src="/static/messages.ws.js?v=v27"></script>
-<script src="/static/messages.render.js?v=v26"></script>
+<script src="/static/messages.render.js?v=v27"></script>
 </body>
 </html>

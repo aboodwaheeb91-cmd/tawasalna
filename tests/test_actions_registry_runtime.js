@@ -107,8 +107,18 @@ console.log('\nC — admin override');
 check('C1 enabled:false → hidden for everyone',
   ctxFor(CO, { schedule: { enabled: false } }).twAction('schedule', { ownerId: 5, targetType: 'emp' }) === null);
 check('C2 visibleTo replaced → new audience sees it, old one does not',
-  !!ctxFor(EDU, { message: { visibleTo: ['edu'] } }).twAction('message', {})
-  && ctxFor(EMP, { message: { visibleTo: ['edu'] } }).twAction('message', {}) === null);
+  !!ctxFor(EDU, { message: { visibleTo: ['edu'] } }).twAction('message', { canMessage: true })
+  && ctxFor(EMP, { message: { visibleTo: ['edu'] } }).twAction('message', { canMessage: true }) === null);
+// task 5.0g — visibleWhen: a signed-in viewer sees «مراسلة» / «إنهاء المحادثة» only when the server said yes
+check('C2b message: signed-in without canMessage → hidden · canMessage:true → shown · guest → login',
+  ctxFor(EMP).twActionState('message', { ownerId: 5 }) === 'hidden'
+  && ctxFor(EMP).twActionState('message', { ownerId: 5, canMessage: false }) === 'hidden'
+  && ctxFor(EMP).twActionState('message', { ownerId: 5, canMessage: true }) === 'enabled'
+  && ctxFor(GUEST).twActionState('message', { ownerId: 5 }) === 'login');
+check('C2c end_conversation: company + emp target + canEnd only',
+  ctxFor(CO).twActionState('end_conversation', { targetType: 'emp', canEnd: true }) === 'enabled'
+  && ctxFor(CO).twActionState('end_conversation', { targetType: 'emp' }) === 'hidden'
+  && ctxFor(EMP).twActionState('end_conversation', { targetType: 'emp', canEnd: true }) === 'hidden');
 const err = code => py('try:\n  tw_actions.validate_overrides(' + code + ')\n  print(json.dumps("ok"))\n'
   + 'except tw_actions.ActionsError as e:\n  print(json.dumps(e.code))');
 check('C3 unknown action id refused', err('{"hack": {"enabled": False}}') === 'unknown_action');

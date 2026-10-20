@@ -131,6 +131,9 @@ from auth import (
     set_user_verified, KycStateError, REPORT_TARGET_TYPES, _migrate_reports_targets, _migrate_verified_source,
     get_current_user_type, _migrate_rls_lockdown,
     send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
+    can_send_message, message_policy_decide, end_conversation, MessagePolicyError, MESSAGE_POLICY_REASONS,
+    MESSAGE_POLICY_FACTS_SQL_ASYNCPG, MESSAGE_PAIR_LOCK_SQL_ASYNCPG, MESSAGE_REOPEN_SQL_ASYNCPG,
+    _migrate_conversation_endings,
     create_notification, get_notifications, mark_notifications_read, mark_notification_read,
     get_unread_notifications, _migrate_notifications_schema_v2,
     _migrate_notifications_schema_v2_1,
@@ -749,29 +752,47 @@ def _serialize_asyncpg_row(row) -> dict:
 async def _pipeline_asyncpg(
     sender_id: int, receiver_id: int, content: str, mark_as_read: bool
 ) -> tuple:
-    """Single-RTT INSERT via asyncpg (pipelines Parse+Bind+Execute+Sync in one TCP write).
+    """asyncpg send — one transaction: pair lock + can_send_message facts (task 5.0g —
+    message_policy_decide, the same rule as auth.can_send_message) + INSERT.
+    Refused → MessagePolicyError, nothing written.
 
-    Hot  path: 1 query  (INSERT as read) — ~1 RTT.
-    Cold path: 2 queries (INSERT unread + COUNT) — ~2 RTTs.
+    Hot  path: INSERT as read.
+    Cold path: INSERT unread + COUNT.
     """
     t0 = time.perf_counter()
     async with _asyncpg_pool.acquire() as conn:
         t_after_conn = time.perf_counter()
         if mark_as_read:
-            row = await conn.fetchrow(
+            insert_sql = (
                 "INSERT INTO messages "
                 "(sender_id, receiver_id, content, is_read, delivered_at, read_at) "
                 "VALUES ($1, $2, $3, TRUE, NOW(), NOW()) "
                 "RETURNING id, sender_id, receiver_id, content, "
-                "is_read, delivered_at, read_at, created_at",
-                sender_id, receiver_id, content
-            )
-            t_after_insert = time.perf_counter()
-            msg = _serialize_asyncpg_row(row)
+                "is_read, delivered_at, read_at, created_at")
+        else:
+            insert_sql = (
+                "INSERT INTO messages (sender_id, receiver_id, content) "
+                "VALUES ($1, $2, $3) "
+                "RETURNING id, sender_id, receiver_id, content, "
+                "is_read, delivered_at, read_at, created_at")
+        async with conn.transaction():
+            await conn.execute(MESSAGE_PAIR_LOCK_SQL_ASYNCPG, sender_id, receiver_id)
+            facts = await conn.fetchrow(MESSAGE_POLICY_FACTS_SQL_ASYNCPG, sender_id, receiver_id)
+            policy = message_policy_decide(sender_id, facts)
+            if not policy["allowed"]:
+                raise MessagePolicyError(policy["reason"], 404 if policy["reason"] == "not_found" else 403)
+            if policy["reopen"]:
+                await conn.execute(MESSAGE_REOPEN_SQL_ASYNCPG, sender_id, receiver_id)
+            t_after_policy = time.perf_counter()
+            row = await conn.fetchrow(insert_sql, sender_id, receiver_id, content)
+        t_after_insert = time.perf_counter()
+        msg = _serialize_asyncpg_row(row)
+        if mark_as_read:
             timing = {
                 "conn_ms":        round((t_after_conn   - t0)             * 1000),
                 "sync_set_ms":    0,
-                "insert_exec_ms": round((t_after_insert - t_after_conn)   * 1000),
+                "policy_ms":      round((t_after_policy - t_after_conn)   * 1000),
+                "insert_exec_ms": round((t_after_insert - t_after_policy) * 1000),
                 "insert_ms":      round((t_after_insert - t_after_conn)   * 1000),
                 "update_ms":      0,
                 "count_ms":       0,
@@ -780,32 +801,23 @@ async def _pipeline_asyncpg(
             }
             return msg, None, timing
 
-        else:
-            row = await conn.fetchrow(
-                "INSERT INTO messages (sender_id, receiver_id, content) "
-                "VALUES ($1, $2, $3) "
-                "RETURNING id, sender_id, receiver_id, content, "
-                "is_read, delivered_at, read_at, created_at",
-                sender_id, receiver_id, content
-            )
-            t_after_insert = time.perf_counter()
-            msg = _serialize_asyncpg_row(row)
-            unread = await conn.fetchval(
-                "SELECT COUNT(*) FROM messages WHERE receiver_id=$1 AND is_read=FALSE",
-                receiver_id
-            )
-            t_after_count = time.perf_counter()
-            timing = {
-                "conn_ms":        round((t_after_conn   - t0)              * 1000),
-                "sync_set_ms":    0,
-                "insert_exec_ms": round((t_after_insert - t_after_conn)    * 1000),
-                "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
-                "update_ms":      0,
-                "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
-                "db_ms":          round((t_after_count  - t0)              * 1000),
-                "driver":         "asyncpg",
-            }
-            return msg, int(unread or 0), timing
+        unread = await conn.fetchval(
+            "SELECT COUNT(*) FROM messages WHERE receiver_id=$1 AND is_read=FALSE",
+            receiver_id
+        )
+        t_after_count = time.perf_counter()
+        timing = {
+            "conn_ms":        round((t_after_conn   - t0)              * 1000),
+            "sync_set_ms":    0,
+            "policy_ms":      round((t_after_policy - t_after_conn)    * 1000),
+            "insert_exec_ms": round((t_after_insert - t_after_policy)  * 1000),
+            "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
+            "update_ms":      0,
+            "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
+            "db_ms":          round((t_after_count  - t0)              * 1000),
+            "driver":         "asyncpg",
+        }
+        return msg, int(unread or 0), timing
 
 
 # ── Startup migrations — one policy (PR 2B · CLAUDE.md → Startup Migration Policy) ──
@@ -846,6 +858,7 @@ def _startup_migrations():
         ("admin_audit_log",                   admin_insights.migrate_admin_audit_log, True),
         ("reports_targets",                   _migrate_reports_targets,            False),
         ("verified_source",                   _migrate_verified_source,            False),
+        ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -4303,7 +4316,7 @@ def public_profile(user_id: str, request: Request):
         permissions = {
             "can_edit":    False,
             "can_follow":  True,
-            "can_message": True,
+            "can_message": can_send_message(int(token_uid), profile_id)["allowed"],   # 5.0g — the one rule
             "can_save":    True,
             "can_report":  True,
         }
@@ -5094,10 +5107,49 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
         print(f"[TW-TIMING] send_msg #{msg_id}: {_timing}")
 
         return {"status": "success", "message": msg}
+    except MessagePolicyError as e:
+        return _message_policy_error(e)
     except HTTPException:
         raise
     except Exception as e:
         raise _server_error("send_msg", e)
+
+
+# ── Conversation Policy (task 5.0g — auth.can_send_message · docs/rules/messenger.md) ──
+def _message_policy_error(e: MessagePolicyError) -> JSONResponse:
+    """Refused send / end → {ok:false, error:{code, message}} — message = the twT text (admin override wins)."""
+    key = MESSAGE_POLICY_REASONS.get(e.code, "msg.policy.forbidden")
+    text = tw_strings.merged(_STRINGS_OVERRIDES).get(key) or key
+    return api_error(e.status, e.code, text)
+
+
+@app.get("/messages/can-send/{other_id}")
+def message_can_send(other_id: int, token=Depends(verify_token)):
+    """The «مراسلة» button + composer state — the same can_send_message() the send runs."""
+    me = int(token.get("user_id") or 0)
+    if not me:
+        raise HTTPException(401, "غير مصرح")
+    try:
+        p = can_send_message(me, other_id)
+    except Exception as e:
+        raise _server_error("message_can_send", e)
+    return api_ok({"can_message": p["allowed"], "reason": p["reason"],
+                   "reason_key": MESSAGE_POLICY_REASONS.get(p["reason"]) if p["reason"] else None,
+                   "ended": p["ended"], "can_end": p["can_end"]})
+
+
+@app.post("/messages/conversations/{other_id}/end")
+def message_end_conversation(other_id: int, token=Depends(verify_token)):
+    """A company ends its conversation with an emp (account types from the DB). No notification."""
+    me = int(token.get("user_id") or 0)
+    if not me:
+        raise HTTPException(401, "غير مصرح")
+    try:
+        return api_ok(end_conversation(me, other_id))
+    except MessagePolicyError as e:
+        return _message_policy_error(e)
+    except Exception as e:
+        raise _server_error("message_end_conversation", e)
 
 @app.get("/messages/conversations/{user_id}")
 def get_convs(user_id: int, token=Depends(verify_token)):
