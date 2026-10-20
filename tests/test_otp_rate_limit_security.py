@@ -211,7 +211,7 @@ def test_verify_routes_503_when_delivery_off(monkeypatch):
     called = []
     monkeypatch.setattr(server, "verify_email_code", lambda *a: called.append(a) or True)
     monkeypatch.setattr(server, "verify_phone_code", lambda *a: called.append(a) or True)
-    hdr = {"Authorization": "Bearer " + server._jwt_encode({"user_id": 1, "user_type": "emp", "tw_id": "U1"})}
+    hdr = {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": 1, "user_type": "emp", "tw_id": "U1"})}
     for path in ("/kyc/email/verify", "/kyc/phone/verify"):
         r = client.post(path, json={"code": "123456"}, headers=hdr)
         assert r.status_code == 503

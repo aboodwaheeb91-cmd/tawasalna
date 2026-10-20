@@ -37,7 +37,7 @@ needs_db = pytest.mark.skipif(not _DB_URL, reason="TW_TEST_DB_URL not set")
 def _env(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-" + "s" * 32)
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
     srv._pwd_changed_cache.clear()
     yield
 
@@ -81,7 +81,7 @@ def test_registry_classification():
 # ── B. Admin profile endpoint rejects a user JWT ─────────────────────────────
 
 def test_admin_profile_rejects_user_jwt():
-    user_tok = srv._jwt_encode({"user_id": 7, "user_type": "co", "tw_id": "C1"})
+    user_tok = srv._jwt_encode({"sv": 0, "user_id": 7, "user_type": "co", "tw_id": "C1"})
     r1 = client.put("/admin/profile/7", json={"headline": "x"},
                     headers={"X-Admin-Token": user_tok})
     r2 = client.put("/admin/profile/7", json={"headline": "x"},

@@ -31,7 +31,7 @@ def _env(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-" + "s" * 32)
     srv._pwd_changed_cache.clear()
     srv._rate_store.clear()
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
     yield
     srv._pwd_changed_cache.clear()
 
@@ -97,7 +97,7 @@ def test_expired_admin_jwt_rejected():
 
 
 def test_user_jwt_rejected_by_admin_and_admin_jwt_rejected_as_user():
-    user_tok = srv._jwt_encode({"user_id": 7, "user_type": "emp", "tw_id": "U1"})
+    user_tok = srv._jwt_encode({"sv": 0, "user_id": 7, "user_type": "emp", "tw_id": "U1"})
     assert _status(srv.check_admin, _req(user_tok)) == 401
     admin_tok = srv._admin_jwt_issue()
     r = client.post("/auth/verify-token", headers={"Authorization": "Bearer " + admin_tok})
@@ -123,7 +123,7 @@ def test_report_no_longer_notifies_user_1():
 # ── PR 1.8 — session invalidation after password change ──────────────────────
 
 def test_old_jwt_rejected_after_password_change_new_accepted(monkeypatch):
-    stamp = {"v": None}
+    stamp = {"v": {"changed": None, "sv": 0}}   # live account, no change yet
     calls = {"n": 0}
 
     def _epoch(uid):
@@ -139,7 +139,7 @@ def test_old_jwt_rejected_after_password_change_new_accepted(monkeypatch):
     monkeypatch.setattr(srv, "set_user_password", _set)
 
     now = int(time.time())
-    old = srv._jwt_sign({"user_id": 9, "user_type": "emp", "tw_id": "U9",
+    old = srv._jwt_sign({"sv": 0, "user_id": 9, "user_type": "emp", "tw_id": "U9",
                          "iat": now - 30, "exp": now + 3600}, srv.JWT_SECRET)
     H = lambda t: {"Authorization": "Bearer " + t}
     assert client.post("/auth/verify-token", headers=H(old)).status_code == 200

@@ -20,12 +20,13 @@ CURRENT = "old-secret-1"
 
 
 def _auth(uid=UID):
-    return {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": "emp", "tw_id": "U1"})}
+    return {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": "emp", "tw_id": "U1"})}
 
 
 @pytest.fixture(autouse=True)
 def fake_db(monkeypatch):
     state = {"pw": CURRENT, "deleted": [], "set": []}
+    server._pwd_changed_cache.clear()   # a password change in an earlier test bumped sv in the cache
 
     def check(uid, pw):
         return None if uid != UID else (bool(pw) and pw == state["pw"])

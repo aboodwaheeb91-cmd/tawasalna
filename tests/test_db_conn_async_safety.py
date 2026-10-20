@@ -125,7 +125,7 @@ def test_fixed_endpoints_are_sync():
 @pytest.fixture
 def fake_db(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
     srv._pwd_changed_cache.clear()
     conn = MagicMock()
     released = []
@@ -135,7 +135,7 @@ def fake_db(monkeypatch):
 
 
 def _hdr(uid, utype):
-    return {"Authorization": "Bearer " + srv._jwt_encode({"user_id": uid, "user_type": utype})}
+    return {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": uid, "user_type": utype})}
 
 
 def test_edu_name_change_ok_and_conn_released(fake_db):

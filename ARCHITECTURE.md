@@ -12789,12 +12789,25 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | JWT `sv` | login (`authenticate_user` reads `session_version`; popped from the reply) · register (`0`) · `PUT /auth/password` (new sv) | never in a response body |
 | Cache refresh | `_password_changed_cache_set(uid, state)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
 | DB error on lookup | logged `[session-invalidation]`, not cached, token allowed | the request then fails at its own DB call; rejecting would log everyone out on a DB blip |
+| Deleted account (5.0f) | `get_session_state` → `None` → token rejected | «no user» is not cached (read from the DB each time); `DELETE /auth/user/{id}/delete` + `DELETE /admin/user/{id}` pop the cache entry |
+| No `sv` (5.0f) | `_NO_SV_REJECT_FROM` = 1792713600 (2026-10-23T00:00Z) | from then on a token without `sv` → rejected before any DB lookup (all pre-5.0b tokens expired 2026-10-22) |
 | New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id, sv})` | carries the new `sv` → survives |
 | Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
 | Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
 
-Same-second edge closed in 5.0b by `sv`; only pre-5.0b tokens (no `sv`) keep the second-granularity `iat` check until they expire.
+Same-second edge closed in 5.0b by `sv`; pre-5.0b tokens (no `sv`) kept the second-granularity `iat` check until `_NO_SV_REJECT_FROM` (task 5.0f).
+
+## Database Lockdown + Organisation Account Gate (task 5.0f)
+
+> SYSTEMS_INDEX §54k / §54l · `docs/rules/auth-identity.md` · test `python -m pytest tests/test_security_50f.py -q`.
+
+| Piece | Where | Rule |
+|-------|-------|------|
+| RLS lockdown | `auth._migrate_rls_lockdown()` — startup `rls_lockdown`, critical, last | RLS (no policies) on every `public` table owned by the connected role · `REVOKE ALL` tables + sequences + default privileges from `anon`, `authenticated` (skipped when the roles do not exist). Owner bypasses RLS → app unaffected; ❌ `FORCE ROW LEVEL SECURITY` |
+| One-time data migration | `auth._migration_claim_once(conn, name)` → `app_migrations(name TEXT PK, applied_at TIMESTAMPTZ)` | mark in the same transaction as the data change; user: `verified_source` (also `ON CONFLICT DO NOTHING` — never overwrites a withdrawn badge) |
+| Organisation gate | `server._require_org_account(token, allowed, message)` → `auth.get_current_user_type(uid)` | current `users.user_type`: no user 401 · other type 403. Applicants · application status · promote · company posts create / edit / delete (co, edu) · Talent Bank + suggestions · appointments create / send / reschedule / complete / close · `/api/schedule/*` (co) |
+| Dependencies | `requirements.txt` | FastAPI 0.121.3 + Starlette 0.50.0 (≥ 0.49.1 — multipart / Range DoS fixes) · pg8000 1.31.5 |
 
 ### `settings.html` contract
 

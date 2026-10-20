@@ -120,7 +120,7 @@ def _world():
 
 
 def _hdr(uid, user_type):
-    return {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": user_type, "tw_id": ""})}
+    return {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": user_type, "tw_id": ""})}
 
 
 def _status(co, app, status):

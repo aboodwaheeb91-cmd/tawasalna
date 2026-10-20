@@ -99,7 +99,7 @@ def _seed():
 
 # ── access ──
 def test_admin_jobs_need_an_admin_session():
-    user_jwt = srv._jwt_encode({"user_id": 1, "user_type": "co"})
+    user_jwt = srv._jwt_encode({"sv": 0, "user_id": 1, "user_type": "co"})
     for h in ({}, {"X-Admin-Token": PASSWORD}, {"X-Admin-Token": user_jwt}):
         assert client.get("/admin/jobs", headers=h).status_code == 401
         assert client.delete("/admin/jobs/1", headers=h).status_code == 401

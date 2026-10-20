@@ -75,7 +75,7 @@ def test_server_required_empty():
 
 
 def _h(uid=7, utype="emp"):
-    return {"Authorization": "Bearer " + server._jwt_encode({"user_id": uid, "user_type": utype})}
+    return {"Authorization": "Bearer " + server._jwt_encode({"sv": 0, "user_id": uid, "user_type": utype})}
 
 
 @pytest.mark.parametrize("method,path,body,field", [

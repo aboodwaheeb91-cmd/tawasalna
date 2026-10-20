@@ -15,13 +15,39 @@ ARCH_SRC   = (ROOT / "ARCHITECTURE.md").read_text()
 CLAUDE_SRC = (ROOT / "CLAUDE.md").read_text()
 INDEX_SRC  = (ROOT / "docs" / "SYSTEMS_INDEX.md").read_text()
 
+def _literal_admin_paths(src):
+    """/tw-ctrl-<slug> where slug is a literal (≥ 8 chars), not a placeholder / the variable.
+    Returns positions only — never the matched value."""
+    return [m.start() for m in re.finditer(r"/tw-ctrl-([A-Za-z0-9_]{8,})", src)
+            if m.group(1) not in ("ADMIN_URL_TOKEN",)]
+
+
+def _secret_assignments(src):
+    """ADMIN_TOKEN / ADMIN_URL_TOKEN / ADMIN_JWT_SECRET / JWT_SECRET followed by = or : and a
+    literal value (≥ 8 chars, not a placeholder like <...> / {...} / $...). Positions only."""
+    pat = r"\b(ADMIN_TOKEN|ADMIN_URL_TOKEN|ADMIN_JWT_SECRET|JWT_SECRET)\s*(?:=|:\s)\s*[\"']?([A-Za-z0-9@#%^&*!_\-]{8,})"
+    return [m.start() for m in re.finditer(pat, src)
+            if not m.group(2).startswith(("os", "ADMIN", "JWT", "_"))]
+
+
 # ─── Static source checks ─────────────────────────────────────────────────────
 
 class TestNoHardcodedSecrets(unittest.TestCase):
 
-    def test_no_admin_password_string_in_server(self):
-        self.assertNotIn("tw@admin", SERVER_SRC,
-            "tw@admin2025 must not appear in server.py")
+    # task 5.0f (AUD-P1-10): pattern checks — the old literal values are never written here.
+    def test_admin_secrets_only_from_environ_without_default(self):
+        names = ("ADMIN_TOKEN", "ADMIN_URL_TOKEN", "ADMIN_JWT_SECRET", "JWT_SECRET")
+        for name in names:
+            assigns = re.findall(r"(?m)^" + name + r"\s*=\s*(.+)$", SERVER_SRC)
+            self.assertEqual(len(assigns), 1, name + " must be assigned exactly once")
+            self.assertRegex(assigns[0].strip(),
+                r'^os\.environ\.get\("' + name + r'",\s*""\)(\.strip\(\))?$',
+                name + " must come from os.environ with an empty default")
+            # no literal compared to / concatenated with the secret anywhere
+            self.assertFalse(re.search(name + r"\s*(==|!=)\s*[\"']", SERVER_SRC),
+                name + " must not be compared to a literal")
+            self.assertFalse(re.search(r"[\"']\s*(==|!=)\s*" + name + r"\b", SERVER_SRC),
+                name + " must not be compared to a literal")
 
     def test_no_sha256_admin_derivation_in_server(self):
         # Old pattern: hashlib.sha256(ADMIN_PASSWORD...)
@@ -29,8 +55,8 @@ class TestNoHardcodedSecrets(unittest.TestCase):
             "ADMIN_PASSWORD must not exist in server.py")
 
     def test_no_hardcoded_url_token_in_server(self):
-        self.assertNotIn("kPuOWhpIYjdLQXmh", SERVER_SRC,
-            "Hardcoded ADMIN_URL_TOKEN must not appear in server.py")
+        self.assertEqual(_literal_admin_paths(SERVER_SRC), [],
+            "the admin panel path must be built from ADMIN_URL_TOKEN, never a literal slug")
 
     def test_no_hashlib_import_in_server(self):
         self.assertNotIn("import hashlib", SERVER_SRC,
@@ -78,23 +104,13 @@ class TestNoHardcodedSecrets(unittest.TestCase):
         self.assertIn("_jwt_verify(", self._fn_body("_jwt_decode"),
             "_jwt_decode must verify the signature via _jwt_verify")
 
-    def test_no_secrets_in_architecture_docs(self):
-        self.assertNotIn("tw@admin", ARCH_SRC,
-            "tw@admin2025 must not appear in ARCHITECTURE.md")
-        self.assertNotIn("kPuOWhpIYjdLQXmh", ARCH_SRC,
-            "Hardcoded URL token must not appear in ARCHITECTURE.md")
-
-    def test_no_secrets_in_claude_md(self):
-        self.assertNotIn("tw@admin", CLAUDE_SRC,
-            "tw@admin2025 must not appear in CLAUDE.md")
-        self.assertNotIn("kPuOWhpIYjdLQXmh", CLAUDE_SRC,
-            "Hardcoded URL token must not appear in CLAUDE.md")
-
-    def test_no_secrets_in_systems_index(self):
-        self.assertNotIn("tw@admin", INDEX_SRC,
-            "tw@admin2025 must not appear in docs/SYSTEMS_INDEX.md")
-        self.assertNotIn("kPuOWhpIYjdLQXmh", INDEX_SRC,
-            "Hardcoded URL token must not appear in docs/SYSTEMS_INDEX.md")
+    def test_no_secret_values_in_docs(self):
+        for label, src in (("ARCHITECTURE.md", ARCH_SRC), ("CLAUDE.md", CLAUDE_SRC),
+                           ("docs/SYSTEMS_INDEX.md", INDEX_SRC)):
+            self.assertEqual(_literal_admin_paths(src), [],
+                label + " must not contain a literal admin panel slug")
+            self.assertEqual(_secret_assignments(src), [],
+                label + " must not contain a value for an admin secret")
 
     def test_startup_blocks_on_missing_jwt_secret(self):
         self.assertIn("JWT_SECRET", SERVER_SRC,
@@ -224,7 +240,7 @@ class TestCheckAdminBehavior(unittest.TestCase):
         try:
             srv.JWT_SECRET = ""
             with self.assertRaises(RuntimeError):
-                srv._jwt_encode({"user_id": 1})
+                srv._jwt_encode({"sv": 0, "user_id": 1})
         finally:
             srv.JWT_SECRET = original
 

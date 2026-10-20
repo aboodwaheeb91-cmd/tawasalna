@@ -40,12 +40,13 @@ def _t_validate(body: _M):
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
     monkeypatch.setattr(srv, "JWT_SECRET", "test-user-secret-" + "u" * 32)
-    monkeypatch.setattr(auth, "get_session_state", lambda uid: None)
+    monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
+    monkeypatch.setattr(srv, "get_current_user_type", lambda uid: "co")   # company gate (task 5.0f) — no DB
     srv._pwd_changed_cache.clear()
 
 
 def _auth_hdr():
-    return {"Authorization": "Bearer " + srv._jwt_encode({"user_id": 7, "user_type": "co"})}
+    return {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": 7, "user_type": "co"})}
 
 
 # ── runtime ──────────────────────────────────────────────────────────────────

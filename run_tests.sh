@@ -107,6 +107,7 @@ PY_DB=(
   pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
+  pytest:test_security_50f.py         # task 5.0f — RLS lockdown · deleted account · org gate · no-sv cutoff · badge once
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────

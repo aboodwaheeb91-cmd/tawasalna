@@ -1044,6 +1044,14 @@ def get_session_state(user_id: int) -> Optional[dict]:
     return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1] or 0)}
 
 
+def get_current_user_type(user_id: int) -> Optional[str]:
+    """users.user_type as it is NOW (task 5.0f) — None = no such user. Read by
+    server._require_org_account; the JWT user_type claim is never enough for a company action."""
+    with db_conn() as conn:
+        rows = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=user_id)
+    return rows[0][0] if rows else None
+
+
 def _migrate_password_changed_at():
     """PR 1.8 — idempotent: nullable column, no backfill (NULL = no change since the
     feature shipped → existing sessions stay valid)."""
@@ -4752,24 +4760,80 @@ def _migrate_reports_targets():
             raise
 
 
+# ── One-time data migrations (task 5.0f — AUD-P2-08) ──
+# app_migrations(name) is the permanent "already applied" mark of a data migration that must run
+# ONCE (a schema migration is idempotent by itself and needs no mark). The mark is written in the
+# same transaction as the data change — a failed run leaves no mark and runs again on next boot.
+def _migration_claim_once(conn, name: str) -> bool:
+    """Inside the caller's transaction: True = first run (mark written now), False = already applied."""
+    conn.run("CREATE TABLE IF NOT EXISTS app_migrations ("
+             "name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
+    return bool(conn.run("INSERT INTO app_migrations (name) VALUES (:n) "
+                         "ON CONFLICT (name) DO NOTHING RETURNING name", n=name))
+
+
 def _migrate_verified_source():
     """task 5.0c — profiles.is_verified is the only badge source. One-time carry-over of KYC
     approvals that only reached users.is_verified, and approved submissions still at step review
-    (they were counted as «بانتظار المراجعة»). Idempotent."""
+    (they were counted as «بانتظار المراجعة»).
+    Runs ONCE (app_migrations mark — task 5.0f): it used to run on every boot and gave back a badge
+    the admin had withdrawn. It never overwrites an existing profiles row (a withdrawal through
+    set_user_verified always leaves a row with FALSE), so even the first run after the mark
+    shipped keeps every withdrawal."""
     with db_conn() as conn:
         conn.run("BEGIN")
         try:
+            if not _migration_claim_once(conn, "verified_source"):
+                conn.run("COMMIT")
+                return
             conn.run(
                 "INSERT INTO profiles (user_id, is_verified) "
                 "SELECT u.id, TRUE FROM users u JOIN kyc_submissions k ON k.user_id = u.id "
                 "WHERE COALESCE(u.is_verified, FALSE) AND k.status = 'approved' "
-                "ON CONFLICT (user_id) DO UPDATE SET is_verified = TRUE")
+                "ON CONFLICT (user_id) DO NOTHING")
             conn.run("UPDATE kyc_submissions SET step = 'approved' "
                      "WHERE status = 'approved' AND step = 'review'")
             conn.run("COMMIT")
         except Exception:
             conn.run("ROLLBACK")
             raise
+
+
+# ── Database lockdown (task 5.0f — AUD-P1-12 · SYSTEMS_INDEX §54k) ──
+# The app is the only client of the database (F3): it connects as the role that owns the public
+# tables, and a table owner is not subject to RLS (no FORCE ROW LEVEL SECURITY anywhere) — so RLS
+# with no policies closes the tables to Supabase's anon / authenticated API roles without touching
+# the app. Default privileges cover every table / sequence the app creates later.
+_DB_API_ROLES = ("anon", "authenticated")
+
+def _migrate_rls_lockdown():
+    """Idempotent, critical. RLS on every public table the connected role owns (a table owned by
+    another role is left as is — enabling RLS there could lock the app out) + REVOKE ALL from
+    anon / authenticated on tables + sequences + default privileges (roles that do not exist —
+    plain PostgreSQL — are skipped)."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            tables = conn.run(
+                "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity "
+                "AND pg_has_role(current_user, c.relowner, 'USAGE')")
+            for (name,) in tables:
+                conn.run('ALTER TABLE public."%s" ENABLE ROW LEVEL SECURITY' % name.replace('"', '""'))
+            roles = [r[0] for r in conn.run(
+                "SELECT rolname FROM pg_roles WHERE rolname = ANY(:r)", r=list(_DB_API_ROLES))]
+            if roles:
+                who = ", ".join(sorted(roles))   # fixed names from _DB_API_ROLES only
+                conn.run(f"REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {who}")
+                conn.run(f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM {who}")
+                conn.run(f"ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM {who}")
+                conn.run(f"ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM {who}")
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    if tables:
+        print(f"[rls-lockdown] RLS enabled on {len(tables)} table(s)")
 
 
 # ══ Phase 2: Company Profile System Tables (Rule #18) ══

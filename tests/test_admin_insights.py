@@ -101,7 +101,7 @@ def _audit_rows():
 
 # ── access ──
 def test_new_endpoints_need_an_admin_session():
-    user_jwt = srv._jwt_encode({"user_id": 1, "user_type": "emp"})   # a user session is not an admin session
+    user_jwt = srv._jwt_encode({"sv": 0, "user_id": 1, "user_type": "emp"})   # a user session is not an admin session
     for url in NEW_ENDPOINTS:
         assert client.get(url).status_code == 401, url
         assert client.get(url, headers={"X-Admin-Token": PASSWORD}).status_code == 401, url   # raw password ≠ session
@@ -306,7 +306,7 @@ def test_mention_search_returns_company_logo_from_profiles():
     # 5.3a4: the follow branch of /mention/search used to fail on company_profiles.avatar_url → ok:false
     _seed_users()
     _sql("INSERT INTO profile_follows (follower_id, followed_id) VALUES (1, 2)")
-    h = {"Authorization": "Bearer " + srv._jwt_encode({"user_id": 1, "user_type": "emp"})}
+    h = {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": 1, "user_type": "emp"})}
     r = client.get("/mention/search", headers=h)
     assert r.status_code == 200, r.text
     body = r.json()
