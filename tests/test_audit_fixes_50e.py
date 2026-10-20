@@ -97,14 +97,40 @@ def test_log_error_rate_limited_on_its_own_bucket():
 
 # ── 3. Swallowed errors ──────────────────────────────────────────────────────
 
-def test_applicant_counts_read_failure_raises_not_zero(capsys):
+def test_applicant_counts_read_failure_returns_none_not_zero(capsys):
     class _Broken:
         def run(self, *a, **kw):
             raise RuntimeError("db down")
-    with pytest.raises(RuntimeError):
-        auth._fetch_applicant_counts_batch(_Broken(), [1, 2])
+    assert auth._fetch_applicant_counts_batch(_Broken(), [1, 2]) is None
     assert "[applicant_counts] read FAILED" in capsys.readouterr().out
     assert auth._fetch_applicant_counts_batch(_Broken(), []) == {}
+
+
+def test_job_lists_load_with_null_count_when_count_read_fails(schema, capsys):
+    co, co_h = _register("co")
+    jid = int(_sql("INSERT INTO jobs (company_id, title, status, expires_at) "
+                   "VALUES (:c, 'وظيفة', 'active', NOW() + INTERVAL '30 days') RETURNING id", c=co["id"])[0][0])
+
+    def _counts():
+        mine = client.get("/company/jobs", headers=co_h)
+        public = client.get(f"/jobs?company_id={co['id']}")
+        assert mine.status_code == 200 and public.status_code == 200, (mine.text, public.text)
+        pick = lambda rows: [j["applicant_count"] for j in rows if j["id"] == jid]
+        pub = public.json()   # the visitor company list is {jobs, …}; a plain search is a list
+        return pick(mine.json()["jobs"]), pick(pub["jobs"] if isinstance(pub, dict) else pub)
+
+    assert _counts() == ([0], [0])                      # read OK, no applications → a real 0
+    _sql("ALTER TABLE job_applications RENAME TO job_applications_off")
+    try:
+        assert _counts() == ([None], [None])            # read failed → list still loads, count unknown
+    finally:
+        _sql("ALTER TABLE job_applications_off RENAME TO job_applications")
+    assert "[applicant_counts] read FAILED" in capsys.readouterr().out
+
+
+def _sql(q, **kw):
+    with auth.db_conn() as c:
+        return c.run(q, **kw)
 
 
 def test_profile_view_failure_logged_page_still_served(schema, monkeypatch, capsys):
