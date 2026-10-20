@@ -48,6 +48,7 @@ PY_PYTEST=(
   test_server_error_leak.py
   test_supabase_settings.py
   test_upload_security.py
+  test_startup_lifecycle.py   # task 5.0f — startup hook still runs after the FastAPI / Starlette upgrade
 )
 
 # ── Python — run as a script (own checks + exit code) ──────────────────────
