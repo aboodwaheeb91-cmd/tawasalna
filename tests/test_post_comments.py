@@ -8847,44 +8847,10 @@ check("492-12. genStatus and genLbl variables removed from _showJobChipPop",
       'genStatus' not in _pop492
       and 'genLbl' not in _pop492)
 
-# ── §SEC-1 — IDOR: DELETE /auth/user/{user_id}/delete ────────────────────────
-# Vulnerability: delete_own_account calls Depends(verify_token) but never
-# compares token["user_id"] with the {user_id} path parameter.
-# Any authenticated user can delete any other user's account.
-# Tests sec-1-01 and sec-1-02 FAIL on main (proving the IDOR), PASS after fix.
-# Test sec-1-03 is a regression guard (passes both before and after).
-
-import re as _re_sec
-
-_del_fn_match = _re_sec.search(
-    r'def delete_own_account\(.+?\n(?:[ \t].+\n?)*',
-    srv_src
-)
-_del_body = _del_fn_match.group(0) if _del_fn_match else ""
-
-check(
-    "sec-1-01. delete_own_account validates JWT user_id matches path user_id [IDOR guard]",
-    bool(_del_body) and (
-        'token["user_id"] != user_id' in _del_body or
-        "token.get('user_id') != user_id" in _del_body or
-        "token.get(\"user_id\") != user_id" in _del_body
-    )
-)
-
-check(
-    "sec-1-02. delete_own_account raises HTTPException(403) on ownership mismatch",
-    bool(_del_body) and "403" in _del_body and "HTTPException" in _del_body
-)
-
-check(
-    "sec-1-03. delete_own_account still contains DELETE FROM users query [regression guard]",
-    bool(_del_body) and "DELETE FROM users WHERE id" in _del_body
-)
-
-# ── §SEC-1 BEHAVIORAL — Direct function call with mocked DB ──────────────────
-# Tests sec-1-04 through sec-1-08 call delete_own_account at runtime.
-# No real DB required: get_conn / release_conn are replaced with MagicMock.
-# These tests prove the security behavior, not just the source text.
+# ── §SEC-1 — DELETE /auth/user/{user_id}/delete ───────────────────────────
+# Task 5.0e: the self-delete path is CLOSED until soft delete (ADMIN_ENTITY_MAP §1) — every call → 403,
+# nothing touches the database (no IDOR possible, no hard delete). Behavioural only (CLAUDE.md Testing 6);
+# the full HTTP contract lives in tests/test_account_security.py.
 
 import sys as _sys_sec1b
 import os as _os_sec1b
@@ -8908,55 +8874,24 @@ except Exception as _e_sec1b:
     _srv_sec1_err = str(_e_sec1b)[:150]
 
 if _srv_sec1 is not None:
-    # ── sec-1-04: IDOR — token.user_id=1 tries to delete user_id=99 → HTTP 403
-    _gc_idor = _Mb()
-    with _Pb.object(_srv_sec1, 'get_conn', _gc_idor), \
-         _Pb.object(_srv_sec1, 'release_conn', _Mb()):
-        _idor_status = None
-        try:
-            _srv_sec1.delete_own_account(
-                user_id=99, data=_Mb(password='x'),
-                token={'user_id': 1, 'user_type': 'emp'}
-            )
-        except _FHE_sec1 as _ex_idor:
-            _idor_status = _ex_idor.status_code
-        except Exception:
-            pass
-    check(
-        "sec-1-04. [BEHAVIORAL] IDOR: token(user=1) deleting user_id=99 → HTTP 403",
-        _idor_status == 403
-    )
-    # ── sec-1-05: get_conn must NOT be reached when 403 is raised
-    check(
-        "sec-1-05. [BEHAVIORAL] get_conn not called when ownership fails (DELETE never runs)",
-        _gc_idor.call_count == 0
-    )
+    # sec-1-01 / 02: another user's id and the owner's own id → both 403, DB never reached
+    for _sec1_n, _sec1_uid in (("01", 99), ("02", 1)):
+        _gc_sec1 = _Mb()
+        _st_sec1 = None
+        with _Pb.object(_srv_sec1, 'get_conn', _gc_sec1), \
+             _Pb.object(_srv_sec1, 'release_conn', _Mb()):
+            try:
+                _srv_sec1.delete_own_account(user_id=_sec1_uid, token={'user_id': 1, 'user_type': 'emp'})
+            except _FHE_sec1 as _ex_sec1:
+                _st_sec1 = _ex_sec1.status_code
+            except Exception:
+                pass
+        check(
+            f"sec-1-{_sec1_n}. [BEHAVIORAL] token(user=1) deleting user_id={_sec1_uid} → 403, get_conn never called",
+            _st_sec1 == 403 and _gc_sec1.call_count == 0
+        )
 
-    # ── sec-1-06 + sec-1-07: self-delete — token.user_id=1 deletes user_id=1 → success
-    _conn_self = _Mb()
-    _gc_self = _Mb(return_value=_conn_self)
-    # delete_own_account requires the current password (bcrypt) — PR account security
-    with _Pb.object(_srv_sec1, 'get_conn', _gc_self), \
-         _Pb.object(_srv_sec1, 'release_conn', _Mb()), \
-         _Pb.object(_srv_sec1, 'check_user_password', _Mb(return_value=True)):
-        _self_res = None
-        try:
-            _self_res = _srv_sec1.delete_own_account(
-                user_id=1, data=_Mb(password='current'),
-                token={'user_id': 1, 'user_type': 'emp'}
-            )
-        except Exception:
-            pass
-    check(
-        "sec-1-06. [BEHAVIORAL] self-delete: token(user=1) deleting user_id=1 → {success: True}",
-        isinstance(_self_res, dict) and _self_res.get("success") is True
-    )
-    check(
-        "sec-1-07. [BEHAVIORAL] DELETE FROM users query executed for self-deletion",
-        any("DELETE FROM users" in str(c) for c in _conn_self.run.call_args_list)
-    )
-
-    # ── sec-1-08: No JWT → verify_token raises HTTP 401
+    # sec-1-03: No JWT → verify_token raises HTTP 401
     _req_no_jwt = _Mb()
     _req_no_jwt.headers.get.return_value = ""
     _no_jwt_status = None
@@ -8967,16 +8902,11 @@ if _srv_sec1 is not None:
     except Exception:
         pass
     check(
-        "sec-1-08. [BEHAVIORAL] no JWT → verify_token raises HTTP 401",
+        "sec-1-03. [BEHAVIORAL] no JWT → verify_token raises HTTP 401",
         _no_jwt_status == 401
     )
 else:
-    for _sec1_n in ["04", "05", "06", "07", "08"]:
-        check(
-            f"sec-1-{_sec1_n}. [BEHAVIORAL] server import available for behavioral tests",
-            False,
-            _srv_sec1_err
-        )
+    check("sec-1-01. [BEHAVIORAL] server import available for behavioral tests", False, _srv_sec1_err)
 
 # ═══════════════════════════════════════════════════════════════════════
 # §SEC-2 — POST /auth/verify-token broken decorator (misapplied to helper)
