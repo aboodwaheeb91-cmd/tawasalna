@@ -132,6 +132,8 @@ function sharedStubs(rec, opts) {
       b.addEventListener('click', () => ctx.onClick && ctx.onClick(ctx, b));
       return b;
     },
+    twCanMessage: id => { rec.canMsg = (rec.canMsg || []).concat([id]);   // server rule (5.0g)
+      return Promise.resolve({ can_message: opts.canMessage !== false, reason: null, ended: false, can_end: false }); },
     showToast: (msg, type) => rec.toasts.push({ msg, type }),
     setBtnLoad() {},
     twSafeLinkUrl: u => (/^https?:\/\/[^\s/]/.test(u) ? u : ''),
@@ -371,6 +373,14 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     check('G3 visitor → twAction(message) shown', v.$('visitorActions').find(e => e.getAttribute('data-tw-action') === 'message').length === 1);
     check('G4 visitor → no edit button', !v.rec.actions.some(a => a.id === 'edit_profile'));
     check('G5 localStorage never read', !v.rec.lsTouched);
+    const m = v.rec.actions.find(a => a.id === 'message');
+    check('G5b «مراسلة» asks the server rule (twCanMessage) and passes canMessage', (v.rec.canMsg || []).map(String).includes('7')
+      && !!m && m.ctx.canMessage === true);
+  }
+  {
+    const v = await runEdu({ canMessage: false, api: { 'GET /profile/7': EDU_PROFILE } });
+    const m = v.rec.actions.find(a => a.id === 'message');
+    check('G5c server says no → canMessage false reaches twAction', !!m && m.ctx.canMessage === false);
   }
   {
     const o = await runEdu({ snap: { isAuthenticated: true, userId: 7, userType: 'edu' }, viewerIsOwnerOf: true,

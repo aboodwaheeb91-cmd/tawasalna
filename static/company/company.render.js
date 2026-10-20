@@ -318,6 +318,11 @@
     }
   }
 
+  var _msgActSeq = 0;
+  function _hasVisibleChild(el) {
+    for (var i = 0; i < el.children.length; i++) if (!el.children[i].hidden) return true;
+    return false;
+  }
   function renderVisitorActions() {
     var row = document.getElementById('visitorActions');
     if (!row || typeof twAction !== 'function') return;
@@ -331,14 +336,23 @@
     });
     if (follow) { follow.id = 'followBtn'; row.appendChild(follow); }
 
-    var msg = twAction('message', {
-      ownerId: p.id, mode: mode, className: 'nb nb-outline',
-      onClick: function () {
-        if (!p.tw_id) { if (window.showToast) showToast(twT('profile.message_failed'), 'error'); return; }
-        location.href = '/messages?with=' + encodeURIComponent(p.tw_id);
-      }
+    // «مراسلة» only when the server rule allows it (twCanMessage — task 5.0g); slot keeps the order
+    var msgSlot = document.createElement('span');
+    msgSlot.hidden = true;
+    row.appendChild(msgSlot);
+    var seq = ++_msgActSeq;
+    twCanMessage(p.id).then(function (st) {
+      if (seq !== _msgActSeq || !msgSlot.parentNode) return;   // a newer render won
+      var msg = twAction('message', {
+        ownerId: p.id, mode: mode, className: 'nb nb-outline', canMessage: st.can_message,
+        onClick: function () {
+          if (!p.tw_id) { if (window.showToast) showToast(twT('profile.message_failed'), 'error'); return; }
+          location.href = '/messages?with=' + encodeURIComponent(p.tw_id);
+        }
+      });
+      if (msg) { msg.id = 'contactBtn'; msgSlot.parentNode.replaceChild(msg, msgSlot); }
+      row.hidden = !_hasVisibleChild(row);
     });
-    if (msg) { msg.id = 'contactBtn'; row.appendChild(msg); }
 
     var share = twAction('share', {
       ownerId: p.id, mode: mode, className: 'nb nb-outline', onClick: _shareCompany
@@ -351,7 +365,7 @@
     });
     if (report) row.appendChild(report);
 
-    row.hidden = !row.children.length;
+    row.hidden = !_hasVisibleChild(row);   // the empty «مراسلة» slot does not count
     renderFollowBtn();
   }
 

@@ -237,6 +237,12 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-shrink:0;
   background:rgba(var(--color-surface-page-rgb),.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
 }
+.chat-locked{
+  padding:14px 16px;padding-bottom:max(14px, env(safe-area-inset-bottom));
+  border-top:1px solid var(--border);flex-shrink:0;text-align:center;
+  font-size:.8rem;font-weight:700;color:var(--color-text-muted);
+  background:rgba(var(--color-surface-page-rgb),.8);
+}
 .input-wrap{
   flex:1;background:rgba(var(--ms-ink),.05);border:1px solid var(--border);
   border-radius:22px;padding:10px 14px;display:flex;align-items:flex-end;gap:8px;

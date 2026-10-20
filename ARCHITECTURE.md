@@ -3916,6 +3916,29 @@ Class: `_BoundedTTLCache`
 - Implementation: `_ws_ctrl_log: Dict[int, deque]` (module-level)
 - Used for `active_conversation` events; exceeded → close 4005
 
+### Conversation Policy (task 5.0g)
+
+Rule: `auth.can_send_message(sender, receiver)` — full table in `docs/rules/messenger.md` → Conversation Policy · SYSTEMS_INDEX §18.
+
+```sql
+CREATE TABLE conversation_endings (            -- _migrate_conversation_endings (critical)
+    user_a   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_b   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ended_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ended_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_a, user_b),
+    CHECK (user_a < user_b)
+)  -- row present = ended; the company's next message deletes it
+```
+
+| Endpoint | Auth | Response |
+|----------|------|----------|
+| `POST /messages/send` | JWT | unchanged on success · refused → 403 `{ok:false, error:{code: company_start \| mutual_follow \| ended \| forbidden, message}}` · 404 `not_found` |
+| `GET /messages/can-send/{other_id}` | JWT | `{ok:true, data:{can_message, reason, reason_key, ended, can_end}}` |
+| `POST /messages/conversations/{other_id}/end` | JWT · caller `co` + other `emp` (DB) | `{ok:true, data:{ended:true}}` (idempotent) · 403 `end_forbidden` · 404 `not_found` / `no_conversation` |
+
+Concurrency: send (both drivers) and end run `pg_advisory_xact_lock(hashtextextended('tw_msg_pair:'‖least‖':'‖greatest, 0))` first, then the facts query + decision + INSERT / DELETE in the same transaction.
+
 ### Message Flow
 
 **Client → Server (auth):**

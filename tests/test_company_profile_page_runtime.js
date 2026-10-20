@@ -105,6 +105,8 @@ function boot(opts) {
     twApi: (path, o) => { calls.api.push([path, (o && o.method) || 'GET']); return Promise.resolve(opts.api ? opts.api(path, o) : { ok: true, status: 200, data: {} }); },
     twAction: (id, c) => { calls.actions.push([id, c]); if (opts.hideActions && opts.hideActions.includes(id)) return null;
       const b = dom.document.createElement('button'); b._ctx = c; return b; },
+    twCanMessage: id => { (calls.canMsg = calls.canMsg || []).push(id);   // server rule (5.0g)
+      return Promise.resolve({ can_message: !opts.noMessage, reason: null, ended: false, can_end: false }); },
     twReportDialog: o => calls.report.push(o),
     twConfirm: o => { calls.confirm.push(o); return Promise.resolve(!!opts.confirmAnswer); },
   };
@@ -191,6 +193,11 @@ const PROFILE_OK = {
     && calls.report[0].reportedId === 123);
   check('D4 follow button keeps id followBtn (company.main.js state updates)',
     dom.byId.visitorActions.children.some(b => b.id === 'followBtn'));
+  {
+    const m = calls.actions.find(a => a[0] === 'message');
+    check('D4b «مراسلة» from the server rule: twCanMessage(company id) → canMessage', (calls.canMsg || []).includes(123)
+      && !!m && m[1].canMessage === true);
+  }
   {
     const b = boot({ hideActions: ['follow', 'message', 'share', 'report'] });
     b.ctx.companyState.profile = { id: 1 };

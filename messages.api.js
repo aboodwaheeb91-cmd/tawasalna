@@ -34,6 +34,15 @@ function apiSendMessage(receiverId, content) {
   return _msgApi('/messages/send', { method: 'POST', body: { receiver_id: receiverId, content: content } });
 }
 
+// Conversation Policy (task 5.0g) — the server rule decides the composer + «إنهاء المحادثة»
+function apiCanSend(otherId) {
+  return _msgApi('/messages/can-send/' + otherId);
+}
+
+function apiEndConversation(otherId) {
+  return _msgApi('/messages/conversations/' + otherId + '/end', { method: 'POST' });
+}
+
 function apiGetUnreadCount() {
   return _msgApi('/messages/unread/' + _user.id);
 }

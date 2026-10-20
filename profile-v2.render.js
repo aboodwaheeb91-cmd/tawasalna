@@ -754,14 +754,19 @@ window.renderProfile = function renderProfile(res){
   })();
 
   // Message → /messages?with={tw_id}
-  _scActionBtn('scContactBtn', 'message', {
-    ownerId: p.id, mode: _actMode, className: 'sc-btn sc-btn-ghost',
-    onClick: function(){
-      if(_isPreview()){ showToast(twT('profile.preview.only'), 'info'); return; }
-      var tw = window._scProfile && window._scProfile.tw_id;
-      if(!tw){ showToast(twT('profile.message_failed'), 'error'); return; }
-      window.location.href = '/messages?with=' + encodeURIComponent(tw);
-    }
+  //   Shown only when the server rule allows it (twCanMessage — task 5.0g). The owner's preview
+  //   copy is visual only (canMessage true) — the visitor's own answer decides for real.
+  (_vt === 'owner' ? Promise.resolve({ can_message: true }) : twCanMessage(p.id)).then(function(st){
+    if(window._scProfile && window._scProfile.id !== p.id) return;   // another profile rendered since
+    _scActionBtn('scContactBtn', 'message', {
+      ownerId: p.id, mode: _actMode, className: 'sc-btn sc-btn-ghost', canMessage: st.can_message,
+      onClick: function(){
+        if(_isPreview()){ showToast(twT('profile.preview.only'), 'info'); return; }
+        var tw = window._scProfile && window._scProfile.tw_id;
+        if(!tw){ showToast(twT('profile.message_failed'), 'error'); return; }
+        window.location.href = '/messages?with=' + encodeURIComponent(tw);
+      }
+    });
   });
 
   // Report (Reports System §24 — POST /reports/submit via twReportDialog). Not for the owner.

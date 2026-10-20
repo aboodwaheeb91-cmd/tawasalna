@@ -504,7 +504,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Unified Professional Taxonomy Rules | `docs/rules/taxonomy.md` |
 | Global Session UI Visibility System Rules — VM-10 | `docs/rules/vm10-header.md` |
 | VM-01 bfcache Session Revalidation Rules | `docs/rules/vm01-bfcache.md` |
-| Messenger Session Lifecycle Rules | `docs/rules/messenger.md` |
+| Messenger Session Lifecycle Rules · Conversation Policy — مين بيراسل مين + إنهاء الشركة للمحادثة: `auth.can_send_message` القاعدة الوحيدة (من القاعدة مش التوكن) بنفس transaction الإرسال تحت قفل الزوج · الزر عبر `twCanMessage` + `visibleWhen` (task 5.0g) | `docs/rules/messenger.md` |
 | Post Appreciation System Rules — أقدّر | `docs/rules/post-appreciation.md` |
 | Post Save System Rules | `docs/rules/post-save.md` |
 | Post Comments System Rules · Post Comments — Mention Atomicity Rules | `docs/rules/post-comments.md` |
