@@ -12793,7 +12793,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|
 | `PUT /auth/password` | JWT (401) · `rate_limit_middleware` | `{current_password, new_password}` | 422 field: `current_password/required` · `current_password/wrong_password` (bcrypt) · `new_password/weak_password` (`_password_policy_error`) · `new_password/same_password` · 404 user missing · 500 fixed message | `{ok:true, status:"success", token}` — fresh JWT for this device (PR 1.8) |
-| `DELETE /auth/user/{id}/delete` | JWT + `token.user_id == id` (403) · rate limited (path prefix) | `{password}` | 422 `password/required` · `password/wrong_password` · 404 · 500 fixed «تعذّر حذف الحساب، حاول لاحقاً» (never `str(e)`) | `{ok:true, success:true}` |
+| `DELETE /auth/user/{id}/delete` | **closed (task 5.0e)** — JWT (401) · rate limited (path prefix) | ignored | always 403 «حذف الحساب غير متاح حالياً» — no password check, no DB access, nothing deleted until soft delete (F27 · `docs/ADMIN_ENTITY_MAP.md §1`) | — |
 
 - 422 shape = `AccountFieldError` handler: `{ok:false, error, errors:[{field, code, message}], detail:{status, message, field}}` (same as `ExternalUrlError` / `PUT /profile`).
 - **One password rule:** `_password_policy_error(pw)` (≥ 6 chars) — used by `POST /auth/register` (400, unchanged message) and `PUT /auth/password`. ❌ a second length check.
@@ -12812,12 +12812,12 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | JWT `sv` | login (`authenticate_user` reads `session_version`; popped from the reply) · register (`0`) · `PUT /auth/password` (new sv) | never in a response body |
 | Cache refresh | `_password_changed_cache_set(uid, state)` right after the write | effective at once in this process; other worker processes within ≤ 60s |
 | DB error on lookup | logged `[session-invalidation]`, not cached, token allowed | the request then fails at its own DB call; rejecting would log everyone out on a DB blip |
-| Deleted account (5.0f) | `get_session_state` → `None` → token rejected | «no user» is not cached (read from the DB each time); `DELETE /auth/user/{id}/delete` + `DELETE /admin/user/{id}` pop the cache entry |
+| Deleted account (5.0f) | `get_session_state` → `None` → token rejected | «no user» is not cached (read from the DB each time); `DELETE /admin/user/{id}` pops the cache entry (the self-delete path is closed — 5.0e) |
 | No `sv` (5.0f) | `_NO_SV_REJECT_FROM` = 1792713600 (2026-10-23T00:00Z) | from then on a token without `sv` → rejected before any DB lookup (all pre-5.0b tokens expired 2026-10-22) |
 | New token | `PUT /auth/password` → `_jwt_encode({user_id, user_type, tw_id, sv})` | carries the new `sv` → survives |
 | Frontend (new session) | `TwAuthSync.startSession(user, jwt)` (`static/shared/auth-sync.js` — PR 4.8) | login / register only: clears the two keys, writes both, keeps them only if the snapshot is `authenticated` (token parses, not expired, user_id / user_type = the user's) — else both removed, `false`. Fires `login`. ❌ `localStorage.setItem('tw_user' / 'tw_jwt', …)` in a page |
 | Frontend | `TwAuthSync.renewToken(jwt)` (`static/shared/auth-sync.js`) | same user_id + user_type + future exp only; writes `tw_jwt`, fires handlers (`token_renewed`); other tabs via `storage`. ❌ `localStorage.setItem('tw_jwt', …)` in a page |
-| Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (self + admin) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
+| Open WebSockets (PR 4.0) | `server._ws_revoke_user(uid, reason)` after the write — also on account delete (admin; self-delete closed — 5.0e) | `ws_manager.close_user(uid, 4008)`: detached first (nothing delivered after), then closed; from a sync endpoint via `asyncio.run_coroutine_threadsafe` on the loop captured in `register()`, waits ≤ 5s. Client: reconnect only with a JWT ≠ the revoked one (stored already → now · 2s second look · else `token_renewed`) — the device that changed the password is back in either order, other devices stay closed. This process only (one worker) |
 
 Same-second edge closed in 5.0b by `sv`; pre-5.0b tokens (no `sv`) kept the second-granularity `iat` check until `_NO_SV_REJECT_FROM` (task 5.0f).
 

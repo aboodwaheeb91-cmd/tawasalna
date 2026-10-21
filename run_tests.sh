@@ -17,6 +17,8 @@
 # DB: PostgreSQL ≥ 14 with ssl=on (auth.get_conn always connects with SSL, like Supabase),
 #     superuser tawasalna_test_user / test_pass_pr1 @ 127.0.0.1:5432 — the URL the
 #     integration tests already use. Override with TW_TEST_DB_URL.
+#     Guarded (tools/db_guard.py): never APP_ENV=production, the name must contain "test", and the
+#     host must be local unless TW_TEST_DB_ALLOW_REMOTE=1 — checked before anything connects.
 # Git: a full clone with origin/main (two tests diff against `git merge-base origin/main HEAD`).
 set -u
 cd "$(dirname "$0")"
@@ -32,6 +34,13 @@ export PYTHONDONTWRITEBYTECODE=1
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 T=tests
 DB_URL="${TW_TEST_DB_URL:-postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline}"
+
+# ── DB safety guard (task 5.0e) — BEFORE any connection / DROP / CREATE DATABASE ──
+# Refuses (exit 2): APP_ENV=production · a database name without "test" · a host that is not
+# localhost / 127.0.0.1 unless TW_TEST_DB_ALLOW_REMOTE=1. Rules: tools/db_guard.py.
+if [ "$NO_DB" = 0 ]; then
+  "$PY" tools/db_guard.py "$DB_URL" || exit 2
+fi
 
 # ── Python — run with pytest (test functions / TestCase, no own __main__) ───
 PY_PYTEST=(
@@ -110,6 +119,8 @@ PY_DB=(
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
   pytest:test_security_50f.py         # task 5.0f — RLS lockdown · deleted account · org gate · no-sv cutoff · badge once
+  pytest:test_audit_fixes_50e.py      # task 5.0e — /log/error · swallowed errors · Google off · soon badges · noindex · DB guard
+  pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────
@@ -153,7 +164,7 @@ EXCLUDED=(
   "test_regbtn_ds.py|live server :8000 + Playwright"
   "test_register_ds.py|live server :8000 + Playwright"
   "test_pipeline_pr5.py|live server :8000 (HTTP via requests) + its DB"
-  "test_privacy_boundary.py|live server :8000 (HTTP via requests)"
+  "test_privacy_boundary.py|live server :8000 (HTTP via requests) — HTTP groups A–F + H run in CI as test_privacy_boundary_http.py; static / mock groups G, I–L not ported (task 5.0e F30)"
   "test_talent_bank_tag_pg.py|live server :8000 + COMPANY_JWT of a real account (every test skips otherwise)"
   "test_talent_bank_v2.py|live server :8000 (HTTP via requests) + its DB"
   "test_candidate_job_status_picker_runtime.js|Playwright (real Chromium)"

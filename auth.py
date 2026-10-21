@@ -2599,7 +2599,9 @@ def _fetch_accepted_professions_batch(conn, job_ids):
 
 def _fetch_applicant_counts_batch(conn, job_ids):
     """Batch-fetch job_applications counts for a list of job IDs.
-    Returns {job_id: int}. Never raises — returns {} on any error.
+    Returns {job_id: int} (a job with no applications is absent → 0). A read error is logged and
+    returns None (task 5.0e) — the job list still loads, every applicant_count is null (unknown),
+    never «0 applicants»; callers use _applicant_count(cnt_map, job_id).
     """
     if not job_ids:
         return {}
@@ -2612,8 +2614,14 @@ def _fetch_applicant_counts_batch(conn, job_ids):
             **params
         )
         return {r[0]: int(r[1]) for r in (rows or [])}
-    except Exception:
-        return {}
+    except Exception as e:
+        print(f"[applicant_counts] read FAILED jobs={len(job_ids)}: {type(e).__name__}: {e}")
+        return None
+
+
+def _applicant_count(cnt_map, job_id):
+    """applicant_count for one job: int, or None when the batch read failed (unknown ≠ 0)."""
+    return None if cnt_map is None else cnt_map.get(job_id, 0)
 
 
 def _validate_accepted_profession_ids(conn, primary_pid, accepted_ids):
@@ -2914,7 +2922,7 @@ def get_jobs(filters: dict = None) -> list:
         cnt_map = _fetch_applicant_counts_batch(conn, job_ids)
         for d in result:
             d["accepted_professions"] = acc_map.get(d["id"], [])
-            d["applicant_count"] = cnt_map.get(d["id"], 0)
+            d["applicant_count"] = _applicant_count(cnt_map, d["id"])
             d["effective_status"] = _eff_status(
                 d.get("status", "active"), d.get("closed_at"), d.get("expires_at")
             )
@@ -3812,7 +3820,7 @@ def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
         cnt_map = _fetch_applicant_counts_batch(conn, job_ids)
         for d in result:
             d["accepted_professions"] = acc_map.get(d["id"], [])
-            d["applicant_count"]      = cnt_map.get(d["id"], 0)
+            d["applicant_count"]      = _applicant_count(cnt_map, d["id"])
             d["effective_status"]     = _eff_status(
                 d.get("status", "active"), d.get("closed_at"), d.get("expires_at")
             )

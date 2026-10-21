@@ -1,4 +1,4 @@
-"""PR 1.2 — settings account operations: PUT /auth/password + password-confirmed account delete.
+"""PR 1.2 — settings account operations: PUT /auth/password + account delete (closed — always 403, task 5.0e).
 
 Run: python -m pytest tests/test_account_security.py -q
 DB helpers (check_user_password / set_user_password / get_conn) are monkeypatched — no database.
@@ -91,26 +91,18 @@ def test_register_rule_is_shared():
     assert server._password_policy_error("12345") == "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
 
 
-# ── DELETE /auth/user/{id}/delete ──
-def test_delete_wrong_password_keeps_account(fake_db):
-    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json={"password": "nope"})
-    assert r.status_code == 422 and _field(r) == ("password", "wrong_password")
+# ── DELETE /auth/user/{id}/delete — closed until soft delete (task 5.0e · ADMIN_ENTITY_MAP §1) ──
+def test_delete_is_closed_even_with_right_password(fake_db, monkeypatch):
+    def _no_db():
+        raise AssertionError("the closed delete path must not touch the database")
+    monkeypatch.setattr(server, "get_conn", _no_db)
+    for body in ({"password": CURRENT}, {"password": "nope"}, None):
+        r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json=body)
+        assert r.status_code == 403 and r.json()["error"] == "حذف الحساب غير متاح حالياً"
     assert fake_db["deleted"] == []
 
 
-def test_delete_requires_jwt_and_owner(fake_db):
+def test_delete_requires_jwt(fake_db):
     assert client.request("DELETE", f"/auth/user/{UID}/delete", json={"password": CURRENT}).status_code == 401
     r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(UID + 1), json={"password": CURRENT})
     assert r.status_code == 403 and fake_db["deleted"] == []
-
-
-def test_delete_success_and_db_error_is_generic(fake_db, monkeypatch):
-    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json={"password": CURRENT})
-    assert r.status_code == 200 and r.json()["ok"] is True and len(fake_db["deleted"]) == 1
-
-    class _Boom:
-        def run(self, sql, **kw):
-            raise RuntimeError("secret internal detail")
-    monkeypatch.setattr(server, "get_conn", lambda: _Boom())
-    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json={"password": CURRENT})
-    assert r.status_code == 500 and "secret internal detail" not in r.text

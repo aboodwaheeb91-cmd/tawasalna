@@ -282,8 +282,13 @@ document.querySelectorAll('[data-pass-eye]').forEach(function(eyeBtn){
       if(b.getAttribute('data-auth-go') === 'register') showRegister(); else showLogin();
     });
   });
-  var google = document.getElementById('googleBtn');
-  if(google) google.addEventListener('click', function(){ showToast(twT('login.google_soon'), 'info'); });
+  // Google sign-in = Actions Registry `login_google` (off until built, admin can switch it on — task 5.0e)
+  var gSlot = document.getElementById('googleSlot');
+  var google = gSlot && window.twAction ? twAction('login_google', {
+    className: 'google-btn', iconSize: 'md',
+    onClick: function(){ showToast(twT('login.google_soon'), 'info'); }
+  }) : null;
+  if(google){ google.id = 'googleBtn'; gSlot.appendChild(google); gSlot.hidden = false; }
   // Native radio group: click / Space / arrow keys all fire 'change' → selectType.
   document.querySelectorAll('#typeRow input[name="accountType"]').forEach(function(r){
     r.addEventListener('change', function(){ if(r.checked) selectType(r.value); });

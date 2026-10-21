@@ -13,7 +13,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="تسجيل الدخول - تواصلنا">
 <meta name="twitter:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
-<meta name="robots" content="index, follow">
+<meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://tawasolna.com">
 <link rel="stylesheet" href="/static/index.css?v=auth-gw-v10">
 </head>
@@ -111,14 +111,14 @@
       </div>
       <button type="button" class="cta" id="loginBtn" data-tw-t="login.submit"></button>
       <div class="switch-link"><span data-tw-t="login.new_user"></span> <button type="button" class="link-btn" data-auth-go="register" data-tw-t="login.register_now"></button></div>
-      <div class="or-divider">
-        <div class="or-line"></div>
-        <span class="or-text" data-tw-t="login.or"></span>
-        <div class="or-line"></div>
+      <!-- Google sign-in: Actions Registry `login_google` (off by default until it is built — task 5.0e) -->
+      <div id="googleSlot" hidden>
+        <div class="or-divider">
+          <div class="or-line"></div>
+          <span class="or-text" data-tw-t="login.or"></span>
+          <div class="or-line"></div>
+        </div>
       </div>
-      <button type="button" class="google-btn" id="googleBtn">
-        <i data-tw-icon="globe" data-tw-size="md"></i><span data-tw-t="login.google"></span>
-      </button>
     </div>
   </div>
 

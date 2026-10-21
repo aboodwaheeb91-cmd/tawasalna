@@ -513,6 +513,19 @@ async def general_exception_handler(request, exc):
     print(f"[ERROR] {request.url.path}: {type(exc).__name__}: {exc}")
     return JSONResponse(status_code=500, content={"error": _SERVER_ERROR_MSG})
 
+# ── Search indexing (task 5.0e — SYSTEMS_INDEX §54m) ──
+# The ONLY indexable HTML pages: the landing page, public profiles /u/{tw_id}, the public job page.
+# Every other HTML response (login, settings, messages, notifications, home, admin panel / admin pages,
+# legacy redirects, duplicates like /landing.html) gets X-Robots-Tag: noindex, nofollow.
+# /sitemap.xml lists public pages only. ❌ Disallow in robots.txt for these (a crawler must fetch the page
+# to see noindex) · ❌ the admin panel path in robots.txt / sitemap (it is a secret).
+_INDEXABLE_PAGES = frozenset({"/", "/job-detail"})
+
+
+def _is_indexable_page(path: str) -> bool:
+    return path in _INDEXABLE_PAGES or (path.startswith("/u/") and len(path) > 3)
+
+
 # ── Security Headers ──
 @app.middleware("http")
 async def security_headers(request, call_next):
@@ -521,8 +534,11 @@ async def security_headers(request, call_next):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    except Exception:
-        pass
+        if response.headers.get("content-type", "").startswith("text/html") \
+                and not _is_indexable_page(request.url.path):
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    except Exception as e:
+        print(f"[security_headers] {request.url.path}: {type(e).__name__}: {e}")
     return response
 
 # ── Simple Rate Limiting ──
@@ -530,6 +546,7 @@ from collections import defaultdict, deque, OrderedDict
 import time as _time
 _rate_store = defaultdict(list)
 _RATE_LIMIT = 20  # requests per minute per client IP (all _RATE_LIMITED_PATHS together)
+_LOG_ERROR_RATE = 30  # POST /log/error per minute per client IP (own bucket — task 5.0e)
 _LOGIN_EMAIL_MAX_FAILS = 5      # failed logins per email …
 _LOGIN_EMAIL_WINDOW    = 900.0  # … in 15 minutes → that email is locked until the window clears
 _LOGIN_LOCKED_MSG = "تم إيقاف تسجيل الدخول لهذا البريد مؤقتاً بسبب محاولات فاشلة متكررة، حاول مرة أخرى بعد 15 دقيقة"
@@ -649,8 +666,12 @@ _RATE_LIMITED_PATHS = frozenset({
 async def rate_limit_middleware(request, call_next):
     # Only rate limit auth / OTP endpoints — IP from get_client_ip() only
     _p = request.url.path
-    if _p in _RATE_LIMITED_PATHS \
-            or (_p.startswith("/auth/user/") and _p.endswith("/delete")):  # password-checked account delete
+    if _p == "/log/error":   # client error reports — own per-IP bucket, never eats the auth budget (task 5.0e)
+        if not _rate_hit("log-error:" + get_client_ip(request), _LOG_ERROR_RATE, 60):
+            from fastapi.responses import JSONResponse as _JR
+            return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
+    elif _p in _RATE_LIMITED_PATHS \
+            or (_p.startswith("/auth/user/") and _p.endswith("/delete")):  # account delete (closed — always 403, task 5.0e)
         if not _rate_hit("ip:" + get_client_ip(request), _RATE_LIMIT, 60):
             from fastapi.responses import JSONResponse as _JR
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
@@ -1782,13 +1803,14 @@ class AdminLogoInput(BaseModel):
     bucket: Optional[str] = None
 
 class ErrorLogInput(BaseModel):
-    msg: Optional[str] = None
-    file: Optional[str] = None
-    line: Optional[int] = None
-    page: Optional[str] = None
-    ua: Optional[str] = None
-    type: Optional[str] = None
-    ts: Optional[str] = None
+    # Hard size limits (task 5.0e) — anything longer → 422, never stored or printed.
+    msg: Optional[str] = Field(None, max_length=2000)
+    file: Optional[str] = Field(None, max_length=500)
+    line: Optional[int] = Field(None, ge=0, le=10_000_000)
+    page: Optional[str] = Field(None, max_length=500)
+    ua: Optional[str] = Field(None, max_length=300)
+    type: Optional[str] = Field(None, max_length=20)
+    ts: Optional[str] = Field(None, max_length=40)
 
 class MessageInput(BaseModel):
     receiver_id: int
@@ -1929,9 +1951,8 @@ class AdminMessageInput(BaseModel):
 
 @app.get("/sitemap.xml")
 def sitemap():
-    urls = [
+    urls = [   # public pages only (task 5.0e — §54m); the login page is noindex
         "https://tawasolna.com/",
-        "https://tawasolna.com/index.html",
     ]
     xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
     for url in urls:
@@ -3383,12 +3404,34 @@ def resolve_report(report_id: int, request: Request):
         raise _server_error("resolve_report", e)
 
 
+# Client error reports (task 5.0e): rate limited per IP in rate_limit_middleware (own bucket), size-limited by
+# ErrorLogInput, and every text field passes _redact_client_log before it is stored or printed — no JWT /
+# bearer / token= / password= value and no email address ever reaches the log or GET /admin/errors.
+_LOG_REDACTIONS = (
+    (re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"), "[token]"),
+    (re.compile(r"(?i)\bbearer\s+\S+"), "Bearer [token]"),
+    (re.compile(r"(?i)\b(token|jwt|access_token|password|secret|code|key)=[^&\s\"']+"), r"\1=[redacted]"),
+    (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[email]"),
+)
+
+
+def _redact_client_log(text):
+    if text is None:
+        return None
+    text = str(text)
+    for rx, rep in _LOG_REDACTIONS:
+        text = rx.sub(rep, text)
+    return text
+
+
 @app.post("/log/error")
-async def log_client_error(data: ErrorLogInput):
-    err = {"page": data.page, "msg": data.msg, "line": data.line, "ts": data.ts, "type": data.type or "js"}
+def log_client_error(data: ErrorLogInput):
+    err = {"page": _redact_client_log(data.page), "msg": _redact_client_log(data.msg),
+           "file": _redact_client_log(data.file), "line": data.line,
+           "ts": _redact_client_log(data.ts), "type": _redact_client_log(data.type) or "js"}
     _error_log.append(err)
     if len(_error_log) > 100: _error_log.pop(0)
-    print(f"[CLIENT ERROR] {data.page} | {data.msg} | line:{data.line}")
+    print(f"[CLIENT ERROR] {err['page']} | {err['msg']} | line:{data.line}")
     return {"ok": True}
 
 @app.get("/admin/errors")
@@ -3937,9 +3980,6 @@ class PasswordChangeInput(BaseModel):
     current_password: str = ""
     new_password: str = ""
 
-class AccountDeleteInput(BaseModel):
-    password: str = ""
-
 @app.post("/auth/register")
 def register(data: RegisterInput, request: Request):
     if data.user_type not in ("emp", "co", "edu"):
@@ -4300,8 +4340,8 @@ def public_profile(user_id: str, request: Request):
     if viewer_type == "public-user" and token_uid:
         try:
             record_profile_view(profile_id, int(token_uid))
-        except Exception:
-            pass
+        except Exception as e:   # a side effect — the page still loads, the failure is logged (task 5.0e)
+            print(f"[profile_view] record FAILED viewed={profile_id} viewer={token_uid}: {type(e).__name__}: {e}")
     views_count = get_profile_views_count(profile_id)
 
     if viewer_type == "owner":
@@ -4332,6 +4372,7 @@ def public_profile(user_id: str, request: Request):
     # ── Interest (viewer_action) ──
     target_user_type = profile.get("user_type", "emp")
     _interest_active = False
+    _interest_unknown = False   # read failed — never reported as «not interested» (task 5.0e)
     if viewer_type == "public-user" and token_uid and target_user_type == "emp":
         try:
             _actor_utype = payload.get("user_type", "emp") if payload else "emp"
@@ -4339,11 +4380,16 @@ def public_profile(user_id: str, request: Request):
                 _interest_active = is_candidate_saved(int(token_uid), profile_id)
             else:
                 _interest_active = is_profile_interest_active(int(token_uid), profile_id)
-        except Exception:
-            pass
+        except Exception as e:
+            _interest_unknown = True
+            print(f"[profile_interest] read FAILED actor={token_uid} target={profile_id}: {type(e).__name__}: {e}")
 
     if viewer_type == "owner" or target_user_type != "emp":
         viewer_action = {"hidden": True,  "can_interact": False, "is_active": False, "label": "", "type": ""}
+    elif _interest_unknown:
+        # State unknown → no button (a toggle from a wrong state would save / remove the opposite).
+        viewer_action = {"hidden": True, "can_interact": False, "is_active": None, "label": "", "type": "",
+                         "error": "interest_unavailable"}
     elif viewer_type == "guest":
         viewer_action = {"hidden": False, "can_interact": False, "is_active": False,
                          "label": "سجّل للتفاعل", "type": "login_prompt"}
@@ -4616,7 +4662,9 @@ def profile_interest_remove(user_id: str, token=Depends(verify_token)):
     except ValueError:
         raise HTTPException(400, "معرّف غير صالح")
 
-    remove_profile_interest(int(actor_id), target_id)
+    result = remove_profile_interest(int(actor_id), target_id)   # DB error → logged + success False
+    if not result.get("success"):   # never «success» when the row was not deleted (task 5.0e)
+        raise HTTPException(500, _SERVER_ERROR_MSG)
 
     actor_type = token.get("user_type", "emp")
     return {
@@ -6420,35 +6468,11 @@ def admin_get_profile(user_id: int, request: Request):
         raise _server_error("admin_get_profile", e)
 
 @app.delete("/auth/user/{user_id}/delete")
-def delete_own_account(user_id: int, data: AccountDeleteInput, token=Depends(verify_token)):
-    """User deletes their own account — JWT owner only + current password (bcrypt).
-    Hard delete — FK audit: ARCHITECTURE.md → Account Security Operations. UI hidden until soft delete (F27)."""
-    if token["user_id"] != user_id:
-        raise HTTPException(403, "لا يمكنك حذف حساب شخص آخر")
-    if not data.password:
-        raise AccountFieldError("password", "required", "أدخل كلمة المرور للتأكيد")
-    try:
-        ok = check_user_password(user_id, data.password)
-    except Exception as e:
-        print(f"[DELETE account] password check ERROR user={user_id}: {e}")
-        raise HTTPException(500, detail="تعذّر حذف الحساب، حاول لاحقاً")
-    if ok is None:
-        raise HTTPException(404, detail="المستخدم غير موجود")
-    if not ok:
-        raise AccountFieldError("password", "wrong_password", "كلمة المرور غير صحيحة")
-    conn = get_conn()
-    try:
-        conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
-    except Exception as e:
-        print(f"[DELETE account] ERROR user={user_id}: {e}")
-        raise HTTPException(500, detail="تعذّر حذف الحساب، حاول لاحقاً")
-    finally:
-        release_conn(conn)
-    _cache_del('profile:' + str(user_id))
-    _pwd_changed_cache.pop(user_id, None)   # next request reads the DB → no user → 401 (task 5.0f)
-    _ws_revoke_user(user_id, "account_deleted")
-    print(f"[DELETE account] deleted user={user_id}")
-    return {"ok": True, "success": True}
+def delete_own_account(user_id: int, token=Depends(verify_token)):
+    """Self-service account delete — CLOSED (task 5.0e): always 403, nothing is deleted from this path
+    until soft delete (F27) is built (ADMIN_ENTITY_MAP §1). The old path hard-deleted users with every
+    CASCADE row. Admin delete (DELETE /admin/user/{id}) is a separate route and unchanged."""
+    raise HTTPException(403, "حذف الحساب غير متاح حالياً")
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):

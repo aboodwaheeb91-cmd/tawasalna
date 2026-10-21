@@ -507,7 +507,9 @@
         }
       } else {
         var jid = parseInt(j.id, 10);
-        var cnt = parseInt(j.applicant_count, 10) || 0;
+        // null = the count could not be read (task 5.0e) → «—», never «0»
+        var cnt = (j.applicant_count === null || j.applicant_count === undefined)
+          ? twEscHtml(twT('common.count_unknown')) : (parseInt(j.applicant_count, 10) || 0);
         if (eff === 'expired') {
           // Record only: no actions
           rightHtml = '<div class="job-owner-col"></div>';
