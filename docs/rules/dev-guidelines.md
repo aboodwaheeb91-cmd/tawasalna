@@ -50,4 +50,4 @@
 
 8. **No front-end framework** — keep it vanilla JS. Adding React/Vue requires an explicit request and build tooling setup.
 
-9. **IP geolocation** — `ip-api.com` is used to detect user country. Results are cached in `IP_TO_COUNTRY_CACHE` dict (in-memory, resets on restart).
+9. **IP geolocation** — `ip-api.com` is used to detect user country. Results are cached in `IP_TO_COUNTRY_CACHE` dict (in-memory, resets on restart; TTL + entry cap from `tw_limits.LIMITS` — task 5.0h-2).

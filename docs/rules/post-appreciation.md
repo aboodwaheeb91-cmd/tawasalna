@@ -13,7 +13,7 @@ These rules are permanent and apply to all future AI sessions.
 
 3. **`INSERT ... ON CONFLICT DO NOTHING` is mandatory.** The DB operation must be idempotent. Never use a simple `INSERT` that can throw a unique-constraint error on rapid clicks.
 
-4. **Rate limiter: 10 requests per 10 seconds per (user, post) pair.** The `_check_appr_rate` function in `server.py` enforces this. Do not remove it or relax the limits without an explicit security review.
+4. **Rate limiter: 10 requests per 10 seconds per (user, post) pair.** The `_check_appr_rate` function in `server.py` enforces this (on the shared `_rate_store`, numbers in `tw_limits.RATES["post_appreciate"]` — task 5.0h-2). Do not remove it or relax the limits without an explicit security review.
 
 5. **Desired State Queue is mandatory (no-flicker architecture).** The three module-level variables in `company.posts.js` are the core of the fast-click safety:
    - `_apprDesired[postId]` — the user's last-intended state

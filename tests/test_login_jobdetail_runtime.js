@@ -179,7 +179,7 @@ function gateway(opts) {
 
     const cases = [
       ['401', { ok: false, status: 401, raw: { error: 'x' } }, STRINGS['login.err.credentials']],
-      ['429 locked', { ok: false, status: 429, raw: { detail: { code: 'login_email_locked' } } }, STRINGS['login.err.locked']],
+      ['429 locked', { ok: false, status: 429, raw: { ok: false, error: { code: 'login_locked' } } }, STRINGS['login.err.locked']],
       ['429', { ok: false, status: 429, raw: {} }, STRINGS['login.err.too_many']],
       ['502', { ok: false, status: 502, raw: null }, STRINGS['login.err.server']],
     ];

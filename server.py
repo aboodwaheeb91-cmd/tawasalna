@@ -23,13 +23,25 @@ import urllib.request
 import ipaddress
 
 # ── IP to country code ──
+# Bounded (task 5.0h-2 — AUD-P2-13): ip → (code, saved_at); entries older than
+# LIMITS["ip_country_cache_ttl_s"] are looked up again; past LIMITS["ip_country_cache_max"]
+# the oldest entry goes (insertion order).
 IP_TO_COUNTRY_CACHE = {}
+
+def _ip_country_cache_put(ip: str, code: str) -> None:
+    IP_TO_COUNTRY_CACHE.pop(ip, None)
+    while len(IP_TO_COUNTRY_CACHE) >= tw_limits.LIMITS["ip_country_cache_max"]:
+        IP_TO_COUNTRY_CACHE.pop(next(iter(IP_TO_COUNTRY_CACHE)))
+    IP_TO_COUNTRY_CACHE[ip] = (code, time.time())
 
 def get_country_from_ip(ip: str) -> str:
     if not ip or ip in ('127.0.0.1', '::1', 'localhost'):
         return 'DEFAULT'
-    if ip in IP_TO_COUNTRY_CACHE:
-        return IP_TO_COUNTRY_CACHE[ip]
+    hit = IP_TO_COUNTRY_CACHE.get(ip)
+    if hit is not None:
+        if time.time() - hit[1] < tw_limits.LIMITS["ip_country_cache_ttl_s"]:
+            return hit[0]
+        IP_TO_COUNTRY_CACHE.pop(ip, None)
     COUNTRY_MAP = {
         'JO':'JO','SA':'SA','AE':'AE','KW':'KW','QA':'QA',
         'BH':'BH','OM':'OM','EG':'EG','IQ':'IQ','SY':'SY',
@@ -43,7 +55,7 @@ def get_country_from_ip(ip: str) -> str:
             data = json.loads(r.read())
         code = data.get('countryCode','DEFAULT')
         result = COUNTRY_MAP.get(code,'DEFAULT')
-        IP_TO_COUNTRY_CACHE[ip] = result
+        _ip_country_cache_put(ip, result)
         return result
     except Exception:
         return 'DEFAULT'
@@ -546,80 +558,46 @@ async def security_headers(request, call_next):
 # ── Simple Rate Limiting ──
 from collections import defaultdict, deque, OrderedDict
 import time as _time
-_rate_store = defaultdict(list)
+# Shared in-memory rate store (task 5.0h-2 — AUD-P2-13): key → hit times. Bounded without a
+# thread: on use, at most every LIMITS["mem_store_sweep_s"], keys past their window are dropped
+# (window from RATES by key prefix, else the longest window in RATES); past
+# LIMITS["mem_store_max_keys"] the keys with the oldest last hit go first.
+_rate_store: dict = {}
+_rate_sweep_at = 0.0
 _RATE_LIMIT = 20  # requests per minute per client IP (all _RATE_LIMITED_PATHS together)
 _LOG_ERROR_RATE = 30  # POST /log/error per minute per client IP (own bucket — task 5.0e)
-_LOGIN_EMAIL_MAX_FAILS = 5      # failed logins per email …
-_LOGIN_EMAIL_WINDOW    = 900.0  # … in 15 minutes → that email is locked until the window clears
-_LOGIN_LOCKED_MSG = "تم إيقاف تسجيل الدخول لهذا البريد مؤقتاً بسبب محاولات فاشلة متكررة، حاول مرة أخرى بعد 15 دقيقة"
 
-# Per-(user, post) rate limit for appreciation endpoints — guards against auto-clickers
-_appr_rate_store: dict = {}   # "{user_id}:{post_id}" -> list[float]
-_APPR_RATE_LIMIT  = 10        # max requests
-_APPR_RATE_WINDOW = 10.0      # seconds
 
-def _check_appr_rate(user_id: int, post_id: int) -> bool:
-    """True = allowed; False = rate-limited. Cleans up old timestamps in-place."""
-    key = f"{user_id}:{post_id}"
-    now = _time.time()
-    if key not in _appr_rate_store:
-        _appr_rate_store[key] = []
-    _appr_rate_store[key] = [t for t in _appr_rate_store[key] if now - t < _APPR_RATE_WINDOW]
-    if len(_appr_rate_store[key]) >= _APPR_RATE_LIMIT:
-        return False
-    _appr_rate_store[key].append(now)
-    return True
+def _rate_key_ttl(key: str) -> float:
+    rate = tw_limits.RATES.get(key.split(":", 1)[0])
+    return rate[1] if rate else max(w for _, w in tw_limits.RATES.values())
 
-# Per-(user, post) rate limit for save endpoint
-_save_rate_store: dict = {}
-_SAVE_RATE_LIMIT  = 10
-_SAVE_RATE_WINDOW = 10.0
 
-def _check_save_rate(user_id: int, post_id: int) -> bool:
-    """True = allowed; False = rate-limited."""
-    key = f"{user_id}:{post_id}"
-    now = _time.time()
-    if key not in _save_rate_store:
-        _save_rate_store[key] = []
-    _save_rate_store[key] = [t for t in _save_rate_store[key] if now - t < _SAVE_RATE_WINDOW]
-    if len(_save_rate_store[key]) >= _SAVE_RATE_LIMIT:
-        return False
-    _save_rate_store[key].append(now)
-    return True
+def _rate_sweep(now: float = None, force: bool = False) -> int:
+    """Drop expired keys, then cap the key count. Returns how many keys were removed."""
+    global _rate_sweep_at
+    now = _time.time() if now is None else now
+    cap = tw_limits.LIMITS["mem_store_max_keys"]
+    if not force and len(_rate_store) < cap and now - _rate_sweep_at < tw_limits.LIMITS["mem_store_sweep_s"]:
+        return 0
+    _rate_sweep_at = now
+    before = len(_rate_store)
+    items = list(_rate_store.items())   # snapshot — threadpool requests may write meanwhile
+    for key, hits in items:
+        if not hits or now - hits[-1] >= _rate_key_ttl(key):
+            _rate_store.pop(key, None)
+    if len(_rate_store) >= cap:   # down to 90% (room for the new key; not re-sorted on every hit)
+        items = sorted(((k, h[-1] if h else 0.0) for k, h in list(_rate_store.items())), key=lambda kv: kv[1])
+        for key, _ in items[:len(items) - cap * 9 // 10]:
+            _rate_store.pop(key, None)
+    for uid in [u for u, (_, at) in list(_pwd_changed_cache.items())
+                if _time.monotonic() - at >= _PWD_CHANGED_TTL]:
+        _pwd_changed_cache.pop(uid, None)
+    return before - len(_rate_store)
 
-# Per-(user, post) rate limit for comment creation
-_cmt_create_rate_store: dict = {}
-_CMT_CREATE_RATE   = 10
-_CMT_CREATE_WINDOW = 60.0
-
-def _check_cmt_create_rate(user_id: int, post_id: int) -> bool:
-    key = f"{user_id}:{post_id}"
-    now = _time.time()
-    if key not in _cmt_create_rate_store:
-        _cmt_create_rate_store[key] = []
-    _cmt_create_rate_store[key] = [t for t in _cmt_create_rate_store[key] if now - t < _CMT_CREATE_WINDOW]
-    if len(_cmt_create_rate_store[key]) >= _CMT_CREATE_RATE:
-        return False
-    _cmt_create_rate_store[key].append(now)
-    return True
-
-# Per-(user, comment) rate limit for comment edits
-_cmt_edit_rate_store: dict = {}
-_CMT_EDIT_RATE   = 10
-_CMT_EDIT_WINDOW = 60.0
-
-def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
-    key = f"{user_id}:{comment_id}"
-    now = _time.time()
-    if key not in _cmt_edit_rate_store:
-        _cmt_edit_rate_store[key] = []
-    _cmt_edit_rate_store[key] = [t for t in _cmt_edit_rate_store[key] if now - t < _CMT_EDIT_WINDOW]
-    if len(_cmt_edit_rate_store[key]) >= _CMT_EDIT_RATE:
-        return False
-    _cmt_edit_rate_store[key].append(now)
-    return True
 
 def _rate_prune(key: str, window: float) -> list:
+    _rate_sweep()
     now = _time.time()
     hits = [t for t in _rate_store.get(key, ()) if now - t < window]
     if hits:
@@ -638,21 +616,61 @@ def _rate_hit(key: str, limit: int, window: float) -> bool:
     return True
 
 
-# Per-email login lockout (PR 1.4) — independent of the client IP.
-def _login_email_key(email: str) -> str:
-    return "login-email:" + (email or "").strip().lower()
+def _rate_count(key: str) -> None:
+    """Count one hit without a limit check (failed logins)."""
+    _rate_sweep()
+    _rate_store[key] = _rate_store.get(key, []) + [_time.time()]
 
 
-def _login_email_locked(email: str) -> bool:
-    return len(_rate_prune(_login_email_key(email), _LOGIN_EMAIL_WINDOW)) >= _LOGIN_EMAIL_MAX_FAILS
+# Per-(user, post / comment) toggles + comments — RATES on the shared store (task 5.0h-2;
+# they had one dict each). Guards against auto-clickers.
+def _check_appr_rate(user_id: int, post_id: int) -> bool:
+    return _rate_ok("post_appreciate", f"{user_id}:{post_id}")
 
 
-def _login_email_fail(email: str) -> None:
-    _rate_store[_login_email_key(email)].append(_time.time())
+def _check_save_rate(user_id: int, post_id: int) -> bool:
+    return _rate_ok("post_save", f"{user_id}:{post_id}")
 
 
-def _login_email_reset(email: str) -> None:
-    _rate_store.pop(_login_email_key(email), None)
+def _check_cmt_create_rate(user_id: int, post_id: int) -> bool:
+    return _rate_ok("comment_create", f"{user_id}:{post_id}")
+
+
+def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
+    return _rate_ok("comment_edit", f"{user_id}:{comment_id}")
+
+
+# Login lock (PR 1.4 per email · task 5.0h-2 — AUD-P2-16 + per IP + per IP and email pair).
+# Failed logins only; RATES login_email / login_ip / login_ip_email. Every email (existing or
+# not) is counted and locked the same way, and the locked reply is one text — it never says
+# whether the address has an account. Success clears the email + pair buckets, never the IP one.
+_LOGIN_LOCKS = ("login_email", "login_ip", "login_ip_email")
+
+
+def _login_lock_who(email: str, ip: str) -> dict:
+    e = (email or "").strip().lower()
+    return {"login_email": e, "login_ip": ip, "login_ip_email": f"{ip}|{e}"}
+
+
+def _login_locked(email: str, ip: str):
+    """The window (s) of the first lock that is full, else None."""
+    for name, who in _login_lock_who(email, ip).items():
+        max_fails, window = tw_limits.RATES[name]
+        if len(_rate_prune(f"{name}:{who}", window)) >= max_fails:
+            return window
+    return None
+
+
+def _login_fail(email: str, ip: str) -> None:
+    for name, who in _login_lock_who(email, ip).items():
+        _rate_count(f"{name}:{who}")
+
+
+def _login_email_reset(email: str, ip: str = None) -> None:
+    who = _login_lock_who(email, ip or "")
+    _rate_store.pop("login_email:" + who["login_email"], None)
+    if ip:
+        _rate_store.pop("login_ip_email:" + who["login_ip_email"], None)
 
 
 _RATE_LIMITED_PATHS = frozenset({
@@ -2815,12 +2833,17 @@ def company_post_record_view(post_id: int, data: PostViewInput, request: Request
     if user_id and int(user_id) == owner:
         return {"status": "skipped", "reason": "owner"}
 
+    vk = "" if user_id else (data.visitor_key or "").strip()[:64]
+    if not user_id and not vk:
+        return {"status": "skipped", "reason": "no_key"}
+    # Same viewer (account, else client IP — a fresh visitor_key per request does not count again)
+    # + same post → once per RATES["view_count"] window, before any DB write (task 5.0h-2).
+    viewer = f"u{int(user_id)}" if user_id else "ip" + get_client_ip(request)
+    if not _rate_ok("view_count", f"post{post_id}:{viewer}"):
+        return {"status": "skipped", "reason": "duplicate"}
     if user_id:
         recorded = record_company_post_view(post_id, viewer_user_id=int(user_id))
     else:
-        vk = (data.visitor_key or "").strip()[:64]
-        if not vk:
-            return {"status": "skipped", "reason": "no_key"}
         recorded = record_company_post_view(post_id, visitor_key=vk)
 
     return {"status": "success", "recorded": recorded}
@@ -4102,6 +4125,14 @@ def ping():
 # ══════════════════════════════════════════
 _PASSWORD_MIN_LEN = 6
 
+def _password_too_long(password, field: str):
+    """None, or the 422 when the password is over LIMITS["password_max_bytes"] UTF-8 bytes
+    (bcrypt ignores the rest — task 5.0h-2 · AUD-P2-17). Register / reset / change only — never login."""
+    max_bytes = tw_limits.LIMITS["password_max_bytes"]
+    if isinstance(password, str) and len(password.encode("utf-8")) > max_bytes:
+        return _limit_error(422, "password_too_long", "limits.password_too_long", field, max=max_bytes)
+    return None
+
 def _password_policy_error(password) -> Optional[str]:
     """The one password rule — POST /auth/register + PUT /auth/password. None = acceptable."""
     if not isinstance(password, str) or len(password) < _PASSWORD_MIN_LEN:
@@ -4135,6 +4166,9 @@ def register(data: RegisterInput, request: Request):
     _pw_err = _password_policy_error(data.password)
     if _pw_err:
         raise HTTPException(400, detail=_pw_err)
+    _pw_long = _password_too_long(data.password, "password")
+    if _pw_long:
+        return _pw_long
 
     # G-contract: emp uses structured name; co/edu use full_name.
     # _norm_name: trim + collapse internal whitespace (e.g. "محمد   أحمد" → "محمد أحمد").
@@ -4178,15 +4212,15 @@ def login(data: LoginInput, request: Request):
               f"peer={(request.client.host if request.client else None)!r} chosen={get_client_ip(request)!r}")
     if not data.email.strip() or not data.password:
         raise HTTPException(400, detail="البريد وكلمة المرور مطلوبان")
-    if _login_email_locked(data.email):
-        return JSONResponse(status_code=429, content={
-            "error": _LOGIN_LOCKED_MSG,
-            "detail": {"code": "login_email_locked", "message": _LOGIN_LOCKED_MSG}})
+    ip = get_client_ip(request)
+    locked = _login_locked(data.email, ip)   # email · IP · IP + email (task 5.0h-2) — one text for all
+    if locked:
+        return _limit_error(429, "login_locked", "limits.login_locked", minutes=_fmt_number(-(-locked // 60)))
     user = authenticate_user(data.email, data.password)
     if not user:
-        _login_email_fail(data.email)
+        _login_fail(data.email, ip)
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
-    _login_email_reset(data.email)
+    _login_email_reset(data.email, ip)
     sv = int(user.pop("session_version", 0) or 0)   # read with the password check — never sent to the client
     token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
                          "tw_id": user.get("tw_id",""), "sv": sv})
@@ -4202,6 +4236,9 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
     pw_err = _password_policy_error(data.new_password)
     if pw_err:
         raise AccountFieldError("new_password", "weak_password", pw_err)
+    pw_long = _password_too_long(data.new_password, "new_password")
+    if pw_long:
+        return pw_long
     if data.new_password == data.current_password:
         raise AccountFieldError("new_password", "same_password",
                                 "كلمة المرور الجديدة يجب أن تختلف عن الحالية")
@@ -4282,6 +4319,9 @@ def password_reset_confirm(data: PasswordResetConfirmInput, background_tasks: Ba
     pw_err = _password_policy_error(data.new_password)
     if pw_err:
         raise AccountFieldError("new_password", "weak_password", pw_err)
+    pw_long = _password_too_long(data.new_password, "new_password")
+    if pw_long:
+        return pw_long
     token = (data.token or "").strip()
     if not token or len(token) > _PWRESET_TOKEN_MAX:
         return api_error(400, "invalid_token", _PWRESET_INVALID_MSG)
@@ -4482,10 +4522,10 @@ def public_profile(user_id: str, request: Request):
         _is_following = is_profile_following(int(token_uid), profile_id)
 
     # ── Views counter (Step 2) ──
-    # Record view only for logged-in non-owner viewers (24h dedup inside record_profile_view)
+    # Record view only for logged-in non-owner viewers (dedup window = RATES["view_count"], in record_profile_view)
     if viewer_type == "public-user" and token_uid:
         try:
-            record_profile_view(profile_id, int(token_uid))
+            record_profile_view(profile_id, int(token_uid), tw_limits.RATES["view_count"][1])
         except Exception as e:   # a side effect — the page still loads, the failure is logged (task 5.0e)
             print(f"[profile_view] record FAILED viewed={profile_id} viewer={token_uid}: {type(e).__name__}: {e}")
     views_count = get_profile_views_count(profile_id)
@@ -5249,6 +5289,8 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
         too_long = _too_long(data.content, "message_max", "content")   # task 5.0h — before any DB work
         if too_long:
             return too_long
+        if not _rate_ok("message_send", sender_id):   # task 5.0h-2 — after the length check, before the DB
+            return _rate_limited()
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 

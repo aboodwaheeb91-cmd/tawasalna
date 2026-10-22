@@ -6133,9 +6133,10 @@ def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: 
     finally:
         release_conn(conn)
 
-def record_profile_view(viewed_user_id: int, viewer_user_id: int) -> bool:
-    """Record a profile view. 24h anti-duplicate: same viewer only counted once per 24h window.
-    Returns True if a new view row was inserted, False if within 24h cooldown."""
+def record_profile_view(viewed_user_id: int, viewer_user_id: int, window_s: int = 86400) -> bool:
+    """Record a profile view. Anti-duplicate: same viewer only counted once per window_s
+    (server passes tw_limits.RATES["view_count"] — task 5.0h-2).
+    Returns True if a new view row was inserted, False if within the cooldown."""
     if viewed_user_id == viewer_user_id:
         return False
     conn = get_conn()
@@ -6143,9 +6144,9 @@ def record_profile_view(viewed_user_id: int, viewer_user_id: int) -> bool:
         rows = conn.run(
             "SELECT 1 FROM profile_views "
             "WHERE viewed_user_id = :vuid AND viewer_user_id = :viid "
-            "AND viewed_at > NOW() - INTERVAL '24 hours' "
+            "AND viewed_at > NOW() - make_interval(secs => :win) "
             "LIMIT 1",
-            vuid=viewed_user_id, viid=viewer_user_id)
+            vuid=viewed_user_id, viid=viewer_user_id, win=int(window_s))
         if rows:
             return False
         conn.run(
@@ -11624,12 +11625,22 @@ def run_scheduler_cycle(limit: int = 20, runner_id: str = None) -> dict:
                 print(f"[scheduler] heartbeat write failed: {type(e).__name__}: {e}")
         return result
     finally:
+        unlocked = True
         if locked:
             try:
                 conn.run("SELECT pg_advisory_unlock(:k)", k=_SCHEDULER_LOCK)
             except Exception as e:
-                print(f"[scheduler] advisory unlock failed: {type(e).__name__}: {e}")
-        release_conn(conn)
+                unlocked = False
+                print(f"[scheduler] advisory unlock failed — connection closed: {type(e).__name__}: {e}")
+        if unlocked:
+            release_conn(conn)
+        else:
+            # The session may still hold the lock — back in the pool it would block every
+            # later cycle. Closing the session releases it (task 5.0h-2 · note from #626).
+            try:
+                conn.close()
+            except Exception as e:
+                print(f"[scheduler] close after failed unlock failed: {type(e).__name__}: {e}")
 
 
 def scheduler_heartbeat_status() -> str:

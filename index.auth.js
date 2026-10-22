@@ -92,8 +92,8 @@ function _startSession(user, token){
 // Login failure → fixed text by status / code (never the raw server text — API-MUT-11).
 function _loginErrorText(res){
   var raw = res && res.raw;
-  if(res.status === 429 && raw && raw.detail && raw.detail.code === 'login_email_locked'){
-    return twT('login.err.locked');   // per-email lockout (PR 1.4) — keyed on the code
+  if(res.status === 429 && raw && raw.error && raw.error.code === 'login_locked'){
+    return twT('login.err.locked');   // email / IP / IP + email lockout (PR 1.4 · 5.0h-2) — keyed on the code
   }
   if(res.status === 429) return twT('login.err.too_many');
   if(res.status === 0)   return twApiMessage(res, twT('login.err.network'));   // network / timeout
