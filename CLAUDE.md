@@ -447,6 +447,15 @@ These rules are permanent and apply to all future AI sessions.
 
 ---
 
+## Input Limits Rule (mandatory for all AI sessions — task 5.0h)
+
+1. **كل حد إدخال أو إغراق (طول نص، عدد وسوم، حجم صفحة، rate) قيمته بـ `tw_limits.py` بس** (`LIMITS` / `RATES` / `REPORT_TYPES`؛ الوسوم من `TW.POST_TAGS` نفسها). السيرفر بيفحص قبل القاعدة عبر `_too_long` / `_rate_ok` (على `_rate_store`)، والصفحة بتاخد الرقم من `twLimit(name)` (`window.TW_LIMITS`).
+2. **الرفض:** 422 (طويل / قيمة غلط) · 429 (إغراق / تكرار) — `{ok:false, error:{code, message, field?}}` والنص من twT `limits.*` عبر `_tw_text`.
+- ❌ رقم حد مكتوب بصفحة أو endpoint · ❌ store rate جديد لكل ميزة · ❌ قائمة وسوم / أنواع بلاغ تانية · ❌ endpoint بيرجّع كل التعليقات بدون صفحات.
+- Spec: SYSTEMS_INDEX §54n · ARCHITECTURE §76 · test `python -m pytest tests/test_input_limits_50h.py -q`.
+
+---
+
 ## Startup Migration Policy (mandatory for all AI sessions — PR 2B)
 
 1. **كل migration بيشتغل عند الـ startup مسجّل بـ `_startup_migrations()` في `server.py`** كـ `(name, fn, critical)` — بالترتيب (الاعتماديات أولاً). `on_startup` بيستدعي `_run_startup_migrations()` بس. ❌ `try: _migrate_x() except: print(...)` جوّا `on_startup`.

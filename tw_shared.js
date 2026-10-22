@@ -346,6 +346,22 @@ function twT(key, vars) {
 }
 window.twT = twT;
 
+// ══ Input Limits — twLimit / twReportTypes (task 5.0h · SYSTEMS_INDEX §54n) ══
+// Values come from tw_limits.py as window.TW_LIMITS at <!--tw:strings--> — the same numbers the
+// server checks (422 / 429 messages are twT limits.*). Never write a limit number in a page.
+function twLimit(name) {
+  var L = window.TW_LIMITS && window.TW_LIMITS.limits;
+  var v = L && L[name];
+  return (typeof v === 'number' && v > 0) ? v : null;
+}
+window.twLimit = twLimit;
+
+function twReportTypes() {
+  var t = window.TW_LIMITS && window.TW_LIMITS.report_types;
+  return Array.isArray(t) ? t.slice() : [];
+}
+window.twReportTypes = twReportTypes;
+
 // Static HTML: <el data-tw-t="key"> → textContent · <el data-tw-t-label="key"> → aria-label + title
 // · <input data-tw-t-placeholder="key"> → placeholder.
 // Runs once on DOMContentLoaded for the document; call again for markup added later.
@@ -865,8 +881,8 @@ window.twCanMessage = twCanMessage;
 // The ONE report form for every page: twAction('report', { onClick: function () {
 //   twReportDialog({ reportedId: id, reportedType: 'user' | 'job' | 'company' }); } }).
 // DS-OVL twModal (tw-overlay.js must be on the page — fail closed without it) + the single
-// endpoint POST /reports/submit through twApi. Reason types = TW_REPORT_TYPES (twT 'report.type.*').
-var TW_REPORT_TYPES = ['fraud', 'spam', 'misleading', 'harassment', 'other'];
+// endpoint POST /reports/submit through twApi. Reason types = twReportTypes() (server list —
+// tw_limits.REPORT_TYPES, task 5.0h) → twT 'report.type.*'. Reason maxlength = twLimit('report_reason_max').
 
 function twReportDialog(opts) {
   opts = opts || {};
@@ -880,7 +896,7 @@ function twReportDialog(opts) {
   types.className = 'tw-report-types';
   types.setAttribute('role', 'radiogroup');
   types.setAttribute('aria-label', twT('report.type_label'));
-  TW_REPORT_TYPES.forEach(function (t, i) {
+  twReportTypes().forEach(function (t, i) {
     var lbl = document.createElement('label');
     lbl.className = 'tw-report-type';
     var r = document.createElement('input');
@@ -892,7 +908,8 @@ function twReportDialog(opts) {
   });
   var ta = document.createElement('textarea');
   ta.className = 'tw-report-reason';
-  ta.rows = 3; ta.maxLength = 1000;
+  ta.rows = 3;
+  if (twLimit('report_reason_max')) ta.maxLength = twLimit('report_reason_max');
   ta.placeholder = twT('report.reason_ph');
   ta.setAttribute('aria-label', twT('report.reason_label'));
   var err = document.createElement('div');

@@ -515,6 +515,7 @@ function doSendMessage() {
       if (st) { st.className = 'msg-status failed'; st.textContent = '✗'; }
       // 403 = the Conversation Policy refused (e.g. the company ended it) → show the reason in place
       if (status === 403 && _currentConvId === sendConvId) _loadConvPolicy(sendConvId);
+      else if (status === 422) showToast(twT('limits.too_long', { max: twFormatNumber(twLimit('message_max')) }), 'error');
       else showToast(twT('msg.send_failed'), 'error');
       var inp = document.getElementById('msgInput');
       // Give the text back only if the user is still in the same conversation
@@ -797,6 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // rate limit (10/10s). Debounce sends typing_stop 1800ms after the last keystroke.
   var msgInput = document.getElementById('msgInput');
   if (msgInput) {
+    if (twLimit('message_max')) msgInput.maxLength = twLimit('message_max');   // same limit the server checks (5.0h)
     msgInput.addEventListener('keydown', handleKey);
     msgInput.addEventListener('input', function() {
       autoResize(this);
