@@ -180,6 +180,8 @@ from auth import (
     LEGACY_APP_STATUS_TO_PIPELINE_STAGE,
     LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE,
     run_due_scheduler_jobs,
+    run_scheduler_cycle,
+    scheduler_heartbeat_status,
     BlockingConflictError,
     TalentBankLimitError,
     _migrate_pr5_pipeline_linking,
@@ -945,6 +947,54 @@ async def on_startup():
     except Exception as _idx_exc:
         print(f"⚠️  [pipeline] Could not check index status at startup: {_idx_exc}")
     await _init_asyncpg_pool()
+    _scheduler_loop_start()
+
+
+# ── Internal scheduler loop (task 6.3 — SYSTEMS_INDEX §37) ──
+# Every SCHEDULER_INTERVAL_SECONDS: auth.run_scheduler_cycle() in a worker thread (sync DB).
+# The cycle's advisory lock makes several workers / instances safe (one runs, the rest skip).
+# A failed cycle is logged and the loop goes on. SCHEDULER_LOOP=0 turns it off (tests);
+# the GitHub cron (scheduler-cron.yml → POST /internal/run-due-jobs) stays as the backup.
+SCHEDULER_INTERVAL_SECONDS = 60
+_scheduler_task = None
+
+
+async def _scheduler_loop():
+    while True:
+        try:
+            res = await asyncio.to_thread(run_scheduler_cycle)
+            if res.get("picked") or res.get("stale_reset") or not res.get("ok"):
+                print(f"[scheduler-loop] picked={res.get('picked')} done={res.get('done')} "
+                      f"retried={res.get('retried')} failed={res.get('failed')} "
+                      f"stale_reset={res.get('stale_reset')} ok={res.get('ok')}")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[scheduler-loop] cycle failed: {type(e).__name__}: {e}")
+        await asyncio.sleep(SCHEDULER_INTERVAL_SECONDS)
+
+
+def _scheduler_loop_start():
+    global _scheduler_task
+    if os.environ.get("SCHEDULER_LOOP", "1") == "0":
+        print("⚠️  [scheduler-loop] off (SCHEDULER_LOOP=0) — only the external cron runs jobs")
+        return
+    if _scheduler_task is None or _scheduler_task.done():
+        _scheduler_task = asyncio.get_running_loop().create_task(_scheduler_loop())
+        print(f"✅ [scheduler-loop] started — every {SCHEDULER_INTERVAL_SECONDS}s")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    global _scheduler_task
+    task, _scheduler_task = _scheduler_task, None
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        print("[scheduler-loop] stopped")
 
 # ── Helpers ──
 from page_shell import apply_shell
@@ -3942,6 +3992,7 @@ def health():
         "migrations": migrations,
         "email": email_service.status(),   # configured | missing — never the key
         "storage": _storage_status(),      # configured | missing — never the URL / key (5.3a2)
+        "scheduler": scheduler_heartbeat_status(),   # ok | stale — last successful cycle ≤ 10 min (6.3)
         "timestamp": datetime.now().isoformat(),
         "version": "2.0",
         "uptime": "running"
@@ -7188,8 +7239,9 @@ def internal_run_due_jobs(request: Request, limit: int = 20):
       limit: jobs to pick per call, clamped to [1, 50], default 20.
 
     Returns:
-      {"ok": true, "picked": N, "done": N, "failed": N,
-       "retried": N, "runner_id": str, "jobs": [...]}
+      {"ok": true, "picked": N, "done": N, "failed": N, "retried": N,
+       "stale_reset": N, "runner_id": str, "jobs": [...]}
+      + "skipped": "locked" when another worker's cycle holds the lock (nothing ran).
     """
     if not SCHEDULER_SECRET:
         raise HTTPException(503, "Scheduler not configured (SCHEDULER_SECRET env var not set)")
@@ -7199,8 +7251,8 @@ def internal_run_due_jobs(request: Request, limit: int = 20):
         raise HTTPException(403, "Forbidden")
 
     try:
-        result = run_due_scheduler_jobs(limit=limit)
-        return result
+        # Same cycle as the internal loop (advisory lock · stale reset · heartbeat) — task 6.3
+        return run_scheduler_cycle(limit=limit)
     except Exception as e:
         print(f"[internal_run_due_jobs] ERROR: {e}")
         raise HTTPException(500, "Runner error")

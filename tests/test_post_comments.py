@@ -6760,13 +6760,14 @@ try:
         except _HE179 as _e:
             _403_ok = (_e.status_code == 403)
 
-    # correct secret → runner called, result returned
+    # correct secret → runner called, result returned (task 6.3: through run_scheduler_cycle —
+    # the same advisory-locked cycle as the internal loop)
     _mock_runner_ret = {
         "ok": True, "picked": 0, "done": 0, "failed": 0, "retried": 0,
         "update_failed": 0, "stuck_running": 0, "runner_id": "s5-test", "jobs": [],
     }
     with _patch179.object(_srv179, 'SCHEDULER_SECRET', 'correct_s5'), \
-         _patch179.object(_srv179, 'run_due_scheduler_jobs', return_value=_mock_runner_ret):
+         _patch179.object(_srv179, 'run_scheduler_cycle', return_value=_mock_runner_ret):
         _req = _MM179()
         _req.headers.get.return_value = 'correct_s5'
         try:

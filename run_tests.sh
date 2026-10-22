@@ -31,6 +31,7 @@ NO_DB=0
 export APP_ENV="${APP_ENV:-development}"
 export JWT_SECRET="${JWT_SECRET:-ci-test-jwt-secret-0123456789abcdef0123456789abcdef}"
 export PYTHONDONTWRITEBYTECODE=1
+export SCHEDULER_LOOP=0   # task 6.3 — no internal scheduler loop inside test servers (tests drive the cycle)
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 T=tests
 DB_URL="${TW_TEST_DB_URL:-postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline}"
@@ -121,6 +122,7 @@ PY_DB=(
   pytest:test_security_50f.py         # task 5.0f — RLS lockdown · deleted account · org gate · no-sv cutoff · badge once
   pytest:test_audit_fixes_50e.py      # task 5.0e — /log/error · swallowed errors · Google off · soon badges · noindex · DB guard
   pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
+  pytest:test_scheduler_reliable_63.py  # task 6.3 — internal loop · advisory lock · stale reset · email retry · /health scheduler
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────

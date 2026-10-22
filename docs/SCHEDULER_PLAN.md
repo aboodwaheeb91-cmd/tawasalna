@@ -283,7 +283,7 @@ job_expiring_soon:{job_id}:{company_id}
 
 ```
 ❌ لا scheduler code في server.py أو auth.py حتى قرار صريح
-❌ لا background threads أو asyncio.create_task لـ scheduled work
+❌ لا background threads أو asyncio.create_task لـ scheduled work — **استثناء معتمد (task 6.3 — §16):** مهمة الـ loop الداخلية الوحيدة `server._scheduler_loop` (بتنادي `run_scheduler_cycle` بس)
 ❌ لا cron configuration أو external cron setup حتى قرار صريح
 ❌ لا endpoints جديدة لـ scheduler حتى قرار صريح (حتى /internal/*)
 ❌ لا تغيير في schema (لا scheduler_jobs table) حتى قرار صريح
@@ -993,6 +993,25 @@ if sched_ts_payload is not None:
 
 ---
 
+## 16. Reliable Scheduler — مكتملة (task 6.3 · AUD-P1-05 · AUD-P2-22 · AUD-P2-23 · AUD-P2-31 · AUD-P2-43)
+
+**السبب الجذري:** GitHub Actions `schedule` بيأخّر الـ runs ساعات (كل 2–9 ساعات بدل 5 دقايق) → إيميلات الرسائل والتذكيرات بتتأخر. الـ cron الخارجي كان المشغّل الوحيد.
+
+| البند | السلوك |
+|-------|--------|
+| دورة وحدة | `auth.run_scheduler_cycle(limit, runner_id)` = المدخل الوحيد لأي تشغيل: `pg_try_advisory_lock(515104)` (session، ما بيستنى) → مسك تاني (worker / instance تاني) → `{"ok": true, "skipped": "locked", picked: 0}` وما بيشغّل شي · الماسك: `reset_stale_scheduler_jobs` → `run_due_scheduler_jobs` → heartbeat إذا `ok` → `pg_advisory_unlock` بـ `finally` |
+| مشغّل داخلي | `server._scheduler_loop` (asyncio task): كل `SCHEDULER_INTERVAL_SECONDS = 60` → `asyncio.to_thread(run_scheduler_cycle)`. بيبلّش بآخر `on_startup` (`_scheduler_loop_start`) وبيوقف بـ `on_shutdown` (cancel). فشل دورة → log `[scheduler-loop] cycle failed` والمهمة بتكمّل. `SCHEDULER_LOOP=0` بيطفّيه (`run_tests.sh` — الاختبارات بتشغّل الدورة بنفسها) |
+| احتياط | `.github/workflows/scheduler-cron.yml` بيضل كل 5 دقايق → `POST /internal/run-due-jobs` = نفس `run_scheduler_cycle` (نفس القفل → ما في تشغيل مزدوج). الـ run أحمر إذا HTTP ≠ 200 أو JSON مش صالح أو `ok` ≠ `true` أو `failed` / `update_failed` > 0 (AUD-P2-23). `skipped: locked` = أخضر |
+| نبض | `site_settings[scheduler_last_ok]` = `NOW()` من القاعدة بعد كل دورة `ok`. `/health` → `scheduler: ok` (≤ `SCHEDULER_STALE_AFTER_SECONDS = 600`) \| `stale` (أقدم / ما في / ما انقرى) — بدون وقت ولا تفاصيل، وما بيغيّر `status` |
+| وظائف عالقة (AUD-P2-31) | `reset_stale_scheduler_jobs(conn)`: `running` و `COALESCE(locked_at, updated_at)` أقدم من `SCHEDULER_STALE_RUNNING_MINUTES = 15` → `pending` (أو `failed` إذا `attempts >= max_attempts` — المحاولة انحسبت وقت الالتقاط)، `last_error = 'stale running lock reset'`، القفل بيتمسح |
+| إعادة المحاولة | retry → `status = 'pending'` + `run_at = NOW() + LEAST(attempts × 5, 60)` دقيقة (`_update_scheduler_job_final_status`) — ما بتنعاد كل 60 ثانية |
+| إيميل فاشل (AUD-P2-43) | `_handle_message_email`: `send_email` رجّع `failed` / `unavailable` (`_EMAIL_RETRY_CODES`) → `RuntimeError` → الـ runner بيرجّعها `pending` بنفس عداد المحاولات، وبعد `max_attempts` → `failed`. تخطّي مقصود (تفضيل · throttle · حد · نوع مطفي · عنوان غلط) = `done`. الـ throttle بيعدّ `sent` / `sending` بس → المحاولة التانية ما بتنمنع |
+
+**ممنوع:** ❌ مشغّل تاني / thread / APScheduler · ❌ نداء `run_due_scheduler_jobs` مباشرة من endpoint أو loop (دايماً عبر `run_scheduler_cycle`) · ❌ وقت أو خطأ بـ `/health` · ❌ إيميل فاشل بينعلّم `done`.
+**اختبار:** `python -m pytest tests/test_scheduler_reliable_63.py -q`.
+
+---
+
 ## Source of Truth
 
 | العنصر | الحالة | المرجع |
@@ -1004,7 +1023,8 @@ if sched_ts_payload is not None:
 | Domain handlers (4) | ✅ S4 | `auth.py → _handle_appointment_reminder` / `_deadline_expire` / `_missed` / `_handle_job_expiring_soon` |
 | Scheduling hooks (5) | ✅ S4 | `auth.py → accept_appointment` / `send_appointment` / `reschedule_appointment` / `add_job` |
 | Runtime QA (5 checks) | ✅ S5 | `test_post_comments.py §179` |
-| External Cron | 🔧 جاهز — بانتظار ضبط SCHEDULER_SECRET وAPP_URL وتشغيل اختبار الإنتاج | `.github/workflows/scheduler-cron.yml` — كل 5 دقائق |
+| Internal loop + cycle (lock · stale reset · heartbeat) | ✅ 6.3 | `server.py → _scheduler_loop` · `auth.py → run_scheduler_cycle()` (§16) |
+| External Cron (احتياط) | ✅ 6.3 — بيفحص JSON الرد | `.github/workflows/scheduler-cron.yml` — كل 5 دقائق |
 | Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
 | S3 contract | §13 | هذا الملف |

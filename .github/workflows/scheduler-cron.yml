@@ -1,5 +1,8 @@
 name: Scheduler Cron
 
+# BACKUP runner (task 6.3): the server runs the same cycle itself every 60 s (internal loop,
+# server.py → _scheduler_loop). GitHub delays schedule runs by hours, so this only covers a
+# server whose loop is off / stuck. Same advisory lock → never runs a job twice.
 # Runs every 5 minutes and triggers the scheduler runner endpoint.
 # The endpoint is secured with X-Scheduler-Secret (hmac.compare_digest).
 # Secret never appears in logs — GitHub Actions auto-redacts ${{ secrets.* }}.
@@ -43,3 +46,17 @@ jobs:
             echo "Scheduler run failed — HTTP $HTTP_STATUS"
             exit 1
           fi
+
+          # AUD-P2-23 — HTTP 200 is not enough: ok:false or any failed job → red run.
+          python3 - <<'PY'
+          import json, sys
+          try:
+              r = json.load(open("/tmp/sched_response.json"))
+          except Exception as e:
+              sys.exit(f"Scheduler response is not JSON: {type(e).__name__}")
+          bad = {k: r.get(k) for k in ("failed", "update_failed") if r.get(k)}
+          if r.get("ok") is not True or bad:
+              sys.exit(f"Scheduler run not ok: ok={r.get('ok')} {bad}")
+          print(f"Scheduler ok: picked={r.get('picked')} done={r.get('done')} "
+                f"retried={r.get('retried')} skipped={r.get('skipped', '-')}")
+          PY

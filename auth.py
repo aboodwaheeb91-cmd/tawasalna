@@ -11282,8 +11282,16 @@ def _handle_message_email(job: dict) -> None:
     if not msg or msg[0][0] or not sender:
         return
     link = "/messages?with=" + str(sender[0][1]) if sender[0][1] else "/messages"
-    email_notify_user(rid, "notify_message", {"sender": sender[0][0] or "", "link": link},
-                      ref_key=f"msg:{rid}:{sid}")
+    res = email_notify_user(rid, "notify_message", {"sender": sender[0][0] or "", "link": link},
+                            ref_key=f"msg:{rid}:{sid}")
+    # 6.3 (AUD-P2-43) — a send that did not go out is not "done": raise → the runner retries it
+    # with the job's own attempts counter (failed after max_attempts). A deliberate skip
+    # (preference · throttle · cap · switched off · no address) stays done.
+    if res.get("code") in _EMAIL_RETRY_CODES:
+        raise RuntimeError(f"message_email not sent: {res.get('code')}")
+
+
+_EMAIL_RETRY_CODES = ("failed", "unavailable")   # send_email codes worth another attempt (6.3)
 
 
 def _execute_scheduler_job(job: dict) -> None:
@@ -11326,6 +11334,8 @@ def _update_scheduler_job_final_status(
 ) -> bool:
     """
     Write the final status of one scheduler job: 'done', 'failed', or 'pending' (retry).
+    A retry waits attempts × 5 minutes (max 60) before it is due again (6.3 — a down email
+    provider is not hammered by the 60-second internal loop).
 
     Uses RETURNING id + ownership guards in WHERE to verify the update was real:
       AND status = 'running'    — prevents touching jobs not in the expected state
@@ -11341,6 +11351,9 @@ def _update_scheduler_job_final_status(
         rows = conn.run(
             """UPDATE scheduler_jobs
                SET status     = :status,
+                   run_at     = CASE WHEN :status = 'pending'
+                                     THEN NOW() + make_interval(mins => LEAST(attempts * 5, 60))
+                                     ELSE run_at END,
                    locked_at  = NULL,
                    locked_by  = NULL,
                    last_error = :err,
@@ -11541,6 +11554,83 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
         raise RuntimeError("run_due_scheduler_jobs failed") from exc
     finally:
         release_conn(conn)
+
+
+# ── Scheduler cycle (task 6.3 — SYSTEMS_INDEX §37) ─────────────────────────────
+# The one entry point of every run: the internal loop (server.py, every 60 s) and
+# POST /internal/run-due-jobs (GitHub cron backup) both call run_scheduler_cycle().
+_SCHEDULER_LOCK = 515104                 # pg_try_advisory_lock key — one cycle at a time, all workers / instances
+SCHEDULER_STALE_RUNNING_MINUTES = 15     # a job 'running' longer than this lost its runner → reset
+SCHEDULER_HEARTBEAT_KEY = "scheduler_last_ok"   # site_settings — DB time of the last successful cycle
+SCHEDULER_STALE_AFTER_SECONDS = 600      # /health → scheduler: stale when the heartbeat is older
+
+
+def reset_stale_scheduler_jobs(conn) -> int:
+    """AUD-P2-31 — a job left 'running' (worker died mid-handler) goes back to 'pending', or to
+    'failed' when its attempts (already counted at pick time) reached max_attempts."""
+    rows = conn.run(
+        """UPDATE scheduler_jobs
+           SET status     = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'pending' END,
+               locked_at  = NULL,
+               locked_by  = NULL,
+               last_error = 'stale running lock reset',
+               updated_at = NOW()
+           WHERE status = 'running'
+             AND COALESCE(locked_at, updated_at) < NOW() - make_interval(mins => :m)
+           RETURNING id, status""",
+        m=SCHEDULER_STALE_RUNNING_MINUTES,
+    )
+    for jid, st in rows or []:
+        print(f"[scheduler] stale running job_id={jid} reset → {st}")
+    return len(rows or [])
+
+
+def run_scheduler_cycle(limit: int = 20, runner_id: str = None) -> dict:
+    """One scheduler cycle under a session advisory lock (non-blocking): another worker /
+    instance already running → {"ok": True, "skipped": "locked"} and nothing runs.
+    Holder: reset stale 'running' jobs → run_due_scheduler_jobs → heartbeat when ok.
+    Raises RuntimeError like run_due_scheduler_jobs (the caller logs it)."""
+    conn = get_conn()
+    locked = False
+    try:
+        locked = bool(conn.run("SELECT pg_try_advisory_lock(:k)", k=_SCHEDULER_LOCK)[0][0])
+        if not locked:
+            return {"ok": True, "skipped": "locked", "picked": 0, "done": 0, "failed": 0,
+                    "retried": 0, "update_failed": 0, "stuck_running": 0, "stale_reset": 0,
+                    "runner_id": runner_id or f"runner-{os.getpid()}", "jobs": []}
+        stale = reset_stale_scheduler_jobs(conn)
+        result = run_due_scheduler_jobs(limit=limit, runner_id=runner_id)
+        result["stale_reset"] = stale
+        if result.get("ok"):
+            try:
+                conn.run("INSERT INTO site_settings (key, value) VALUES (:k, NOW()::text) "
+                         "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                         k=SCHEDULER_HEARTBEAT_KEY)
+            except Exception as e:
+                print(f"[scheduler] heartbeat write failed: {type(e).__name__}: {e}")
+        return result
+    finally:
+        if locked:
+            try:
+                conn.run("SELECT pg_advisory_unlock(:k)", k=_SCHEDULER_LOCK)
+            except Exception as e:
+                print(f"[scheduler] advisory unlock failed: {type(e).__name__}: {e}")
+        release_conn(conn)
+
+
+def scheduler_heartbeat_status() -> str:
+    """/health → "ok" (last successful cycle within SCHEDULER_STALE_AFTER_SECONDS) | "stale"
+    (older, never, or unreadable). No time, no error detail."""
+    try:
+        with db_conn() as conn:
+            rows = conn.run("SELECT EXTRACT(EPOCH FROM NOW() - value::timestamptz) FROM site_settings "
+                            "WHERE key = :k", k=SCHEDULER_HEARTBEAT_KEY)
+    except Exception as e:
+        print(f"[scheduler] heartbeat read failed: {type(e).__name__}")
+        return "stale"
+    if not rows or rows[0][0] is None:
+        return "stale"
+    return "ok" if float(rows[0][0]) <= SCHEDULER_STALE_AFTER_SECONDS else "stale"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
