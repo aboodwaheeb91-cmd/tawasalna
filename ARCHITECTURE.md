@@ -12729,6 +12729,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 - Texts: Strings keys `email.common.{greeting, greeting_plain, footer, link_hint}` + `email.<type>.{subject, body, button?, note?}` (admin override via `PUT /admin/strings`). Layout: one RTL table layout (inline styles — email clients have no CSS vars; brand colors read from the DS-COLOR primitives in `tw_shared.css`) + a plain-text version.
 - Settings: `site_settings[email_settings]` = `{from_address, from_name, site_url, types:{password_reset, password_changed, email_change, email_changed, kyc_email_otp}}`; defaults `no-reply@tawasolna.com` · «تواصلنا» · `https://tawasolna.com` · all on. Loaded at startup + on save.
 - `/health` → `email: configured | missing` (does not change `status`).
+- `/health` → `scheduler: ok | stale` (task 6.3 — `auth.scheduler_heartbeat_status()`: `site_settings[scheduler_last_ok]` written by every successful `run_scheduler_cycle`; `ok` ≤ 10 min, else / never → `stale`; no time or error detail; does not change `status`). Scheduler runs in-process every 60 s (`server._scheduler_loop`, advisory lock 515104 → one run across workers / instances); the GitHub cron is the backup — `docs/SCHEDULER_PLAN.md §16` · SYSTEMS_INDEX §37.
 - `/health` → `storage: configured | missing` (task 5.3a2 — Supabase Storage URL + service key valid; reasons stay in the startup log; does not change `status`). Read by the Admin Shell status indicator + the dashboard «حالة النظام» card.
 
 | Endpoint | Auth | Body | Errors | Success |

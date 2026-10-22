@@ -714,10 +714,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 37. Scheduler Infrastructure ✅ S0–S4
+### 37. Scheduler Infrastructure ✅ S0–S5 + 6.3
 **Purpose:** بنية تحتية لتنفيذ الـ jobs الزمنية (appointment reminders، deadline auto-expire، job_expiring_soon، missed status transitions).
-**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1) | `auth.py → schedule_job()` (S2) | `auth.py → run_due_scheduler_jobs()` (S3) | `server.py → POST /internal/run-due-jobs` (S3) | `auth.py → _handle_*` handlers + scheduling hooks (S4)
-**Details:** `docs/SCHEDULER_PLAN.md` — §1 (why)، §2 (dependent systems)، §3 (architectural requirements)، §4–§6 (options + recommendation)، §7 (proposed schema docs)، §8 (phases S0–S6)، §9 (constraints)، §10 (S0 decision)، §11 (S1 schema implemented)، §12 (S2 helper contract)، §13 (S3 runner + endpoint implemented)، §14 (S4 domain handlers + hooks implemented).
+**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1) | `auth.py → schedule_job()` (S2) | `auth.py → run_due_scheduler_jobs()` (S3) | `server.py → POST /internal/run-due-jobs` (S3) | `auth.py → _handle_*` handlers + scheduling hooks (S4) | `auth.py → run_scheduler_cycle()` + `server.py → _scheduler_loop` (6.3)
+**Details:** `docs/SCHEDULER_PLAN.md` — §1 (why)، §2 (dependent systems)، §3 (architectural requirements)، §4–§6 (options + recommendation)، §7 (proposed schema docs)، §8 (phases S0–S6)، §9 (constraints)، §10 (S0 decision)، §11 (S1 schema implemented)، §12 (S2 helper contract)، §13 (S3 runner + endpoint implemented)، §14 (S4 domain handlers + hooks implemented)، §16 (6.3 reliable scheduler).
 **Status:**
 - S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — External Cron + Secure Endpoint
 - S1 ✅ Schema مكتملة (PR: scheduler-s1-schema) — `_migrate_scheduler_jobs()` في `auth.py`
@@ -725,7 +725,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - S3 ✅ Runner + Endpoint مكتملة (PR: scheduler-s3-runner) — `run_due_scheduler_jobs()` في `auth.py` — FOR UPDATE SKIP LOCKED، two-phase transaction، retry/exhaustion logic. `POST /internal/run-due-jobs` في `server.py` — X-Scheduler-Secret header، hmac.compare_digest، SCHEDULER_SECRET env var
 - S4 ✅ Domain Handlers + Hooks مكتملة (PR: scheduler-s4-domain-handlers) — 4 idempotent handler functions: `_handle_appointment_reminder`، `_handle_appointment_deadline_expire`، `_handle_appointment_missed`، `_handle_job_expiring_soon`. Scheduling hooks في: `accept_appointment`، `send_appointment`، `reschedule_appointment`، `add_job`. Dispatcher `_execute_scheduler_job` مُحدَّث. `_SCHEDULER_HANDLERS` يضم جميع الأنواع الأربعة.
 - S5 ✅ Minimal Runtime QA مكتملة (PR: scheduler-s5-minimal-runtime-qa) — 5 runtime checks (unittest.mock): noop dispatch، unknown-type→ValueError، endpoint-security 503/403/200، dedupe created=False on 2nd call، stale domain job→safe no-op (no notification). 1579/1579 pass.
-- S6-cron 🔧 External Cron workflow جاهز (PR: scheduler-cron-activation) — `.github/workflows/scheduler-cron.yml`، كل 5 دقائق، POST /internal/run-due-jobs + X-Scheduler-Secret. بانتظار ضبط SCHEDULER_SECRET وAPP_URL وتشغيل اختبار الإنتاج. سيُحدَّث إلى ✅ بعد التفعيل الفعلي.
+- S6-cron ✅ (احتياط منذ 6.3) External Cron workflow (PR: scheduler-cron-activation) — `.github/workflows/scheduler-cron.yml`، كل 5 دقائق، POST /internal/run-due-jobs + X-Scheduler-Secret. بانتظار ضبط SCHEDULER_SECRET وAPP_URL وتشغيل اختبار الإنتاج. سيُحدَّث إلى ✅ بعد التفعيل الفعلي.
+- 6.3 ✅ Reliable scheduler (AUD-P1-05 · P2-22 · P2-23 · P2-31 · P2-43): **المشغّل الأساسي داخلي** — `server._scheduler_loop` (asyncio، كل 60 ث، بيبلّش بالـ startup وبيوقف بالـ shutdown، فشل دورة = log بس، `SCHEDULER_LOOP=0` بيطفّيه) → `auth.run_scheduler_cycle()` = المدخل الوحيد (الـ loop + `POST /internal/run-due-jobs`): `pg_try_advisory_lock(515104)` → ممسوك = `skipped: locked` بدون تشغيل · `reset_stale_scheduler_jobs` (`running` > 15 د → `pending`، أو `failed` إذا خلصت المحاولات) · `run_due_scheduler_jobs` · heartbeat `site_settings[scheduler_last_ok]` → `/health` `scheduler: ok | stale` (> 10 د). retry → `run_at + attempts×5 د` (≤ 60). `message_email` بإرسال `failed` / `unavailable` → retry مش `done`. GitHub cron = احتياط بيفحص JSON (`ok` ≠ true أو `failed` / `update_failed` > 0 → أحمر). Test `python -m pytest tests/test_scheduler_reliable_63.py -q`.
 - S6 🔜 Admin observability — مؤجل
 **Deferred dependent features (now live in S4):**
 - `appointment_reminder` ✅ — إشعار 24 ساعة قبل الموعد (scheduled at accept time)
@@ -733,7 +734,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `appointment_missed` ✅ — انتقال `confirmed` → `missed` في DB بعد 15 دقيقة (scheduled at accept time)
 - `job_expiring_soon` ✅ — إشعار قبل 48 ساعة من انتهاء الوظيفة (scheduled at add_job time)
 - `message_email` ✅ (task 5.1c) — إيميل لرسالة لسا ما انقرت بعد `message_delay_minutes` (scheduled at `POST /messages/send` cold path via `schedule_message_email`; handler `_handle_message_email` — §54j)
-**Do not recreate:** لا تُنشئ `scheduler_jobs` مجدداً (S1). لا تُنشئ helper بديل لـ `schedule_job` (S2). لا تُنشئ runner بديل لـ `run_due_scheduler_jobs` (S3). لا تُضف JWT أو X-User-Id في endpoint `/internal/run-due-jobs`. لا تُضف background thread أو APScheduler. لا تُضف handlers جديدة خارج `_execute_scheduler_job`/`_SCHEDULER_HANDLERS` في `auth.py`.
+**Do not recreate:** لا تُنشئ `scheduler_jobs` مجدداً (S1). لا تُنشئ helper بديل لـ `schedule_job` (S2). لا تُنشئ runner بديل لـ `run_due_scheduler_jobs` (S3). لا تُضف JWT أو X-User-Id في endpoint `/internal/run-due-jobs`. لا تُضف background thread أو APScheduler — المهمة الداخلية الوحيدة `server._scheduler_loop` (6.3)؛ ❌ loop / مشغّل تاني · ❌ نداء `run_due_scheduler_jobs` مباشرة من endpoint أو loop (عبر `run_scheduler_cycle` بس — القفل + النبض) · ❌ وقت أو خطأ بـ `/health` · ❌ إيميل فاشل بينعلّم `done`. لا تُضف handlers جديدة خارج `_execute_scheduler_job`/`_SCHEDULER_HANDLERS` في `auth.py`.
 
 ---
 

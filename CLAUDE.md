@@ -78,6 +78,7 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `ADMIN_JWT_SECRET` | **Yes** (admin) | HS256 secret for admin session JWTs (≥ 32, ≠ `JWT_SECRET` / `ADMIN_TOKEN`); missing → admin login + endpoints 503 |
 | `ADMIN_URL_TOKEN` | **Yes** (admin) | Slug for the admin panel path `/tw-ctrl-{ADMIN_URL_TOKEN}` |
 | `SCHEDULER_SECRET` | Yes (scheduler) | `X-Scheduler-Secret` value for internal scheduler endpoints (503 when unset) |
+| `SCHEDULER_LOOP` | Optional | `0` → no in-process scheduler loop (task 6.3 — default on, every 60 s; `run_tests.sh` sets `0`). The GitHub cron backup still works |
 | `SUPABASE_URL` | Yes (uploads) | Supabase project URL for Storage — must be `https://<project>.supabase.co` (cleaned of spaces / hidden chars / quotes; anything else = not configured) |
 | `SUPABASE_SERVICE_KEY` | Yes (uploads) | Storage service key: new `sb_secret_…` (sent as `apikey` only) **or** legacy `service_role` JWT (deprecated by Supabase end of 2026). anon / publishable keys are rejected. Status logged at startup (never the value) — SYSTEMS_INDEX §29a |
 | `RESEND_API_KEY` | Yes (email) | Resend HTTP API key — the only email provider (`email_service.py`, task 5.1a). Missing → emails return "unavailable", `/health` `email: missing`. Never logged / returned |
