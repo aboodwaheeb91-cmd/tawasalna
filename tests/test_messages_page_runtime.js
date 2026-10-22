@@ -102,6 +102,8 @@ function makePage(opts) {
     },
     twApi: (path, o) => { rec.api.push(path); return new Promise(res => pending.push({ path, opts: o || {}, resolve: res })); },
     twT: (k) => { rec.keys.add(k); return k; },
+    twLimit: n => (n === 'message_max' ? 4000 : null),   // tw_shared.js → window.TW_LIMITS (task 5.0h)
+    twFormatNumber: n => String(n),
     twEscHtml: s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
     twIcon: Object.assign(n => '<svg data-i="' + n + '"></svg>', { hydrate: () => 0 }),
     twAvatarHtml: e => '<span class="tw-ava">' + (e && e.full_name || '') + '</span>',

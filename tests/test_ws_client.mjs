@@ -997,6 +997,8 @@ function makeRenderThrottleContext() {
     },
     twEscAttr(s) { return ctx.twEscHtml(s); },
     twT: (k) => k,
+    twLimit: () => null,   // tw_shared.js → window.TW_LIMITS (task 5.0h)
+    twFormatNumber: (n) => String(n),
     twIcon: Object.assign(() => '<svg></svg>', { hydrate: () => 0 }),
     twAvatarHtml: () => '<span class="tw-ava"></span>',
     twNotifBadgeLabel: (n) => String(n),
