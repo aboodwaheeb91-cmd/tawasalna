@@ -39,15 +39,17 @@
       span.appendChild(x);
       chips.appendChild(span);
     });
-    if (count) count.textContent = _selectedTags.length + '/5';
+    if (count) count.textContent = _selectedTags.length + (twLimit('post_tags_max') ? '/' + twLimit('post_tags_max') : '');
   }
 
+  // Tag count + body length = the server's limits (twLimit — tw_limits.py, task 5.0h)
   function _addTag(tag) {
-    if (_selectedTags.length >= 5) {
-      if (window.showToast) showToast('يمكن اختيار 5 وسوم كحد أقصى', 'error'); return;
+    var maxTags = twLimit('post_tags_max');
+    if (maxTags && _selectedTags.length >= maxTags) {
+      if (window.showToast) showToast(twT('limits.post_tags_max', { max: maxTags }), 'error'); return;
     }
     if (!window.TW || !Array.isArray(TW.POST_TAGS) || TW.POST_TAGS.indexOf(tag) === -1) {
-      if (window.showToast) showToast('اختر الوسم من القائمة المقترحة', 'error'); return;
+      if (window.showToast) showToast(twT('limits.post_tags_invalid'), 'error'); return;
     }
     if (_selectedTags.indexOf(tag) !== -1) return; // no duplicate
     _selectedTags.push(tag);
@@ -199,6 +201,7 @@
     if (lblEl)    lblEl.textContent    = twT('company.post_form.publish');
     if (noComEl)  noComEl.checked      = false;
     if (bodyEl)   bodyEl.value         = '';
+    if (bodyEl && twLimit('post_body_max')) bodyEl.maxLength = twLimit('post_body_max');
     _resetTagPicker();
     _resetColorPicker();
   }
@@ -211,6 +214,7 @@
     if (titleEl)  titleEl.textContent  = twT('company.post_form.edit_title');
     if (lblEl)    lblEl.textContent    = twT('company.post_form.save_edit');
     if (bodyEl)   bodyEl.value         = post.body || '';
+    if (bodyEl && twLimit('post_body_max')) bodyEl.maxLength = twLimit('post_body_max');
     if (noComEl)  noComEl.checked      = (post.comments_enabled === false);
 
     // Tags
@@ -1688,19 +1692,30 @@
     panel.appendChild(inputRow);
   }
 
-  function _cmtLoadComments(postId) {
+  // Comments come one page of threads at a time (task 5.0h — AUD-P2-35): next_cursor → a
+  // «عرض المزيد» button at the end of the list loads the next page (cursor = last thread id).
+  function _cmtLoadComments(postId, cursor) {
     var panel = _cmtGetPanel(postId);
     if (!panel) return;
     var list    = panel.querySelector('.pc-cmts-list');
     var loading = panel.querySelector('.pc-cmts-loading');
-    if (list)    list.innerHTML = '';
+    if (list && !cursor) list.innerHTML = '';
+    var oldMore = list && list.querySelector('.pc-cmts-more');
+    if (oldMore) oldMore.remove();
     if (loading) loading.style.display = 'block';
 
-    twApi('/company/posts/' + encodeURIComponent(postId) + '/comments')
+    var url = '/company/posts/' + encodeURIComponent(postId) + '/comments'
+      + (cursor ? '?cursor=' + encodeURIComponent(cursor) : '');
+    twApi(url)
       .then(function (res) {
         if (loading) loading.style.display = 'none';
         if (!list) return;
         if (!res.ok) {
+          if (cursor) {
+            if (window.showToast) showToast(twT('post.cmt.more_failed'), 'error');
+            _cmtAppendMore(postId, list, cursor);
+            return;
+          }
           var err = document.createElement('div');
           err.className = 'pc-cmts-empty';
           err.textContent = 'تعذّر تحميل التعليقات';
@@ -1709,15 +1724,29 @@
         }
         var data = res.data;
         var comments = (data && data.comments) ? data.comments : [];
-        if (!comments.length) {
+        if (!cursor && !comments.length) {
           var empty = document.createElement('div');
           empty.className = 'pc-cmts-empty';
           empty.textContent = 'لا توجد تعليقات بعد';
           list.appendChild(empty);
           return;
         }
+        // A comment the viewer sent after page 1 is already in the list (appended on send)
+        comments = comments.filter(function (c) {
+          return !list.querySelector('.pc-cmt-item[data-cmt-id="' + Number(c.id) + '"]');
+        });
         _cmtRenderComments(comments, list);
+        if (data && data.next_cursor) _cmtAppendMore(postId, list, data.next_cursor);
       });
+  }
+
+  function _cmtAppendMore(postId, list, cursor) {
+    var more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'tw-btn-ghost pc-cmts-more';
+    more.textContent = twT('post.cmt.more');
+    more.addEventListener('click', function () { _cmtLoadComments(postId, cursor); });
+    list.appendChild(more);
   }
 
   function _toggleCommentPanel(postId) {
@@ -1807,7 +1836,7 @@
           } else {
             // Top-level comment: append, check collapse, scroll list to bottom
             var topEl = _cmtBuildItem(newComment, knownNames);
-            list.appendChild(topEl);
+            list.insertBefore(topEl, list.querySelector('.pc-cmts-more'));   // the «more» button stays last
             _cmtScheduleCollapse(topEl); // defer to next paint for accurate layout
             list.scrollTop = list.scrollHeight;
           }

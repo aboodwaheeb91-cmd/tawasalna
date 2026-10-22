@@ -950,6 +950,7 @@ async def on_startup():
 from page_shell import apply_shell
 import tw_strings
 import tw_actions
+import tw_limits
 _html_cache = {}
 
 # Strings System (PR 3.6 · SYSTEMS_INDEX §59): admin overrides live in site_settings, loaded
@@ -959,13 +960,14 @@ _html_cache = {}
 # block (registry + admin overrides) is appended to the strings block, before tw_shared.js.
 _STRINGS_OVERRIDES: dict = {}
 _ACTIONS_OVERRIDES: dict = {}
-_STRINGS_BLOCK = tw_strings.page_block({}) + tw_actions.page_block({})
+_STRINGS_BLOCK = tw_strings.page_block({}) + tw_actions.page_block({}) + tw_limits.page_block()
 
 
 def _strings_set_overrides(overrides: dict) -> None:
     global _STRINGS_OVERRIDES, _STRINGS_BLOCK
     _STRINGS_OVERRIDES = dict(overrides)
-    _STRINGS_BLOCK = tw_strings.page_block(_STRINGS_OVERRIDES) + tw_actions.page_block(_ACTIONS_OVERRIDES)
+    _STRINGS_BLOCK = (tw_strings.page_block(_STRINGS_OVERRIDES) + tw_actions.page_block(_ACTIONS_OVERRIDES)
+                      + tw_limits.page_block())   # Input Limits (task 5.0h) ride the same marker
 
 
 def _actions_set_overrides(overrides: dict) -> None:
@@ -988,6 +990,44 @@ def _strings_load_overrides() -> None:
         _strings_set_overrides(tw_strings.parse_stored(get_site_setting(tw_strings.setting_key())))
     except Exception as e:
         print(f"[strings] override load failed — defaults in use: {type(e).__name__}: {e}")
+
+
+def _tw_text(key: str, **vars) -> str:
+    """Server-side twT: the Strings System text (admin override wins) with {vars} filled."""
+    text = tw_strings.merged(_STRINGS_OVERRIDES).get(key) or key
+    for k, v in vars.items():
+        text = text.replace("{" + k + "}", str(v))
+    return text
+
+
+# ── Input Limits (task 5.0h — SYSTEMS_INDEX §54n) — values in tw_limits.py only ──
+# Too long / bad value → 422 · flood → 429, both {ok:false, error:{code, message, field?}}
+# with the message from twT `limits.*`. Rate buckets live on the shared _rate_store (_rate_hit).
+def _limit_error(status: int, code: str, key: str, field: str = None, **vars) -> JSONResponse:
+    return api_error(status, code, _tw_text(key, **vars), field)
+
+
+def _too_long(value, limit_name: str, field: str):
+    """None when value fits LIMITS[limit_name], else the 422 response."""
+    max_len = tw_limits.LIMITS[limit_name]
+    if value is not None and len(value) > max_len:
+        return _limit_error(422, "too_long", "limits.too_long", field, max=_fmt_number(max_len))
+    return None
+
+
+def _rate_ok(rate_name: str, who) -> bool:
+    """Sliding window from tw_limits.RATES[rate_name] on _rate_store, key '{rate_name}:{who}'."""
+    max_hits, window = tw_limits.RATES[rate_name]
+    return _rate_hit(f"{rate_name}:{who}", max_hits, window)
+
+
+def _rate_limited() -> JSONResponse:
+    return _limit_error(429, "rate_limited", "limits.rate_limited")
+
+
+def _fmt_number(n: int) -> str:
+    """Thousands separator like twFormatNumber (task 5.3a3) — for numbers inside server texts."""
+    return f"{int(n):,}"
 
 
 # Unified Email System (task 5.1a · SYSTEMS_INDEX §54j): email_service.send_email is the only
@@ -2619,6 +2659,25 @@ def company_posts_list(company_id: str, request: Request):
     return {"status": "success", "posts": posts}
 
 
+def _post_input_check(body: str, tags):
+    """Body length + tags from TW.POST_TAGS only, ≤ post_tags_max (task 5.0h — AUD-P2-12 / P2-36).
+    → (clean tags list | None, None) or (None, 422 response)."""
+    too_long = _too_long(body, "post_body_max", "body")
+    if too_long:
+        return None, too_long
+    if not tags:
+        return None, None
+    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+        return None, _limit_error(422, "invalid_tags", "limits.post_tags_invalid", "tags")
+    clean = list(dict.fromkeys(t.strip() for t in tags))
+    if any(t not in tw_limits.POST_TAGS for t in clean):
+        return None, _limit_error(422, "invalid_tags", "limits.post_tags_invalid", "tags")
+    max_tags = tw_limits.LIMITS["post_tags_max"]
+    if len(clean) > max_tags:
+        return None, _limit_error(422, "too_many_tags", "limits.post_tags_max", "tags", max=max_tags)
+    return clean, None
+
+
 @app.post("/company/posts")
 def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
     user_id   = token.get("user_id")
@@ -2631,8 +2690,13 @@ def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
         raise HTTPException(400, "المنشور فارغ")
     if data.theme_color and data.theme_color not in ALLOWED_POST_COLORS:
         raise HTTPException(400, "لون غير مقبول")
+    tags, bad = _post_input_check(body, data.tags)
+    if bad:
+        return bad
+    if not _rate_ok("post_create", int(user_id)):
+        return _rate_limited()
     ce = data.comments_enabled if data.comments_enabled is not None else True
-    post = create_company_post(int(user_id), body, data.tags, data.theme_color or None, ce)
+    post = create_company_post(int(user_id), body, tags, data.theme_color or None, ce)
     return {"status": "success", "post": post}
 
 
@@ -2672,8 +2736,13 @@ def company_post_update(post_id: int, data: CompanyPostUpdateInput, token=Depend
         raise HTTPException(400, "المنشور فارغ")
     if data.theme_color and data.theme_color not in ALLOWED_POST_COLORS:
         raise HTTPException(400, "لون غير مقبول")
+    tags, bad = _post_input_check(body, data.tags)
+    if bad:
+        return bad
+    if not _rate_ok("post_edit", int(user_id)):
+        return _rate_limited()
     ce = data.comments_enabled if data.comments_enabled is not None else True
-    post = update_company_post(post_id, body, data.tags, data.theme_color or None, ce)
+    post = update_company_post(post_id, body, tags, data.theme_color or None, ce)
     return {"status": "success", "post": post}
 
 
@@ -2761,15 +2830,20 @@ class CommentUpdateInput(BaseModel):
 
 
 @app.get("/company/posts/{post_id}/comments")
-def company_get_post_comments(post_id: int, request: Request):
-    """Public with optional JWT — returns active comments + viewer flags if authenticated."""
+def company_get_post_comments(post_id: int, request: Request, limit: Optional[int] = None,
+                              cursor: Optional[int] = None):
+    """Public with optional JWT — returns active comments + viewer flags if authenticated.
+    Paged by thread (task 5.0h — AUD-P2-35): `limit` threads (root + its replies, default
+    comments_page, max comments_page_max) after thread id `cursor`; next_cursor = null on the last page."""
     auth_header = request.headers.get("Authorization", "")
     viewer_id = None
     if auth_header.startswith("Bearer "):
         payload = _jwt_decode(auth_header[7:])
         viewer_id = payload.get("user_id")
-    comments = get_company_post_comments(post_id, viewer_id)
-    return {"status": "success", "comments": comments}
+    lim = tw_limits.LIMITS["comments_page"] if limit is None else limit
+    lim = max(1, min(int(lim), tw_limits.LIMITS["comments_page_max"]))
+    comments, next_cursor = get_company_post_comments(post_id, viewer_id, limit=lim, cursor=cursor)
+    return {"status": "success", "comments": comments, "next_cursor": next_cursor}
 
 
 @app.post("/company/posts/{post_id}/comments")
@@ -2845,6 +2919,10 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     """
     viewer_id   = int(token["user_id"])
     viewer_type = token.get("user_type", "emp")
+    # task 5.0h (AUD-P2-33): ?limit= clamped to 1..mention_limit_max · per-account rate before the DB
+    limit = max(1, min(int(limit), tw_limits.LIMITS["mention_limit_max"]))
+    if not _rate_ok("mention_search", viewer_id):
+        return _rate_limited()
     seen:    set  = set()
     results: list = []
 
@@ -3324,7 +3402,20 @@ def submit_report(data: ReportInput, token=Depends(verify_token)):
     rtype = (data.reported_type or "").strip()
     if rtype not in REPORT_TARGET_TYPES:
         return api_error(422, "invalid_target_type", "نوع البلاغ غير صحيح", "reported_type")
+    # task 5.0h (AUD-P2-11): reason type from tw_limits.REPORT_TYPES · length limits · per-account
+    # rate · one report per reporter + target per day (checked in the DB — survives a restart).
+    if data.report_type not in tw_limits.REPORT_TYPES:
+        return _limit_error(422, "invalid_report_type", "limits.report_type_invalid", "report_type")
+    reason = (data.reason or "").strip()
+    if not reason:
+        return _limit_error(422, "reason_required", "report.reason_required", "reason")
+    bad = _too_long(reason, "report_reason_max", "reason") or _too_long(data.target_url, "report_url_max", "target_url")
+    if bad:
+        return bad
     reporter_id = token.get("user_id")
+    if not _rate_ok("report_submit", reporter_id):
+        return _rate_limited()
+    target_col = "job_id" if rtype == "job" else "reported_id"
     try:
         with db_conn() as conn:
             if rtype == "job":
@@ -3334,6 +3425,10 @@ def submit_report(data: ReportInput, token=Depends(verify_token)):
             if not exists:
                 return api_error(404, "target_not_found",
                                  "الوظيفة غير موجودة" if rtype == "job" else "الحساب غير موجود")
+            if conn.run(f"SELECT 1 FROM reports WHERE reporter_id = :rid AND {target_col} = :tid "
+                        "AND created_at > NOW() - :win * INTERVAL '1 second' LIMIT 1",
+                        rid=reporter_id, tid=data.reported_id, win=tw_limits.RATES["report_repeat"][1]):
+                return _limit_error(429, "duplicate_report", "limits.report_duplicate")
             conn.run(
                 "INSERT INTO reports (reporter_id, reported_id, job_id, reported_type, report_type, "
                 "reason, target_url, status) "
@@ -3341,7 +3436,7 @@ def submit_report(data: ReportInput, token=Depends(verify_token)):
                 rid=reporter_id,
                 uid=None if rtype == "job" else data.reported_id,
                 jid=data.reported_id if rtype == "job" else None,
-                rtype=rtype, rpt=data.report_type, reason=data.reason, url=data.target_url)
+                rtype=rtype, rpt=data.report_type, reason=reason, url=data.target_url)
         # No user notification: admins are not user accounts. The report stays in
         # `reports` (status 'pending') and appears in the admin panel → البلاغات tab
         # (GET /admin/reports + pending badge).
@@ -5100,6 +5195,9 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
             raise HTTPException(401, "غير مصرح")
         if sender_id == data.receiver_id:
             raise HTTPException(400, "لا يمكن إرسال رسالة لنفسك")
+        too_long = _too_long(data.content, "message_max", "content")   # task 5.0h — before any DB work
+        if too_long:
+            return too_long
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 
@@ -5166,9 +5264,7 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
 # ── Conversation Policy (task 5.0g — auth.can_send_message · docs/rules/messenger.md) ──
 def _message_policy_error(e: MessagePolicyError) -> JSONResponse:
     """Refused send / end → {ok:false, error:{code, message}} — message = the twT text (admin override wins)."""
-    key = MESSAGE_POLICY_REASONS.get(e.code, "msg.policy.forbidden")
-    text = tw_strings.merged(_STRINGS_OVERRIDES).get(key) or key
-    return api_error(e.status, e.code, text)
+    return api_error(e.status, e.code, _tw_text(MESSAGE_POLICY_REASONS.get(e.code, "msg.policy.forbidden")))
 
 
 @app.get("/messages/can-send/{other_id}")

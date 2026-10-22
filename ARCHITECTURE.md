@@ -12990,3 +12990,22 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 
 - Every dialog / button text = `twT` (`appt.sch.*`; month names `date.month.*` — DS-DATE labels, not `Intl ar-JO`).
 - `GET /api/schedule/jobs` → `ok` with zero active jobs → the job picker says «لا توجد وظائف فعّالة — انشر وظيفة أولاً», «إرسال الدعوة» is disabled (`twModal` action `disabled` / `ctl.setActionDisabled(1, true)` — DS-OVL) and a «انشر وظيفة» link = `twPostJobHref()` (`tw_shared.js` → `/u/{tw_id}?post_job=1`) opens the company page on the post-job form (`company.jobs.js → _openPostJobFromUrl`, owner with `can_post_jobs`; the param is dropped from the URL first).
+
+## §76 — Input Limits (task 5.0h)
+
+> SYSTEMS_INDEX §54n · test `python -m pytest tests/test_input_limits_50h.py -q`.
+
+**One place:** `tw_limits.py` (`LIMITS` · `RATES` · `REPORT_TYPES` · `POST_TAGS`). Server constants for now — they move to the settings system when it is built. `POST_TAGS` is read at start from `TW.POST_TAGS` (`static/shared/tw-options-data.js`) so the picker and the server allowlist are one list. `page_block()` → `window.TW_LIMITS` (limits the pages need + report types) at `<!--tw:strings-->`; pages read it through `twLimit(name)` / `twReportTypes()` (`tw_shared.js`).
+
+| Endpoint | Check (before any DB write) | Rejection |
+|----------|-----------------------------|-----------|
+| `POST /messages/send` | `content` ≤ `message_max` (4000) | 422 `too_long` (`field: content`) |
+| `POST /company/posts` · `PATCH /company/posts/{id}` | body ≤ `post_body_max` (3000) · tags = list of strings, each in `POST_TAGS`, de-duplicated, ≤ `post_tags_max` (5) · `post_create` 5 / 10 min · `post_edit` 20 / 10 min per account | 422 `too_long` / `invalid_tags` / `too_many_tags` · 429 `rate_limited` |
+| `POST /reports/submit` | `report_type` ∈ `REPORT_TYPES` · reason required, ≤ 1000 · `target_url` ≤ 500 · `report_submit` 10 / h per account · same reporter + target (`reported_id` / `job_id`) within 24 h (`reports.created_at`) | 422 `invalid_report_type` / `reason_required` / `too_long` · 429 `rate_limited` / `duplicate_report` |
+| `GET /mention/search` | `limit` clamped to 1..`mention_limit_max` (20) · `mention_search` 60 / min per account | 429 `rate_limited` |
+| `GET /company/posts/{id}/comments` | `?limit=` threads (default 20, max 50) after `?cursor=` (thread id) | — (`next_cursor: null` on the last page) |
+
+- Shape: `{ok:false, error:{code, message, field?}}` (`api_error`); `message` = twT `limits.*` via `_tw_text` (admin override wins). `twApi` / `twApiMessage` read it as is.
+- Rates use `_rate_ok(name, who)` → `_rate_hit` on the shared `_rate_store` (no new store). The repeat-report rule reads the DB (survives a restart).
+- Comment pages are pages of **threads** (root id = `COALESCE(reply_to_comment_id, id)`, depth 1) so a reply is always on its root's page. The page renders each page with `_cmtRenderComments`, skips a comment already shown (sent after page 1) and keeps the «عرض المزيد من التعليقات» button (`post.cmt.more`) last.
+- Not in 5.0h (next task): view-count dedupe per visitor + per-IP rate (P2-07 / P2-18) · password > 72 bytes → 422 (P2-17) · login lock per IP + email (P2-16) · TTL / sweep / size cap for in-memory rate stores and `IP_TO_COUNTRY_CACHE` (P2-13).

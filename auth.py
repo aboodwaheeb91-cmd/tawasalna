@@ -5539,15 +5539,28 @@ def set_company_post_save(post_id: int, user_id: int, saved: bool) -> dict:
 _MAX_COMMENT_BODY = 1000
 
 
-def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
-    """Return active comments for a post, oldest first.
+def get_company_post_comments(post_id: int, viewer_user_id=None, limit: int = 20, cursor=None) -> tuple:
+    """Return (active comments, next_cursor) for a post, oldest first — one page of threads
+    (task 5.0h — AUD-P2-35). A thread = root id COALESCE(reply_to_comment_id, id) (depth is 1):
+    the page holds `limit` threads with thread id > cursor, each with all its active comments, so
+    a reply never lands on another page than its root. next_cursor = last thread id, or None.
     viewer_user_id controls viewer_can_edit / viewer_can_delete flags."""
     conn = get_conn()
     try:
         post_rows = conn.run("SELECT company_id FROM company_posts WHERE id = :pid", pid=post_id)
         if not post_rows:
-            return []
+            return [], None
         post_company_id = int(post_rows[0][0])
+        thread_rows = conn.run(
+            "SELECT DISTINCT COALESCE(reply_to_comment_id, id) AS t FROM company_post_comments "
+            "WHERE post_id = :pid AND status = 'active' AND COALESCE(reply_to_comment_id, id) > :after "
+            "ORDER BY t ASC LIMIT :lim",
+            pid=post_id, after=int(cursor or 0), lim=int(limit) + 1)
+        threads = [int(r[0]) for r in thread_rows]
+        next_cursor = threads[int(limit) - 1] if len(threads) > int(limit) else None
+        threads = threads[:int(limit)]
+        if not threads:
+            return [], None
         rows = conn.run(
             "SELECT c.id, c.body, c.created_at, c.updated_at, "
             "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id, "
@@ -5560,7 +5573,8 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
             "LEFT JOIN users ru ON ru.id = rc.user_id "
             "LEFT JOIN users mu ON mu.tw_id = c.mentioned_tw_id "
             "WHERE c.post_id = :pid AND c.status = 'active' "
-            "ORDER BY c.created_at ASC",
+            "AND COALESCE(c.reply_to_comment_id, c.id) IN (" + ", ".join(str(t) for t in threads) + ") "
+            "ORDER BY c.created_at ASC, c.id ASC",
             pid=post_id)
         cols = ["id", "body", "created_at", "updated_at",
                 "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id",
@@ -5576,7 +5590,7 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
             d["viewer_can_delete"] = (viewer_id is not None and (uid == viewer_id or viewer_is_owner))
             result.append(d)
         if not result:
-            return result
+            return result, next_cursor
         # Batch-fetch mentions from junction table and attach to each comment
         comment_ids = [d["id"] for d in result]
         id_placeholders = ", ".join(str(int(cid)) for cid in comment_ids)
@@ -5606,7 +5620,7 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
                 d["mentions"] = [{"name": d.get("mentioned_author_name") or "", "tw_id": d["mentioned_tw_id"]}]
             else:
                 d["mentions"] = []
-        return result
+        return result, next_cursor
     finally:
         release_conn(conn)
 

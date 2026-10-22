@@ -120,6 +120,7 @@ PY_DB=(
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
   pytest:test_security_50f.py         # task 5.0f — RLS lockdown · deleted account · org gate · no-sv cutoff · badge once
   pytest:test_audit_fixes_50e.py      # task 5.0e — /log/error · swallowed errors · Google off · soon badges · noindex · DB guard
+  pytest:test_input_limits_50h.py     # task 5.0h — input / flood limits: messages · posts · reports · mention search · comment pages
   pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
 )
 
