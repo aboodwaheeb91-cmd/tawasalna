@@ -28,6 +28,11 @@ LIMITS = {
     "mention_limit_max": 20,      # GET /mention/search ?limit= ceiling
     "comments_page": 20,          # GET /company/posts/{id}/comments threads per page (default)
     "comments_page_max": 50,      # … ?limit= ceiling
+    "password_max_bytes": 72,     # register / password reset / password change — UTF-8 bytes (bcrypt cuts at 72)
+    "mem_store_max_keys": 100000, # in-memory rate store (_rate_store) — key cap; oldest evicted past it
+    "mem_store_sweep_s": 60,      # … expired keys swept at most this often, on use (no thread)
+    "ip_country_cache_max": 10000,  # IP_TO_COUNTRY_CACHE — entries cap
+    "ip_country_cache_ttl_s": 86400,  # … one lookup per IP per day
 }
 
 RATES = {
@@ -36,6 +41,15 @@ RATES = {
     "report_submit": (10, 3600),  # reports — per account
     "report_repeat": (1, 86400),  # same reporter + same target — one report per day
     "mention_search": (60, 60),   # @mention search — per account
+    "message_send": (30, 60),     # POST /messages/send — per account
+    "view_count": (1, 86400),     # post / profile view — same viewer + same target counted once a day
+    "login_email": (5, 900),      # failed logins per email (PR 1.4) → that email locked …
+    "login_ip": (20, 900),        # … per client IP (many emails from one IP)
+    "login_ip_email": (3, 900),   # … per IP + email pair
+    "post_appreciate": (10, 10),  # أقدّر toggle — per account + post
+    "post_save": (10, 10),        # save toggle — per account + post
+    "comment_create": (10, 60),   # new comment — per account + post
+    "comment_edit": (10, 60),     # comment edit — per account + comment
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")

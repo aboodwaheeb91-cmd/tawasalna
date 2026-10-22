@@ -93,15 +93,15 @@ def test_rate_limiter_rotating_xff_blocked_under_xff_right(monkeypatch):
 
 def test_login_email_lockout_ignores_ip(monkeypatch):
     monkeypatch.setattr(server, "authenticate_user", lambda e, p: None)
-    for i in range(server._LOGIN_EMAIL_MAX_FAILS):
+    for i in range(server.tw_limits.RATES["login_email"][0]):
         r = client.post("/auth/login", json={"email": "Victim@x.com", "password": "bad"},
-                        headers={"X-Forwarded-For": f"8.8.{i}.1"})
+                        headers={"X-Real-IP": f"8.8.{i}.1"})   # really different IPs (default source)
         assert r.status_code == 401
     monkeypatch.setattr(server, "authenticate_user", lambda e, p: {"id": 1, "user_type": "emp", "tw_id": "U1"})
     r = client.post("/auth/login", json={"email": " victim@X.com ", "password": "right"},
-                    headers={"X-Forwarded-For": "4.4.4.4"})
+                    headers={"X-Real-IP": "4.4.4.4"})
     assert r.status_code == 429
-    assert r.json()["detail"]["code"] == "login_email_locked"
+    assert r.json()["error"]["code"] == "login_locked"
     # another email is unaffected
     assert client.post("/auth/login", json={"email": "other@x.com", "password": "ok"}).status_code == 200
 

@@ -451,8 +451,9 @@ These rules are permanent and apply to all future AI sessions.
 
 1. **كل حد إدخال أو إغراق (طول نص، عدد وسوم، حجم صفحة، rate) قيمته بـ `tw_limits.py` بس** (`LIMITS` / `RATES` / `REPORT_TYPES`؛ الوسوم من `TW.POST_TAGS` نفسها). السيرفر بيفحص قبل القاعدة عبر `_too_long` / `_rate_ok` (على `_rate_store`)، والصفحة بتاخد الرقم من `twLimit(name)` (`window.TW_LIMITS`).
 2. **الرفض:** 422 (طويل / قيمة غلط) · 429 (إغراق / تكرار) — `{ok:false, error:{code, message, field?}}` والنص من twT `limits.*` عبر `_tw_text`.
-- ❌ رقم حد مكتوب بصفحة أو endpoint · ❌ store rate جديد لكل ميزة · ❌ قائمة وسوم / أنواع بلاغ تانية · ❌ endpoint بيرجّع كل التعليقات بدون صفحات.
-- Spec: SYSTEMS_INDEX §54n · ARCHITECTURE §76 · test `python -m pytest tests/test_input_limits_50h.py -q`.
+3. **(task 5.0h-2)** كلمة السر ≤ `password_max_bytes` بالبايت (UTF-8) عند التسجيل / إعادة التعيين / التغيير — مش الدخول · قفل الدخول (إيميل · IP · IP + إيميل) برد واحد ما بيكشف إذا الإيميل موجود · أي dict بالذاكرة إله TTL + حد مفاتيح وتنظيف وقت الاستخدام (`_rate_sweep`).
+- ❌ رقم حد مكتوب بصفحة أو endpoint · ❌ store rate جديد لكل ميزة · ❌ قائمة وسوم / أنواع بلاغ تانية · ❌ endpoint بيرجّع كل التعليقات بدون صفحات · ❌ thread جديد للتنظيف.
+- Spec: SYSTEMS_INDEX §54n · ARCHITECTURE §76 · tests `python -m pytest tests/test_input_limits_50h.py -q` · `python -m pytest tests/test_input_limits_50h2.py -q`.
 
 ---
 

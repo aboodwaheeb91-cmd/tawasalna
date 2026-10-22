@@ -172,13 +172,23 @@ check(
 )
 
 # ── 20. Rate limiters defined ────────────────────────────────────────────
+# Structure (task 5.0h-2): the limiter is defined, called by its endpoint, and its rate is in
+# tw_limits.RATES (shared _rate_store — the per-feature dicts are gone).
+import tw_limits as _twl
+def _fn_calls(src, fn_name, callee):
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name == fn_name:
+            return any(isinstance(c, ast.Call) and getattr(c.func, "id", None) == callee for c in ast.walk(node))
+    return False
 check(
     "20. comment create rate limiter defined",
-    "_cmt_create_rate_store" in srv_src and "_CMT_CREATE_RATE" in srv_src
+    _fn_calls(srv_src, "_check_cmt_create_rate", "_rate_ok") and "comment_create" in _twl.RATES
+    and _fn_calls(srv_src, "company_create_post_comment", "_check_cmt_create_rate")
 )
 check(
     "20b. comment edit rate limiter defined",
-    "_cmt_edit_rate_store" in srv_src and "_CMT_EDIT_RATE" in srv_src
+    _fn_calls(srv_src, "_check_cmt_edit_rate", "_rate_ok") and "comment_edit" in _twl.RATES
+    and _fn_calls(srv_src, "company_update_post_comment", "_check_cmt_edit_rate")
 )
 
 # ── 21. Edit UX: _cmtEditInFlight guard ──────────────────────────────────

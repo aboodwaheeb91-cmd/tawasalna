@@ -12992,21 +12992,26 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 - Every dialog / button text = `twT` (`appt.sch.*`; month names `date.month.*` — DS-DATE labels, not `Intl ar-JO`).
 - `GET /api/schedule/jobs` → `ok` with zero active jobs → the job picker says «لا توجد وظائف فعّالة — انشر وظيفة أولاً», «إرسال الدعوة» is disabled (`twModal` action `disabled` / `ctl.setActionDisabled(1, true)` — DS-OVL) and a «انشر وظيفة» link = `twPostJobHref()` (`tw_shared.js` → `/u/{tw_id}?post_job=1`) opens the company page on the post-job form (`company.jobs.js → _openPostJobFromUrl`, owner with `can_post_jobs`; the param is dropped from the URL first).
 
-## §76 — Input Limits (task 5.0h)
+## §76 — Input Limits (task 5.0h · 5.0h-2)
 
-> SYSTEMS_INDEX §54n · test `python -m pytest tests/test_input_limits_50h.py -q`.
+> SYSTEMS_INDEX §54n · tests `python -m pytest tests/test_input_limits_50h.py -q` · `python -m pytest tests/test_input_limits_50h2.py -q`.
 
 **One place:** `tw_limits.py` (`LIMITS` · `RATES` · `REPORT_TYPES` · `POST_TAGS`). Server constants for now — they move to the settings system when it is built. `POST_TAGS` is read at start from `TW.POST_TAGS` (`static/shared/tw-options-data.js`) so the picker and the server allowlist are one list. `page_block()` → `window.TW_LIMITS` (limits the pages need + report types) at `<!--tw:strings-->`; pages read it through `twLimit(name)` / `twReportTypes()` (`tw_shared.js`).
 
 | Endpoint | Check (before any DB write) | Rejection |
 |----------|-----------------------------|-----------|
-| `POST /messages/send` | `content` ≤ `message_max` (4000) | 422 `too_long` (`field: content`) |
+| `POST /messages/send` | `content` ≤ `message_max` (4000), then `message_send` 30 / min per account (5.0h-2) | 422 `too_long` (`field: content`) · 429 `rate_limited` |
+| `POST /auth/register` · `PUT /auth/password` · `POST /auth/password-reset/confirm` | password ≤ `password_max_bytes` (72 UTF-8 bytes — bcrypt ignores the rest; an Arabic letter = 2 bytes) — `_password_too_long` after the min-length rule. `POST /auth/login` does not check it (no existing account is locked out) | 422 `password_too_long` (`field: password` / `new_password`) |
+| `POST /auth/login` | failed logins on `login_email` 5 / 15 min (PR 1.4) · `login_ip` 20 / 15 min · `login_ip_email` 3 / 15 min (`_login_locked` / `_login_fail`). Every email counts the same (exists or not); success clears the email + pair buckets, never the IP one | 429 `login_locked` — one text (`limits.login_locked`) for all three |
+| `POST /company/posts/{id}/view` · `GET /profile/{id}` | `view_count` (1 / 24 h): same viewer + same target counted once. Post: viewer = account, else client IP (`get_client_ip`) — a new `visitor_key` from the same IP does not count again; checked on `_rate_store` before the DB. Profile: `record_profile_view(…, window_s)` SQL window = the same value. The owner is never counted | — (`{status:"skipped", reason:"duplicate" \| "owner"}`) |
 | `POST /company/posts` · `PATCH /company/posts/{id}` | body ≤ `post_body_max` (3000) · tags = list of strings, each in `POST_TAGS`, de-duplicated, ≤ `post_tags_max` (5) · `post_create` 5 / 10 min · `post_edit` 20 / 10 min per account | 422 `too_long` / `invalid_tags` / `too_many_tags` · 429 `rate_limited` |
 | `POST /reports/submit` | `report_type` ∈ `REPORT_TYPES` · reason required, ≤ 1000 · `target_url` ≤ 500 · `report_submit` 10 / h per account · same reporter + target (`reported_id` / `job_id`) within 24 h (`reports.created_at`) | 422 `invalid_report_type` / `reason_required` / `too_long` · 429 `rate_limited` / `duplicate_report` |
 | `GET /mention/search` | `limit` clamped to 1..`mention_limit_max` (20) · `mention_search` 60 / min per account | 429 `rate_limited` |
 | `GET /company/posts/{id}/comments` | `?limit=` threads (default 20, max 50) after `?cursor=` (thread id) | — (`next_cursor: null` on the last page) |
 
 - Shape: `{ok:false, error:{code, message, field?}}` (`api_error`); `message` = twT `limits.*` via `_tw_text` (admin override wins). `twApi` / `twApiMessage` read it as is.
-- Rates use `_rate_ok(name, who)` → `_rate_hit` on the shared `_rate_store` (no new store). The repeat-report rule reads the DB (survives a restart).
+- Rates use `_rate_ok(name, who)` → `_rate_hit` on the shared `_rate_store` (no new store). The repeat-report rule reads the DB (survives a restart). The old per-feature dicts (أقدّر · save · comment create / edit) are on it too since 5.0h-2 (`post_appreciate` · `post_save` · `comment_create` · `comment_edit`).
+- **Bounded memory (5.0h-2 — P2-13):** `_rate_sweep()` runs on use (no thread), at most every `mem_store_sweep_s` (60 s) or when the store reaches `mem_store_max_keys` (100 000): a key whose last hit is older than its window (window from `RATES` by key prefix, else the longest `RATES` window) is dropped; at the cap the oldest-last-hit keys go down to 90 %. The same sweep drops expired `_pwd_changed_cache` entries. `IP_TO_COUNTRY_CACHE` = `ip → (code, saved_at)`, TTL `ip_country_cache_ttl_s` (24 h), cap `ip_country_cache_max` (10 000, oldest first). WS per-user logs (`_ws_typing_log` / `_ws_ctrl_log`) are already dropped on the user's last disconnect.
+- **Scheduler (5.0h-2):** `auth.run_scheduler_cycle` — `pg_advisory_unlock` failed → the connection is closed, never returned to the pool (a pooled session still holding the lock would make every later cycle skip).
 - Comment pages are pages of **threads** (root id = `COALESCE(reply_to_comment_id, id)`, depth 1) so a reply is always on its root's page. The page renders each page with `_cmtRenderComments`, skips a comment already shown (sent after page 1) and keeps the «عرض المزيد من التعليقات» button (`post.cmt.more`) last.
-- Not in 5.0h (next task): view-count dedupe per visitor + per-IP rate (P2-07 / P2-18) · password > 72 bytes → 422 (P2-17) · login lock per IP + email (P2-16) · TTL / sweep / size cap for in-memory rate stores and `IP_TO_COUNTRY_CACHE` (P2-13).
+- 5.0h-2 closed P2-07 / 18 (views) · P2-17 (password bytes) · P2-16 (login lock IP + email) · P2-13 (bounded stores).

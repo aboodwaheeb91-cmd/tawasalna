@@ -54,8 +54,16 @@ if 'class SaveStateInput' in server and 'saved: bool' in server:
 else:
     fail(7, 'SaveStateInput', 'غير موجود')
 
-# 8. server.py: rate limiter for save
-if '_check_save_rate' in server and '_save_rate_store' in server:
+# 8. server.py: rate limiter for save — defined on the shared store (_rate_ok, RATES["post_save"]
+#    — task 5.0h-2) and called by the save endpoint (structure, not text)
+import ast as _ast, tw_limits as _twl
+def _fn_calls(fn_name, callee):
+    for node in _ast.walk(_ast.parse(server)):
+        if isinstance(node, _ast.FunctionDef) and node.name == fn_name:
+            return any(isinstance(c, _ast.Call) and getattr(c.func, 'id', None) == callee for c in _ast.walk(node))
+    return False
+if _fn_calls('_check_save_rate', '_rate_ok') and 'post_save' in _twl.RATES \
+        and _fn_calls('company_post_set_save', '_check_save_rate'):
     ok(8, 'server.py: _check_save_rate موجود ✅')
 else:
     fail(8, '_check_save_rate', 'غير موجود')
