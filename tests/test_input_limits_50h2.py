@@ -239,6 +239,59 @@ def test_rate_store_sweep_ttl_and_key_cap(monkeypatch):
     assert "mention_search:new" in srv._rate_store and "mention_search:old0" not in srv._rate_store
 
 
+def test_rate_hit_is_atomic_across_threads(monkeypatch):
+    """Task 5.0h-3: check + count is one locked step — threads at the same instant never pass the limit."""
+    import threading
+    limit, n = 5, 40
+    real_prune = srv._rate_prune_locked
+
+    def slow_prune(key, window):          # widen the check → count gap a race would need
+        hits = real_prune(key, window)
+        srv._time.sleep(0.002)
+        return hits
+    monkeypatch.setattr(srv, "_rate_prune_locked", slow_prune)
+    start, allowed = threading.Barrier(n), []
+
+    def worker():
+        start.wait()
+        if srv._rate_hit("race:k", limit, 60):
+            allowed.append(1)
+    threads = [threading.Thread(target=worker) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(allowed) == limit and len(srv._rate_store["race:k"]) == limit
+
+
+def test_login_lock_survives_a_full_store(monkeypatch):
+    """Task 5.0h-3: a full store never evicts a running login lock — only its window ends it."""
+    monkeypatch.setattr(srv, "authenticate_user", lambda e, p: None)
+    for _ in range(R["login_ip_email"][0]):
+        assert _login("victim@x.com", "203.0.113.50").status_code == 401
+    lock_keys = {k for k in srv._rate_store if k.split(":", 1)[0] in srv._LOGIN_LOCKS}
+    assert lock_keys
+    cap = 10
+    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", cap)
+    now = srv._time.time()
+    for i in range(cap * 3):                                  # flood with newer, ordinary keys
+        srv._rate_store[f"mention_search:flood{i}"] = [now + i]
+    srv._rate_sweep(force=True)
+    assert lock_keys <= set(srv._rate_store)
+    _locked(_login("victim@x.com", "203.0.113.50"))
+    # only login keys left → the store may stay over the cap for a while
+    srv._rate_store.clear()
+    for i in range(cap * 2):
+        srv._rate_store[f"login_ip:198.51.100.{i}"] = [now]
+    srv._rate_sweep(force=True)
+    assert len(srv._rate_store) == cap * 2
+    # the window ends → the lock goes
+    for k in srv._rate_store:
+        srv._rate_store[k] = [now - R["login_ip"][1] - 1]
+    srv._rate_sweep(force=True)
+    assert srv._rate_store == {}
+
+
 def test_ip_country_cache_cap_and_ttl(monkeypatch):
     srv.IP_TO_COUNTRY_CACHE.clear()
     monkeypatch.setitem(tw_limits.LIMITS, "ip_country_cache_max", 3)
