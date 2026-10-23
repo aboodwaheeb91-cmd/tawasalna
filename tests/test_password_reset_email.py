@@ -182,10 +182,11 @@ def test_same_reply_known_and_unknown(fake, db):
 def test_rate_limits_per_email_and_per_ip(fake, db):
     replies = [_request(EMAIL, ip=f"1.1.1.{i}").json() for i in range(5)]
     assert all(r == {"ok": True, "data": {"sent": True}} for r in replies)
-    assert len(fake.calls) == server._PWRESET_EMAIL_LIMIT                # per-email cap: silent
+    email_cap, ip_cap = server.tw_settings.rate("pwreset_email")[0], server.tw_settings.rate("pwreset_ip")[0]
+    assert len(fake.calls) == email_cap                                   # per-email cap: silent
     server._rate_store.clear()
-    codes = [_request(f"u{i}@example.com", ip="2.2.2.2").status_code for i in range(server._PWRESET_IP_LIMIT + 1)]
-    assert codes[:-1] == [200] * server._PWRESET_IP_LIMIT and codes[-1] == 429
+    codes = [_request(f"u{i}@example.com", ip="2.2.2.2").status_code for i in range(ip_cap + 1)]
+    assert codes[:-1] == [200] * ip_cap and codes[-1] == 429
 
 
 # ── 5. token: hash only · single use · older dies · 30 minutes ─────────────

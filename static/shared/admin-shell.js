@@ -367,7 +367,8 @@
 
   // action = { confirm?: {title, message, confirm, danger?, typeWord?} (twT keys) | fn(ctx) → same,
   //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key, as?: 'blob',
-  //            ok?: fn(body) → true only when the body proves the change (task 5.3b2) }
+  //            ok?: fn(body) → true only when the body proves the change (task 5.3b2),
+  //            permissionAware?: true → 403 = "no permission" toast (action.forbidden key), session kept (task 4.2) }
   // → Promise<{ok, status, data} | null>  (null = not confirmed → no request was sent)
   function run(action, ctx) {
     ctx = ctx || {};
@@ -378,7 +379,7 @@
     return gate.then(function (yes) {
       if (!yes) return null;
       var req = action.request(ctx);
-      var init = { method: req.method || 'GET' };
+      var init = { method: req.method || 'GET', permissionAware: !!action.permissionAware };
       if (req.body !== undefined) init.body = JSON.stringify(req.body);
       return TwAdminSession.fetch(req.url, init).then(function (r) {
         // as: 'blob' (a download — task 5.3a3) → data = the Blob on success; errors stay JSON
@@ -387,6 +388,7 @@
           // action.ok(d) = the body proves the change happened (e.g. a notification id) — 2xx alone is not enough
           var ok = r.ok && (typeof action.ok !== 'function' || !!action.ok(d));
           if (ok) { if (action.done) showToast(twT(action.done), 'success'); }
+          else if (r.status === 403 && action.permissionAware) showToast(twT(action.forbidden || 'admin.action.error'), 'error');
           else if (r.status !== 401 && r.status !== 403) showToast(_errText(d) || twT(action.fail || 'admin.action.error'), 'error');
           return { ok: ok, status: r.status, data: d };
         });

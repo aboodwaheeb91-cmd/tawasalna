@@ -185,7 +185,7 @@ def test_five_wrong_attempts_kill_code(db):
     _reset()
     code = db.send_phone_code(1, "+962 79-000-0000")
     wrong = "000000" if code != "000000" else "111111"
-    for _ in range(db._OTP_MAX_ATTEMPTS):
+    for _ in range(db.otp_max_attempts()):
         assert db.verify_phone_code(1, wrong) is False
     assert db.verify_phone_code(1, code) is False
     assert _row("phone_code, phone_verified") == [None, False]

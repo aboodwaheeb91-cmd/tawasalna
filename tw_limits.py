@@ -36,6 +36,8 @@ LIMITS = {
     "ip_country_cache_ttl_s": 86400,  # … one lookup per IP per day
     "blocks_page_max": 50,        # GET /blocks ?limit= ceiling (task 5.4)
     "suspend_reason_max": 500,    # PUT /admin/user/{id}/suspension reason (chars — admin only)
+    "otp_ttl_min": 10,            # KYC OTP (email / phone) — code lifetime in minutes (auth._otp_issue · task 4.2)
+    "otp_max_attempts": 5,        # … wrong tries before the code dies (auth._otp_verify)
 }
 
 RATES = {
@@ -54,6 +56,8 @@ RATES = {
     "comment_create": (10, 60),   # new comment — per account + post
     "comment_edit": (10, 60),     # comment edit — per account + comment
     "block_set": (20, 3600),      # block / unblock (PUT + DELETE /blocks/{id}) — per account (task 5.4)
+    "pwreset_ip": (10, 3600),     # POST /auth/password-reset/request — per client IP (task 5.1a → 4.2)
+    "pwreset_email": (3, 3600),   # … per email address (over it: same reply, no email)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
