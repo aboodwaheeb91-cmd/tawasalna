@@ -535,7 +535,7 @@ async def general_exception_handler(request, exc):
 # legacy redirects, duplicates like /landing.html) gets X-Robots-Tag: noindex, nofollow.
 # /sitemap.xml lists public pages only. ❌ Disallow in robots.txt for these (a crawler must fetch the page
 # to see noindex) · ❌ the admin panel path in robots.txt / sitemap (it is a secret).
-_INDEXABLE_PAGES = frozenset({"/", "/job-detail"})
+_INDEXABLE_PAGES = frozenset({"/", "/job-detail", "/privacy", "/terms"})
 
 
 def _is_indexable_page(path: str) -> bool:
@@ -724,6 +724,7 @@ async def rate_limit_middleware(request, call_next):
 # (get_client_ip). Never the body, the password, the token or any message text.
 import admin_insights
 import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
+import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # Reads that are still recorded (task 5.3a3): data leaving the site — route names under /admin/.
@@ -922,6 +923,7 @@ def _startup_migrations():
         ("verified_source",                   _migrate_verified_source,            False),
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
+        ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -1832,6 +1834,17 @@ def settings_html(): return read_html("settings.html")
 @app.get("/reset-password", response_class=HTMLResponse)
 def reset_password_page(): return read_html("reset-password.html")
 
+# Privacy policy + terms of use (task terms — SYSTEMS_INDEX §1d) — public, the version shown on
+# the page is the one POST /auth/register stores (tw_terms.TERMS_VERSION).
+def _legal_page(name: str) -> str:
+    return read_html(name).replace("{{terms_version}}", tw_terms.TERMS_VERSION)
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(): return _legal_page("privacy.html")
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page(): return _legal_page("terms.html")
+
 @app.get("/confirm-email", response_class=HTMLResponse)
 def confirm_email_page(): return read_html("confirm-email.html")
 
@@ -1856,6 +1869,9 @@ class RegisterInput(BaseModel):
     email:    str
     password: str
     user_type: Optional[str] = "emp"
+    # Terms + privacy consent (task terms — SYSTEMS_INDEX §1d): must be exactly true; the
+    # version stored is the server's tw_terms.TERMS_VERSION, never a value from the client.
+    terms_accepted: Optional[bool] = None
 
 class LoginInput(BaseModel):
     email: str
@@ -2085,6 +2101,8 @@ class AdminMessageInput(BaseModel):
 def sitemap():
     urls = [   # public pages only (task 5.0e — §54m); the login page is noindex
         "https://tawasolna.com/",
+        "https://tawasolna.com/privacy",
+        "https://tawasolna.com/terms",
     ]
     xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
     for url in urls:
@@ -4193,6 +4211,8 @@ class PasswordChangeInput(BaseModel):
 
 @app.post("/auth/register")
 def register(data: RegisterInput, request: Request):
+    if data.terms_accepted is not True:
+        return api_error(422, "terms_required", _tw_text("register.err.terms_required"), "terms_accepted")
     if data.user_type not in ("emp", "co", "edu"):
         raise HTTPException(400, detail="نوع الحساب غير صحيح")
     if not data.email.strip():
@@ -4227,7 +4247,8 @@ def register(data: RegisterInput, request: Request):
         country_code = get_country_from_ip(client_ip)
         user = create_user(
             full_name, data.email, data.password, data.user_type, country_code,
-            first_name=first_name_val, middle_name=middle_name_val, last_name=last_name_val
+            first_name=first_name_val, middle_name=middle_name_val, last_name=last_name_val,
+            terms_version=tw_terms.TERMS_VERSION,
         )
         token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
                              "tw_id": user.get("tw_id",""), "sv": 0})   # new account → session_version 0

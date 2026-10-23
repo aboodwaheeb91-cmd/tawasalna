@@ -97,7 +97,7 @@ var jwt = localStorage.getItem('tw_jwt');   // snapshot has no jwt field — nev
 ## Key Workflows
 
 ### 1. Registration Flow
-1. `POST /auth/register` with `{ full_name, email, password, user_type, country_code }`
+1. `POST /auth/register` with `{ full_name, email, password, user_type, country_code, terms_accepted: true }` — without consent → 422 `terms_required` (task terms — SYSTEMS_INDEX §1d)
 2. Server hashes password, generates `tw_id`, inserts into `users` + creates empty `profiles` row
 3. Returns user object — client stores in localStorage
 

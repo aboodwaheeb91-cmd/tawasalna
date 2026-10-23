@@ -55,7 +55,8 @@ def schema():
 
 def _register(utype="emp"):
     tag = uuid.uuid4().hex[:10]
-    body = {"email": f"a50e_{tag}@example.com", "password": "TwTest@9999", "user_type": utype}
+    body = {"email": f"a50e_{tag}@example.com", "password": "TwTest@9999", "user_type": utype,
+            "terms_accepted": True}
     body.update({"first_name": "رنا", "last_name": "خالد"} if utype == "emp" else {"full_name": "شركة " + tag})
     server._rate_store.clear()
     r = client.post("/auth/register", json=body)
@@ -254,7 +255,7 @@ def test_public_profile_indexable(schema):
 
 def test_sitemap_public_pages_only():
     locs = re.findall(r"<loc>([^<]+)</loc>", client.get("/sitemap.xml").text)
-    assert locs == ["https://tawasolna.com/"]
+    assert locs == ["https://tawasolna.com/", "https://tawasolna.com/privacy", "https://tawasolna.com/terms"]   # task terms
 
 
 # ── 7. run_tests.sh DB guard ─────────────────────────────────────────────────

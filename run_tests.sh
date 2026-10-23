@@ -114,6 +114,7 @@ PY_DB=(
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation
   pytest:test_register_profiles_unique.py
+  pytest:test_terms_acceptance.py     # task terms — required terms consent at registration + /privacy · /terms
   pytest:test_schedule_interview.py
   pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
   pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications

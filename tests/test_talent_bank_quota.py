@@ -284,7 +284,8 @@ _emp_emails  = [f"tb_emp{i}_{_TS}@tbtest.example" for i in range(30)]
 def _register(email, utype, name):
     payload = {
         'full_name': name, 'email': email,
-        'password': 'Test1234!', 'user_type': utype, 'country_code': '9620'
+        'password': 'Test1234!', 'user_type': utype, 'country_code': '9620',
+        'terms_accepted': True,
     }
     if utype == 'emp':
         # Employee Name Fields Contract: emp registration requires first + last name

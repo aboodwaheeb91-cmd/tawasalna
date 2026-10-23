@@ -53,7 +53,7 @@ def no_provider(monkeypatch):
 
 def _register(utype="emp"):
     email = f"priv_{uuid.uuid4().hex[:10]}@example.com"
-    body = {"email": email, "password": PW, "user_type": utype}
+    body = {"email": email, "password": PW, "user_type": utype, "terms_accepted": True}
     body.update({"first_name": "رنا", "last_name": "خالد"} if utype == "emp" else {"full_name": "جهة اختبار"})
     server._rate_store.clear()
     r = client.post("/auth/register", json=body)

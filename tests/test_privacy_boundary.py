@@ -34,6 +34,7 @@ def _register_and_login(user_type="emp"):
         "password": "TwTest@9999",
         "user_type": user_type,
         "country_code": "9620",
+        "terms_accepted": True,
     }
     r = requests.post(f"{BASE}/auth/register", json=payload)
     assert r.status_code == 200, f"Register failed: {r.text}"
@@ -102,6 +103,7 @@ def _test_group_a():
             "password": "TwTest@9999",
             "user_type": "emp",
             "country_code": "9620",
+            "terms_accepted": True,
         })
         assert r0.status_code == 200, f"A4 register failed: {r0.text}"
         d0 = r0.json()

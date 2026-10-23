@@ -4706,6 +4706,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
 | `/settings` | `settings.html` | All |
+| `/privacy` · `/terms` | `privacy.html` · `terms.html` (`_legal_page` → `{{terms_version}}` = `tw_terms.TERMS_VERSION`; no `.html` variant) | Public — privacy policy / terms of use (draft under legal review — SYSTEMS_INDEX §1d); indexable + in the sitemap |
 | `/appointments` | `appointments.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/appointment-room` | `appointment-room.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
@@ -8732,8 +8733,11 @@ DOM structure: `#empNameFields` (emp fields container) · `#wrapper-rName` (org 
 ```
 Request (emp):   { first_name, middle_name?, last_name, email, password, user_type: "emp" }
 Request (co/edu): { full_name, email, password, user_type: "co"|"edu" }
+Both also send:  terms_accepted: true   (task terms — required)
 Server composes: full_name = [first, middle?, last].join(' ')
 ```
+
+**Terms consent (task terms — SYSTEMS_INDEX §1d):** checked first — `terms_accepted` not exactly `true` (missing / `false` / `null`) → 422 `{ok:false, error:{code:"terms_required", field:"terms_accepted", message}}` (twT `register.err.terms_required`), nothing written. Accepted → `create_user(…, terms_version=tw_terms.TERMS_VERSION)` stores `users.terms_accepted_at = NOW()` + `users.terms_version` in the same INSERT (the version is the server's, never the client's). Existing accounts keep NULL (not re-asked — open point). Form: `#rTerms` checkbox under the password, links to `/terms` + `/privacy`.
 
 `RegisterInput` Pydantic model: `full_name`, `first_name`, `middle_name`, `last_name` are all `Optional[str]`. Server validates required fields based on `user_type`.
 
@@ -12865,7 +12869,7 @@ Test: `python -m pytest tests/test_account_security.py -q`.
 
 | Table | Key Columns (from `CREATE TABLE` + migrations) |
 |-------|-------------------------------------------------|
-| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) · `session_version INTEGER NOT NULL DEFAULT 0` (5.0b — `_migrate_session_version()`) · `suspended_at TIMESTAMPTZ NULL` · `suspended_reason TEXT` · `suspended_by TEXT` (task 5.4 — §77) |
+| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) · `session_version INTEGER NOT NULL DEFAULT 0` (5.0b — `_migrate_session_version()`) · `suspended_at TIMESTAMPTZ NULL` · `suspended_reason TEXT` · `suspended_by TEXT` (task 5.4 — §77) · `terms_accepted_at TIMESTAMPTZ NULL` + `terms_version TEXT NULL` (task terms — `tw_terms.migrate_terms_acceptance()`, critical startup migration `terms_acceptance`; NULL = account created before consent existed) |
 | `profiles` | user_id (UNIQUE FK → users, CASCADE), headline, bio, location, skills[], avatar_url, website, is_verified, updated_at + migrated: dob, phone, country, city, avail, availability_status (deprecated — see `docs/rules/profile-v2.md`), title, sections_order, custom_sections, profile_color, profile_style, first_name, middle_name, last_name, cover_url, short_bio |
 | `experience` | user_id FK, title, company, location, start_date, end_date, is_current, description, sort_order, created_at |
 | `education` | user_id FK, institution, degree, field, start_year, end_year, description, created_at |

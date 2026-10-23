@@ -910,21 +910,27 @@ def _is_email_taken_error(e: BaseException) -> bool:
 def create_user(
     full_name: str, email: str, password: str,
     user_type: str, country_code: str = 'DEFAULT',
-    first_name=None, middle_name=None, last_name=None
+    first_name=None, middle_name=None, last_name=None, terms_version=None
 ) -> dict:
+    """terms_version (task terms): the accepted /terms + /privacy version → stored with
+    terms_accepted_at = NOW() in the same INSERT; None → both stay NULL."""
     conn = get_conn()
     committed = False
     try:
         conn.run("BEGIN")
         tw_id = _unique_tw_id(conn, user_type, country_code)
+        terms_cols, terms_vals, terms_args = "", "", {}
+        if terms_version is not None:
+            terms_cols, terms_vals = ", terms_accepted_at, terms_version", ", NOW(), :tv"
+            terms_args = {"tv": str(terms_version)}
         rows = conn.run(
-            "INSERT INTO users (tw_id, full_name, email, password_hash, user_type, country_code) "
-            "VALUES (:tw_id, :name, :email, :pw, :utype, :cc) "
+            "INSERT INTO users (tw_id, full_name, email, password_hash, user_type, country_code"
+            + terms_cols + ") VALUES (:tw_id, :name, :email, :pw, :utype, :cc" + terms_vals + ") "
             "RETURNING id, tw_id, full_name, email, user_type, created_at",
             tw_id=tw_id, name=full_name,
             email=email.lower().strip(),
             pw=hash_password(password),
-            utype=user_type, cc=country_code
+            utype=user_type, cc=country_code, **terms_args
         )
         cols = [c["name"] for c in conn.columns]
         user_row = _row_to_dict(cols, rows[0])

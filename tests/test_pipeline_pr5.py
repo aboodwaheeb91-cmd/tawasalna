@@ -36,6 +36,7 @@ def _register(email, password, user_type, full_name=None, country_code="9620"):
         "user_type": user_type,
         "full_name": full_name or email.split("@")[0],
         "country_code": country_code,
+        "terms_accepted": True,
     })
     return r
 

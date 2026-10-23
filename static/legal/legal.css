@@ -1,0 +1,27 @@
+/* static/legal/legal.css — /privacy + /terms (task terms) · DS-COLOR tokens only (sizes raw like reset-password — DS-SIZE page migration not approved) */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--color-surface-page); color: var(--color-text-body); font-family: 'Cairo', sans-serif; min-height: 100vh; }
+.skip-link { position: absolute; top: -40px; right: 0; background: var(--color-brand-primary); color: var(--color-text-on-brand);
+  padding: 6px 12px; border-radius: 0 0 10px 0; font-size: .78rem; font-weight: 700;
+  text-decoration: none; transition: top .2s; z-index: 10000; }
+.skip-link:focus { top: 0; }
+.lg-main { max-width: 760px; margin: 0 auto; padding: 20px 12px 32px; }
+.lg-card { background: var(--color-surface-card); border: 1px solid var(--color-border-subtle); border-radius: 14px;
+  padding: 20px 16px; line-height: 1.9; }
+.lg-draft { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; margin-bottom: 16px;
+  border: 1px solid var(--color-status-warning); border-radius: 12px;
+  background: rgba(var(--color-status-warning-rgb), .08); }
+.lg-draft svg { color: var(--color-status-warning); flex-shrink: 0; margin-top: 2px; }
+.lg-draft strong { display: block; font-size: .82rem; color: var(--color-text-primary); }
+.lg-draft p { font-size: .78rem; color: var(--color-text-muted); }
+.lg-title { font-size: 1.2rem; font-weight: 900; color: var(--color-text-primary); }
+.lg-version { font-size: .78rem; color: var(--color-text-muted); margin-bottom: 16px; }
+.lg-sec { margin-top: 16px; }
+.lg-sec h2 { font-size: .95rem; font-weight: 800; color: var(--color-text-primary); margin-bottom: 6px; }
+.lg-card p, .lg-card li { font-size: .82rem; }
+.lg-card ul { padding-inline-start: 16px; display: grid; gap: 6px; margin-top: 6px; }
+.lg-email { font-weight: 700; color: var(--color-brand-primary); }
+.lg-related { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--color-border-subtle); }
+.lg-related a { color: var(--color-brand-primary); font-weight: 700; text-decoration: none; }
+.lg-related a:hover { text-decoration: underline; }
+@media (max-width: 560px) { .lg-card { padding: 16px 12px; } }

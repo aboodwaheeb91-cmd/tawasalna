@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 import auth
 import server as srv
 import tw_limits
+import tw_terms
 
 client = TestClient(srv.app)
 L, R = tw_limits.LIMITS, tw_limits.RATES
@@ -71,6 +72,7 @@ def db():
     auth._migrate_password_changed_at()
     auth.ensure_company_tables()
     auth._migrate_conversation_endings()   # read by GET /profile/{id} (message policy)
+    tw_terms.migrate_terms_acceptance()    # written by POST /auth/register (task terms)
     yield
 
 
@@ -160,7 +162,7 @@ def _pw_err(r, field):
 
 def test_password_too_long_register_change_reset(db):
     assert L["password_max_bytes"] == 72 and len(PW_LONG) < 72
-    reg = {"user_type": "emp", "email": "p1@x.com", "first_name": "أ", "last_name": "ب"}
+    reg = {"user_type": "emp", "email": "p1@x.com", "first_name": "أ", "last_name": "ب", "terms_accepted": True}
     _pw_err(client.post("/auth/register", json={**reg, "password": PW_LONG}), "password")
     assert _sql("SELECT COUNT(*) FROM users")[0][0] == 0
     r = client.post("/auth/register", json={**reg, "password": PW_OK})
