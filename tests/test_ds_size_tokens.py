@@ -100,7 +100,8 @@ _PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html'
                   'profile-v2.css', 'profile-showcase.html',   # PR 4.2a — profile page (task-approved: bio 8px → token; new controls on tokens)
                   'admin.html', 'static/shared/admin-shell.css',   # task 5.3a — admin page rebuilt on the new Admin Shell (task-approved full conversion; new code on tokens)
                   'admin-view.html',   # task 5.3b — admin user page rebuilt on the Admin Shell (task-approved)
-                  'admin-job.html']   # task 5.3j phase 4 — new admin job page on the Admin Shell (task-approved; new code on tokens)
+                  'admin-job.html',   # task 5.3j phase 4 — new admin job page on the Admin Shell (task-approved; new code on tokens)
+                  'admin-settings.html']   # task 4.1 — new admin settings page on the Admin Shell (new code on tokens)
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,

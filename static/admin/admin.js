@@ -306,13 +306,16 @@
   }
   var AUDIT_LABELS = ['admin_login', 'delete_user', 'verify_user', 'change_user_type', 'admin_reset_password', 'admin_update_profile',
                       'admin_delete_job', 'admin_kyc_approve', 'admin_kyc_reject', 'resolve_report', 'upload_logo',
-                      'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email', 'admin_users_export'];
+                      'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email', 'admin_users_export',
+                      'admin_settings_update', 'admin_settings_reset'];   // task 4.1
   function auditLabel(a) { return AUDIT_LABELS.indexOf(a) !== -1 ? twT('admin.audit.action.' + a) : String(a || '—'); }
   var RESULT_MOD = { ok: 'ok', denied: 'danger', failed: 'warn' };
   function auditRows(box, items) {
     items.forEach(function (it) {
       var r = row(auditLabel(it.action), [
-        [it.created_at ? twFormatDateTime(it.created_at) : '', it.target || '', it.ip ? twT('admin.audit.ip', { ip: it.ip }) : '']
+        [it.created_at ? twFormatDateTime(it.created_at) : '', it.target || '',
+         it.old_value != null || it.new_value != null ? twT('admin.audit.change', { old: it.old_value, new: it.new_value }) : '',   // 4.1 settings
+         it.ip ? twT('admin.audit.ip', { ip: it.ip }) : '']
           .filter(Boolean).join(' · '),
         twT('admin.audit.actor', { actor: it.actor || '—' }),
       ], pill(twT('admin.audit.result.' + (RESULT_MOD[it.result] ? it.result : 'failed')), RESULT_MOD[it.result] || 'warn'));

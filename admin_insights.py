@@ -2,7 +2,8 @@
 docs/rules/admin-shell.md).
 
 Audit log (§25b)
-  admin_audit_log (created_at, actor, action, target, result, status, ip) — migrate_admin_audit_log()
+  admin_audit_log (created_at, actor, action, target, result, status, ip, old_value, new_value — 4.1)
+  — migrate_admin_audit_log()
   is a CRITICAL startup migration. audit_record() is called from ONE place only: the
   admin_audit_middleware in server.py (every admin write under /admin/ + the admin login, success
   and failure). It stores names and ids only — never a body, password, token or message text.
@@ -72,6 +73,9 @@ def migrate_admin_audit_log():
                 status     INTEGER,
                 ip         TEXT
             )""")
+        # task 4.1 — old / new value of a settings change (NULL for every other row)
+        conn.run("ALTER TABLE admin_audit_log ADD COLUMN IF NOT EXISTS old_value TEXT")
+        conn.run("ALTER TABLE admin_audit_log ADD COLUMN IF NOT EXISTS new_value TEXT")
         conn.run("CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log (created_at DESC)")
         conn.run("CREATE INDEX IF NOT EXISTS admin_audit_log_action_idx ON admin_audit_log (action, created_at DESC)")
 
@@ -91,15 +95,17 @@ def _clip(v):
     return s[:_AUDIT_TEXT_MAX] or None
 
 
-def audit_record(actor: str, action: str, target, status: int, ip: str) -> bool:
-    """Insert one row. Never raises (the admin request already ran) — a failure is logged."""
+def audit_record(actor: str, action: str, target, status: int, ip: str, old_value=None, new_value=None) -> bool:
+    """Insert one row. Never raises (the admin request already ran) — a failure is logged.
+    old_value / new_value: a settings change only (task 4.1 — numbers, never a secret)."""
     try:
         with db_conn() as conn:
             conn.run(
-                "INSERT INTO admin_audit_log (actor, action, target, result, status, ip) "
-                "VALUES (:actor, :action, :target, :result, :status, :ip)",
+                "INSERT INTO admin_audit_log (actor, action, target, result, status, ip, old_value, new_value) "
+                "VALUES (:actor, :action, :target, :result, :status, :ip, :old, :new)",
                 actor=_clip(actor) or "-", action=_clip(action) or "-", target=_clip(target),
-                result=audit_result(int(status)), status=int(status), ip=_clip(ip))
+                result=audit_result(int(status)), status=int(status), ip=_clip(ip),
+                old=_clip(old_value), new=_clip(new_value))
         return True
     except Exception as e:
         print(f"[admin-audit] record failed ({action}): {type(e).__name__}: {e}")
@@ -115,11 +121,11 @@ def audit_list(page: int = 1, limit: int = 20, action: str = "") -> dict:
     with db_conn() as conn:
         total = conn.run("SELECT COUNT(*) FROM admin_audit_log" + where, **params)[0][0]
         rows = conn.run(
-            "SELECT id, created_at, actor, action, target, result, status, ip FROM admin_audit_log" + where +
+            "SELECT id, created_at, actor, action, target, result, status, ip, old_value, new_value FROM admin_audit_log" + where +
             " ORDER BY created_at DESC, id DESC LIMIT :lim OFFSET :off",
             lim=limit, off=(page - 1) * limit, **params)
         actions = [r[0] for r in conn.run("SELECT DISTINCT action FROM admin_audit_log ORDER BY action")]
-    cols = ("id", "created_at", "actor", "action", "target", "result", "status", "ip")
+    cols = ("id", "created_at", "actor", "action", "target", "result", "status", "ip", "old_value", "new_value")
     items = []
     for r in rows:
         it = dict(zip(cols, r))

@@ -48,6 +48,7 @@ PAGE_ASSETS = {
     "admin.js": os.path.join("static", "admin", "admin.js"),
     "admin-jobs.js": os.path.join("static", "shared", "admin-jobs.js"),   # task 5.3j phase 4 — job actions
     "admin-job.js": os.path.join("static", "admin-job", "admin-job.js"),  # the admin job page
+    "admin-settings.js": os.path.join("static", "admin-settings", "admin-settings.js"),  # task 4.1 — settings page
     "tw-options-data.js": os.path.join("static", "shared", "tw-options-data.js"),
 }
 
