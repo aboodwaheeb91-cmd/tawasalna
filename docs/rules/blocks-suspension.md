@@ -10,7 +10,7 @@
 ## التعليق (الأدمن بس)
 
 1. **`PUT /admin/user/{id}/suspension`** `{suspended: true|false, reason?}` — الكاتب الوحيد `bs.set_suspension`. السبب اختياري، ≤ `LIMITS["suspend_reason_max"]`، **للأدمن بس** (`GET /admin/profile/{id}` → `profile.suspension`) — ما بيطلع بأي رد عام. `suspended_by` = `sub` بتوكن الأدمن.
-2. **المعلّق = 401 بكل طلب:** `auth.get_session_state` بيرجّع `suspended` → `server._jwt_revoked_by_password_change` بيرفض التوكن (نفس مسار الحساب المحذوف). بعد التعليق: الكاش بيتحدّث فوراً + `_ws_revoke_user(uid, "admin_suspend")`. الدخول: باسورد صح → 401 `account_suspended` بدون توكن.
+2. **المعلّق = 401 بكل طلب:** `auth.get_session_state` بيرجّع `suspended` → `server._jwt_revoked_by_password_change` بيرفض التوكن (نفس مسار الحساب المحذوف). بعد التعليق: الكاش بيتحدّث فوراً + `_ws_revoke_user(uid, "admin_suspend")`. الدخول: باسورد صح → 401 `account_suspended` بدون توكن. شاشة الدخول (`index.auth.js` `_loginErrorText`) بتعرض لأي فشل حساب (كلمة سر غلط · إيميل مش موجود · معلّق · محذوف) نفس النص `login.err.failed` — ما بتكشف حالة الحساب أبداً؛ القفل (429) بيضل برسالته.
 3. **قابل للرجوع:** فك التعليق بيرجّع نفس الحساب ونفس التوكن (ما في `session_version` bump) ونفس المحتوى. **ممنوع حذف أو تعديل بيانات** عند التعليق.
 4. **محتواه مخفي عن الكل بالاستعلام:** الملف (`/profile/{id}` · `/company/profile/{id}` · `/u/{tw_id}` → 404) · المنشورات (الفيد + `/company/posts/{id}` → 404) · التعليقات (بتنشال من القائمة) · وظائف الشركة (`get_jobs` · `get_job` · فيد الوظائف عبر `bs.active_sql`) · المحادثات · البحث.
 5. غير الأدمن: `check_admin(request, "users.suspend")` — توكن أدمن بدون صلاحية `users.suspend` (موظف — خطة 5.3) → **403** · توكن مستخدم (Bearer أو بـ `X-Admin-Token`) أو بدون توكن → **401** (عقد بوابة الأدمن نفسه لكل endpoints الأدمن — PR 1.5).

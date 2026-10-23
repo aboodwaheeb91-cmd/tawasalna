@@ -8667,7 +8667,7 @@ Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English l
 
 **Loading order in `index.html` (PR 4.8):** Page Shell (`tw_shared.js` → `auth-sync.js`) → `tw-icons.js` → `index.auth.js` → `index.ui.js`
 
-**Login / register requests (PR 4.8):** `twApi('/auth/login' | '/auth/register', {method:'POST', auth:false, body})` — never `fetch`. Login failure → fixed text by status in the form banner `#l-form-error` (401 → wrong credentials · 429 + `login_email_locked` → lockout · 429 → too many · 5xx → server · 0 → twApi network text); never the raw server text. Register failure → 409 (email taken) under the email field; other 4xx → the server's own Arabic validation message in `#r-form-error`; 429 / 5xx / network → fixed text there. Success → `TwAuthSync.startSession(user, token)` (the only writer — refuses a malformed / foreign / expired token → banner, no redirect).
+**Login / register requests (PR 4.8):** `twApi('/auth/login' | '/auth/register', {method:'POST', auth:false, body})` — never `fetch`. Login failure → fixed text by status in the form banner `#l-form-error` (any 4xx — wrong password · unknown email · suspended · deleted — → one text `login.err.failed`, never the account state · 429 + `login_email_locked` → lockout · 429 → too many · 5xx → server · 0 → twApi network text); never the raw server text. Register failure → 409 (email taken) under the email field; other 4xx → the server's own Arabic validation message in `#r-form-error`; 429 / 5xx / network → fixed text there. Success → `TwAuthSync.startSession(user, token)` (the only writer — refuses a malformed / foreign / expired token → banner, no redirect).
 
 Auth module loads first so the on-load redirect check fires before any UI initialises. Both modules are loaded before any user interaction can trigger `doLogin()` or `doRegister()`.
 
@@ -8834,7 +8834,7 @@ Two module-level variables drive all email-field error transitions. **Never comp
 
 - **Required / format errors** → inline `#loginSection .field-error` span (never DS-FEEDBACK toast) — `_lShowFieldError()` in `index.auth.js`
 - **Auth failure** → `#l-form-error` banner (VAL-09) — HTTP-status-based safe message, never raw `data.detail` (API-MUT-11)
-  - 400/401 → `'بيانات الدخول غير صحيحة'`
+  - any 4xx (wrong password · unknown email · 401 `account_suspended` · deleted) → `login.err.failed` «تعذّر تسجيل الدخول. إذا كنت تواجه مشكلة بحسابك، تواصل مع الدعم.» — one text, never reveals the account state (5.4 follow-up)
   - 429 → `'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً'`
   - 5xx → `'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً'`
   - network failure → `'تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى'`
