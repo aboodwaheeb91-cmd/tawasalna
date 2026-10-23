@@ -11,7 +11,7 @@ follows of both directions removed; no notification; a job application between t
 Real PostgreSQL, in-process client. TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_blocks_suspension.py -q
 """
-import os, sys, uuid
+import asyncio, json, os, sys, uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("JWT_SECRET", "test-user-secret-" + "u" * 32)
@@ -260,6 +260,109 @@ def test_block_both_directions_everywhere_silent_and_unblock():
     assert client.get(f"/company/profile/{b['id']}", headers=_h(a)).status_code == 200
     assert post_b in _feed_ids(a, "post")
     assert client.get("/blocks", headers=_h(a)).json()["data"]["total"] == 1
+
+
+class _FakeWS:
+    """Just what websocket_endpoint uses: an auth frame, then the given events."""
+    def __init__(self, frames, on_end=None):
+        self.headers, self._frames, self.sent, self._on_end = {}, list(frames), [], on_end
+
+    async def accept(self):
+        pass
+
+    async def receive_text(self):
+        from starlette.websockets import WebSocketDisconnect
+        if not self._frames:
+            if self._on_end:
+                self._on_end()        # state before the endpoint's disconnect clean-up
+            raise WebSocketDisconnect(code=1000)
+        return self._frames.pop(0)
+
+    async def send_text(self, text):
+        self.sent.append(json.loads(text))
+
+    async def close(self, code=1000, reason=""):
+        pass
+
+
+def _ws_events(me, events, mgr):
+    """me sends events over a real websocket_endpoint run → (what me received, me's open conversation)."""
+    token = _h(me)["Authorization"][7:]
+    seen = {}
+    ws = _FakeWS([json.dumps({"type": "auth", "token": token})] + [json.dumps(e) for e in events],
+                 on_end=lambda: seen.update(active=mgr.active_conversations.get(me["id"])))
+    srv._ws_typing_log.clear(); srv._ws_ctrl_log.clear()
+    old = srv.ws_manager
+    srv.ws_manager = mgr
+    try:
+        asyncio.run(srv.websocket_endpoint(ws, me["id"]))
+    finally:
+        srv.ws_manager = old
+    return ws.sent, seen.get("active")
+
+
+def test_ws_typing_and_active_conversation_dropped_both_ways_when_blocked():
+    """task 5.4c — typing / typing_stop / active_conversation never cross a block (either direction),
+    silently; before the block they do (the check is real)."""
+    a, b = _user("emp"), _user("co")
+    assert client.post("/messages/send", headers=_h(b), json={"receiver_id": a["id"], "content": "مرحبا"}).status_code == 200
+
+    def run(me, other):
+        mgr = srv.ConnectionManager()
+        peer = _FakeWS([])
+        mgr.active[other["id"]] = [peer]
+        events = [{"type": "typing", "to_user_id": other["id"]},
+                  {"type": "typing_stop", "to_user_id": other["id"]},
+                  {"type": "active_conversation", "other_id": other["id"]}]
+        got, active = _ws_events(me, events, mgr)
+        return got, peer.sent, active
+
+    for me, other in ((a, b), (b, a)):                       # control: no block → delivered
+        got, peer_got, active = run(me, other)
+        assert [e["type"] for e in peer_got] == ["typing", "typing_stop"]
+        assert active == other["id"]
+
+    assert client.put(f"/blocks/{b['id']}", headers=_h(a)).status_code == 200
+    for me, other in ((a, b), (b, a)):                       # blocker → blocked and blocked → blocker
+        got, peer_got, active = run(me, other)
+        assert peer_got == []                                # nothing reached the other side
+        assert active is None                                # the conversation is not marked open
+        assert [e["type"] for e in got] == ["auth_ok"]       # sender got no error (block not revealed)
+
+
+def test_reply_to_blocked_users_comment_refused_without_notification():
+    """task 5.4c — A blocked B; A commented on C's post: B's reply to A's comment (or into A's thread)
+    gets the hidden-content answer and A is never notified; the post owner C is untouched."""
+    a, b, c, d = _user("emp"), _user("emp"), _user("co"), _user("emp")
+    post_c = _post(c)
+    c_a = _comment(post_c, a)
+    r = client.post(f"/company/posts/{post_c}/comments", headers=_h(d), json={"body": "رد", "reply_to_comment_id": c_a})
+    assert r.status_code == 200, r.text
+    d_reply = r.json()["comment"]["id"]
+    assert client.put(f"/blocks/{b['id']}", headers=_h(a)).status_code == 200
+
+    def a_notifs():
+        return _sql("SELECT COUNT(*) FROM notifications WHERE user_id = :a", a=a["id"])[0][0]
+
+    missing = client.post(f"/company/posts/{post_c}/comments", headers=_h(b),
+                          json={"body": "رد", "reply_to_comment_id": 999999999})
+    before = a_notifs()
+    for target in (c_a, d_reply):                            # A's comment, and a reply in A's thread
+        r = client.post(f"/company/posts/{post_c}/comments", headers=_h(b),
+                        json={"body": "رد", "reply_to_comment_id": target})
+        assert r.status_code == missing.status_code == 404, r.text
+        if target == c_a:
+            assert r.json() == missing.json()                 # same answer as a comment that does not exist
+    # the other direction: A replies to B's comment
+    c_b = _sql("INSERT INTO company_post_comments (post_id, user_id, body) VALUES (:p, :u, 'x') RETURNING id",
+               p=post_c, u=b["id"])[0][0]
+    r = client.post(f"/company/posts/{post_c}/comments", headers=_h(a), json={"body": "رد", "reply_to_comment_id": c_b})
+    assert r.status_code == 404, r.text
+    assert a_notifs() == before
+    assert _sql("SELECT COUNT(*) FROM company_post_comments WHERE user_id = :b AND reply_to_comment_id IS NOT NULL",
+                b=b["id"])[0][0] == 0
+    # a plain comment on C's post still works for B (only A's thread is closed to B)
+    _comment(post_c, b)
 
 
 def test_block_errors_and_rate():

@@ -2415,6 +2415,16 @@ async def _ws_conversation_exists_async(a: int, b: int) -> bool:
     return result
 
 
+async def _ws_peer_hidden_async(a: int, b: int) -> bool:
+    """task 5.4c — a block either way (or a suspended peer) between a and b: the same rule as sending a
+    message (bs.visible_sql via bs.is_hidden). Never cached — a block applies at once. Error → hidden."""
+    try:
+        return await asyncio.to_thread(bs.is_hidden, a, b)
+    except Exception as exc:
+        print(f"[WS-SEC] peer_hidden_error pair=({min(a,b)},{max(a,b)}): {type(exc).__name__}")
+        return True  # fail closed
+
+
 def _ws_validate_auth_frame(raw: str) -> "tuple":
     """Validate the first WS frame. Returns (auth_uid, 0) on success or (-1, close_code)."""
     if len(raw) > _WS_AUTH_FRAME_MAX:
@@ -2658,6 +2668,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     if not await _ws_conversation_exists_async(auth_uid, other_id):
                         print(f"[WS-SEC] ACTIVE_CONV_UNAUTH uid={auth_uid} other={other_id}")
                         continue
+                    if await _ws_peer_hidden_async(auth_uid, other_id):
+                        continue  # block either way → dropped silently (task 5.4c)
                     ws_manager.active_conversations[auth_uid] = other_id
                     ws_manager._conv_ws_owner[auth_uid] = websocket
 
@@ -2682,6 +2694,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     if not await _ws_conversation_exists_async(auth_uid, to_id):
                         print(f"[WS-SEC] TYPING_UNAUTH uid={auth_uid} to={to_id}")
                         continue
+                    if await _ws_peer_hidden_async(auth_uid, to_id):
+                        continue  # block either way → dropped silently (task 5.4c)
                     await ws_manager.send_to_user(to_id, {"type": msg_type, "from_user_id": auth_uid})
 
             else:
