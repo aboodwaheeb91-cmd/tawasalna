@@ -365,6 +365,12 @@
     });
     if (report) row.appendChild(report);
 
+    // «حظر» (task 5.4) — signed-in visitors only (registry); confirm from the registry, call = twBlockUser
+    var blk = twAction('block', {
+      ownerId: p.id, mode: mode, className: 'nb nb-outline', onClick: function () { twBlockUser(p.id); }
+    });
+    if (blk) row.appendChild(blk);
+
     row.hidden = !_hasVisibleChild(row);   // the empty «مراسلة» slot does not count
     renderFollowBtn();
   }

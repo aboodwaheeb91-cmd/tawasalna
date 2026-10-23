@@ -43,6 +43,16 @@
       "labelKey": "action.report", "icon": "report", "type": "ghost",
       "visibleTo": ["guest", "emp", "co", "edu"], "auth": true
     },
+    "block": {
+      "labelKey": "action.block", "icon": "user-minus", "type": "ghost",
+      "visibleTo": ["emp", "co", "edu"], "auth": true,
+      "confirm": { "titleKey": "block.confirm_title", "messageKey": "block.confirm_msg",
+                   "confirmKey": "action.block", "danger": true }
+    },
+    "unblock": {
+      "labelKey": "action.unblock", "icon": "user-check", "type": "secondary",
+      "visibleTo": ["emp", "co", "edu"], "auth": true
+    },
     "share": {
       "labelKey": "action.share", "icon": "share", "type": "ghost",
       "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": false

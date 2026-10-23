@@ -199,7 +199,7 @@ const PROFILE_OK = {
       && !!m && m[1].canMessage === true);
   }
   {
-    const b = boot({ hideActions: ['follow', 'message', 'share', 'report'] });
+    const b = boot({ hideActions: ['follow', 'message', 'share', 'report', 'block'] });
     b.ctx.companyState.profile = { id: 1 };
     b.ctx.renderVisitorActions();
     check('D5 registry hides all → row hidden', b.dom.byId.visitorActions.hidden === true);

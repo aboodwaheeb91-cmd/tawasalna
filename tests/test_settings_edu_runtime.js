@@ -138,6 +138,7 @@ function sharedStubs(rec, opts) {
     setBtnLoad() {},
     twSafeLinkUrl: u => (/^https?:\/\/[^\s/]/.test(u) ? u : ''),
     twAvatarEl: () => new El('span'),
+    twFormatDate: v => 'D(' + v + ')',
     TW: {
       uploadImage: o => { rec.uploads.push(o.kind); return Promise.resolve(opts.upload || { ok: true, status: 200, data: { path: 'kyc-docs/7_' + o.kind + '_abc.png' } }); },
       uploadError: (r, fb) => { const e = new Error('u'); e.userMsg = fb; return e; },
@@ -167,12 +168,13 @@ const PROFILE = OK({ profile: { user_type: 'edu', tw_id: 'T123', full_name: 'ج�
 async function runSettings(opts) {
   opts = opts || {};
   // the notification switches (5.1c) load on every run — default: no types (sections A–K unaffected)
-  opts.api = Object.assign({ 'GET /my/email-notifications': OK({ types: [] }) }, opts.api || {});
+  opts.api = Object.assign({ 'GET /my/email-notifications': OK({ types: [] }),
+                            'GET /blocks?offset=0': OK({ items: [], total: 0 }) }, opts.api || {});   // «المحظورون» (5.4)
   const rec = newRec();
   const rows = ['phone', 'password'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
   const kycRow = new El('div'); kycRow.id = 'kycRow'; kycRow.hidden = true;
   ['kycState', 'kycAction'].forEach(id => { const e = new El('span'); e.id = id; kycRow.appendChild(e); });
-  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList'], rows.concat([kycRow]));
+  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList', 'blockedList'], rows.concat([kycRow]));
   const ctx = baseCtx(rec, opts, document);
   ctx.twRequireAuth = () => (opts.guest ? null : { isAuthenticated: true, userId: 7, userType: 'edu' });
   ctx.TwAuthSync = { getToken: () => 'JWT', renewToken: t => { rec.renewed = t; return true; }, invalidateSession: r => { rec.invalidated = r; } };
@@ -461,6 +463,31 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     p.$('notifyList').fire('change', { target: m });
     await flush();
     check('L5 save failed → switch rolled back + error toast', m.checked === false && p.rec.toasts.some(t => t.type === 'error'));
+  }
+
+  // ── M — «المحظورون» (task 5.4): own list from GET /blocks · «إلغاء الحظر» → DELETE /blocks/{id} ──
+  console.log('\nM — blocked list');
+  {
+    let delOk = true;
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE,
+      'GET /blocks?offset=0': OK({ items: [{ id: 41, full_name: 'سامي', user_type: 'emp', blocked_at: '2026-10-20T10:00:00Z' },
+                                           { id: 42, full_name: 'شركة', user_type: 'co', blocked_at: '2026-10-21T10:00:00Z' }], total: 2 }),
+      'DELETE /blocks/41': () => (delOk ? OK({ blocked: false }) : FAIL(500, { fieldErrors: [], generalError: { code: 'unknown', message: 'x' } })) } });
+    const un = () => p.$('blockedList').find(e => e.getAttribute('data-tw-action') === 'unblock');
+    check('M1 one row + «إلغاء الحظر» (twAction unblock) per blocked account', un().length === 2
+          && p.rec.api.some(a => a.key === 'GET /blocks?offset=0'));
+    delOk = false;
+    un()[0].click();
+    await flush();
+    check('M2 failed unblock → error toast, row stays', un().length === 2 && p.rec.toasts.some(t => t.type === 'error'));
+    delOk = true;
+    un()[0].click();
+    await flush();
+    check('M3 unblock → one DELETE /blocks/41, row removed, success toast',
+          p.rec.api.filter(a => a.key === 'DELETE /blocks/41').length === 2 && un().length === 1
+          && p.rec.toasts.some(t => t.type === 'success' && t.msg === 'settings.unblock.done'));
+    const e = await runSettings({ api: { 'GET /profile/7/full': PROFILE } });
+    check('M4 empty list → empty-state text', e.$('blockedList').find(x => x._text === 'settings.blocked.empty').length === 1);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

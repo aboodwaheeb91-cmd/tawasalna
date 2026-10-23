@@ -66,6 +66,7 @@ def env():
     auth.init_db()
     auth._migrate_profiles_user_unique()
     auth._migrate_session_version()
+    auth.bs.migrate_blocks_suspension()     # task 5.4 — users.suspended_* + blocks (read by the session check)
     auth._migrate_password_changed_at()
     auth.ensure_company_tables()
     auth._migrate_reports_targets()

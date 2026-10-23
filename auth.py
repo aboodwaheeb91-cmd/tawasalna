@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
 
+import blocks_suspension as bs   # task 5.4 — visibility rule (pure SQL builders; no import cycle)
+
 # ══ Emoji / symbol prevention ══
 _EMOJI_RE = re.compile(
     "[\U0001F600-\U0001F64F"   # emoticons
@@ -962,7 +964,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     try:
         rows = conn.run(
             "SELECT id, tw_id, full_name, email, password_hash, user_type, country_code, created_at, "
-            "session_version FROM users WHERE email = :email",
+            "session_version, suspended_at IS NOT NULL AS suspended FROM users WHERE email = :email",
             email=email.lower().strip()
         )
         if not rows:
@@ -1033,15 +1035,17 @@ def set_user_type(user_id: int, new_type: str) -> Optional[dict]:
 
 
 def get_session_state(user_id: int) -> Optional[dict]:
-    """{changed: password_changed_at epoch seconds | None, sv: users.session_version};
-    None = no such user. Read only through server._session_state (cached) — never per request."""
+    """{changed: password_changed_at epoch seconds | None, sv: users.session_version,
+    suspended: users.suspended_at set (task 5.4)}; None = no such user.
+    Read only through server._session_state (cached) — never per request."""
     with db_conn() as conn:
-        rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at), session_version "
-                        "FROM users WHERE id = :uid", uid=user_id)
+        rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at), session_version, "
+                        "suspended_at IS NOT NULL FROM users WHERE id = :uid", uid=user_id)
     if not rows:
         return None
     changed = rows[0][0]
-    return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1] or 0)}
+    return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1] or 0),
+            "suspended": bool(rows[0][2])}
 
 
 def get_current_user_type(user_id: int) -> Optional[str]:
@@ -2889,6 +2893,7 @@ def get_jobs(filters: dict = None) -> list:
         else:
             # Global public feed: active only (also exclude auto-expired via expires_at)
             where = "WHERE " + job_active_sql("j")
+        where += " AND " + bs.active_sql("j.company_id")   # task 5.4 — suspended company → no jobs shown
         params = {}
         if filters:
             if filters.get("search"):
@@ -2974,7 +2979,8 @@ def get_job(job_id: int) -> dict:
             "JOIN users u ON u.id=j.company_id "
             "LEFT JOIN profiles cp ON j.company_id=cp.user_id "
             "LEFT JOIN profession_categories pc ON j.profession_id=pc.id "
-            "WHERE j.id=:id AND j.archived_at IS NULL AND j.admin_hidden_at IS NULL", id=job_id
+            "WHERE j.id=:id AND j.archived_at IS NULL AND j.admin_hidden_at IS NULL "
+            "AND " + bs.active_sql("j.company_id"), id=job_id
         )
         if not rows: return None
         cols = [c["name"] for c in conn.columns]   # capture before the UPDATE changes conn.columns
@@ -4334,7 +4340,8 @@ _MESSAGE_POLICY_FACTS_SQL = (
     "EXISTS(SELECT 1 FROM profile_follows WHERE follower_id={s} AND followed_id={r}) "
     "AND EXISTS(SELECT 1 FROM profile_follows WHERE follower_id={r} AND followed_id={s}), "
     "(SELECT ended_by FROM conversation_endings "
-    "WHERE user_a=LEAST({s},{r}) AND user_b=GREATEST({s},{r})) "
+    "WHERE user_a=LEAST({s},{r}) AND user_b=GREATEST({s},{r})), "
+    "NOT (" + bs.visible_sql("{r}", "{s}") + ") "
     "FROM users su, users ru WHERE su.id={s} AND ru.id={r}"
 )
 MESSAGE_POLICY_FACTS_SQL_PG8000  = _MESSAGE_POLICY_FACTS_SQL.format(s=":s::int", r=":r::int")
@@ -4350,7 +4357,8 @@ MESSAGE_REOPEN_SQL_ASYNCPG = "DELETE FROM conversation_endings WHERE user_a=LEAS
 def message_policy_decide(sender_id: int, row) -> dict:
     """Pure decision from one facts row (or None = an account is missing).
     → {allowed, reason, reopen, ended, can_end}."""
-    if not row:
+    if not row or (len(row) > 5 and row[5]):
+        # missing account — or hidden (receiver suspended / a block either way, task 5.4): the same answer
         return {"allowed": False, "reason": "not_found", "reopen": False, "ended": False, "can_end": False}
     s_type, r_type, has_history, mutual, ended_by = row[0], row[1], bool(row[2]), bool(row[3]), row[4]
     ended = ended_by is not None
@@ -4559,7 +4567,7 @@ def get_conversations(user_id: int) -> list:
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE m.sender_id=:uid OR m.receiver_id=:uid "
             "ORDER BY other_id, m.created_at DESC"
-            ") sub ORDER BY created_at DESC",
+            ") sub WHERE " + bs.visible_sql("sub.other_id", ":uid") + " ORDER BY created_at DESC",
             uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
@@ -4644,7 +4652,8 @@ def get_unread_count(user_id: int) -> int:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT COUNT(*) FROM messages WHERE receiver_id=:uid AND is_read=FALSE",
+            "SELECT COUNT(*) FROM messages m WHERE m.receiver_id=:uid AND m.is_read=FALSE AND "
+            + bs.visible_sql("m.sender_id", ":uid"),
             uid=user_id
         )
         return rows[0][0] if rows else 0
@@ -5551,11 +5560,16 @@ def get_company_post_comments(post_id: int, viewer_user_id=None, limit: int = 20
         if not post_rows:
             return [], None
         post_company_id = int(post_rows[0][0])
+        # task 5.4: a hidden author's comments (suspended / block either way) are left out — a hidden
+        # root takes its thread with it (no orphan replies).
+        vis = bs.visible_sql("c.user_id")
         thread_rows = conn.run(
-            "SELECT DISTINCT COALESCE(reply_to_comment_id, id) AS t FROM company_post_comments "
-            "WHERE post_id = :pid AND status = 'active' AND COALESCE(reply_to_comment_id, id) > :after "
+            "SELECT DISTINCT COALESCE(c.reply_to_comment_id, c.id) AS t FROM company_post_comments c "
+            "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
+            "WHERE c.post_id = :pid AND c.status = 'active' AND COALESCE(c.reply_to_comment_id, c.id) > :after "
+            "AND " + vis + " AND (rc.id IS NULL OR " + bs.visible_sql("rc.user_id") + ") "
             "ORDER BY t ASC LIMIT :lim",
-            pid=post_id, after=int(cursor or 0), lim=int(limit) + 1)
+            pid=post_id, after=int(cursor or 0), lim=int(limit) + 1, bs_viewer=bs._viewer(viewer_user_id))
         threads = [int(r[0]) for r in thread_rows]
         next_cursor = threads[int(limit) - 1] if len(threads) > int(limit) else None
         threads = threads[:int(limit)]
@@ -5572,10 +5586,10 @@ def get_company_post_comments(post_id: int, viewer_user_id=None, limit: int = 20
             "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
             "LEFT JOIN users ru ON ru.id = rc.user_id "
             "LEFT JOIN users mu ON mu.tw_id = c.mentioned_tw_id "
-            "WHERE c.post_id = :pid AND c.status = 'active' "
+            "WHERE c.post_id = :pid AND c.status = 'active' AND " + vis + " "
             "AND COALESCE(c.reply_to_comment_id, c.id) IN (" + ", ".join(str(t) for t in threads) + ") "
             "ORDER BY c.created_at ASC, c.id ASC",
-            pid=post_id)
+            pid=post_id, bs_viewer=bs._viewer(viewer_user_id))
         cols = ["id", "body", "created_at", "updated_at",
                 "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id",
                 "reply_to_comment_id", "reply_to_author_name", "reply_to_author_tw_id",
@@ -5679,7 +5693,8 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             if not mtw:
                 continue
             mrows = conn.run(
-                "SELECT id, full_name FROM users WHERE tw_id = :tid", tid=mtw)
+                "SELECT id, full_name FROM users u WHERE tw_id = :tid AND " + bs.visible_sql("u.id"),
+                tid=mtw, bs_viewer=int(user_id))
             if not mrows:
                 raise ValueError("mentioned_tw_id لا يشير لمستخدم موجود")
             m_name = mrows[0][1]
@@ -6002,8 +6017,8 @@ def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: 
         type_rows = conn.run(
             "SELECT u.user_type, COUNT(*) FROM profile_follows pf "
             "JOIN users u ON u.id=pf.follower_id "
-            "WHERE pf.followed_id=:fdid GROUP BY u.user_type",
-            fdid=followed_id) or []
+            "WHERE pf.followed_id=:fdid AND " + bs.visible_sql("u.id") + " GROUP BY u.user_type",
+            fdid=followed_id, bs_viewer=bs._viewer(viewer_id)) or []
         type_counts = {"emp": 0, "co": 0, "edu": 0}
         for utype, cnt in type_rows:
             if utype in type_counts:
@@ -6029,10 +6044,10 @@ def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: 
             "JOIN users u ON u.id=pf.follower_id "
             "LEFT JOIN profiles p ON p.user_id=u.id "
             "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
-            "WHERE pf.followed_id=:fdid " + where_type +
+            "WHERE pf.followed_id=:fdid AND " + bs.visible_sql("u.id") + " " + where_type +
             "ORDER BY pf.created_at DESC LIMIT :lim OFFSET :off"
         )
-        params = {"fdid": followed_id, "lim": limit, "off": offset}
+        params = {"fdid": followed_id, "lim": limit, "off": offset, "bs_viewer": bs._viewer(viewer_id)}
         if viewer_id is not None:
             params["vid"] = int(viewer_id)
         if user_type != "all":
@@ -6072,8 +6087,8 @@ def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: 
         type_rows = conn.run(
             "SELECT u.user_type, COUNT(*) FROM profile_follows pf "
             "JOIN users u ON u.id=pf.followed_id "
-            "WHERE pf.follower_id=:frid GROUP BY u.user_type",
-            frid=follower_id) or []
+            "WHERE pf.follower_id=:frid AND " + bs.visible_sql("u.id") + " GROUP BY u.user_type",
+            frid=follower_id, bs_viewer=bs._viewer(viewer_id)) or []
         type_counts = {"emp": 0, "co": 0, "edu": 0}
         for utype, cnt in type_rows:
             if utype in type_counts:
@@ -6099,10 +6114,10 @@ def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: 
             "JOIN users u ON u.id=pf.followed_id "
             "LEFT JOIN profiles p ON p.user_id=u.id "
             "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
-            "WHERE pf.follower_id=:frid " + where_type +
+            "WHERE pf.follower_id=:frid AND " + bs.visible_sql("u.id") + " " + where_type +
             "ORDER BY pf.created_at DESC LIMIT :lim OFFSET :off"
         )
-        params = {"frid": follower_id, "lim": limit, "off": offset}
+        params = {"frid": follower_id, "lim": limit, "off": offset, "bs_viewer": bs._viewer(viewer_id)}
         if viewer_id is not None:
             params["vid"] = int(viewer_id)
         if user_type != "all":
@@ -7894,7 +7909,7 @@ def get_company_candidate_suggestions(
         saved_ids = {r[0] for r in saved_rows}
 
         # ── 6. Build candidate filter ─────────────────────────────────────────
-        where_parts = ["u.user_type = 'emp'", "u.id != :cid"]
+        where_parts = ["u.user_type = 'emp'", "u.id != :cid", bs.visible_sql("u.id", ":cid")]   # task 5.4
         qp = {"cid": company_id}
 
         if not include_saved and saved_ids:

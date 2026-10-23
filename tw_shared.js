@@ -877,6 +877,23 @@ function twCanMessage(otherId) {
 }
 window.twCanMessage = twCanMessage;
 
+// ══ Block — twBlockUser (task 5.4 · SYSTEMS_INDEX §25f · docs/rules/blocks-suspension.md) ══
+// The ONE client call for blocking: twAction('block', { ownerId, mode, onClick: function () { twBlockUser(id); } })
+// (the registry entry carries the DS-OVL confirm). PUT /blocks/{id} through twApi; on success the profile is
+// gone for this viewer (the server answers «غير موجود»), so the page leaves to the feed. Unblock is in /settings.
+function twBlockUser(userId) {
+  return twApi('/blocks/' + encodeURIComponent(userId), { method: 'PUT' }).then(function (res) {
+    if (!res.ok) {
+      if (res.status !== 401) showToast(twApiMessage(res, twT('block.error')), 'error');
+      return false;
+    }
+    showToast(twT('block.done'), 'success');
+    setTimeout(function () { location.replace(twHomeHref()); }, 600);
+    return true;
+  });
+}
+window.twBlockUser = twBlockUser;
+
 // ══ Report dialog — twReportDialog (Reports System SYSTEMS_INDEX §24 · PR 4.2a) ══
 // The ONE report form for every page: twAction('report', { onClick: function () {
 //   twReportDialog({ reportedId: id, reportedType: 'user' | 'job' | 'company' }); } }).

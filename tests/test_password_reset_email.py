@@ -71,6 +71,7 @@ def db():
     auth._migrate_password_reset_tokens()
     auth._migrate_password_reset_tokens()   # idempotent
     auth._migrate_session_version()
+    auth.bs.migrate_blocks_suspension()     # task 5.4 — users.suspended_* + blocks (read by the session check)
     return auth
 
 
