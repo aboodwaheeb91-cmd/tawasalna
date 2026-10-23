@@ -1853,10 +1853,10 @@ body.view-owner .cv-edit-btn { display:flex; }
 ### الملفات المتغيرة
 | الملف | التغيير |
 |-------|---------|
-| `auth.py` | migration: `sort_order INTEGER DEFAULT 0`، ORDER BY في `_get_extras`، `reorder_experience()` |
+| `auth.py` | `_migrate_experience_sort_order()` (startup migration `experience_sort_order`، حرجة — AUD-P2-49)، ORDER BY في `_get_extras`، `add_experience()` بآخر ترتيب، `reorder_experience()` بـ transaction |
 | `server.py` | `ExperienceReorderInput` model، `PUT /experience/reorder` endpoint |
 | `profile-v2.api.js` | `reorderExperience(orderedIds)` — wrapper للـ endpoint |
-| `profile-v2.exp.js` | `_expMoveUp`, `_expMoveDown`, `_saveExperienceOrder` |
+| `profile-v2.exp.js` | `_expMoveUp`, `_expMoveDown`, `_saveExperienceOrder` · الإضافة بتنحط بآخر القائمة (`push`) متل السيرفر |
 | `profile-v2.render.js` | يمرر `i` و`n` لـ `_buildExpHTML` لتحديد disabled state |
 | `profile-v2.css` | `.sc-item-btn-ord[disabled]` — opacity للأزرار المعطّلة |
 
@@ -1880,13 +1880,22 @@ Body: { ordered_ids: [int, ...] }
 
 ### Security
 - Backend يتحقق من ownership لكل id قبل أي UPDATE
-- إذا `len(rows) != len(ordered_ids)` → رفض كامل (لا partial update)
+- إذا `len(rows) != len(ordered_ids)` → رفض كامل 403 (لا partial update · ids مكررة = رفض)
+- كل الـ UPDATEs بـ transaction وحدة — كلها أو ولا وحدة
 
-### Schema
+### Schema + الترتيب (AUD-P2-49)
 ```sql
+-- _migrate_experience_sort_order (auth.py) — بكل startup، idempotent
 ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
--- SELECT ORDER BY sort_order ASC, id DESC
+-- مرة وحدة (app_migrations: experience_sort_order_backfill): 0..n-1 لكل مستخدم
+--   بالترتيب اللي كان معروض (sort_order ASC, id DESC) — ما في شي بيتحرك
+ALTER TABLE experience ALTER COLUMN sort_order SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_experience_user_sort ON experience (user_id, sort_order, id);
+-- القراءة: ORDER BY sort_order ASC, id ASC (ثانوي ثابت للمتساوي)
+-- الإضافة: sort_order = MAX(sort_order) + 1 لنفس المستخدم (آخر القائمة)
 ```
+- RLS ما تغيّر (`rls_lockdown` بيضل آخر migration).
+- Test: `python -m pytest tests/test_experience_sort_order_49.py -q`.
 
 ---
 

@@ -140,7 +140,7 @@ from auth import (
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table,
-    set_user_verified, KycStateError, REPORT_TARGET_TYPES, _migrate_reports_targets, _migrate_verified_source,
+    set_user_verified, KycStateError, REPORT_TARGET_TYPES, _migrate_reports_targets, _migrate_verified_source, _migrate_experience_sort_order,
     get_current_user_type, _migrate_rls_lockdown,
     send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     can_send_message, message_policy_decide, end_conversation, MessagePolicyError, MESSAGE_POLICY_REASONS,
@@ -921,6 +921,7 @@ def _startup_migrations():
         ("admin_audit_log",                   admin_insights.migrate_admin_audit_log, True),
         ("reports_targets",                   _migrate_reports_targets,            False),
         ("verified_source",                   _migrate_verified_source,            False),
+        ("experience_sort_order",             _migrate_experience_sort_order,      True),   # AUD-P2-49 — read by every profile
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration

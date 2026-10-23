@@ -109,12 +109,6 @@
     return job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') + (job.currency ? ' ' + job.currency : '');
   }
 
-  // ── Save (placeholder — no backend / registry entry yet) ──────
-  function toggleSave() {
-    if (!_authed) { _toLogin(); return; }
-    showToast(twT('job.save_soon'), 'info');
-  }
-
   // ── Skeleton / state ────────────────────────────────────────
   function showSkeleton() {
     var s = _el('jdSkeleton'); var c = _el('jdContent');
@@ -568,7 +562,6 @@
   function _applyOwnerMode(job) {
     if (!_isOwner(job)) return;
     _label(_el('jdApplyCardTitle'), twT('job.yours'), 'check', false);
-    document.querySelectorAll('.jd-save-trigger').forEach(function (b) { b.hidden = true; });
     var stickyBar = _el('jdStickyBar');
     if (stickyBar) stickyBar.classList.add('hidden');
   }
@@ -646,9 +639,6 @@
   function _init() {
     twIcon.hydrate(document.body);   // static <i data-tw-icon> placeholders (DS-ICON)
     // Header + back button = unified app chrome (tw_shared.js twMountAppChrome — HEADER-NAV.md)
-    document.querySelectorAll('.jd-save-trigger').forEach(function (btn) {
-      btn.addEventListener('click', toggleSave);
-    });
     loadJob();
   }
 

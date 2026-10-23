@@ -113,7 +113,7 @@
 
 ### Jobs & Applications
 
-- [ ] **P1** — Save System backend: تنفيذ `saved_jobs` table + `/jobs/{id}/save` endpoint (UI placeholder موجود)
+- [ ] **P1** — Save System: `saved_jobs` table + `/jobs/{id}/save` endpoint + زر «حفظ الوظيفة» (الـ placeholder انشال — AUD-P2-49 PR)
 - [ ] **P2** — Job search page: صفحة بحث مستقلة بفلاتر متقدمة (مدينة، نوع، مهارة)
 
 ---

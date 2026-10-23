@@ -563,12 +563,6 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   padding: 0;
 }
 .vjc-btn svg { width: 12px; height: 12px; stroke-width: 2; flex-shrink: 0; }
-.vjc-btn--save {
-  background: var(--color-surface-raised);
-  border-color: var(--color-border-medium);
-  color: var(--color-text-meta);
-}
-.vjc-btn--save:hover { background: rgba(var(--color-ink-rgb), .09); }
 .vjc-btn--share {
   background: rgba(var(--color-brand-secondary-rgb), .07);
   border-color: rgba(var(--color-brand-secondary-rgb), .25);

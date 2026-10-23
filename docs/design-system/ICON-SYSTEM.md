@@ -90,7 +90,7 @@ twIcon.hydrate(root);                           // <i data-tw-icon="x" data-tw-s
 الأيقونة الثابتة بالـ HTML (عنوان قسم، زر حفظ، صف معلومات…) تنكتب placeholder، والصفحة بتنادي `twIcon.hydrate(document.body)` **مرّة وحدة** بالـ init:
 
 ```html
-<button id="jdSaveBtn"><i data-tw-icon="bookmark" data-tw-size="md"></i>حفظ</button>
+<button type="button"><i data-tw-icon="bookmark" data-tw-size="md"></i>حفظ</button>
 <span class="badge"><i data-tw-icon="star" data-tw-size="xs" data-tw-filled></i></span>
 ```
 

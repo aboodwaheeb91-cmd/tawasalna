@@ -298,7 +298,7 @@
         if(!window._scProfile) window._scProfile = {};
         if(!Array.isArray(window._scProfile.experience)) window._scProfile.experience = [];
         if(_mode === 'add'){
-          window._scProfile.experience.unshift(entry);
+          window._scProfile.experience.push(entry);   // server gives it the last sort_order
         } else {
           window._scProfile.experience = window._scProfile.experience.map(function(e){
             return (e.id === _editId) ? entry : e;
