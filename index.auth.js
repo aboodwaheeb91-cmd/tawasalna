@@ -98,7 +98,7 @@ function _loginErrorText(res){
   if(res.status === 429) return twT('login.err.too_many');
   if(res.status === 0)   return twApiMessage(res, twT('login.err.network'));   // network / timeout
   if(res.status >= 500)  return twT('login.err.server');
-  return twT('login.err.credentials');
+  return twT('login.err.failed');   // every account failure (wrong password · unknown email · suspended · deleted) — one text, never the account state (5.4)
 }
 
 // Register failure → { field, text }. 4xx text = the server's own Arabic validation message

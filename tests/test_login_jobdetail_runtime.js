@@ -178,7 +178,9 @@ function gateway(opts) {
     check('C3 success → redirect to the account (/u/{tw_id})', ok.nav.href === '/u/' + USER.tw_id, ok.nav.href);
 
     const cases = [
-      ['401', { ok: false, status: 401, raw: { error: 'x' } }, STRINGS['login.err.credentials']],
+      ['401 wrong password', { ok: false, status: 401, raw: { error: 'x' } }, STRINGS['login.err.failed']],
+      ['401 account_suspended', { ok: false, status: 401, raw: { ok: false, error: { code: 'account_suspended' } } }, STRINGS['login.err.failed']],
+      ['404 unknown email', { ok: false, status: 404, raw: { ok: false, error: { code: 'not_found' } } }, STRINGS['login.err.failed']],
       ['429 locked', { ok: false, status: 429, raw: { ok: false, error: { code: 'login_locked' } } }, STRINGS['login.err.locked']],
       ['429', { ok: false, status: 429, raw: {} }, STRINGS['login.err.too_many']],
       ['502', { ok: false, status: 502, raw: null }, STRINGS['login.err.server']],
