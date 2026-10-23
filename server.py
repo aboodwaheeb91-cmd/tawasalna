@@ -558,11 +558,16 @@ async def security_headers(request, call_next):
 # ── Simple Rate Limiting ──
 from collections import defaultdict, deque, OrderedDict
 import time as _time
+import threading
 # Shared in-memory rate store (task 5.0h-2 — AUD-P2-13): key → hit times. Bounded without a
 # thread: on use, at most every LIMITS["mem_store_sweep_s"], keys past their window are dropped
 # (window from RATES by key prefix, else the longest window in RATES); past
-# LIMITS["mem_store_max_keys"] the keys with the oldest last hit go first.
+# LIMITS["mem_store_max_keys"] the keys with the oldest last hit go first — never a login lock
+# key (_LOGIN_LOCKS: only its window ends it; with nothing else to drop the store may pass the
+# cap for a while — task 5.0h-3). _rate_lock makes check + count one step across threadpool
+# requests; nothing inside it touches the DB.
 _rate_store: dict = {}
+_rate_lock = threading.Lock()
 _rate_sweep_at = 0.0
 _RATE_LIMIT = 20  # requests per minute per client IP (all _RATE_LIMITED_PATHS together)
 _LOG_ERROR_RATE = 30  # POST /log/error per minute per client IP (own bucket — task 5.0e)
@@ -573,8 +578,8 @@ def _rate_key_ttl(key: str) -> float:
     return rate[1] if rate else max(w for _, w in tw_limits.RATES.values())
 
 
-def _rate_sweep(now: float = None, force: bool = False) -> int:
-    """Drop expired keys, then cap the key count. Returns how many keys were removed."""
+def _rate_sweep_locked(now: float = None, force: bool = False) -> int:
+    """Caller holds _rate_lock. Drop expired keys, then cap the key count. Returns keys removed."""
     global _rate_sweep_at
     now = _time.time() if now is None else now
     cap = tw_limits.LIMITS["mem_store_max_keys"]
@@ -582,22 +587,27 @@ def _rate_sweep(now: float = None, force: bool = False) -> int:
         return 0
     _rate_sweep_at = now
     before = len(_rate_store)
-    items = list(_rate_store.items())   # snapshot — threadpool requests may write meanwhile
-    for key, hits in items:
+    for key, hits in list(_rate_store.items()):
         if not hits or now - hits[-1] >= _rate_key_ttl(key):
-            _rate_store.pop(key, None)
+            del _rate_store[key]
     if len(_rate_store) >= cap:   # down to 90% (room for the new key; not re-sorted on every hit)
-        items = sorted(((k, h[-1] if h else 0.0) for k, h in list(_rate_store.items())), key=lambda kv: kv[1])
-        for key, _ in items[:len(items) - cap * 9 // 10]:
-            _rate_store.pop(key, None)
+        evictable = sorted((h[-1], k) for k, h in _rate_store.items()
+                           if k.split(":", 1)[0] not in _LOGIN_LOCKS)
+        for _, key in evictable[:len(_rate_store) - cap * 9 // 10]:
+            del _rate_store[key]
     for uid in [u for u, (_, at) in list(_pwd_changed_cache.items())
                 if _time.monotonic() - at >= _PWD_CHANGED_TTL]:
         _pwd_changed_cache.pop(uid, None)
     return before - len(_rate_store)
 
 
-def _rate_prune(key: str, window: float) -> list:
-    _rate_sweep()
+def _rate_sweep(now: float = None, force: bool = False) -> int:
+    with _rate_lock:
+        return _rate_sweep_locked(now, force)
+
+
+def _rate_prune_locked(key: str, window: float) -> list:
+    _rate_sweep_locked()
     now = _time.time()
     hits = [t for t in _rate_store.get(key, ()) if now - t < window]
     if hits:
@@ -607,19 +617,26 @@ def _rate_prune(key: str, window: float) -> list:
     return hits
 
 
+def _rate_prune(key: str, window: float) -> list:
+    with _rate_lock:
+        return _rate_prune_locked(key, window)
+
+
 def _rate_hit(key: str, limit: int, window: float) -> bool:
-    """Sliding window on the shared _rate_store. True = allowed (and counted)."""
-    hits = _rate_prune(key, window)
-    if len(hits) >= limit:
-        return False
-    _rate_store[key] = hits + [_time.time()]
-    return True
+    """Sliding window on the shared _rate_store. True = allowed (and counted) — one locked step."""
+    with _rate_lock:
+        hits = _rate_prune_locked(key, window)
+        if len(hits) >= limit:
+            return False
+        _rate_store[key] = hits + [_time.time()]
+        return True
 
 
 def _rate_count(key: str) -> None:
     """Count one hit without a limit check (failed logins)."""
-    _rate_sweep()
-    _rate_store[key] = _rate_store.get(key, []) + [_time.time()]
+    with _rate_lock:
+        _rate_sweep_locked()
+        _rate_store[key] = _rate_store.get(key, []) + [_time.time()]
 
 
 # Per-(user, post / comment) toggles + comments — RATES on the shared store (task 5.0h-2;
@@ -668,9 +685,10 @@ def _login_fail(email: str, ip: str) -> None:
 
 def _login_email_reset(email: str, ip: str = None) -> None:
     who = _login_lock_who(email, ip or "")
-    _rate_store.pop("login_email:" + who["login_email"], None)
-    if ip:
-        _rate_store.pop("login_ip_email:" + who["login_ip_email"], None)
+    with _rate_lock:
+        _rate_store.pop("login_email:" + who["login_email"], None)
+        if ip:
+            _rate_store.pop("login_ip_email:" + who["login_ip_email"], None)
 
 
 _RATE_LIMITED_PATHS = frozenset({
