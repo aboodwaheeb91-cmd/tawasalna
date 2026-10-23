@@ -60,7 +60,7 @@ _DEFS = (
     _rate("comment_create", 1,    10,   600, "comments"),
     _rate("comment_edit", 0,       1,    60, "comments"),
     _rate("comment_edit", 1,      10,   600, "comments"),
-    _rate("mention_search", 0,    10,   300, "comments"),
+    _rate("mention_search", 0,    10,   120, "comments"),   # 4.1a: max 300 → 120
     _rate("mention_search", 1,    10,   600, "comments"),
     _limit("report_reason_max",  200,  5000, "reports"),
     _limit("report_url_max",     200,  2048, "reports"),

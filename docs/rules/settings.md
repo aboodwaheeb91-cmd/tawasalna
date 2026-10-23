@@ -18,6 +18,7 @@
 6. **السجل:** نفس `admin_audit_log` (§25b) — `admin_audit_middleware` الكاتب الوحيد؛ الـ endpoint بيحط `request.state.audit_change = (old, new)` والصف بيطلع فيه: `actor` (المستخدم) · `target` = `key=<المفتاح>` · `old_value` · `new_value` · `action` = `admin_settings_update` / `admin_settings_reset` (نوع العملية) · `created_at` (الوقت). ❌ جدول سجل تاني · ❌ نداء تسجيل من الـ endpoint.
 
 7. **الحدود الدنيا:** ما في min بيسمح بقيمة بتوقف وظيفة أساسية — عدد المرات ≥ 1 لكل rate (رسائل ≥ 5)، الأطوال فوق أي نص طبيعي. الافتراضي لازم يكون جوّا [min, max] (غير هيك السيرفر ما بيشتغل).
+   - قائمة النطاقات المعتمدة: `ARCHITECTURE.md` §78 («4.1 list»). تعديل نطاق (4.1a: `mention_search_hits` 10–**120**، الافتراضي 60) ما بيحتاج migration — قيمة مخزّنة برّا النطاق الجديد بتنتجاهل بـ `_clean` (القاعدة 4) وبيرجع الافتراضي.
 
 8. **برّا 4.1 (لـ 4.2):** أقفال الدخول `login_*` · OTP و pwreset · `password_max_bytes` · `mem_store_*` · السعات والكاش (`ip_country_cache_*`) · أحجام الصفحات (`mention_limit_max` · `comments_page*` · `blocks_page_max`) · `view_count` / `report_repeat` (نوافذ منع تكرار). `security: true` محجوز لهدول.
 

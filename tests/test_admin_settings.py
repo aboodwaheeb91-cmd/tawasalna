@@ -97,6 +97,10 @@ def test_validation_range_type_unknown():
     err = r.json()["error"]
     assert err["code"] == "out_of_range" and err["field"] == "value" and re.search(r"[؀-ۿ]", err["message"])
     assert _put("message_send_hits", 0).status_code == 422          # never 0 for a send limit
+    r = _put("mention_search_hits", 121)                             # 4.1a: max 120
+    assert r.status_code == 422 and r.json()["error"]["code"] == "out_of_range"
+    assert tw_settings.REGISTRY["mention_search_hits"]["max"] == 120
+    assert tw_settings._clean([("mention_search_hits", 300)]) == {}  # old stored value ignored
     for bad in ("900", 900.5, True, None, [900]):
         r = _put("message_max", bad)
         assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_type", bad
