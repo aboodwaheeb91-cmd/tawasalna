@@ -185,12 +185,6 @@
           _openJobMgmtDrop(manageBtn, parseInt(card.dataset.jid, 10), manageBtn.getAttribute('data-status'));
           return;
         }
-        var saveBtn = e.target.closest('.vjc-btn--save');
-        if (saveBtn) {
-          e.stopPropagation();
-          if (window.showToast) showToast('ميزة حفظ الوظائف ستتوفر قريباً');
-          return;
-        }
         var shareBtn = e.target.closest('.vjc-btn--share');
         if (shareBtn) {
           e.stopPropagation();

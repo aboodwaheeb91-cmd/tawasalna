@@ -415,9 +415,7 @@ def init_db():
         ]:
             try: conn.run(col_sql)
             except Exception: pass
-        # Migration: sort_order for experience
-        try: conn.run("ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
-        except Exception: pass
+        # experience.sort_order → _migrate_experience_sort_order (startup migration, AUD-P2-49)
 
         # ── Profile Follows ──
         try:
@@ -1468,7 +1466,7 @@ def _get_extras(conn, user_id: int) -> dict:
         "experience": _safe_query(conn,
             "SELECT id, title, company, location, start_date, end_date, "
             "is_current, description, created_at, sort_order "
-            "FROM experience WHERE user_id = :uid ORDER BY sort_order ASC, id DESC", user_id),
+            "FROM experience WHERE user_id = :uid ORDER BY sort_order ASC, id ASC", user_id),
         "education": _safe_query(conn,
             "SELECT id, institution, degree, field, start_year, end_year, "
             "is_current, description, created_at "
@@ -1913,9 +1911,11 @@ def add_experience(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
         rows = conn.run(
-            "INSERT INTO experience (user_id, title, company, location, start_date, end_date, is_current, description) "
-            "VALUES (:uid, :title, :company, :location, :start_date, :end_date, :is_current, :description) "
-            "RETURNING id, user_id, title, company, location, start_date, end_date, is_current, description, created_at",
+            # a new experience goes after the user's last one (AUD-P2-49)
+            "INSERT INTO experience (user_id, title, company, location, start_date, end_date, is_current, description, sort_order) "
+            "VALUES (:uid, :title, :company, :location, :start_date, :end_date, :is_current, :description, "
+            "(SELECT COALESCE(MAX(sort_order), -1) + 1 FROM experience WHERE user_id = :uid)) "
+            "RETURNING id, user_id, title, company, location, start_date, end_date, is_current, description, created_at, sort_order",
             uid=user_id, title=data["title"], company=data["company"],
             location=data.get("location"), start_date=data.get("start_date"),
             end_date=data.get("end_date"), is_current=data.get("is_current", False),
@@ -1972,11 +1972,17 @@ def reorder_experience(user_id: int, ordered_ids: list) -> bool:
         )
         if len(rows) != len(ordered_ids):
             raise ValueError("بعض الخبرات غير موجودة أو غير مصرح بترتيبها")
-        for pos, eid in enumerate(ordered_ids):
-            conn.run(
-                "UPDATE experience SET sort_order = :pos WHERE id = :id AND user_id = :uid",
-                pos=pos, id=int(eid), uid=user_id
-            )
+        conn.run("BEGIN")   # all positions or none
+        try:
+            for pos, eid in enumerate(ordered_ids):
+                conn.run(
+                    "UPDATE experience SET sort_order = :pos WHERE id = :id AND user_id = :uid",
+                    pos=pos, id=int(eid), uid=user_id
+                )
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
         _cache_del('profile:' + str(user_id))
         return True
     finally:
@@ -4947,6 +4953,32 @@ def _migration_claim_once(conn, name: str) -> bool:
              "name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
     return bool(conn.run("INSERT INTO app_migrations (name) VALUES (:n) "
                          "ON CONFLICT (name) DO NOTHING RETURNING name", n=name))
+
+
+def _migrate_experience_sort_order():
+    """AUD-P2-49 — experience.sort_order is the display order (ORDER BY sort_order, id).
+    The column used to be added with DEFAULT 0 and never filled, so rows tied and the order came
+    from id DESC. One-time backfill (app_migrations mark): 0..n-1 per user in the order shown
+    until now (sort_order ASC, id DESC) — nothing moves on screen. Then NOT NULL + an index."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run("ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
+            if _migration_claim_once(conn, "experience_sort_order_backfill"):
+                conn.run(
+                    "UPDATE experience e SET sort_order = r.pos FROM ("
+                    " SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id"
+                    "   ORDER BY COALESCE(sort_order, 0) ASC, id DESC) - 1 AS pos FROM experience) r "
+                    "WHERE e.id = r.id AND e.sort_order IS DISTINCT FROM r.pos")
+            conn.run("ALTER TABLE experience ALTER COLUMN sort_order SET DEFAULT 0")
+            conn.run("UPDATE experience SET sort_order = 0 WHERE sort_order IS NULL")
+            conn.run("ALTER TABLE experience ALTER COLUMN sort_order SET NOT NULL")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_experience_user_sort "
+                     "ON experience (user_id, sort_order, id)")
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
 
 
 def _migrate_verified_source():

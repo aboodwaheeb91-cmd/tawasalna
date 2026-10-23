@@ -224,9 +224,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 17. Save System / Bookmark ⚠️ 🔜
 **Purpose:** User saves/bookmarks jobs or other items for later.
-**Source of Truth:** No backend table yet. Current UI shows "ميزة حفظ الوظائف قريباً" toast (placeholder). Future: `saved_jobs` table + `/jobs/{id}/save` endpoint.
-**Details:** `job-detail.html` (UI placeholder only, PR #278)
-**Do not recreate:** Do not use `localStorage` as the permanent store for saved jobs. When implementing for real, create a `saved_jobs` DB table and a proper API endpoint. The UI button already exists — only wire it to a real backend.
+**Source of Truth:** None yet — no table, no endpoint, **no button**. The «حفظ الوظيفة» placeholder (job-detail card + sticky bar, company job cards `vjc-btn--save`, strings `job.save*`) was removed (AUD-P2-49 PR — product decision: a button that does nothing is not shipped). Future task: `saved_jobs` table + `/jobs/{id}/save` endpoint + the button, together.
+**Details:** test `python -m pytest tests/test_experience_sort_order_49.py -q` (button absent).
+**Do not recreate:** ❌ a save-job button / «قريباً» toast without its backend · ❌ `localStorage` as the store for saved jobs. When implementing, build the `saved_jobs` table + API + button (via `twAction`) in one task.
 
 ---
 
@@ -1430,4 +1430,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-23 — task terms · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-23 — task terms + AUD-P2-49 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*

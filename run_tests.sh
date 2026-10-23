@@ -127,6 +127,7 @@ PY_DB=(
   pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
   pytest:test_scheduler_reliable_63.py  # task 6.3 — internal loop · advisory lock · stale reset · email retry · /health scheduler
   pytest:test_blocks_suspension.py    # task 5.4 — admin suspension (401 · hidden content · back) + user blocks both ways · applications untouched
+  pytest:test_experience_sort_order_49.py  # AUD-P2-49 — experience sort_order backfill / add / tie order / reorder ownership + save-job button gone
 )
 
 # ── Node (vm / static — no browser) ────────────────────────────────────────
