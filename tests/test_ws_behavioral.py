@@ -89,7 +89,7 @@ class FakeWS:
 # ── Helper: run websocket_endpoint with mocked dependencies ──────────────────
 
 async def _run_ws(origin="", recv=None, uid=42, path_uid=42, jwt_uid=42,
-                  jwt_type="emp", jwt_bad=False, conv_exists=True, mgr=None):
+                  jwt_type="emp", jwt_bad=False, conv_exists=True, mgr=None, hidden=False):
     ws      = FakeWS(origin=origin, recv=recv or [])
     mgr     = mgr or server.ConnectionManager()
     jwt_val = None if jwt_bad else {"user_id": jwt_uid, "user_type": jwt_type}
@@ -97,7 +97,8 @@ async def _run_ws(origin="", recv=None, uid=42, path_uid=42, jwt_uid=42,
     mock_conv = AsyncMock(return_value=conv_exists)
     with patch.object(server, "ws_manager", mgr), \
          patch.object(server, "_jwt_decode", return_value=jwt_val), \
-         patch.object(server, "_ws_conversation_exists_async", new=mock_conv):
+         patch.object(server, "_ws_conversation_exists_async", new=mock_conv), \
+         patch.object(server, "_ws_peer_hidden_async", new=AsyncMock(return_value=hidden)):
         await server.websocket_endpoint(ws, path_uid)
     return ws, mgr, mock_conv
 

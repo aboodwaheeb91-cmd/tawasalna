@@ -5701,8 +5701,9 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         reply_to_author_id    = None
         if reply_to_comment_id is not None:
             ref_rows = conn.run(
-                "SELECT id, reply_to_comment_id, post_id, status FROM company_post_comments WHERE id = :cid",
-                cid=int(reply_to_comment_id))
+                "SELECT id, reply_to_comment_id, post_id, status FROM company_post_comments c "
+                "WHERE id = :cid AND " + bs.visible_sql("c.user_id"),
+                cid=int(reply_to_comment_id), bs_viewer=int(user_id))
             if not ref_rows or ref_rows[0][3] != 'active' or int(ref_rows[0][2]) != post_id:
                 raise ValueError("التعليق المرجعي غير موجود أو لا ينتمي لهذا المنشور")
             # If target is itself a reply, resolve to its parent (enforce depth=1)
@@ -5710,8 +5711,9 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                 resolved_reply_to = int(ref_rows[0][1])
                 # Verify the resolved root parent is also active and on the same post
                 root_rows = conn.run(
-                    "SELECT id, post_id, status FROM company_post_comments WHERE id = :cid",
-                    cid=resolved_reply_to)
+                    "SELECT id, post_id, status FROM company_post_comments c "
+                    "WHERE id = :cid AND " + bs.visible_sql("c.user_id"),
+                    cid=resolved_reply_to, bs_viewer=int(user_id))
                 if not root_rows or root_rows[0][2] != 'active' or int(root_rows[0][1]) != post_id:
                     raise ValueError("التعليق الأصلي غير موجود أو تم حذفه")
             else:
