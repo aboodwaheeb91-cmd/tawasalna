@@ -395,3 +395,27 @@ def test_job_application_unaffected_by_block():
     assert r.status_code == 200 and str(emp["id"]) in r.text, r.text
     r = client.put(f"/jobs/applications/{app_id}/status", headers=_h(co), json={"status": "interview"})
     assert r.status_code == 200, r.text
+
+
+def _post_cmt_count(co, post_id, u=None):
+    r = client.get(f"/company/posts/{co['id']}", headers=_h(u) if u else {})
+    assert r.status_code == 200, r.text
+    return next(p["comments_count"] for p in r.json()["posts"] if p["id"] == post_id)
+
+
+def test_comments_count_matches_visible_list():
+    """task 5.4e — the post card counter = the comment list the same viewer gets (suspended author +
+    block either way left out, a hidden root takes its replies with it); guest = viewer 0."""
+    co, viewer, sus, blk, ok = _user("co"), _user("emp"), _user("emp"), _user("emp"), _user("emp")
+    post = _post(co)
+    _comment(post, ok)
+    c_blk = _comment(post, blk)
+    r = client.post(f"/company/posts/{post}/comments", headers=_h(ok), json={"body": "رد", "reply_to_comment_id": c_blk})
+    assert r.status_code == 200, r.text                     # visible reply inside the blocked author's thread
+    _comment(post, sus)
+    assert _suspend(sus, True).status_code == 200
+    assert client.put(f"/blocks/{viewer['id']}", headers=_h(blk)).status_code == 200   # blk blocks viewer
+    for u, expected in ((viewer, 1), (None, 3)):            # viewer: ok only · guest: ok + blk + reply
+        st, ids = _comment_ids(post, u)
+        assert st == 200 and len(ids) == expected
+        assert _post_cmt_count(co, post, u) == expected
