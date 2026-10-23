@@ -136,7 +136,8 @@ const tick = () => new Promise(r => setImmediate(r));
     const files = ['admin.html', 'admin-email.html', 'admin-view.html', 'admin-job.html', 'static/shared/admin-jobs.js',
       'static/admin-job/admin-job.js', 'static/shared/admin-session.js',
       'static/shared/admin-sections.js', 'static/shared/admin-shell.js', 'static/shared/admin-shell.css',
-      'static/admin/admin.js', 'static/admin-email/admin-email.js', 'static/admin-view/admin-view.js'];
+      'static/admin/admin.js', 'static/admin-email/admin-email.js', 'static/admin-view/admin-view.js',
+      'admin-settings.html', 'static/admin-settings/admin-settings.js'];   // task 4.1
     const bad = files.filter(f => read(f).indexOf('tw-ctrl') !== -1);
     check('B1 no "tw-ctrl" in any admin page / script / style', bad.length === 0, bad);
   }

@@ -6448,6 +6448,7 @@ Table `admin_audit_log` — critical startup migration `admin_audit_log` (`admin
 | `result` | TEXT NOT NULL CHECK `ok`/`denied`/`failed` | `< 400` ok · `401/403/429` denied · else failed |
 | `status` | INTEGER | HTTP status |
 | `ip` | TEXT | `get_client_ip(request)` only |
+| `old_value` / `new_value` | TEXT | task 4.1 — a settings change only (`request.state.audit_change`), NULL for every other row |
 
 Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited). Reads (`GET`) are not recorded — except the routes in `AUDIT_READ_ROUTES` (data leaving the site: `admin_users_export` — task 5.3a3). ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
 
@@ -13010,7 +13011,7 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 
 > SYSTEMS_INDEX §54n · tests `python -m pytest tests/test_input_limits_50h.py -q` · `python -m pytest tests/test_input_limits_50h2.py -q`.
 
-**One place:** `tw_limits.py` (`LIMITS` · `RATES` · `REPORT_TYPES` · `POST_TAGS`). Server constants for now — they move to the settings system when it is built. `POST_TAGS` is read at start from `TW.POST_TAGS` (`static/shared/tw-options-data.js`) so the picker and the server allowlist are one list. `page_block()` → `window.TW_LIMITS` (limits the pages need + report types) at `<!--tw:strings-->`; pages read it through `twLimit(name)` / `twReportTypes()` (`tw_shared.js`).
+**One place:** `tw_limits.py` (`LIMITS` · `RATES` · `REPORT_TYPES` · `POST_TAGS`) — the defaults. The keys in `tw_settings.REGISTRY` are admin-editable (task 4.1 — §78) and read through `tw_settings.limit()` / `rate()` only. `POST_TAGS` is read at start from `TW.POST_TAGS` (`static/shared/tw-options-data.js`) so the picker and the server allowlist are one list. `page_block()` → `window.TW_LIMITS` (limits the pages need + report types) at `<!--tw:strings-->`; pages read it through `twLimit(name)` / `twReportTypes()` (`tw_shared.js`).
 
 | Endpoint | Check (before any DB write) | Rejection |
 |----------|-----------------------------|-----------|
@@ -13061,4 +13062,37 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 **Admin gate:** `check_admin(request, "users.suspend")` — an admin token without the `users.suspend` permission (plan 5.3 staff) → 403; a user JWT or no token → 401 (the existing admin-gate contract — PR 1.5).
 
 **Frontend:** `twAction('block' | 'unblock')` (`tw_actions.json` — `block` carries the DS-OVL confirm) · `twBlockUser(id)` (`tw_shared.js`) on `profile-v2.render.js` · `company.render.js` · `edu-profile.html` · «المحظورون» section in `settings.html` / `static/settings/settings.js` · `admin-view.js` actions `user.suspend` / `user.unsuspend`. Texts `action.block*` · `block.*` · `settings.blocked.*` · `admin.suspend.*` · `account.suspended` in `tw_strings.json`.
+
+---
+
+## §78 — Unified Admin Settings (task 4.1)
+
+> SYSTEMS_INDEX §25g · `docs/rules/settings.md` · test `python -m pytest tests/test_admin_settings.py -q`.
+
+**Module:** `tw_settings.py` — `REGISTRY` (allowlist built from `_DEFS`; default read from `tw_limits` at import, must sit inside [min, max] or the server refuses to start) · `limit(name)` / `rate(name)` / `value(key)` (memory) · `set_value(key, raw, actor)` / `reset_value(key, actor)` → `(old, new)` · `reload()` · `on_change(fn)` · `migrate_app_settings()`.
+
+**Table `app_settings`** (optional startup migration `app_settings`, after `admin_audit_log`; production: `docs/migrations/4.1_app_settings.sql` — read-only check → apply → verify, RLS on + no `anon` / `authenticated`):
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `key` | TEXT PK | a `REGISTRY` key — anything else is ignored on load |
+| `value` | BIGINT NOT NULL | ignored on load when outside [min, max] |
+| `updated_at` | TIMESTAMPTZ NOT NULL DEFAULT NOW() | |
+| `updated_by` | TEXT | admin JWT `sub` |
+
+A row exists only while the value differs from the default (a save of the default or a reset deletes it).
+
+**Endpoints** (permission `settings.edit` — `check_admin(request, "settings.edit")`; owner token `perms: ["*"]`):
+
+| Endpoint | Body | Reply |
+|----------|------|-------|
+| `GET /admin/settings` | — | `{ok, data:{items:[{key, group, type, unit, value, default, min, max, changed, security, requires_restart, label_key, desc_key, label, description}], groups, cache_ttl_s: 30}}` |
+| `PUT /admin/settings/{key}` | `{value: int}` | `{ok, data:{setting, old, changed}}` · 404 `unknown_setting` · 422 `invalid_type` / `out_of_range` (`field: value`) |
+| `POST /admin/settings/{key}/reset` | — | same as PUT · 404 |
+
+401 = no / bad admin token · 403 = admin token without `settings.edit` — both before the key is looked at. Every PUT / POST is one `admin_audit_log` row (middleware) with `target key=<key>`, `old_value`, `new_value`.
+
+**Cache + workers:** reads never touch the DB. The saving worker updates its cache after the commit and rebuilds `window.TW_LIMITS` (`on_change` → `_strings_set_overrides`). Every worker reloads `app_settings` every `CACHE_TTL_S` (30 s) in `_settings_loop` (asyncio task, `asyncio.to_thread`) → a change reaches every worker within 30 s. Load failure → every setting on its default + `[settings] load failed` in the log. `requires_restart` = false for every 4.1 setting (all read per request); the page shows the warning before saving for any future one marked true.
+
+**4.1 list (approved in the PR):** see SYSTEMS_INDEX §25g — LIMITS: `message_max` 500–10 000 · `post_body_max` 500–10 000 · `post_tags_max` 1–10 · `report_reason_max` 200–5 000 · `report_url_max` 200–2 048 · `suspend_reason_max` 100–2 000; RATES (hits / window s): `message_send` 5–300 / 10–600 · `post_create` 1–50 / 60–3 600 · `post_edit` 1–100 / 60–3 600 · `post_appreciate` · `post_save` 1–60 / 5–300 · `comment_create` · `comment_edit` 1–60 / 10–600 · `mention_search` 10–300 / 10–600 · `report_submit` 1–50 / 300–86 400 · `block_set` 1–100 / 60–86 400.
 

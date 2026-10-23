@@ -536,6 +536,7 @@ Any PR that introduces a new system, rule, contract, or permanent constraint MUS
 | Schedule Interview System — زر «تحديد موعد» واحد (`twScheduleButton`) + نافذة وحدة (`twScheduleInterview`) · كل موعد مربوط بوظيفة (PR 3.10) | `docs/rules/schedule-interview.md` |
 | Unified Email System — `email_service.send_email` المرسل الوحيد (Resend) · نسيت كلمة المرور (رد واحد · توكن hash · 30 دقيقة · مرة وحدة) (task 5.1a) · تغيير الإيميل (رابط للجديد + تنبيه للقديم — نفس كود التوكن) + OTP التوثيق بالإيميل (task 5.1b) · إيميلات الإشعارات: تصنيف security / notification · بوابة واحدة (تفضيل · throttle · حد يومي / شهري) · عداد `email_send_log` (task 5.1c) · نتيجة طلب التوظيف: `hired` / `rejected` بس، مرة وحدة لكل طلب (task 5.1d) | `docs/rules/email.md` |
 | Account Suspension + User Blocks — تعليق الحساب من الأدمن (401 لكل طلب + المحتوى مخفي بالاستعلام، قابل للرجوع) + الحظر بالاتجاهين بدون إشعار · قاعدة ظهور وحدة `blocks_suspension.visible_sql` · طلبات التوظيف ما بتتأثر (task 5.4) | `docs/rules/blocks-suspension.md` |
+| Unified Admin Settings — حدود LIMITS / RATES العادية قابلة للتعديل من الأدمن: allowlist صريحة `tw_settings.REGISTRY` · القراءة من `tw_settings.limit()` / `rate()` بس (ذاكرة، ≤ 30 ثانية بين الـ workers) · صلاحية `settings.edit` (401 / 403) · 404 / 422 · كل تعديل وإرجاع بـ `admin_audit_log` (قيمة قديمة / جديدة) (task 4.1) | `docs/rules/settings.md` |
 | Shared Upload Client Rules | `docs/rules/upload.md` |
 | Image Cropper System Rules | `docs/rules/image-cropper.md` |
 | Service Worker Cache Rules | `docs/rules/sw-cache.md` |

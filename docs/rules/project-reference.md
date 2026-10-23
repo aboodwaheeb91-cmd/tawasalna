@@ -28,7 +28,8 @@ tawasalna/
 ├── settings.html          # Account settings
 ├── admin.html             # Admin control panel
 ├── admin-view.html        # Admin — one user (task 5.3b)
-└── admin-job.html         # Admin — one job (task 5.3j phase 4)
+├── admin-job.html         # Admin — one job (task 5.3j phase 4)
+└── admin-settings.html    # Admin — unified settings (task 4.1)
 ```
 
 ---

@@ -629,8 +629,8 @@ _LOG_ERROR_RATE = 30  # POST /log/error per minute per client IP (own bucket —
 
 
 def _rate_key_ttl(key: str) -> float:
-    rate = tw_limits.RATES.get(key.split(":", 1)[0])
-    return rate[1] if rate else max(w for _, w in tw_limits.RATES.values())
+    kind = key.split(":", 1)[0]   # windows via tw_settings (admin-editable — task 4.1), memory only
+    return tw_settings.rate(kind)[1] if kind in tw_limits.RATES else max(tw_settings.rate(n)[1] for n in tw_limits.RATES)
 
 
 def _rate_expire_locked(kind: str, now: float, full: bool = False) -> None:
@@ -840,8 +840,13 @@ def _admin_audit_entry(request, status: int):
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     params = request.scope.get("path_params") or {}
     target = ",".join(f"{k}={params[k]}" for k in sorted(params)) or None
-    return {"actor": str(claims.get("sub") or "-") if claims else "-", "action": getattr(route, "name", "") or "-",
-            "target": target, "status": status, "ip": get_client_ip(request)}
+    entry = {"actor": str(claims.get("sub") or "-") if claims else "-", "action": getattr(route, "name", "") or "-",
+             "target": target, "status": status, "ip": get_client_ip(request)}
+    # old / new value — set by the settings endpoints only (task 4.1), numbers, never a secret
+    change = getattr(request.state, "audit_change", None)
+    if change:
+        entry["old_value"], entry["new_value"] = change
+    return entry
 
 
 @app.middleware("http")
@@ -1018,6 +1023,7 @@ def _startup_migrations():
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
+        ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -1065,6 +1071,8 @@ async def on_startup():
     await asyncio.to_thread(_strings_load_overrides)
     await asyncio.to_thread(_actions_load_overrides)
     await asyncio.to_thread(_email_load_settings)
+    await asyncio.to_thread(tw_settings.reload)   # task 4.1 — admin settings → cache (failure → defaults)
+    _settings_loop_start()
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
@@ -1120,9 +1128,27 @@ def _scheduler_loop_start():
         print(f"✅ [scheduler-loop] started — every {SCHEDULER_INTERVAL_SECONDS}s")
 
 
+# ── Admin settings refresh (task 4.1 — SYSTEMS_INDEX §25g) ──
+# Every tw_settings.CACHE_TTL_S (30 s): app_settings → cache in a worker thread, so a value saved by
+# another worker / instance applies here within 30 s. Reads stay memory only. reload() never raises.
+_settings_task = None
+
+
+async def _settings_loop():
+    while True:
+        await asyncio.sleep(tw_settings.CACHE_TTL_S)
+        await asyncio.to_thread(tw_settings.reload)
+
+
+def _settings_loop_start():
+    global _settings_task
+    if _settings_task is None or _settings_task.done():
+        _settings_task = asyncio.get_running_loop().create_task(_settings_loop())
+
+
 @app.on_event("shutdown")
 async def on_shutdown():
-    global _scheduler_task
+    global _scheduler_task, _settings_task
     task, _scheduler_task = _scheduler_task, None
     if task is not None and not task.done():
         task.cancel()
@@ -1131,12 +1157,16 @@ async def on_shutdown():
         except asyncio.CancelledError:
             pass
         print("[scheduler-loop] stopped")
+    st, _settings_task = _settings_task, None
+    if st is not None and not st.done():
+        st.cancel()
 
 # ── Helpers ──
 from page_shell import apply_shell
 import tw_strings
 import tw_actions
 import tw_limits
+import tw_settings   # task 4.1 — admin-editable limits / rates (SYSTEMS_INDEX §25g); reads = memory only
 _html_cache = {}
 
 # Strings System (PR 3.6 · SYSTEMS_INDEX §59): admin overrides live in site_settings, loaded
@@ -1146,14 +1176,18 @@ _html_cache = {}
 # block (registry + admin overrides) is appended to the strings block, before tw_shared.js.
 _STRINGS_OVERRIDES: dict = {}
 _ACTIONS_OVERRIDES: dict = {}
-_STRINGS_BLOCK = tw_strings.page_block({}) + tw_actions.page_block({}) + tw_limits.page_block()
+_STRINGS_BLOCK = tw_strings.page_block({}) + tw_actions.page_block({}) + tw_limits.page_block(tw_settings.limit)
 
 
 def _strings_set_overrides(overrides: dict) -> None:
     global _STRINGS_OVERRIDES, _STRINGS_BLOCK
     _STRINGS_OVERRIDES = dict(overrides)
     _STRINGS_BLOCK = (tw_strings.page_block(_STRINGS_OVERRIDES) + tw_actions.page_block(_ACTIONS_OVERRIDES)
-                      + tw_limits.page_block())   # Input Limits (task 5.0h) ride the same marker
+                      + tw_limits.page_block(tw_settings.limit))   # Input Limits (5.0h) — admin values (4.1)
+
+
+# a settings change (this worker's save or the refresh loop) → window.TW_LIMITS rebuilt (task 4.1)
+tw_settings.on_change(lambda: _strings_set_overrides(_STRINGS_OVERRIDES))
 
 
 def _actions_set_overrides(overrides: dict) -> None:
@@ -1194,16 +1228,16 @@ def _limit_error(status: int, code: str, key: str, field: str = None, **vars) ->
 
 
 def _too_long(value, limit_name: str, field: str):
-    """None when value fits LIMITS[limit_name], else the 422 response."""
-    max_len = tw_limits.LIMITS[limit_name]
+    """None when value fits the limit (tw_settings.limit — admin value or LIMITS), else the 422 response."""
+    max_len = tw_settings.limit(limit_name)
     if value is not None and len(value) > max_len:
         return _limit_error(422, "too_long", "limits.too_long", field, max=_fmt_number(max_len))
     return None
 
 
 def _rate_ok(rate_name: str, who) -> bool:
-    """Sliding window from tw_limits.RATES[rate_name] on _rate_store, key '{rate_name}:{who}'."""
-    max_hits, window = tw_limits.RATES[rate_name]
+    """Sliding window from tw_settings.rate(rate_name) (admin value or RATES) on _rate_store, key '{rate_name}:{who}'."""
+    max_hits, window = tw_settings.rate(rate_name)
     return _rate_hit(f"{rate_name}:{who}", max_hits, window)
 
 
@@ -1948,6 +1982,10 @@ def admin_page(): return read_html("admin.html")
 # Admin — email settings + usage (task 5.1c). Same secret path; data via check_admin endpoints.
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/email", response_class=HTMLResponse)
 def admin_email_page(): return read_html("admin-email.html")
+
+# Admin — unified settings (task 4.1). Same secret path; data via GET / PUT / POST /admin/settings.
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", response_class=HTMLResponse)
+def admin_settings_page(): return read_html("admin-settings.html")
 
 # ══════════════════════════════════════════
 # Schemas
@@ -2891,7 +2929,7 @@ def _post_input_check(body: str, tags):
     clean = list(dict.fromkeys(t.strip() for t in tags))
     if any(t not in tw_limits.POST_TAGS for t in clean):
         return None, _limit_error(422, "invalid_tags", "limits.post_tags_invalid", "tags")
-    max_tags = tw_limits.LIMITS["post_tags_max"]
+    max_tags = tw_settings.limit("post_tags_max")
     if len(clean) > max_tags:
         return None, _limit_error(422, "too_many_tags", "limits.post_tags_max", "tags", max=max_tags)
     return clean, None
@@ -4125,6 +4163,50 @@ def admin_put_email(request: Request, data: dict = Body(...)):
     print(f"[email] settings saved by admin sub={claims.get('sub')!r} types={json.dumps(clean['types'], sort_keys=True)} "
           f"notify={json.dumps(clean['notify'], sort_keys=True)}")
     return api_ok({"settings": clean})
+
+
+# ══ Unified Admin Settings (task 4.1 · SYSTEMS_INDEX §25g · docs/rules/settings.md) ══
+# Permission settings.edit (owner token = "*") on all three: no / bad token → 401 · admin token
+# without it → 403. Keys outside tw_settings.REGISTRY → 404 · wrong type / out of range → 422.
+# The audit row (admin_audit_middleware) carries old / new via request.state.audit_change.
+def _setting_out(it: dict) -> dict:
+    return dict(it, label=_tw_text(it["label_key"]), description=_tw_text(it["desc_key"]))
+
+
+def _setting_error(e: "tw_settings.SettingError") -> JSONResponse:
+    vars = {k: _fmt_number(v) for k, v in e.vars.items()}
+    return api_error(e.status, e.code, _tw_text(e.text_key, **vars), "value" if e.status == 422 else None)
+
+
+@app.get("/admin/settings")
+def admin_settings_list(request: Request):
+    check_admin(request, tw_settings.PERM)
+    return api_ok({"items": [_setting_out(it) for it in tw_settings.listing()],
+                   "groups": list(tw_settings.GROUPS), "cache_ttl_s": tw_settings.CACHE_TTL_S})
+
+
+def _settings_write(request: Request, key: str, fn):
+    claims = check_admin(request, tw_settings.PERM)   # 401 / 403 before anything about the key
+    try:
+        old, new = fn(str(claims.get("sub") or "-"))
+    except tw_settings.SettingError as e:
+        return _setting_error(e)
+    except Exception as e:
+        raise _server_error("admin_settings_write", e)
+    request.state.audit_change = (old, new)
+    return api_ok({"setting": _setting_out(tw_settings.item(key)), "old": old, "changed": old != new})
+
+
+@app.put("/admin/settings/{key}")
+def admin_settings_update(request: Request, key: str, data: dict = Body(...)):
+    """{value: int} → stored (a value equal to the default removes the row). Applies at once."""
+    return _settings_write(request, key, lambda actor: tw_settings.set_value(key, data.get("value"), actor))
+
+
+@app.post("/admin/settings/{key}/reset")
+def admin_settings_reset(request: Request, key: str):
+    """Back to the tw_limits default (the row deleted)."""
+    return _settings_write(request, key, lambda actor: tw_settings.reset_value(key, actor))
 
 
 # ── Notification email preferences — the signed-in user's own (task 5.1c) ──

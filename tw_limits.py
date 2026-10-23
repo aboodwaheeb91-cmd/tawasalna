@@ -1,7 +1,8 @@
 """tw_limits.py — Input Limits (task 5.0h · docs/SYSTEMS_INDEX.md §54n · ARCHITECTURE.md §76).
 
-The ONE place for input size / flood limits (server constants now — they move to the settings
-system when it is built; nothing else in the code may repeat a value):
+The ONE place for input size / flood limits — the DEFAULTS (nothing else in the code may repeat a
+value). The keys in tw_settings.REGISTRY (task 4.1) are admin-editable: code reads them through
+tw_settings.limit() / tw_settings.rate() only, never LIMITS[…] / RATES[…] directly.
   LIMITS        → max lengths / counts / page sizes, checked by server.py before any DB write
   RATES         → {name: (max hits, window seconds)} on server._rate_hit (per account / IP)
   REPORT_TYPES  → the report reason types the server accepts (twReportDialog shows exactly these)
@@ -78,7 +79,9 @@ POST_TAGS = _load_post_tags()
 _CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max")
 
 
-def page_block() -> str:
-    payload = json.dumps({"limits": {k: LIMITS[k] for k in _CLIENT_LIMITS},
+def page_block(limit=None) -> str:
+    """limit = the reader (server passes tw_settings.limit — admin values); default = LIMITS."""
+    get = limit or LIMITS.__getitem__
+    payload = json.dumps({"limits": {k: get(k) for k in _CLIENT_LIMITS},
                           "report_types": list(REPORT_TYPES)}, separators=(",", ":"))
     return "<script>window.TW_LIMITS=" + payload + ";</script>"
