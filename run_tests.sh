@@ -124,6 +124,7 @@ PY_DB=(
   pytest:test_audit_fixes_50e.py      # task 5.0e — /log/error · swallowed errors · Google off · soon badges · noindex · DB guard
   pytest:test_input_limits_50h.py     # task 5.0h — input / flood limits: messages · posts · reports · mention search · comment pages
   pytest:test_input_limits_50h2.py    # task 5.0h-2 — message rate · view dedupe · password bytes · login lock IP + email · bounded stores · scheduler unlock
+  pytest:test_rate_store_54d.py       # task 5.4d — _rate_store: one capped section per kind · login locks never evict other counters · no sort per request
   pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
   pytest:test_scheduler_reliable_63.py  # task 6.3 — internal loop · advisory lock · stale reset · email retry · /health scheduler
   pytest:test_blocks_suspension.py    # task 5.4 — admin suspension (401 · hidden content · back) + user blocks both ways · applications untouched

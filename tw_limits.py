@@ -29,7 +29,7 @@ LIMITS = {
     "comments_page": 20,          # GET /company/posts/{id}/comments threads per page (default)
     "comments_page_max": 50,      # … ?limit= ceiling
     "password_max_bytes": 72,     # register / password reset / password change — UTF-8 bytes (bcrypt cuts at 72)
-    "mem_store_max_keys": 100000, # in-memory rate store (_rate_store) — key cap; oldest evicted past it
+    "mem_store_max_keys": 20000,  # in-memory rate store (_rate_store) — key cap PER KIND (key prefix, task 5.4d); oldest of that kind evicted past it, never a login lock
     "mem_store_sweep_s": 60,      # … expired keys swept at most this often, on use (no thread)
     "ip_country_cache_max": 10000,  # IP_TO_COUNTRY_CACHE — entries cap
     "ip_country_cache_ttl_s": 86400,  # … one lookup per IP per day

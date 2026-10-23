@@ -559,16 +559,69 @@ async def security_headers(request, call_next):
 
 # ── Simple Rate Limiting ──
 from collections import defaultdict, deque, OrderedDict
+from collections.abc import MutableMapping
 import time as _time
 import threading
-# Shared in-memory rate store (task 5.0h-2 — AUD-P2-13): key → hit times. Bounded without a
-# thread: on use, at most every LIMITS["mem_store_sweep_s"], keys past their window are dropped
-# (window from RATES by key prefix, else the longest window in RATES); past
-# LIMITS["mem_store_max_keys"] the keys with the oldest last hit go first — never a login lock
-# key (_LOGIN_LOCKS: only its window ends it; with nothing else to drop the store may pass the
-# cap for a while — task 5.0h-3). _rate_lock makes check + count one step across threadpool
-# requests; nothing inside it touches the DB.
-_rate_store: dict = {}
+# Shared in-memory rate store (task 5.0h-2 — AUD-P2-13 · task 5.4d): key "kind:who" → hit times.
+# One section per kind (the key prefix — a RATES name, "ip", "pwreset-ip" …), each an OrderedDict
+# kept oldest-last-hit first, each capped at LIMITS["mem_store_max_keys"] on its own: a full
+# section never evicts another kind's counters. Bounded without a thread and without a sort: on
+# use, expired keys are popped from the front of a section (window from RATES by kind, else the
+# longest window in RATES) — every section at most every LIMITS["mem_store_sweep_s"]; a new key
+# in a full section evicts that section's oldest key — never a login lock key (_LOGIN_LOCKS: only
+# its window ends it; a full lock section takes the new key over its cap until windows end —
+# never fail-open, never lock everyone out). _rate_lock makes check + count one step across
+# threadpool requests; nothing inside it touches the DB.
+class _RateStore(MutableMapping):
+    def __init__(self):
+        self._kinds = {}
+
+    @staticmethod
+    def _kind(key: str) -> str:
+        return key.split(":", 1)[0]
+
+    def __getitem__(self, key):
+        sec = self._kinds.get(self._kind(key))
+        if sec is None:
+            raise KeyError(key)
+        return sec[key]
+
+    def __setitem__(self, key, hits):
+        """A new hit → the key becomes the section's newest."""
+        sec = self._kinds.setdefault(self._kind(key), OrderedDict())
+        sec[key] = hits
+        sec.move_to_end(key)
+
+    def keep(self, key, hits):
+        """Old hits dropped, last hit unchanged → same place in its section."""
+        self._kinds[self._kind(key)][key] = hits
+
+    def __delitem__(self, key):
+        kind = self._kind(key)
+        sec = self._kinds.get(kind)
+        if sec is None:
+            raise KeyError(key)
+        del sec[key]
+        if not sec:
+            del self._kinds[kind]
+
+    def __iter__(self):
+        return iter([k for sec in list(self._kinds.values()) for k in sec])
+
+    def __len__(self):
+        return sum(len(sec) for sec in self._kinds.values())
+
+    def clear(self):
+        self._kinds.clear()
+
+    def section(self, kind: str):
+        return self._kinds.get(kind)
+
+    def kinds(self) -> list:
+        return list(self._kinds)
+
+
+_rate_store = _RateStore()
 _rate_lock = threading.Lock()
 _rate_sweep_at = 0.0
 _RATE_LIMIT = 20  # requests per minute per client IP (all _RATE_LIMITED_PATHS together)
@@ -580,23 +633,49 @@ def _rate_key_ttl(key: str) -> float:
     return rate[1] if rate else max(w for _, w in tw_limits.RATES.values())
 
 
+def _rate_expire_locked(kind: str, now: float, full: bool = False) -> None:
+    """Caller holds _rate_lock. Drop the kind's expired keys — from the front only (oldest last
+    hit first), or every key when full (force)."""
+    sec = _rate_store.section(kind)
+    if sec is None:
+        return
+    ttl = _rate_key_ttl(kind)
+    if full:
+        for key, hits in list(sec.items()):
+            if not hits or now - hits[-1] >= ttl:
+                del _rate_store[key]
+        return
+    while sec:
+        key, hits = next(iter(sec.items()))
+        if hits and now - hits[-1] < ttl:
+            break
+        del _rate_store[key]
+        if _rate_store.section(kind) is None:
+            break
+
+
+def _rate_trim_locked(kind: str, cap: int) -> None:
+    """Caller holds _rate_lock. Evict the kind's oldest keys down to cap — never a login lock."""
+    if kind in _LOGIN_LOCKS:
+        return
+    sec = _rate_store.section(kind)
+    while sec is not None and len(sec) > cap:
+        del _rate_store[next(iter(sec))]
+        sec = _rate_store.section(kind)
+
+
 def _rate_sweep_locked(now: float = None, force: bool = False) -> int:
-    """Caller holds _rate_lock. Drop expired keys, then cap the key count. Returns keys removed."""
+    """Caller holds _rate_lock. Expired keys of every kind (force: full scan + cap). Returns keys removed."""
     global _rate_sweep_at
     now = _time.time() if now is None else now
-    cap = tw_limits.LIMITS["mem_store_max_keys"]
-    if not force and len(_rate_store) < cap and now - _rate_sweep_at < tw_limits.LIMITS["mem_store_sweep_s"]:
+    if not force and now - _rate_sweep_at < tw_limits.LIMITS["mem_store_sweep_s"]:
         return 0
     _rate_sweep_at = now
     before = len(_rate_store)
-    for key, hits in list(_rate_store.items()):
-        if not hits or now - hits[-1] >= _rate_key_ttl(key):
-            del _rate_store[key]
-    if len(_rate_store) >= cap:   # down to 90% (room for the new key; not re-sorted on every hit)
-        evictable = sorted((h[-1], k) for k, h in _rate_store.items()
-                           if k.split(":", 1)[0] not in _LOGIN_LOCKS)
-        for _, key in evictable[:len(_rate_store) - cap * 9 // 10]:
-            del _rate_store[key]
+    for kind in _rate_store.kinds():
+        _rate_expire_locked(kind, now, full=force)
+        if force:
+            _rate_trim_locked(kind, tw_limits.LIMITS["mem_store_max_keys"])
     for uid in [u for u, (_, at) in list(_pwd_changed_cache.items())
                 if _time.monotonic() - at >= _PWD_CHANGED_TTL]:
         _pwd_changed_cache.pop(uid, None)
@@ -608,12 +687,22 @@ def _rate_sweep(now: float = None, force: bool = False) -> int:
         return _rate_sweep_locked(now, force)
 
 
+def _rate_room_locked(key: str, now: float) -> None:
+    """Caller holds _rate_lock. Before a NEW key: its section's expired front, then room under
+    the cap (oldest of the same kind first; a lock section never evicts — see above)."""
+    if key in _rate_store:
+        return
+    kind = _RateStore._kind(key)
+    _rate_expire_locked(kind, now)
+    _rate_trim_locked(kind, tw_limits.LIMITS["mem_store_max_keys"] - 1)
+
+
 def _rate_prune_locked(key: str, window: float) -> list:
     _rate_sweep_locked()
     now = _time.time()
     hits = [t for t in _rate_store.get(key, ()) if now - t < window]
     if hits:
-        _rate_store[key] = hits
+        _rate_store.keep(key, hits)
     else:
         _rate_store.pop(key, None)
     return hits
@@ -630,7 +719,9 @@ def _rate_hit(key: str, limit: int, window: float) -> bool:
         hits = _rate_prune_locked(key, window)
         if len(hits) >= limit:
             return False
-        _rate_store[key] = hits + [_time.time()]
+        now = _time.time()
+        _rate_room_locked(key, now)
+        _rate_store[key] = hits + [now]
         return True
 
 
@@ -638,7 +729,9 @@ def _rate_count(key: str) -> None:
     """Count one hit without a limit check (failed logins)."""
     with _rate_lock:
         _rate_sweep_locked()
-        _rate_store[key] = _rate_store.get(key, []) + [_time.time()]
+        now = _time.time()
+        _rate_room_locked(key, now)
+        _rate_store[key] = _rate_store.get(key, []) + [now]
 
 
 # Per-(user, post / comment) toggles + comments — RATES on the shared store (task 5.0h-2;
