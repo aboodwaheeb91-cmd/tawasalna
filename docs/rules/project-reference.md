@@ -118,7 +118,7 @@ python tests/test_post_comments.py
 node tests/test_stale_session_entry_runtime.js
 ```
 
-The full suite runs in CI on every PR (`.github/workflows/tests.yml` → `./run_tests.sh` — the only list of what runs / what is excluded and why; SYSTEMS_INDEX §54g). Locally: `pip install -r requirements.txt -r requirements-dev.txt && ./run_tests.sh` (PostgreSQL with `ssl=on`, or `--no-db`).
+The full suite runs in CI on every PR (`.github/workflows/tests.yml` → `./run_tests.sh` — the only list of what runs / what is excluded and why; SYSTEMS_INDEX §54g). Sessions run only the tests related to the change; the full suite runs locally only for a clear reason stated in the report (shared system, migration, CI failure that does not show locally — `CLAUDE.md → Testing & CI` rule 2b): `pip install -r requirements.txt -r requirements-dev.txt && ./run_tests.sh` (PostgreSQL with `ssl=on`, or `--no-db`), output trimmed (summary / `tail`), full error only on failure.
 
 ---
 

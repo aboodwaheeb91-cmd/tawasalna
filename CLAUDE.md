@@ -10,7 +10,7 @@
 7. التوثيق: أي نظام أو قاعدة أو عقد جديد → SYSTEMS_INDEX + الملف التفصيلي بنفس الـ PR. حذف أي شي → يُحذف من الكود والتوثيق معاً.
 8. GitHub: Pre-push GitHub State Check قبل أي رفع. PR مدموج → branch جديد من آخر main.
 9. الدمج: ممنوع الدمج أو auto-merge. زعتر يدمج يدوياً.
-10. الرصيد: اختبار واحد مركّز. بدون screenshots، بدون بحث بكل الريبو، بدون تشغيل كل الاختبارات (الـ CI بيشغّل الكل — قسم **Testing & CI**). فشل الاختبار مرتين → وقف وبلّغ. هالقاعدة سارية بكل مهمة حتى لو المسج ما ذكرها.
+10. الرصيد: اختبار واحد مركّز. بدون screenshots، بدون بحث بكل الريبو، بدون تشغيل كل الاختبارات محلياً إلا لسبب واضح مذكور بالتقرير (الـ CI بيشغّل الكل — قسم **Testing & CI** القاعدة 2b). فشل الاختبار مرتين → وقف وبلّغ. هالقاعدة سارية بكل مهمة حتى لو المسج ما ذكرها.
 11. التقرير النهائي: رقم PR، آخر commit، الملفات، السبب الجذري، الاختبار ونتيجته، ما لم يُختبر، أي تغيير سلوك لازم زعتر يعرفه.
 12. الجلسات: مهمة جديدة = جلسة جديدة. تصحيحات نفس الـ PR بنفس الجلسة.
 13. سجل التحديثات: كل PR بيكتب بنده بملف لحاله **`changelog.d/<رقم-المهمة>.md`** (مثال `changelog.d/3.11.md` — سطر أول `## PR <رقم> — <عنوان> — YYYY-MM-DD` + نقاط `- `)، **مش** بـ `docs/CHANGELOG.md` مباشرة (صفر تعارضات بين PRs). `python tools/changelog_collect.py` بيجمعهم بـ `docs/CHANGELOG.md` (الأحدث فوق) وبيحذفهم — بيشتغل على main بعد الدمج. `--check` بيشتغل بـ `run_tests.sh`. ممنوع تطويل سطر "Last updated" بأي ملف؛ كل ملف يحتفظ بسطر واحد قصير: آخر تاريخ + آخر PR + رابط `docs/CHANGELOG.md`.
@@ -111,7 +111,7 @@ uvicorn server:app --reload
 # 4. Run a focused test (one file — see docs/rules/project-reference.md → Testing)
 python -m pytest tests/test_safe_link_url.py -q     # or: python tests/test_post_comments.py / node tests/test_x_runtime.js
 
-# 5. Everything CI runs (needs PostgreSQL with ssl=on — see run_tests.sh header)
+# 5. Everything CI runs — locally only for a clear reason (Testing & CI rule 2b; needs PostgreSQL with ssl=on — see run_tests.sh header)
 ./run_tests.sh            # or ./run_tests.sh --no-db
 ```
 
@@ -122,7 +122,8 @@ Server starts at `http://localhost:8000`.
 ## Testing & CI (mandatory for all AI sessions — PR 6.4)
 
 1. **الجلسات بتشغّل اختبار مهمتها بس (توفير رصيد)، والـ CI هو اللي بيشغّل الكل على كل PR.** `.github/workflows/tests.yml` بيشغّل `./run_tests.sh` على كل PR لـ `main` وكل push لـ `main` (Python 3.11 + Node 20 + PostgreSQL بـ SSL) — بدون فلترة مسارات.
-2. **قاعدة توفير الرصيد (ثابتة بكل مهمة، حتى لو المسج ما ذكرها):** اختبار واحد مركّز للمهمة · ممنوع screenshots (إلا إذا طُلبت صراحةً) · ممنوع بحث بكل الريبو · ممنوع تشغيل كل الاختبارات بالجلسة · فشل نفس الاختبار مرتين → وقف وبلّغ (`docs/rules/ai-usage-budget.md`). بعد الـ push: تأكّد إن `Tests` نجح على الـ PR — هاد هو فحص "الكل".
+2. **قاعدة توفير الرصيد (ثابتة بكل مهمة، حتى لو المسج ما ذكرها):** اختبار واحد مركّز للمهمة · ممنوع screenshots (إلا إذا طُلبت صراحةً) · ممنوع بحث بكل الريبو · ممنوع تشغيل كل الاختبارات بالجلسة إلا بالاستثناء بالقاعدة 2b · فشل نفس الاختبار مرتين → وقف وبلّغ (`docs/rules/ai-usage-budget.md`). بعد الـ push: تأكّد إن `Tests` نجح على الـ PR — هاد هو فحص "الكل".
+2b. **الاختبارات محلياً:** شغّل الاختبارات المرتبطة بالتغيير فقط، واترك التشغيل الشامل لـ GitHub CI. لا تشغّل المجموعة كاملة محلياً (`./run_tests.sh`) إلا لسبب واضح (تغيير بنظام مشترك، migration، أو فشل بالـ CI ما بيبان محلياً)، واذكر السبب بالتقرير. اختصر المخرجات (ملخص / `tail`)، واعرض الخطأ كامل بس عند الفشل. ❌ `./run_tests.sh` كامل كخطوة روتينية قبل كل push.
 3. **`run_tests.sh` هو المصدر الوحيد لقائمة الاختبارات.** ملف `test_*` جديد لازم ينضاف لقائمة تشغيل، أو لـ `EXCLUDED` بسطر سبب (سيرفر حي :8000 / Playwright / حساب حقيقي) — ملف بدون قائمة = الـ CI بيفشل. اختبار script لازم يطلع بـ exit code ≠ 0 عند الفشل.
 3b. **حماية قاعدة الاختبار (task 5.0e):** `run_tests.sh` بيشغّل `tools/db_guard.py` قبل أي اتصال / `DROP` / `CREATE DATABASE` وبيوقف (exit 2) إذا `APP_ENV=production`، أو اسم القاعدة ما فيه `test`، أو الـ host مش `localhost` / `127.0.0.1` بدون `TW_TEST_DB_ALLOW_REMOTE=1`. ❌ مسار `DROP` / `CREATE` بالـ runner برّا الحماية. اختبار `python -m pytest tests/test_audit_fixes_50e.py -q`.
 4. ❌ workflow اختبار تاني أو بفلترة مسارات (`scheduler-cron.yml` مش اختبار) · ❌ استثناء بدون سبب · ❌ تعديل اختبار بس ليمرق (إذا الكود غلط → F30 وبلّغ).
