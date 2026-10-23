@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -207,6 +208,7 @@ from auth import (
     _APPLICANT_SORT_MAP,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
+from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
@@ -568,8 +570,8 @@ import threading
 # section never evicts another kind's counters. Bounded without a thread and without a sort: on
 # use, expired keys are popped from the front of a section (window from RATES by kind, else the
 # longest window in RATES) — every section at most every mem_store_sweep_s; a new key
-# in a full section evicts that section's oldest key — never a login lock key (_LOGIN_LOCKS: only
-# its window ends it; a full lock section takes the new key over its cap until windows end —
+# in a full section evicts that section's oldest key — never a login lock / OTP send key (_RATE_NO_EVICT: only
+# its window ends it; a full lock / OTP send section takes the new key over its cap until windows end —
 # never fail-open, never lock everyone out). _rate_lock makes check + count one step across
 # threadpool requests; nothing inside it touches the DB. Both mem_store_* values via tw_settings.limit
 # (memory read — safe under _rate_lock; admin-editable, task 4.2).
@@ -656,8 +658,8 @@ def _rate_expire_locked(kind: str, now: float, full: bool = False) -> None:
 
 
 def _rate_trim_locked(kind: str, cap: int) -> None:
-    """Caller holds _rate_lock. Evict the kind's oldest keys down to cap — never a login lock."""
-    if kind in _LOGIN_LOCKS:
+    """Caller holds _rate_lock. Evict the kind's oldest keys down to cap — never a _RATE_NO_EVICT kind."""
+    if kind in _RATE_NO_EVICT:
         return
     sec = _rate_store.section(kind)
     while sec is not None and len(sec) > cap:
@@ -735,6 +737,25 @@ def _rate_count(key: str) -> None:
         _rate_store[key] = _rate_store.get(key, []) + [now]
 
 
+def _rate_ok_all(checks) -> bool:
+    """[(rate_name, who), …] — every bucket checked first, then every one counted, in one locked
+    step: one full bucket → False and nothing counted (task 4.3). Rates via tw_settings.rate."""
+    with _rate_lock:
+        buckets = []
+        for rate_name, who in checks:
+            max_hits, window = tw_settings.rate(rate_name)
+            key = f"{rate_name}:{who}"
+            hits = _rate_prune_locked(key, window)
+            if len(hits) >= max_hits:
+                return False
+            buckets.append((key, hits))
+        now = _time.time()
+        for key, hits in buckets:
+            _rate_room_locked(key, now)
+            _rate_store[key] = hits + [now]
+        return True
+
+
 # Per-(user, post / comment) toggles + comments — RATES on the shared store (task 5.0h-2;
 # they had one dict each). Guards against auto-clickers.
 def _check_appr_rate(user_id: int, post_id: int) -> bool:
@@ -759,6 +780,10 @@ def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
 # not) is counted and locked the same way, and the locked reply is one text — it never says
 # whether the address has an account. Success clears the email + pair buckets, never the IP one.
 _LOGIN_LOCKS = ("login_email", "login_ip", "login_ip_email")
+# KYC OTP send (task 4.3): per account + channel · per normalised target (any account) · per client IP.
+_OTP_SEND_RATES = ("otp_send_user", "otp_send_target", "otp_send_ip")
+# Security buckets a full section never evicts — only their window ends them (task 5.4d · 4.3).
+_RATE_NO_EVICT = frozenset(_LOGIN_LOCKS + _OTP_SEND_RATES)
 
 
 def _login_lock_who(email: str, ip: str) -> dict:
@@ -1057,6 +1082,34 @@ def _run_startup_migrations(migrations=None) -> dict:
     return dict(_MIGRATION_STATUS)
 
 
+# ── Single instance (task 4.3 — ARCHITECTURE §76) ──
+# _rate_store (rates · login locks · OTP send limits) lives in this process's memory: correct
+# only with ONE process (Procfile: one uvicorn process · Railway replicas = 1). More workers =
+# each keeps its own counters → every limit multiplied. Startup only warns, never stops.
+def _worker_count(env=None, argv=None) -> int:
+    env = os.environ if env is None else env
+    argv = sys.argv if argv is None else argv
+    counts = []
+    raw = (env.get("WEB_CONCURRENCY") or "").strip()
+    if raw.isdigit():
+        counts.append(int(raw))
+    for i, a in enumerate(argv):
+        val = a.split("=", 1)[1] if a.startswith(("--workers=", "-w=")) else (
+            argv[i + 1] if a in ("--workers", "-w") and i + 1 < len(argv) else None)
+        if val and val.strip().isdigit():
+            counts.append(int(val))
+    return max(counts or [1])
+
+
+def _single_instance_warning(env=None, argv=None):
+    n = _worker_count(env, argv)
+    if n <= 1:
+        return None
+    return (f"⚠️  [rate-store] {n} workers detected (WEB_CONCURRENCY / --workers) — the in-memory "
+            "rate store is per process: rate limits, login locks and OTP send limits are NOT shared "
+            "and each one is multiplied by the worker count. Run one process (Procfile) + Railway replicas = 1.")
+
+
 # ── Startup ──
 @app.on_event("startup")
 async def on_startup():
@@ -1075,6 +1128,9 @@ async def on_startup():
         print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
     for _line in _supabase_storage_status_lines():
         print(_line)
+    _warn = _single_instance_warning()
+    if _warn:
+        print(_warn)
     _run_startup_migrations()
     await asyncio.to_thread(_strings_load_overrides)
     await asyncio.to_thread(_actions_load_overrides)
@@ -6096,6 +6152,21 @@ _KYC_EMAIL_MISMATCH_MSG = "رمز التحقق يُرسل إلى بريد حسا
 _OTP_UNAVAILABLE = {"detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}}
 
 
+def _otp_send_allowed(uid: int, channel: str, target: str, request: Request) -> bool:
+    """Task 4.3 — KYC OTP send limits on top of the per-IP /kyc/* limit (_RATE_LIMITED_PATHS):
+    RATES otp_send_user (account + channel) · otp_send_target (normalised email / phone, any
+    account) · otp_send_ip (client IP, both channels). Called BEFORE any code is generated or
+    stored and before delivery — refused → no new code and the current code + attempts stay."""
+    tgt = _otp_norm_target(channel, target)
+    return _rate_ok_all([("otp_send_user", f"{channel}:{int(uid)}"),
+                         ("otp_send_target", f"{channel}:{tgt}"),
+                         ("otp_send_ip", get_client_ip(request))])
+
+
+def _otp_rate_limited() -> JSONResponse:
+    return _limit_error(429, "otp_rate_limited", "limits.otp_rate_limited")
+
+
 @app.post("/kyc/start")
 def kyc_start(token=Depends(verify_token)):
     try:
@@ -6123,7 +6194,7 @@ def kyc_status(user_id: int, token=Depends(verify_token)):
         raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/email/send")
-def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
+def kyc_send_email(data: KYCEmailInput, request: Request, token=Depends(verify_token)):
     # Fail Closed: no OTP generated or stored until a real provider is available.
     if not is_email_otp_delivery_available():
         return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
@@ -6137,6 +6208,8 @@ def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
         account_email = (user.get("email") or "").strip().lower()
         if (data.email or "").strip().lower() != account_email:
             raise HTTPException(400, detail=_KYC_EMAIL_MISMATCH_MSG)
+        if not _otp_send_allowed(uid, "email", account_email, request):
+            return _otp_rate_limited()
         start_kyc(uid)
         code = send_email_code(uid, account_email)
         res = email_service.send_email(account_email, "kyc_email_otp",
@@ -6171,12 +6244,14 @@ def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
         raise HTTPException(500, _KYC_ERR_MSG)
 
 @app.post("/kyc/phone/send")
-def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
+def kyc_send_phone(data: KYCPhoneInput, request: Request, token=Depends(verify_token)):
     # Fail Closed: no OTP generated or stored until a real provider is available.
     if not is_phone_otp_delivery_available():
         return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)
     try:
         uid = int(token.get("user_id"))
+        if not _otp_send_allowed(uid, "phone", data.phone, request):
+            return _otp_rate_limited()
         code = send_phone_code(uid, data.phone)
         _dev_otp_log("KYC Phone", uid)
         return {"status": "success", "message": "تم إرسال الرمز على هاتفك"}

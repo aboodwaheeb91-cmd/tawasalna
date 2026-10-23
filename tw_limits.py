@@ -55,6 +55,9 @@ RATES = {
     "post_save": (10, 10),        # save toggle — per account + post
     "comment_create": (10, 60),   # new comment — per account + post
     "comment_edit": (10, 60),     # comment edit — per account + comment
+    "otp_send_user": (5, 3600),   # KYC OTP send (/kyc/email|phone/send) — per account + channel (task 4.3)
+    "otp_send_target": (5, 3600), # … per normalised email / phone, from any account
+    "otp_send_ip": (10, 3600),    # … per client IP, both channels together
     "block_set": (20, 3600),      # block / unblock (PUT + DELETE /blocks/{id}) — per account (task 5.4)
     "pwreset_ip": (10, 3600),     # POST /auth/password-reset/request — per client IP (task 5.1a → 4.2)
     "pwreset_email": (3, 3600),   # … per email address (over it: same reply, no email)
