@@ -7,7 +7,8 @@ Behaviour only — real FastAPI app + real PostgreSQL (TW_TEST_DB_URL — run_te
     window.TW_LIMITS in a served page) · reset → default, row deleted
   - the admin audit log records both (key · old · new · operation · actor)
   - DB failure → defaults (logged), never an exception
-  - the registry: an allowlist of tw_limits keys only, no 4.2 key, no secret, minimums ≥ 1
+  - the registry: an allowlist of tw_limits keys only, 4.2 keys only as security=True (never
+    password_max_bytes), no secret, minimums ≥ 1 (security keys: tests/test_admin_settings_security.py)
 Run: python -m pytest tests/test_admin_settings.py -q
 """
 import os
@@ -105,7 +106,7 @@ def test_validation_range_type_unknown():
         r = _put("message_max", bad)
         assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_type", bad
     assert client.put("/admin/settings/message_max", json={}, headers=_owner()).status_code == 422
-    for key in ("login_email_hits", "password_max_bytes", "mem_store_max_keys", "JWT_SECRET", "nope"):
+    for key in ("password_max_bytes", "view_count_hits", "report_repeat_hits", "JWT_SECRET", "nope"):
         assert _put(key, 10).status_code == 404, key
         assert client.post(f"/admin/settings/{key}/reset", headers=_owner()).status_code == 404, key
     assert _sql("SELECT COUNT(*) FROM app_settings")[0][0] == 0
@@ -165,14 +166,17 @@ def test_db_failure_falls_back_to_defaults(monkeypatch):
 
 # ── registry ──
 def test_registry_is_an_allowlist():
-    out_of_scope = re.compile(r"^(login_|mem_store_|ip_country_cache_|password_|otp|pwreset|view_count|report_repeat)")
+    security_only = re.compile(r"^(login_|mem_store_|ip_country_cache_|otp|pwreset|view_count|report_repeat|"
+                               r"comments_page|mention_limit_max|blocks_page_max)")   # task 4.2 → security=True
     for key, d in tw_settings.REGISTRY.items():
         src = d["source"]
-        assert src[0] in ("LIMITS", "RATES") and not out_of_scope.match(src[1]), key
-        assert not re.search(r"secret|token|key|password|url_token", src[1], re.I), key
+        assert src[0] in ("LIMITS", "RATES") and not src[1].startswith("password_"), key   # bcrypt cut: never
+        assert d["security"] is bool(security_only.match(src[1])), key
+        assert not re.search(r"secret|token|(?<!max_)key|password|url_token", src[1], re.I), key   # max_keys = a count
         assert d["min"] >= 1 and d["min"] <= d["default"] <= d["max"], key
-    # every registry source is read through tw_settings — no direct LIMITS["x"] / RATES["x"] in server.py
-    src = open(os.path.join(os.path.dirname(srv.__file__), "server.py"), encoding="utf-8").read()
+    # every registry source is read through tw_settings — no direct LIMITS["x"] / RATES["x"] in server.py / auth.py
+    root = os.path.dirname(srv.__file__)
+    src = "".join(open(os.path.join(root, f), encoding="utf-8").read() for f in ("server.py", "auth.py"))
     names = {d["source"][1] for d in tw_settings.REGISTRY.values()}
     direct = [n for n in names if re.search(r"tw_limits\.(LIMITS|RATES)\[\s*[\"']" + n + r"[\"']", src)]
     assert not direct, direct

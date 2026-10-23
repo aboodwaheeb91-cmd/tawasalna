@@ -4022,16 +4022,25 @@ import secrets as _secrets, hmac as _hmac, hashlib as _hashlib
 
 # ── KYC OTP (PR 1.3) — one shared implementation for email + phone ──
 # Stored value = keyed hash only (never the code). Bound to the target it was
-# sent to, expires after _OTP_TTL_MINUTES, dies after _OTP_MAX_ATTEMPTS wrong
-# tries, cleared on success. SYSTEMS_INDEX → KYC OTP Security.
-_OTP_TTL_MINUTES  = 10
-_OTP_MAX_ATTEMPTS = 5
+# sent to, expires after otp_ttl_minutes(), dies after otp_max_attempts() wrong
+# tries, cleared on success. SYSTEMS_INDEX → KYC OTP Security. Both values = LIMITS otp_ttl_min /
+# otp_max_attempts read per call through tw_settings.limit (admin-editable — task 4.2, at once).
 _OTP_HASH_PREFIX  = "v1$"
 # channel → fixed column names (allowlist — never interpolate caller input into SQL)
 _OTP_COLUMNS = {
     "email": ("email_code", "email_code_target", "email_code_expires_at", "email_code_attempts"),
     "phone": ("phone_code", "phone_code_target", "phone_code_expires_at", "phone_code_attempts"),
 }
+
+
+def otp_ttl_minutes() -> int:
+    import tw_settings   # lazy: tw_settings imports db_conn from this module
+    return int(tw_settings.limit("otp_ttl_min"))
+
+
+def otp_max_attempts() -> int:
+    import tw_settings
+    return int(tw_settings.limit("otp_max_attempts"))
 
 
 def generate_code(length=6):
@@ -4062,9 +4071,9 @@ def _otp_issue(user_id: int, channel: str, target: str) -> str:
     try:
         conn.run(
             f"UPDATE kyc_submissions SET {code_c}=:h, {target_c}=:t, "
-            f"{exp_c}=NOW() + INTERVAL '{_OTP_TTL_MINUTES} minutes', {att_c}=0 "
+            f"{exp_c}=NOW() + :ttl * INTERVAL '1 minute', {att_c}=0 "
             "WHERE user_id=:uid",
-            h=_otp_hash(user_id, channel, tgt, code), t=tgt, uid=user_id
+            h=_otp_hash(user_id, channel, tgt, code), t=tgt, uid=user_id, ttl=otp_ttl_minutes()
         )
         return code
     finally:
@@ -4073,7 +4082,7 @@ def _otp_issue(user_id: int, channel: str, target: str) -> str:
 
 def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> bool:
     """Check a code. Counts the attempt atomically before comparing (concurrent
-    requests cannot exceed _OTP_MAX_ATTEMPTS). Fails when: no code, expired,
+    requests cannot exceed otp_max_attempts()). Fails when: no code, expired,
     attempts exhausted, stored target != expected_target, or hash mismatch.
     On success the code is cleared (single use) — the caller marks verified."""
     code_c, target_c, exp_c, att_c = _OTP_COLUMNS[channel]
@@ -4081,6 +4090,7 @@ def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> 
     tgt = _otp_norm_target(channel, expected_target)
     if not code or not tgt:
         return False
+    max_attempts = otp_max_attempts()
     conn = get_conn()
     try:
         rows = conn.run(
@@ -4088,7 +4098,7 @@ def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> 
             f"WHERE user_id=:uid AND {code_c} IS NOT NULL AND {code_c} LIKE 'v1$%' "
             f"AND {exp_c} > NOW() AND COALESCE({att_c},0) < :mx "
             f"RETURNING {code_c}, {target_c}, {att_c}",
-            uid=user_id, mx=_OTP_MAX_ATTEMPTS
+            uid=user_id, mx=max_attempts
         )
         if not rows:
             return False
@@ -4103,7 +4113,7 @@ def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> 
                 uid=user_id, h=stored_hash
             )
             return bool(done)
-        if attempts >= _OTP_MAX_ATTEMPTS:
+        if attempts >= max_attempts:
             conn.run(
                 f"UPDATE kyc_submissions SET {code_c}=NULL, {target_c}=NULL, {exp_c}=NULL "
                 f"WHERE user_id=:uid AND {code_c}=:h",
@@ -6202,7 +6212,7 @@ def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: 
 
 def record_profile_view(viewed_user_id: int, viewer_user_id: int, window_s: int = 86400) -> bool:
     """Record a profile view. Anti-duplicate: same viewer only counted once per window_s
-    (server passes tw_limits.RATES["view_count"] — task 5.0h-2).
+    (server passes tw_settings.rate("view_count")[1] — task 5.0h-2 · admin-editable 4.2).
     Returns True if a new view row was inserted, False if within the cooldown."""
     if viewed_user_id == viewer_user_id:
         return False

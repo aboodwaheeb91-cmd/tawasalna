@@ -38,7 +38,7 @@ def _fill_login_locks(n, now):
 
 def test_full_login_locks_never_reset_message_send(monkeypatch):
     cap = 50
-    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", cap)
+    monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", cap)
     max_hits = R["message_send"][0]
     now = srv._time.time()
     _fill_login_locks(cap * 3, now)                      # lock section far past the cap
@@ -54,7 +54,7 @@ def test_full_login_locks_never_reset_message_send(monkeypatch):
 
 def test_full_lock_section_keeps_running_locks(monkeypatch):
     cap = 10
-    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", cap)
+    monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", cap)
     now = srv._time.time()
     _fill_login_locks(cap * 2, now)
     srv._login_fail("new@x.com", "203.0.113.77")         # new key into a full lock section
@@ -70,7 +70,7 @@ def test_full_lock_section_keeps_running_locks(monkeypatch):
 
 def test_full_store_no_sort_per_request(monkeypatch):
     cap = 20000
-    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", cap)
+    monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", cap)
     now = srv._time.time()
     _fill_login_locks(cap, now)
     for i in range(cap):

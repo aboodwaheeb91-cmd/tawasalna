@@ -233,7 +233,7 @@ def test_rate_store_sweep_ttl_and_key_cap(monkeypatch):
     assert "message_send:2" in srv._rate_store and "pwreset-ip:x" in srv._rate_store
     assert 7 not in srv._pwd_changed_cache
     # key cap: past the cap the oldest last-hit keys go first — on use, no thread
-    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", 10)
+    monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", 10)
     srv._rate_store.clear()
     for i in range(10):
         srv._rate_store[f"mention_search:old{i}"] = [now - 30 + i]
@@ -275,7 +275,7 @@ def test_login_lock_survives_a_full_store(monkeypatch):
     lock_keys = {k for k in srv._rate_store if k.split(":", 1)[0] in srv._LOGIN_LOCKS}
     assert lock_keys
     cap = 10
-    monkeypatch.setitem(tw_limits.LIMITS, "mem_store_max_keys", cap)
+    monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", cap)
     now = srv._time.time()
     for i in range(cap * 3):                                  # flood with newer, ordinary keys
         srv._rate_store[f"mention_search:flood{i}"] = [now + i]
@@ -297,7 +297,7 @@ def test_login_lock_survives_a_full_store(monkeypatch):
 
 def test_ip_country_cache_cap_and_ttl(monkeypatch):
     srv.IP_TO_COUNTRY_CACHE.clear()
-    monkeypatch.setitem(tw_limits.LIMITS, "ip_country_cache_max", 3)
+    monkeypatch.setitem(srv.tw_settings._overrides, "ip_country_cache_max", 3)
     for i in range(5):
         srv._ip_country_cache_put(f"10.0.0.{i}", "JO")
     assert list(srv.IP_TO_COUNTRY_CACHE) == ["10.0.0.2", "10.0.0.3", "10.0.0.4"]

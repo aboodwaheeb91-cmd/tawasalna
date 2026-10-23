@@ -307,7 +307,8 @@
   var AUDIT_LABELS = ['admin_login', 'delete_user', 'verify_user', 'change_user_type', 'admin_reset_password', 'admin_update_profile',
                       'admin_delete_job', 'admin_kyc_approve', 'admin_kyc_reject', 'resolve_report', 'upload_logo',
                       'admin_migrate_data_images', 'admin_send_message', 'admin_put_email', 'admin_test_email', 'admin_users_export',
-                      'admin_settings_update', 'admin_settings_reset'];   // task 4.1
+                      'admin_settings_update', 'admin_settings_reset',                     // task 4.1
+                      'admin_settings_update_security', 'admin_settings_reset_security'];  // task 4.2
   function auditLabel(a) { return AUDIT_LABELS.indexOf(a) !== -1 ? twT('admin.audit.action.' + a) : String(a || '—'); }
   var RESULT_MOD = { ok: 'ok', denied: 'danger', failed: 'warn' };
   function auditRows(box, items) {

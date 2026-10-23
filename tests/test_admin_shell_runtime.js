@@ -14,6 +14,8 @@
  *      dialog that closes on a link · unified search groups · /health state · twChart geometry
  *   G  (task 5.3a3) users table: query from the view state (fixed type for companies) · page numbers ·
  *      CSV export needs a confirm and returns the file · unified search asks GET /admin/users only after typing stops
+ *   H  (task 4.2) admin-settings: 403 → "no permission" on the page, session kept · 401 → login ·
+ *      security settings in their own section · their save / reset need the typed word · 403 on save → toast only
  *
  * Run: node tests/test_admin_shell_runtime.js
  */
@@ -55,7 +57,7 @@ function shell(opts) {
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     setTimeout: opts.timers ? ((fn, ms) => { opts.timers.push([fn, ms]); return opts.timers.length; }) : () => 0, clearTimeout: noop,
     document: { readyState: 'loading', addEventListener: noop, querySelector: opts.header ? (q => (q === '[data-tw-header="admin"]' ? opts.header : null)) : () => null,
-                querySelectorAll: () => [], createElement: fakeEl, getElementById: () => null, head: fakeEl('head'),
+                querySelectorAll: () => [], createElement: fakeEl, getElementById: id => (opts.root && id === 'asRoot' ? opts.root : null), head: fakeEl('head'),
                 body: { classList: { list: [], add(c) { this.list.push(c); } } } },
     location: { pathname: opts.path || PANEL, hash: opts.hash || '', search: opts.search || '',
                 replace: u => rec.replaced.push(u) },
@@ -90,6 +92,7 @@ function shell(opts) {
                                blob: () => Promise.resolve({ size: 3, type: 'text/csv' }) });
     },
   };
+  ctx.twIcon.hydrate = noop;
   ctx.window = ctx;
   vm.createContext(ctx);
   ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js',
@@ -436,6 +439,58 @@ const tick = () => new Promise(r => setImmediate(r));
     await tick(); await tick();
     const ureq = s.rec.requests.filter(r => /^\/admin\/users/.test(r[0]));
     check('G9 then one server search for the final text', ureq.length === 1 && /[?&]q=tech(&|$)/.test(ureq[0][0]), JSON.stringify(ureq));
+  }
+
+  console.log('\nH — admin-settings: 403 vs 401 · security section + typed word (task 4.2)');
+  {
+    const PAGE = 'static/admin-settings/admin-settings.js';
+    const page = o => shell(Object.assign({ page: PAGE, path: PANEL + '/settings', token: LIVE, root: fakeEl('div') }, o));
+    const texts = el => [el.textContent].concat((el.children || []).flatMap(texts));
+    const f = page({ status: 403 });
+    await tick(); await tick(); await tick();
+    check('H1 403 → "no permission" message on the page', texts(f.ctx.document.getElementById('asRoot')).includes('admin.settings.forbidden'),
+      JSON.stringify(texts(f.ctx.document.getElementById('asRoot'))));
+    check('H2 403 → no navigation, session token kept', f.rec.replaced.length === 0 && !!f.store.tw_adm_token);
+    const e = page({ status: 401 });
+    await tick(); await tick(); await tick();
+    check('H3 401 → back to the panel login (expired)', e.rec.replaced[0] === PANEL + '?session=expired' && !e.store.tw_adm_token,
+      JSON.stringify(e.rec.replaced));
+    const it = (key, group, security) => ({ key, group, security, value: 5, default: 5, min: 3, max: 20, changed: false,
+      requires_restart: false, label: key, description: 'd', unit: 'count' });
+    const ok = page({ json: { ok: true, data: { groups: ['messages', 'sec_login'], cache_ttl_s: 30,
+      items: [it('message_send_hits', 'messages', false), it('login_email_hits', 'sec_login', true)] } } });
+    await tick(); await tick(); await tick();
+    const root = ok.ctx.document.getElementById('asRoot');
+    const sec = root.children.find(c => c.attrs && c.attrs['data-settings-section'] === 'security');
+    const rowsIn = el => (el.children || []).flatMap(c => (c.attrs && c.attrs['data-setting'] ? [c.attrs['data-setting']] : rowsIn(c)));
+    check('H4 security settings only in their own section, after the others',
+      !!sec && JSON.stringify(rowsIn(sec)) === '["login_email_hits"]' && root.children.indexOf(sec) === root.children.length - 1
+      && !rowsIn({ children: root.children.filter(c => c !== sec) }).includes('login_email_hits'), JSON.stringify(rowsIn(root)));
+    const A = ok.ctx.TwAdminSettings.ACTIONS;
+    for (const k of ['save', 'reset']) {
+      const s = page({ status: 200, getStatus: 403 });
+      const p = s.ctx.TwAdminShell.run(A[k], { key: 'login_email_hits', value: 4, security: true, label: 'x', old: 5, new: 4 });
+      await tick();
+      const m = s.rec.modals[0];
+      check('H5 ' + k + ' security: typed-word dialog (not a plain confirm), button off until the word',
+        !!m && s.rec.confirms.length === 0 && m.disabled[1] === true, s.rec.confirms.length);
+      check('H6 ' + k + ' security: the warning text', m && m.opts.message === 'admin.settings.security.' + k + '.message');
+      m.opts.onClose('cancel');
+      check('H7 ' + k + ' security: cancelled → no request', (await p) === null && s.rec.requests.filter(r => r[1] !== 'GET').length === 0);
+      const n = page({ getStatus: 403, confirmAnswer: false });
+      await n.ctx.TwAdminShell.run(A[k], { key: 'message_send_hits', value: 4, security: false });
+      check('H8 ' + k + ' normal setting: plain confirm', n.rec.confirms.length === 1 && n.rec.modals.length === 0);
+    }
+    const d = page({ getStatus: 200, status: 403, confirmAnswer: true });
+    const res = await d.ctx.TwAdminShell.run(A.save, { key: 'message_send_hits', value: 4, security: false });
+    check('H9 save 403 → "no permission" toast, session kept, no navigation', res && res.status === 403
+      && d.rec.toasts.some(t => t[0] === 'admin.settings.forbidden') && d.rec.replaced.length === 0 && !!d.store.tw_adm_token,
+      JSON.stringify(d.rec.toasts));
+    const S = JSON.parse(read('tw_strings.json')).ar;
+    const keys = ['admin.settings.forbidden', 'admin.settings.security.title', 'admin.settings.security.hint',
+      'admin.settings.security.badge', 'admin.settings.security.save.message', 'admin.settings.security.reset.message',
+      'admin.settings.security.word', 'admin.audit.action.admin_settings_update_security', 'admin.audit.action.admin_settings_reset_security'];
+    check('H10 every text key exists', keys.every(k => typeof S[k] === 'string'), keys.filter(k => typeof S[k] !== 'string'));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,4 +1,5 @@
-"""tw_settings.py — Unified Admin Settings (task 4.1 · docs/SYSTEMS_INDEX.md §25g · docs/rules/settings.md).
+"""tw_settings.py — Unified Admin Settings (task 4.1 · security settings 4.2 · docs/SYSTEMS_INDEX.md §25g ·
+docs/rules/settings.md).
 
 The ONE way the code reads an admin-editable limit / rate and the ONE writer of its value:
   REGISTRY      → explicit allowlist of editable settings (key · type · min · max · default from
@@ -7,6 +8,8 @@ The ONE way the code reads an admin-editable limit / rate and the ONE writer of 
   limit(name)   → LIMITS value  (admin value when the key is in the registry, else tw_limits)
   rate(name)    → RATES (hits, window seconds) — same rule
   value(key)    → one registry setting's current value (admin value or the default)
+  is_security(key) → a security setting (4.2: login locks · OTP / password reset · rate store · IP cache ·
+                  page sizes · dedup windows) — own page section + typed-word confirm + audit "<route>_security"
   set_value / reset_value → write path (PUT / POST /admin/settings/{key}); cache updated at once
   reload()      → DB → in-memory cache (startup + every CACHE_TTL_S by server.py's refresh loop).
                   DB failure → defaults + the error logged (the site keeps running, F9).
@@ -29,19 +32,26 @@ CACHE_TTL_S = 30          # other workers see a change within this (refresh loop
 PERM = "settings.edit"    # admin JWT permission (owner = "*")
 
 
-def _limit(name, mn, mx, group, unit="chars"):
-    return {"key": name, "source": ("LIMITS", name), "min": mn, "max": mx, "group": group, "unit": unit}
+def _limit(name, mn, mx, group, unit="chars", security=False):
+    return {"key": name, "source": ("LIMITS", name), "min": mn, "max": mx, "group": group, "unit": unit,
+            "security": security}
 
 
-def _rate(name, part, mn, mx, group):
+def _rate(name, part, mn, mx, group, security=False):
     key = f"{name}_{'hits' if part == 0 else 'window_s'}"
     return {"key": key, "source": ("RATES", name, part), "min": mn, "max": mx, "group": group,
-            "unit": "count" if part == 0 else "seconds"}
+            "unit": "count" if part == 0 else "seconds", "security": security}
 
 
-# Approved list (task 4.1 — the PR table). Out of scope (4.2): login_* locks · OTP / password reset ·
-# password_max_bytes (bcrypt cut) · mem_store_* · caches / capacities · page sizes · view_count /
-# report_repeat (dedup windows, one hit by design). Minimums never stop a core feature (hits ≥ 1).
+def _sec_limit(name, mn, mx, group, unit):
+    return _limit(name, mn, mx, group, unit, security=True)
+
+
+def _sec_rate(name, part, mn, mx, group):
+    return _rate(name, part, mn, mx, group, security=True)
+
+
+# Approved list (task 4.1 — the PR table). Minimums never stop a core feature (hits ≥ 1).
 _DEFS = (
     _limit("message_max",        500, 10000, "messages"),
     _rate("message_send", 0,       5,   300, "messages"),
@@ -69,9 +79,36 @@ _DEFS = (
     _rate("block_set", 0,          1,   100, "reports"),
     _rate("block_set", 1,         60, 86400, "reports"),
     _limit("suspend_reason_max", 100,  2000, "admin"),
+    # ── security = True (task 4.2 — the PR table) — own section on the page, a warning + an explicit
+    # confirm before saving, audit action *_security. Minimum: never opens guessing / flooding, never
+    # locks normal users out · maximum: memory stays bounded. ❌ password_max_bytes (bcrypt cuts at 72 —
+    # fixed, never in the registry). Every one is read per use → applies at once (requires_restart False).
+    _sec_rate("login_email", 0,       3,     20, "sec_login"),
+    _sec_rate("login_email", 1,     300,   3600, "sec_login"),
+    _sec_rate("login_ip", 0,         10,    100, "sec_login"),
+    _sec_rate("login_ip", 1,        300,   3600, "sec_login"),
+    _sec_rate("login_ip_email", 0,    3,     10, "sec_login"),
+    _sec_rate("login_ip_email", 1,  300,   3600, "sec_login"),
+    _sec_limit("otp_max_attempts",    3,     10, "sec_otp", "count"),
+    _sec_limit("otp_ttl_min",         5,     30, "sec_otp", "minutes"),
+    _sec_rate("pwreset_ip", 0,        3,     50, "sec_otp"),
+    _sec_rate("pwreset_ip", 1,      600,  86400, "sec_otp"),
+    _sec_rate("pwreset_email", 0,     1,     10, "sec_otp"),
+    _sec_rate("pwreset_email", 1,   600,  86400, "sec_otp"),
+    _sec_limit("mem_store_max_keys", 5000, 100000, "sec_capacity", "count"),
+    _sec_limit("mem_store_sweep_s",   10,    600, "sec_capacity", "seconds"),
+    _sec_limit("ip_country_cache_max", 1000, 100000, "sec_capacity", "count"),
+    _sec_limit("ip_country_cache_ttl_s", 3600, 604800, "sec_capacity", "seconds"),
+    _sec_limit("comments_page",        5,     50, "sec_pages", "count"),
+    _sec_limit("comments_page_max",   10,    100, "sec_pages", "count"),
+    _sec_limit("mention_limit_max",    5,     50, "sec_pages", "count"),
+    _sec_limit("blocks_page_max",     10,    200, "sec_pages", "count"),
+    _sec_rate("view_count", 1,      3600, 604800, "sec_dedup"),      # hits stay 1 (counted once) — window only
+    _sec_rate("report_repeat", 1,   3600, 604800, "sec_dedup"),      # same — one report per window
 )
 
-GROUPS = ("messages", "posts", "comments", "reports", "admin")
+GROUPS = ("messages", "posts", "comments", "reports", "admin",
+          "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup")
 
 
 def _build(defs) -> dict:
@@ -81,12 +118,13 @@ def _build(defs) -> dict:
         default = tw_limits.LIMITS[src[1]] if src[0] == "LIMITS" else tw_limits.RATES[src[1]][src[2]]
         if not (d["min"] <= default <= d["max"]):
             raise ValueError(f"[settings] default of {d['key']} outside its range")   # fails at start (F9)
-        out[d["key"]] = dict(d, type="int", default=default, security=False, requires_restart=False,
+        out[d["key"]] = dict(d, type="int", default=default, requires_restart=False,
                              label_key=f"settings.item.{d['key']}", desc_key=f"settings.item.{d['key']}.desc")
     return out
 
 
 REGISTRY = _build(_DEFS)
+SECURITY_KEYS = frozenset(k for k, d in REGISTRY.items() if d["security"])
 # source → registry key, for limit() / rate()
 _BY_LIMIT = {d["source"][1]: k for k, d in REGISTRY.items() if d["source"][0] == "LIMITS"}
 _BY_RATE = {(d["source"][1], d["source"][2]): k for k, d in REGISTRY.items() if d["source"][0] == "RATES"}
@@ -147,6 +185,11 @@ def item(key: str) -> dict:
 
 def listing() -> list:
     return [item(k) for k in REGISTRY]
+
+
+def is_security(key: str) -> bool:
+    """A security setting (task 4.2) — the page's warning section + the audit action *_security."""
+    return key in SECURITY_KEYS
 
 
 # ── DB ──

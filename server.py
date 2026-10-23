@@ -24,13 +24,13 @@ import ipaddress
 
 # ── IP to country code ──
 # Bounded (task 5.0h-2 — AUD-P2-13): ip → (code, saved_at); entries older than
-# LIMITS["ip_country_cache_ttl_s"] are looked up again; past LIMITS["ip_country_cache_max"]
-# the oldest entry goes (insertion order).
+# ip_country_cache_ttl_s are looked up again; past ip_country_cache_max the oldest entry goes
+# (insertion order). Both read per use via tw_settings.limit (admin-editable — task 4.2, at once).
 IP_TO_COUNTRY_CACHE = {}
 
 def _ip_country_cache_put(ip: str, code: str) -> None:
     IP_TO_COUNTRY_CACHE.pop(ip, None)
-    while len(IP_TO_COUNTRY_CACHE) >= tw_limits.LIMITS["ip_country_cache_max"]:
+    while len(IP_TO_COUNTRY_CACHE) >= tw_settings.limit("ip_country_cache_max"):
         IP_TO_COUNTRY_CACHE.pop(next(iter(IP_TO_COUNTRY_CACHE)))
     IP_TO_COUNTRY_CACHE[ip] = (code, time.time())
 
@@ -39,7 +39,7 @@ def get_country_from_ip(ip: str) -> str:
         return 'DEFAULT'
     hit = IP_TO_COUNTRY_CACHE.get(ip)
     if hit is not None:
-        if time.time() - hit[1] < tw_limits.LIMITS["ip_country_cache_ttl_s"]:
+        if time.time() - hit[1] < tw_settings.limit("ip_country_cache_ttl_s"):
             return hit[0]
         IP_TO_COUNTRY_CACHE.pop(ip, None)
     COUNTRY_MAP = {
@@ -131,7 +131,7 @@ from auth import (
     _migrate_email_notify, email_notify_reserve, email_log_write, email_send_stats,
     get_email_prefs, set_email_prefs, schedule_message_email,
     _migrate_company_settings, get_company_settings, set_company_settings,
-    _OTP_TTL_MINUTES,
+    otp_ttl_minutes,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     project_public_profile, project_owner_profile, project_owner_kyc_status,
@@ -563,15 +563,16 @@ from collections.abc import MutableMapping
 import time as _time
 import threading
 # Shared in-memory rate store (task 5.0h-2 — AUD-P2-13 · task 5.4d): key "kind:who" → hit times.
-# One section per kind (the key prefix — a RATES name, "ip", "pwreset-ip" …), each an OrderedDict
-# kept oldest-last-hit first, each capped at LIMITS["mem_store_max_keys"] on its own: a full
+# One section per kind (the key prefix — a RATES name, "ip", "log-error" …), each an OrderedDict
+# kept oldest-last-hit first, each capped at mem_store_max_keys on its own: a full
 # section never evicts another kind's counters. Bounded without a thread and without a sort: on
 # use, expired keys are popped from the front of a section (window from RATES by kind, else the
-# longest window in RATES) — every section at most every LIMITS["mem_store_sweep_s"]; a new key
+# longest window in RATES) — every section at most every mem_store_sweep_s; a new key
 # in a full section evicts that section's oldest key — never a login lock key (_LOGIN_LOCKS: only
 # its window ends it; a full lock section takes the new key over its cap until windows end —
 # never fail-open, never lock everyone out). _rate_lock makes check + count one step across
-# threadpool requests; nothing inside it touches the DB.
+# threadpool requests; nothing inside it touches the DB. Both mem_store_* values via tw_settings.limit
+# (memory read — safe under _rate_lock; admin-editable, task 4.2).
 class _RateStore(MutableMapping):
     def __init__(self):
         self._kinds = {}
@@ -668,14 +669,14 @@ def _rate_sweep_locked(now: float = None, force: bool = False) -> int:
     """Caller holds _rate_lock. Expired keys of every kind (force: full scan + cap). Returns keys removed."""
     global _rate_sweep_at
     now = _time.time() if now is None else now
-    if not force and now - _rate_sweep_at < tw_limits.LIMITS["mem_store_sweep_s"]:
+    if not force and now - _rate_sweep_at < tw_settings.limit("mem_store_sweep_s"):
         return 0
     _rate_sweep_at = now
     before = len(_rate_store)
     for kind in _rate_store.kinds():
         _rate_expire_locked(kind, now, full=force)
         if force:
-            _rate_trim_locked(kind, tw_limits.LIMITS["mem_store_max_keys"])
+            _rate_trim_locked(kind, tw_settings.limit("mem_store_max_keys"))
     for uid in [u for u, (_, at) in list(_pwd_changed_cache.items())
                 if _time.monotonic() - at >= _PWD_CHANGED_TTL]:
         _pwd_changed_cache.pop(uid, None)
@@ -694,7 +695,7 @@ def _rate_room_locked(key: str, now: float) -> None:
         return
     kind = _RateStore._kind(key)
     _rate_expire_locked(kind, now)
-    _rate_trim_locked(kind, tw_limits.LIMITS["mem_store_max_keys"] - 1)
+    _rate_trim_locked(kind, tw_settings.limit("mem_store_max_keys") - 1)
 
 
 def _rate_prune_locked(key: str, window: float) -> list:
@@ -753,7 +754,8 @@ def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
 
 
 # Login lock (PR 1.4 per email · task 5.0h-2 — AUD-P2-16 + per IP + per IP and email pair).
-# Failed logins only; RATES login_email / login_ip / login_ip_email. Every email (existing or
+# Failed logins only; tw_settings.rate login_email / login_ip / login_ip_email (admin-editable,
+# task 4.2 — read on every check, so a new count / window applies at once). Every email (existing or
 # not) is counted and locked the same way, and the locked reply is one text — it never says
 # whether the address has an account. Success clears the email + pair buckets, never the IP one.
 _LOGIN_LOCKS = ("login_email", "login_ip", "login_ip_email")
@@ -767,7 +769,7 @@ def _login_lock_who(email: str, ip: str) -> dict:
 def _login_locked(email: str, ip: str):
     """The window (s) of the first lock that is full, else None."""
     for name, who in _login_lock_who(email, ip).items():
-        max_fails, window = tw_limits.RATES[name]
+        max_fails, window = tw_settings.rate(name)
         if len(_rate_prune(f"{name}:{who}", window)) >= max_fails:
             return window
     return None
@@ -822,6 +824,9 @@ _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # Reads that are still recorded (task 5.3a3): data leaving the site — route names under /admin/.
 AUDIT_READ_ROUTES = frozenset({"admin_users_export"})
+# Settings writes (task 4.2): a security key (tw_settings.is_security) → action "<route>_security"
+# on every row of that request (200 / 401 / 403 / 422) — the audit list filters on it.
+_AUDIT_SETTINGS_ROUTES = frozenset({"admin_settings_update", "admin_settings_reset"})
 
 
 def _admin_audit_entry(request, status: int):
@@ -840,7 +845,10 @@ def _admin_audit_entry(request, status: int):
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     params = request.scope.get("path_params") or {}
     target = ",".join(f"{k}={params[k]}" for k in sorted(params)) or None
-    entry = {"actor": str(claims.get("sub") or "-") if claims else "-", "action": getattr(route, "name", "") or "-",
+    action = getattr(route, "name", "") or "-"
+    if action in _AUDIT_SETTINGS_ROUTES and tw_settings.is_security(str(params.get("key", ""))):
+        action += "_security"
+    entry = {"actor": str(claims.get("sub") or "-") if claims else "-", "action": action,
              "target": target, "status": status, "ip": get_client_ip(request)}
     # old / new value — set by the settings endpoints only (task 4.1), numbers, never a secret
     change = getattr(request.state, "audit_change", None)
@@ -3105,8 +3113,8 @@ def company_get_post_comments(post_id: int, request: Request, limit: Optional[in
     if auth_header.startswith("Bearer "):
         payload = _jwt_decode(auth_header[7:])
         viewer_id = payload.get("user_id")
-    lim = tw_limits.LIMITS["comments_page"] if limit is None else limit
-    lim = max(1, min(int(lim), tw_limits.LIMITS["comments_page_max"]))
+    lim = tw_settings.limit("comments_page") if limit is None else limit
+    lim = max(1, min(int(lim), tw_settings.limit("comments_page_max")))
     owner_id = get_post_owner(post_id)
     if owner_id:
         _404_if_hidden(viewer_id, owner_id, "المنشور غير موجود")
@@ -3191,7 +3199,7 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     viewer_id   = int(token["user_id"])
     viewer_type = token.get("user_type", "emp")
     # task 5.0h (AUD-P2-33): ?limit= clamped to 1..mention_limit_max · per-account rate before the DB
-    limit = max(1, min(int(limit), tw_limits.LIMITS["mention_limit_max"]))
+    limit = max(1, min(int(limit), tw_settings.limit("mention_limit_max")))
     if not _rate_ok("mention_search", viewer_id):
         return _rate_limited()
     seen:    set  = set()
@@ -3698,7 +3706,7 @@ def submit_report(data: ReportInput, token=Depends(verify_token)):
                                  "الوظيفة غير موجودة" if rtype == "job" else "الحساب غير موجود")
             if conn.run(f"SELECT 1 FROM reports WHERE reporter_id = :rid AND {target_col} = :tid "
                         "AND created_at > NOW() - :win * INTERVAL '1 second' LIMIT 1",
-                        rid=reporter_id, tid=data.reported_id, win=tw_limits.RATES["report_repeat"][1]):
+                        rid=reporter_id, tid=data.reported_id, win=tw_settings.rate("report_repeat")[1]):
                 return _limit_error(429, "duplicate_report", "limits.report_duplicate")
             conn.run(
                 "INSERT INTO reports (reporter_id, reported_id, job_id, reported_type, report_type, "
@@ -4516,9 +4524,8 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
 # ── Forgot password (task 5.1a · SYSTEMS_INDEX §1b) ──
 # request: same reply for every address (never says whether it exists); lookup + token +
 # email run AFTER the reply (BackgroundTasks) so the response time does not tell either.
-# Limits on the shared _rate_store: per client IP (get_client_ip) + per email address.
-_PWRESET_IP_LIMIT,    _PWRESET_IP_WINDOW    = 10, 3600.0
-_PWRESET_EMAIL_LIMIT, _PWRESET_EMAIL_WINDOW = 3, 3600.0
+# Limits on the shared _rate_store via _rate_ok: RATES pwreset_ip (per client IP — get_client_ip) +
+# pwreset_email (per address) — admin-editable through tw_settings (task 4.2).
 _PWRESET_INVALID_MSG = "رابط إعادة التعيين غير صالح أو انتهت صلاحيته، اطلب رابطاً جديداً"
 _PWRESET_TOKEN_MAX = 200
 
@@ -4552,11 +4559,11 @@ def password_reset_request(data: PasswordResetRequestInput, request: Request,
         raise AccountFieldError("email", "required", "أدخل بريدك الإلكتروني")
     if not email_service.can_send("password_reset"):
         return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
-    if not _rate_hit("pwreset-ip:" + get_client_ip(request), _PWRESET_IP_LIMIT, _PWRESET_IP_WINDOW):
+    if not _rate_ok("pwreset_ip", get_client_ip(request)):
         return api_error(429, "rate_limited", "طلبات كثيرة، حاول مرة أخرى لاحقاً")
     # Per-email limit → silently no email (a 429 here would be the same for any address,
     # but the identical reply keeps one simple rule).
-    if _rate_hit("pwreset-email:" + email, _PWRESET_EMAIL_LIMIT, _PWRESET_EMAIL_WINDOW) \
+    if _rate_ok("pwreset_email", email) \
             and email_service.valid_address(email):
         background_tasks.add_task(_password_reset_send, email)
     return api_ok({"sent": True})
@@ -4774,7 +4781,7 @@ def public_profile(user_id: str, request: Request):
     # Record view only for logged-in non-owner viewers (dedup window = RATES["view_count"], in record_profile_view)
     if viewer_type == "public-user" and token_uid:
         try:
-            record_profile_view(profile_id, int(token_uid), tw_limits.RATES["view_count"][1])
+            record_profile_view(profile_id, int(token_uid), tw_settings.rate("view_count")[1])
         except Exception as e:   # a side effect — the page still loads, the failure is logged (task 5.0e)
             print(f"[profile_view] record FAILED viewed={profile_id} viewer={token_uid}: {type(e).__name__}: {e}")
     views_count = get_profile_views_count(profile_id)
@@ -5100,7 +5107,7 @@ def blocks_list(limit: int = 20, offset: int = 0, token=Depends(verify_token)):
         me = int(token.get("user_id"))
     except (TypeError, ValueError):
         raise HTTPException(401, "رمز غير صالح")
-    limit = max(1, min(int(limit), tw_limits.LIMITS["blocks_page_max"]))
+    limit = max(1, min(int(limit), tw_settings.limit("blocks_page_max")))
     try:
         return api_ok(bs.list_blocked(me, limit, max(0, int(offset))))
     except Exception as e:
@@ -6134,7 +6141,7 @@ def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
         code = send_email_code(uid, account_email)
         res = email_service.send_email(account_email, "kyc_email_otp",
                                        {"name": user.get("full_name") or "", "code": code,
-                                        "minutes": _OTP_TTL_MINUTES})
+                                        "minutes": otp_ttl_minutes()})
         code = None
         if not res.get("ok"):
             return JSONResponse(status_code=503, content=_OTP_UNAVAILABLE)

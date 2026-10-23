@@ -14,6 +14,7 @@
 4. **بوابة الجلسة — نداء واحد أول سكربت الصفحة:** `TwAdminShell.start({loginPage})` → `true` = جلسة حيّة؛ ما في جلسة → صفحة الدخول بتعرض نموذجها / أي صفحة تانية `location.replace(جذر اللوحة)`. صفحة برّا مسار اللوحة: `start({outside: true, current: '<key>'})` — تاب ما فتح اللوحة (ما في جذر محفوظ) → `false` بدون تحويل والصفحة بتعرض رسالة (`admin.view.open_panel`).
 
 5. **انتهاء الجلسة (401 / 403 / exp) من مكان واحد:** `TwAdminShell` بيسجّل handler واحد على `TwAdminSession.onExpired` → `location.replace(جذر اللوحة + '?session=expired')` → صفحة الدخول بتعرض `admin.session.expired`. ❌ handler تاني بصفحة · ❌ فحص `r.status === 401` يدوي.
+   - **`permissionAware` (task 4.2):** `TwAdminSession.fetch(url, {permissionAware: true})` / action `permissionAware: true` بـ `TwAdminShell.run` → بس 401 بينهي الجلسة؛ 403 (توكن صالح بدون الصلاحية — `check_admin`) بيرجع للصفحة: رسالة «ما عندك صلاحية» (`action.forbidden` toast) والجلسة بتضل. أول مستهلك: `admin-settings`. بدونها السلوك القديم (403 = نهاية جلسة).
 
 6. **كل تعديل بيانات عبر `TwAdminShell.run(action, ctx)`:** `action = {confirm?, request(ctx) → {url, method, body?}, done?, fail?}`. ما في تأكيد → ما في طلب. كل إجراء كبير (حذف، تغيير نوع حساب، تغيير كلمة سر، رفض توثيق، حل بلاغ، صيانة، استبدال الشعار) إلو `confirm` بنص بيوضّح شو رح يصير (`admin.*` بـ `tw_strings.json`). الأخطر (حذف، ترحيل/صيانة) `danger: true` + `typeWord` → نافذة `twModal` زر التأكيد فيها مطفّي لحد ما تنكتب الكلمة. ❌ `TwAdminSession.fetch` مباشر لعملية كتابة بصفحة أدمن.
 

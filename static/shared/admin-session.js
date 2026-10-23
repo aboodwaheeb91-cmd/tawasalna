@@ -5,6 +5,9 @@
 // Every admin API call goes through TwAdminSession.fetch(): a 401/403 (expired /
 // invalid token) clears the token and fires the page's onExpired handler once —
 // the page shows its login screen / message instead of hanging.
+// opts.permissionAware (task 4.2 — admin-settings first): only 401 ends the session; a 403
+// (valid token without the permission — check_admin) is returned to the page, which shows its
+// own "no permission" message and keeps the session.
 // The token is NEVER the raw ADMIN_TOKEN, and never touches localStorage.
 (function () {
   'use strict';
@@ -70,14 +73,17 @@
     return { 'Content-Type': 'application/json', 'X-Admin-Token': getToken() };
   }
 
-  // fetch with the admin header merged in; 401/403 → session over.
+  // fetch with the admin header merged in; 401/403 → session over (permissionAware: 401 only).
   function adminFetch(url, opts) {
     opts = opts || {};
     var h = headers();
     var extra = opts.headers || {};
     for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k) && k !== 'X-Admin-Token') h[k] = extra[k]; }
-    return fetch(url, Object.assign({}, opts, { headers: h })).then(function (r) {
-      if (r.status === 401 || r.status === 403) _expire();
+    var init = Object.assign({}, opts, { headers: h });
+    var aware = !!init.permissionAware;
+    delete init.permissionAware;
+    return fetch(url, init).then(function (r) {
+      if (r.status === 401 || (r.status === 403 && !aware)) _expire();
       return r;
     });
   }
