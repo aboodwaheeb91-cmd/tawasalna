@@ -1,0 +1,337 @@
+# [DS-CARD] Card System V1 — نظام البطاقات الموحّد
+
+> **النظام الرسمي الوحيد لكل بطاقة بتعرض بيانات حقيقية بتواصلنا:** منشور · وظيفة · شخص · شركة / جهة تعليمية.
+> **الحالة:** 📄 توثيق بس (U.1) — ولا سطر كود اتعدّل. التنفيذ بالمراحل U.2 → U.10 (القسم CARD-12).
+> **المرجع (المصدر):** بطاقة المنشور بصفحة الشركة — `static/company/company.render.js → _postCardHtml()` · `renderPosts()` · `_initPostClamps()` + السلوك بـ `static/company/company.posts.js` (`_toggleAppreciation` · `_toggleSave` · `_toggleCommentPanel` · `_sharePost` · `initPostViewTracking` · `deletePost`) + الـ CSS بـ `static/company/company.css` (قسم `POST CARDS` + `POST COMMENTS PANEL`).
+> **التقرير:** `docs/audits/cards-audit.md` (U.0 — PR #641). أرقام الأماكن (P1 · J1 · U1 · C1 …) والتكرار (D1 … D12) من التقرير نفسه.
+> **الأنظمة اللي بيعتمد عليها (ما بيعيد بناءها):** DS-IMAGE (F38) · DS-ICON (F37) · DS-SIZE (F36) · DS-COLOR (F35) · DS-OVL (F33) · DS-FEEDBACK (F34) · Actions Registry (BTN-19 · SYSTEMS_INDEX §60) · Strings `twT` (§59) · `twFormatDate` / `twFormatNumber` (§59a) · Skeleton `tw-skeleton.css` (§35) · Blocks + Suspension (`docs/rules/blocks-suspension.md` · §25f) · Post Appreciation / Save / Comments (§22a / §22b / §22c).
+
+---
+
+## [CARD-00] Routing — شو تقرا
+
+| المهمة | اقرأ |
+|--------|------|
+| أي تعديل على بطاقة منشور | CARD-02 + CARD-03 (منشور) + CARD-04 + CARD-07 + CARD-09 |
+| بطاقة وظيفة / شخص / شركة | CARD-02 + CARD-03 (النوع) + CARD-04 + CARD-05 |
+| رابط المنشور `/post/{id}` | CARD-08 |
+| شو المطلوب ومتى | CARD-10 (المتطلبات) + CARD-12 (الخطة) |
+| بطاقة جديدة ما إلها نوع هون | **STOP (F30)** — اشرح وانطر قرار قبل أي كود |
+
+---
+
+## [CARD-01] المبادئ
+
+1. **مكوّن واحد لكل نوع** (منشور · وظيفة · شخص · شركة) فوق **أساس واحد** (`tw-card`). الصفحة بتمرّق البيانات + السياق (`viewer` · `variant` · `ctx`) بس — ما بتبني HTML بطاقة لحالها.
+2. **DOM مش نص HTML:** المكوّن بيرجّع `HTMLElement` (`createElement` + `textContent`) — نفس نمط `home.cards.js`. بيانات المستخدم ما بتمرق على `innerHTML` أبداً (§54).
+3. **كل جزء من نظامه:** صورة / لوغو → `twAvatarEl` · أيقونة → `twIconEl` · نص → `twT` · تاريخ → `twFormatDate` / وقت نسبي مشترك · عدد → `twFormatNumber` · زر إجراء → `twAction` · قائمة / تأكيد → DS-OVL · toast → DS-FEEDBACK · قياس → `--size-*` / `--space-*` / `--radius-*` · لون → `--color-*`.
+4. **البطاقة ما بتقرّر مين بيشوف شو:** الظهور (حظر / تعليق / حذف) من السيرفر بس (CARD-07)، وظهور الأزرار من السجل (`twAction`) بس — ما في شرط ظهور بالصفحة (BTN-19).
+5. **عقد بيانات واحد لكل نوع (F29):** كل endpoint بيرجّع نفس النوع بيرجّعه بنفس الحقول (CARD-03 → «عقد البيانات»). إضافة حقول بس — ما في كسر (F14).
+6. **المرجع بيتحوّل أول:** بطاقة منشور صفحة الشركة بتصير `TwPostCard` بسلوكها الحالي حرفياً (U.2)، وبعدين كل التحسينات بتنعمل بالمكوّن المشترك — مش بالصفحة.
+
+---
+
+## [CARD-02] التشريح (Anatomy)
+
+```
+article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = id الاسم
+├── __head      (رأس)
+│   ├── __media      صورة / لوغو — twAvatarEl(entity, size)          [إجباري بالمنشور والشخص والشركة · اختياري بالوظيفة compact]
+│   ├── __title      الاسم / العنوان — <a href="/u/{tw_id}"> لما في رابط [إجباري]
+│   ├── __subtitle   سطر تاني (مسمّى · شركة · مدينة)                 [اختياري]
+│   ├── __meta       الوقت (+ مشاهدات بالمنشور)                       [اختياري — إجباري بالمنشور]
+│   └── __menu       زر ⋯ ← قائمة إجراءات (DS-OVL)                    [اختياري — بيبين بس إذا في إجراء واحد على الأقل من السجل]
+├── __body      (جسم)    نص مقصوص + «المزيد / أقل» · وسوم · chips      [إجباري بالمنشور · اختياري بالباقي]
+├── __media-block (وسائط)  صور / مرفقات                               [اختياري — ما في وسائط بالمنشورات حالياً؛ محجوز]
+├── __stats     (عدّادات) span منفصل لكل عدّاد، tabular-nums          [اختياري]
+├── __actions   (شريط تفاعل) أزرار twAction بس                         [اختياري — بالمنشور: أقدّر · تعليق · مشاركة · حفظ]
+└── __comments  (تعليقات) لوحة post-comments (§22c)                    [اختياري — بالمنشور بس، ولما comments_enabled]
+```
+
+| الجزء | المرجع اليوم (P1) | قاعدة DS-CARD |
+|-------|-------------------|---------------|
+| الحاوية | `div.post-card` | `article.tw-card` + `aria-labelledby` (R15) |
+| الصورة | `<img>` يدوي جوّا `.post-ava` 48px | `twAvatarEl({…, user_type}, 'lg')` (R03) — الشكل حسب النوع (emp دائرة · co / edu مربع) |
+| الاسم | `.post-nm` نص، بدون رابط | `<a href="/u/{tw_id}">` لما البطاقة برّا صفحة صاحبها (R08) |
+| الوقت | `_relativeTime` محلي + `toLocaleDateString('ar')` | وقت نسبي مشترك + `twFormatDate` بعد الحد (R05) |
+| المشاهدات | بالرأس جنب الوقت | بـ `__stats` أو بأيقونة أوضح (R10) |
+| ⋯ | `position:absolute; left:14px` + menu يدوي | `inset-inline-end` + قائمة DS-OVL + aria (R14 · R18) |
+| النص | قص 3 أسطر ببحث ثنائي مرة وحدة | `line-clamp` CSS أو إعادة حساب عند تغيّر العرض (R13) |
+| الأزرار | 4 `button.pc-btn` نص ثابت + SVG يدوي | `twAction` + `twIconEl` + `twT` + `type="button"` + `aria-pressed` / `aria-expanded` (R01 · R02 · R06 · R16 · R17) |
+| العدّاد | جوّا نص الزر («أقدّر · 12») | `span` منفصل بعرض ثابت (R11) |
+| التعليقات | `.pc-cmts-panel` مخفية | نفس النظام (§22c) — ما بيتغيّر |
+
+**الترتيب (RTL):** المحتوى بيمشي من اليمين؛ الصورة أول عنصر بالرأس، و`__menu` بآخره (`inset-inline-end`).
+
+---
+
+## [CARD-03] الأنواع (Variants)
+
+### الأساس المشترك (`tw-card`) — بياخده كل نوع
+
+الحاوية + الحدّ + الزاوية + الـ padding + الظل + `:hover` · رأس (صورة + اسم + meta) · حالات CARD-05 (skeleton · فاضي · خطأ) · قواعد CARD-06 (RTL · موبايل · وصول) · قاعدة الظهور CARD-07.
+
+### 1) بطاقة منشور — `TwPostCard` (P1 ⭐ · P2)
+
+| الـ variant | المكان | بياخد من الأساس | بيزيد |
+|-------------|--------|-----------------|-------|
+| `full` (المرجع) | صفحة الشركة (P1) · صفحة المنشور `/post/{id}` (CARD-08) | كل الأساس | لون المنشور (`--pa` / `--pa-s` / `--pa-g` من `TW.POST_THEME_COLORS`) · قص النص + «المزيد / أقل» · وسوم ملوّنة · مشاهدات + تتبّع مشاهدة · شريط تفاعل 4 أزرار · لوحة تعليقات · قائمة ⋯ للمالك (تعديل / حذف) |
+| `feed` | الرئيسية (P2) | كل الأساس | نفس `full` بدون لوحة التعليقات جوّا البطاقة (التعليق → رابط المنشور — **سؤال مفتوح Q4**) · الاسم رابط لـ `/u/{tw_id}` |
+
+**عقد البيانات (منشور):** `id · body · tags · theme_color · comments_enabled · created_at · views_count · appreciations_count · viewer_appreciated · comments_count · viewer_saved · author{id, tw_id, full_name, avatar_url, user_type}`. اليوم `/company/posts/{id}` بيرجّع معظمها (المؤلف من `companyState.profile`)، و`/home/feed` ناقصه التقدير / الحفظ / التعليقات / اللون → U.7.
+
+### 2) بطاقة وظيفة — `TwJobCard` (J1 → J5)
+
+| الـ variant | المكان | بياخد من الأساس | بيزيد |
+|-------------|--------|-----------------|-------|
+| `visitor` | صفحة الشركة — تبويب الوظائف للزائر (J1) | رأس (لوغو + عنوان + وقت) | «عرض التفاصيل» · مشاركة · حالة التقديم — **العقد المجمّد بـ `docs/company-jobs-and-applicants.md §2` بيضل نفسه** |
+| `owner` | صفحة الشركة — المالك (J1) | رأس | شارة حالة الوظيفة · عدد المتقدمين (`—` لما ما ينقرا) · «المتقدمون» · «الإدارة» (نفس العقد المجمّد) |
+| `feed` | الرئيسية (J2) | رأس + جسم (chips) | «عرض الوظيفة» (رابط) |
+| `compact` | تفاصيل الوظيفة — «وظائف مشابهة» (J3) | رأس بس (بدون جسم) | البطاقة كلها `<a>` |
+| `application` | بروفايل الموظف — «طلباتي» (J4) · الإشعارات (J5) | رأس | شارة حالة الطلب (`twStatusPill`) · «عرض الوظيفة» · «صفحة الشركة» |
+
+> J6 (جدول وظائف الأدمن) **مش بطاقة** — بيضل جدول Admin Shell (`docs/rules/admin-shell.md`)، برّا DS-CARD.
+
+### 3) بطاقة شخص — `TwPersonCard` (U1 → U8)
+
+| الـ variant | المكان | بياخد من الأساس | بيزيد |
+|-------------|--------|-----------------|-------|
+| `row` | نافذة «المتابعون / المتابَعون» للشركة (U4) وللبروفايل (U5) | رأس (أفاتار + اسم رابط + شارة نوع) | زر متابعة (`twAction('follow')`) — يوحّد D5 |
+| `conv` | الرسائل — قائمة المحادثات (U6) | رأس | آخر رسالة · وقت · عدّاد غير مقروء — بيفتح المحادثة (`docs/rules/messenger.md`) |
+| `applicant` | نافذة «المتقدمون» (U1) | رأس + سطر حالة | أزرار الـ pipeline (عرض · تصنيف · بنك · ملاحظات · موعد) — **منطق الـ pipeline ما بيتغيّر** |
+| `candidate` | «بنك المواهب» (U2) · «اقتراحات» (U3) | رأس | أولوية / نجوم (U2) · `%` توافق (U3) · فتح · حفظ · موعد (`twScheduleButton`) |
+| `hero` | رأس بروفايل الموظف (U7) | — (برّا الأساس — بطاقة الصفحة) | توثيق بس؛ ما بتتحوّل لمكوّن (سؤال مفتوح Q11) |
+
+> U8 (QR — canvas) · U9 / U10 (جداول الأدمن) **مش بطاقات DOM** — برّا DS-CARD.
+> `applicant` / `candidate` بيدخلوا بس بعد U.10 (سؤال مفتوح Q11) — المرحلة U.10 بتوحّد الأساس تبعهم بس، بدون لمس منطق الـ pipeline.
+
+### 4) بطاقة شركة / جهة — `TwOrgCard` (C1 → C3)
+
+| الـ variant | المكان | بياخد من الأساس | بيزيد |
+|-------------|--------|-----------------|-------|
+| `side` | تفاصيل الوظيفة — بطاقة الشركة بالجنب (C2) | رأس (لوغو `lg` + اسم رابط) | شارة «موثّقة» |
+| `row` | قوائم مستقبلية (بحث / اقتراح شركات) | رأس | زر متابعة |
+| `hero` | رأس صفحة الشركة (C1) · رأس الجهة التعليمية (C3) | — | توثيق بس؛ رأس الصفحة مش بطاقة قائمة (Q11) |
+
+> C4 (جدول الأدمن) برّا DS-CARD.
+
+---
+
+## [CARD-04] التوكنز (أسماء موجودة فعلياً بـ `tw_shared.css`)
+
+> القيم بين قوسين للتوضيح. «المرجع اليوم» = قيمة ثابتة بـ `company.css` لازم تتحوّل. **ما في token جديد إلا المعلّم «جديد».**
+
+### المسافات (`--space-*` — DS-SIZE)
+
+| الاستعمال | المرجع اليوم | التوكن |
+|-----------|--------------|--------|
+| padding البطاقة | `14px 16px` | `var(--space-7) var(--space-8)` (14 / 16) |
+| بين البطاقات | `margin-bottom:10px` | `--space-5` (10) |
+| فجوة الرأس | `gap:10px` · `margin-bottom:10px` | `--space-5` |
+| فجوة سطر الـ meta | `gap:6px` | `--space-3` (6) |
+| فجوة أيقونة + نص بالزر | `gap:4px` | `--space-2` (4) |
+| فوق شريط التفاعل | `margin-top:10px` · `padding-top:8px` | `--space-5` · `--space-4` (8) |
+| padding الزر | `5px 4px` | `--space-2` + لمس ≥ `--size-touch-min` بالموبايل (CARD-06) |
+
+### الحواف (`--radius-*`)
+
+| الاستعمال | المرجع اليوم | التوكن |
+|-----------|--------------|--------|
+| البطاقة | `14px` | `--radius-xl` (14) |
+| لوحة التعليقات (أسفل) | `0 0 12px 12px` | `--radius-lg` (12) |
+| الزر | `7px` | `--radius-xs` (6) |
+| قائمة ⋯ | `8px` | `--radius-sm` (8) |
+| زر «المزيد / أقل» | `999px` | `--radius-pill` |
+| اللوغو | `11px` (يدوي) | من DS-IMAGE (`.tw-ava--org` lg = `--radius-lg`) — ما بيتحدّد بالبطاقة |
+
+### الظلال
+
+ما في `--shadow-*` بـ `tw_shared.css`. ظل المرجع مبني من لون المنشور: `0 4px 18px var(--pa-g)` + `inset 0 1px 0 var(--pa-s)` (hover: `0 6px 24px var(--pa-g)`). قائمة ⋯: `0 4px 16px rgba(var(--color-overlay-rgb), .4)`.
+- **«جديد» (مقترح، بيتقرّر بـ U.3):** `--shadow-card` · `--shadow-card-hover` · `--shadow-popover` — بقسم DS-SIZE / DS-COLOR بـ `tw_shared.css` بس (F35 / F36). لحد ما ينضافوا: القيم فوق كما هي، ومن `rgba(var(--color-*-rgb), …)` بس.
+
+### الخطوط (`--size-font-*`)
+
+| الاستعمال | المرجع اليوم | التوكن |
+|-----------|--------------|--------|
+| الاسم | `.8rem` / 800 | `--size-font-md` (.82rem) / 800 |
+| الوقت + المشاهدات | `.63rem` | `--size-font-2xs` (.65rem) — حد أدنى (R21) |
+| النص | `.8rem` / line-height 1.75 | `--size-font-md` / 1.75 |
+| نص الزر | `.72rem` | `--size-font-xs` (.72rem) |
+| بنود قائمة ⋯ | `.78rem` | `--size-font-sm` (.78rem) |
+| أيقونة الزر | `14px` | `--size-icon-sm` (14) |
+| أيقونة الـ meta | `10px` | `--size-icon-xs` (12) |
+| الأفاتار | `48px` | `--size-avatar-lg` (48) · `md` (40) للـ `row` / `conv` |
+
+الخط نفسه: Cairo (موروث من الصفحة) — ما في `font-family` بالبطاقة.
+
+### الألوان (`--color-*` — DS-COLOR)
+
+| الاستعمال | المرجع اليوم | التوكن |
+|-----------|--------------|--------|
+| خلفية البطاقة | `rgba(var(--color-ink-rgb), .02)` | `--color-surface-card` (ink .03) |
+| الحدّ (افتراضي) | `rgba(var(--color-ink-rgb), .06)` | `--color-border-subtle` |
+| حدّ / ظل المنشور | `--pa` / `--pa-s` / `--pa-g` | نفسهم، من `TW.POST_THEME_COLORS` (8 ألوان `--color-categorical-*`) |
+| خط شريط التفاعل | `rgba(var(--color-ink-rgb), .04)` | `--color-border-subtle` |
+| الاسم | موروث | `--color-text-primary` |
+| النص | `--color-text-meta` | `--color-text-body` (نص طويل — CLR) |
+| الوقت / الزر الهادي | `--color-text-muted` | `--color-text-meta` إذا فشل التباين (R21) |
+| hover الزر | `--color-surface-raised` | نفسه |
+| قائمة ⋯ | `--color-surface-elevated` | نفسه |
+| حذف | `--color-status-danger` | نفسه |
+| أقدّر فعّال | `--pa` | نفسه |
+| حفظ فعّال | `--color-status-warning` ❌ (معناه تحذير) | **«جديد» `--color-action-save`** أو `--pa` — **سؤال مفتوح Q3** (R07) |
+| focus | — | `--color-border-focus` (نفس `.tw-act:focus-visible`) |
+
+---
+
+## [CARD-05] الحالات (States)
+
+| الحالة | السلوك الموحّد | المرجع اليوم |
+|--------|----------------|--------------|
+| **تحميل** | `twCardSkeleton(kind, n)` من `tw-skeleton.css` (§35) — نفس أبعاد البطاقة | ما في skeleton للمنشورات (R22) · الرئيسية عندها نسخة `hw-sk*` (D10) |
+| **فاضي** | `twEmptyState({icon, titleKey, subKey})` — نص twT | `#postsEmpty` · `hw-empty` · `tw-empty` … (D11) |
+| **خطأ** | نفس الـ empty state + زر «إعادة المحاولة» (بيعيد نفس الطلب) — مش toast بس | toast بس، القائمة بتضل فاضية (R22) |
+| **مخفي** (صاحبه معلّق، أو حظر بأي اتجاه) | **ما بيوصل من السيرفر أصلاً** — ما في بطاقة ولا placeholder ولا «محتوى مخفي» | ✅ (`bs.visible_sql` / `_404_if_hidden`) |
+| **محذوف** | ما بيوصل · طلب مباشر → 404 (نفس رد المخفي — CARD-08) · بطاقة اتحذفت وهي معروضة → بتنشال من القائمة بعد نجاح `DELETE` | الحذف اليوم **نهائي** (`DELETE FROM company_posts`) — سؤال مفتوح Q7 |
+| **زائر غير مسجّل** | قراءة كاملة (نص · وسوم · عدّادات · تعليقات) · كل إجراء بيكتب (أقدّر · حفظ · تعليق · متابعة) = `twActionState → login` → `twLoginHref(path)` · مشاركة شغّالة | toast «سجّل دخولك…» (نص ثابت) |
+| **صاحب المحتوى** | قائمة ⋯ (تعديل · حذف بـ `twConfirm`) — ظهورها من السجل (`visibleTo: owner`)، والسيرفر بيتحقق من الملكية (403) | `permissions.can_edit` شرط بالصفحة (R06) |
+| **أدمن** | الأدمن ما بيشوف البطاقة بجلسة مستخدم؛ لوحة الأدمن جداول (Admin Shell). **ما في إدارة منشورات للأدمن حالياً** → F30 · سؤال مفتوح Q8 | ما في |
+
+حالات الأزرار (من المرجع — بتنتقل كما هي): تبديل متفائل (optimistic) + «desired-state queue» (طلب واحد بالطيران لكل منشور، آخر رغبة بتربح، فشل → رجوع للحالة الأصلية) لأقدّر والحفظ.
+
+---
+
+## [CARD-06] RTL · الموبايل · إمكانية الوصول
+
+**RTL**
+- اتجاه الصفحة `dir="rtl"`؛ البطاقة ما بتحط `direction` / `text-align:right` لحالها (المرجع حاططها على `.post-body` و`.pc-dots-*`).
+- مواضع منطقية بس: `inset-inline-*` · `margin-inline-*` · `padding-inline-*` · ❌ `left` / `right` ثابتة (المرجع: `.pc-dots { left:14px }` — R14).
+- أيقونات الاتجاه بتنقلب لحالها من DS-ICON (F37).
+- نص لاتيني / أرقام جوّا نص عربي: `unicode-bidi: plaintext` على النص.
+
+**الموبايل**
+- أصغر عرض مدعوم 320px بدون scroll أفقي.
+- شريط التفاعل: تحت عرض معيّن الزر = أيقونة + رقم بس، والنص بـ `aria-label` (R12).
+- أهداف اللمس ≥ `--size-touch-min` (44px) للأزرار والـ ⋯.
+- القص بيتعاد حسابه عند تغيّر العرض / التدوير (R13).
+- قائمة ⋯ ما بتطلع برّا الشاشة (DS-OVL — R14).
+
+**إمكانية الوصول**
+- `article` + `aria-labelledby` = id الاسم (R15).
+- كل `button` إله `type="button"` (R17).
+- أقدّر / حفظ: `aria-pressed="true|false"` · تعليق: `aria-expanded` + `aria-controls="pc-cmt-panel-{id}"` (R16).
+- قائمة ⋯: `aria-haspopup="menu"` + `aria-expanded` + `role="menu"` / `menuitem` · Escape بيسكّر · الـ focus بيرجع للزر (R18).
+- كل أيقونة زينة `aria-hidden="true"` (R19) — `twIconEl` بيعملها.
+- `:focus-visible` على كل عنصر تفاعلي: `outline: 2px solid var(--color-border-focus); outline-offset: 2px` (R20).
+- التباين: نص ≥ 4.5:1 (AA)، والنص الصغير (≤ `--size-font-2xs`) لازم يتقاس — إذا فشل → `--color-text-meta` (R21).
+- العدّادات بـ `span` منفصل `font-variant-numeric: tabular-nums` (R11) — القارئ بيقرأ «أقدّر، 12».
+
+---
+
+## [CARD-07] الحظر والإخفاء — القاعدة
+
+1. **المصدر الوحيد للظهور هو السيرفر:** `blocks_suspension.visible_sql` / `active_sql` / `is_hidden` (`docs/rules/blocks-suspension.md`). أي endpoint بيرجّع بطاقات بيفلتر بالاستعلام قبل ما يرجّع.
+2. **الواجهة ما فيها أي منطق إخفاء:** ❌ فلترة بطاقات بالـ JS حسب حظر / تعليق / نوع · ❌ قائمة محظورين محلية · ❌ «هذا المحتوى مخفي». اللي بيوصل بينعرض، واللي ما وصل ما إله وجود.
+3. **العدّادات من نفس الفلتر** (task 5.4e): `comments_count` = عدد القائمة اللي بيشوفها نفس المشاهد. أي عدّاد جديد بالبطاقة بيطلع من نفس فلتر قائمته.
+4. **الطلب المباشر لمحتوى مخفي = 404** بنفس نص المحتوى المش موجود — بدون تمييز (ولا «محظور»، ولا «معلّق»).
+5. **طلبات التوظيف ما بتتأثر** (القاعدة 5 بـ blocks-suspension) — بطاقات `applicant` / `application` ما فيها فحص حظر.
+6. **ظهور الأزرار ≠ حماية** (F21): `twAction` للـ UX بس، والسيرفر بيرجّع 401 / 403 / 404 دايماً.
+
+---
+
+## [CARD-08] رابط المنشور — `/post/{id}` (قرار معتمد · متطلب)
+
+| البند | المتطلب |
+|-------|---------|
+| الرابط | `https://tawasolna.com/post/{id}` — `{id}` = رقم المنشور الحالي (`company_posts.id`) |
+| المحتوى | صفحة بتعرض **البطاقة الموحّدة** (`TwPostCard` variant `full`) **مع التعليقات** |
+| الزائر | متاح بدون حساب — قراءة بس؛ كل إجراء بيكتب بيطلب دخول (`twLoginHref('/post/{id}')` — NAV-07) |
+| مخفي / محذوف | المنشور المخفي (صاحبه معلّق، أو حظر بأي اتجاه مع المشاهد) أو المحذوف = **404 بدون تمييز** — نفس الـ status ونفس النص ونفس الصفحة |
+| `id` مش رقم | 404 (نفس فحص الأرقام بقاعدة Legacy Redirect 10: ASCII digits، ≤ 18) |
+| المشاركة | `_sharePost` بيشارك `/post/{id}` بدل `/u/{tw_id}` (R09) |
+| الأمان (F17) | قراءة عامة · JWT اختياري (لـ `viewer_appreciated` / `viewer_saved` / الحظر) · نفس rate limit القراءة · الرد بنفس عقد المنشور (CARD-03) |
+
+> ⚠️ **تعارض موثّق:** CLAUDE.md → Smart Router rule 8 («Numeric id stays internal») و rule 9 (public_id بادئة `P`). القرار هون رقم المنشور الحالي بقرار صاحب المشروع → لازم يتسجّل كاستثناء صريح قبل تنفيذ U.6 — **سؤال مفتوح Q1**.
+
+---
+
+## [CARD-09] الممنوعات
+
+- ❌ HTML بطاقة مبني بصفحة (template literal / `innerHTML`) بدل مكوّن DS-CARD — للأنواع اللي اتحوّلت.
+- ❌ CSS بطاقة خاص بصفحة (`post-*` · `hw-*` · `co-fl-*` · `sc-fl-*` …) بعد ما نوعها يتحوّل.
+- ❌ `<svg>` مكتوب يدوياً · ❌ `<img>` أفاتار يدوي · ❌ نص عربي ثابت · ❌ px / rem / hex خام.
+- ❌ دالة وقت نسبي / عدّاد مختصر / مشاركة / نسخ محلية (D1 · D4 · D6).
+- ❌ شرط ظهور زر بالصفحة (`can_edit` · `comments_enabled` · `IS_CO`) بدل `twAction`.
+- ❌ أي إخفاء بالواجهة (CARD-07).
+- ❌ عدّاد جوّا نص الزر.
+- ❌ قائمة ⋯ أو تأكيد يدوي بدل DS-OVL.
+- ❌ endpoint قائمة بطاقات بدون صفحات (R23 · Input Limits).
+
+---
+
+## [CARD-10] المتطلبات المعتمدة (الـ 23 اقتراح من التقرير — U.0 §4)
+
+| # | المتطلب | البطاقات المتأثرة | المرحلة |
+|---|---------|-------------------|---------|
+| CARD-R01 | كل نص بالبطاقة (أزرار · قائمة · «المزيد / أقل» · مشاهدة · وقت · toasts) مفتاح `twT` (`post.*` / `card.*`) | P1 · P2 · J1 | U.3 |
+| CARD-R02 | كل أيقونة من DS-ICON (`twIconEl`) — حذف 27 SVG يدوي (D2) وتوحيد أيقونة المشاركة | P1 · J1 · U5 | U.3 |
+| CARD-R03 | الصورة / اللوغو عبر DS-IMAGE (`twAvatarEl` مع `user_type`) + fallback | P1 · P2 · J1 · U5 | U.3 |
+| CARD-R04 | كل الأحجام من `--size-*` / `--space-*` / `--radius-*` (CARD-04) | P1 · P2 · كل الأنواع | U.3 |
+| CARD-R05 | التاريخ بعد الحد النسبي عبر `twFormatDate` + دالة وقت نسبي مشتركة وحدة (D1) | P1 · P2 · J1 · J2 · J3 · J5 | U.3 |
+| CARD-R06 | كل أزرار البطاقة عبر `twAction` — شرط التعليق (`comments_enabled`) والـ ⋯ (`can_edit`) من السجل / السياق، مش بالصفحة | P1 · P2 · J1 · U4 · U5 | U.3 |
+| CARD-R07 | لون الحفظ الفعّال token بمعنى صحيح (مش `--color-status-warning`) | P1 · P2 | U.3 (بعد Q3) |
+| CARD-R08 | الاسم / اللوغو `<a>` لـ `/u/{tw_id}` لما البطاقة برّا صفحة صاحبها | P2 · U4 · J2 · C2 | U.6 |
+| CARD-R09 | المشاركة بتشارك رابط المنشور `/post/{id}` (CARD-08) | P1 · P2 | U.6 |
+| CARD-R10 | المشاهدات بمكان / أيقونة ما بتنقرا كجزء من التاريخ | P1 · P2 | U.4 |
+| CARD-R11 | العدّاد بـ `span` منفصل `tabular-nums` — بدون قفزة بعرض الزر | P1 · P2 | U.4 |
+| CARD-R12 | تحت عرض معيّن: زر = أيقونة + رقم، والنص بـ `aria-label` | P1 · P2 | U.4 |
+| CARD-R13 | القص بيتعاد عند تغيّر العرض (`ResizeObserver`) أو `line-clamp` CSS + زر «المزيد» | P1 · P2 | U.4 |
+| CARD-R14 | قائمة ⋯ بـ `inset-inline-end` + DS-OVL — ما بتطلع برّا الشاشة | P1 | U.4 |
+| CARD-R15 | الحاوية `article` + `aria-labelledby` | P1 · كل الأنواع | U.4 |
+| CARD-R16 | أقدّر / حفظ `aria-pressed` · تعليق `aria-expanded` + `aria-controls` | P1 · P2 | U.4 |
+| CARD-R17 | كل `button` إله `type="button"` | P1 · كل الأنواع | U.4 |
+| CARD-R18 | قائمة ⋯: `aria-haspopup` / `aria-expanded` / `role="menu"` + Escape + رجوع الـ focus | P1 | U.4 |
+| CARD-R19 | كل SVG زينة `aria-hidden="true"` | P1 · J1 | U.4 |
+| CARD-R20 | `:focus-visible` واضح على كل عنصر تفاعلي (`--color-border-focus`) | P1 · كل الأنواع | U.4 |
+| CARD-R21 | تباين AA للنص الثانوي الصغير — قياس + تصحيح التوكن | P1 · P2 · كل الأنواع | U.4 |
+| CARD-R22 | skeleton للمنشورات + حالة خطأ بالقائمة مع «إعادة المحاولة» (نمط الرئيسية) | P1 · P2 · J3 | U.5 |
+| CARD-R23 | pagination لـ `GET /company/posts/{id}` (الحجم من `tw_limits.py`) | P1 | U.5 |
+
+---
+
+## [CARD-11] أسئلة مفتوحة (قرار منتج — ما انقرّرت هون)
+
+1. **Q1 — رابط المنشور الرقمي:** `/post/{id}` بيتعارض مع Smart Router rule 8 (الرقم داخلي) و rule 9 (public_id بادئة `P`). نسجّله استثناء صريح بـ CLAUDE.md / `ARCHITECTURE.md §C`، ولا نستعمل public_id `P…` بنفس المسار؟ (لازم قبل U.6)
+2. **Q2 — الثيمات s1–s5:** مش موجودة بالكود (التقرير 0.2). المقصود الـ 8 ألوان `TW.POST_THEME_COLORS`، ولا تصميم جديد؟
+3. **Q3 — لون الحفظ الفعّال:** token جديد (`--color-action-save`) ولا لون المنشور `--pa`؟ (R07)
+4. **Q4 — التعليقات بالرئيسية:** لوحة تعليقات جوّا البطاقة (متل صفحة الشركة)، ولا زر «تعليق» بيفتح `/post/{id}`؟
+5. **Q5 — الضغط على بطاقة الرئيسية:** البطاقة كلها بتفتح صفحة الشركة (اليوم)، ولا الاسم بس رابط والنص بيفتح `/post/{id}`؟
+6. **Q6 — المشاهدات:** بتبين لكل الناس (اليوم) ولا للمالك بس؟ وزيارة `/post/{id}` بتنعدّ مشاهدة؟
+7. **Q7 — حذف المنشور:** اليوم نهائي (`DELETE`). نخلّيه، ولا يصير soft delete (F27) قبل `/post/{id}`؟ (النتيجة للمستخدم بتضل 404 بالحالتين.)
+8. **Q8 — الأدمن والمنشورات:** ما في نظام إخفاء / حذف منشور للأدمن (F30). مطلوب؟ وإذا آه، الأدمن بيشوف المنشور المخفي بصفحة `/post/{id}`؟
+9. **Q9 — فهرسة `/post/{id}`:** بتنفهرس بمحركات البحث + sitemap (§54m)، ولا `noindex`؟
+10. **Q10 — المشاركة بباقي البطاقات:** زر مشاركة لكل بطاقة وظيفة (اليوم بصفحة الشركة بس)؟
+11. **Q11 — النطاق:** بطاقات الشركة الداخلية (المتقدمون · بنك المواهب · اقتراحات) ورؤوس الصفحات (U7 · C1 · C3) بتدخل DS-CARD كمكوّنات، ولا بتاخد التوكنز بس؟
+12. **Q12 — الـ pagination:** «عرض المزيد» ولا تمرير لانهائي؟ وكم منشور بالصفحة؟
+13. **Q13 — شارة النوع بقائمة المتابعين:** النص من GLOSSARY («حساب شخصي / حساب شركة / حساب جهة تعليمية») ولا اختصار أقصر بالبطاقة؟
+14. **Q14 — الزائر والتعليقات:** الزائر بيشوف التعليقات (CARD-08)؛ بيشوف كمان قائمة المنشن / أسماء المقدّرين، ولا العدد بس؟
+
+---
+
+## [CARD-12] خطة التنفيذ U.2 → U.10
+
+> كل مرحلة PR صغير ومستقل · اختبار مركّز واحد (CLAUDE.md Testing & CI) بيتسجّل بـ `run_tests.sh` · `python tools/page_audit.py` ما بيزيد · القائمة الموحّدة لكل صفحة بتنلمس · توثيق هالملف + SYSTEMS_INDEX §61 بنفس الـ PR.
+
+| المرحلة | النطاق | الملفات المتوقعة | المتطلبات | التستات اللي لازم تنضاف |
+|---------|--------|------------------|-----------|--------------------------|
+| **U.2** | **المرجع → المكوّن المشترك أول:** نقل `_postCardHtml` + سلوك الأزرار (desired-state queue · تتبّع المشاهدة · قص النص · لوحة التعليقات) لـ `TwPostCard` **بدون تغيير سلوك ولا شكل** + أساس `tw-card.css` (classes بس، نفس القيم) · صفحة الشركة بتستعمله · حذف النسخ المكررة D2 / D3 | جديد `static/shared/tw-post-card.js` · `static/shared/tw-card.css` · `partials/` (shell) · `company.render.js` · `company.posts.js` · `company.css` (حذف `POST CARDS` المنقول) | — (أساس لكل المتطلبات) | `node tests/test_post_card_runtime.js` (vm): render → عناصر الرأس / الجسم / الأزرار · تبديل أقدّر وحفظ + رجوع عند الفشل · المالك بيشوف ⋯ والزائر لا |
+| **U.3** | تنظيف المكوّن نفسه: twT · DS-ICON · DS-IMAGE · tokens · `twFormatDate` + وقت نسبي مشترك · `twAction` لكل الأزرار + إجراءات السجل (`post_appreciate` · `post_save` · `post_comment` · `share` · `post_edit` · `post_delete`) · لون الحفظ (بعد Q3) | `tw-post-card.js` · `tw-card.css` · `tw_strings.json` · `tw_actions.json` · `tw_shared.js` (الوقت النسبي) · `tw_shared.css` (shadow — «جديد» إذا انقرّر) | R01 · R02 · R03 · R04 · R05 · R06 · R07 | نفس `test_post_card_runtime.js`: النص من twT · ما في `<svg>` يدوي · `twActionState` بيخفي ⋯ لغير المالك · الوقت النسبي input → output |
+| **U.4** | وصول + موبايل بالمكوّن: `article` · aria · `type="button"` · `:focus-visible` · قائمة ⋯ DS-OVL + Escape · عدّاد منفصل · وضع الأيقونة + رقم · إعادة القص · مكان المشاهدات · قياس التباين | `tw-post-card.js` · `tw-card.css` | R10 · R11 · R12 · R13 · R14 · R15 · R16 · R17 · R18 · R19 · R20 · R21 | runtime: `aria-pressed` بيتبدّل مع الضغط · `aria-expanded` على التعليق والـ ⋯ · Escape بيسكّر ويرجّع الـ focus · كل button `type=button` |
+| **U.5** | الحالات + الصفحات: `twCardSkeleton` · `twEmptyState` (+ «إعادة المحاولة») بـ `tw_shared.js` / `tw-skeleton.css` · pagination لـ `GET /company/posts/{id}` (حد بـ `tw_limits.py`، إضافة params بس — F14) · «عرض المزيد» (Q12) | `server.py` · `auth.py` (`get_company_posts`) · `tw_limits.py` · `tw_shared.js` · `tw-skeleton.css` · `tw-post-card.js` · `company.render.js` | R22 · R23 | `python -m pytest tests/test_company_posts_pagination.py -q`: الحد بيتطبّق · الصفحة التانية ما بتكرر · الفلتر `visible_sql` لسا شغّال بالصفحة التانية |
+| **U.6** | رابط المنشور: `GET /post/{id}` (صفحة) + endpoint قراءة منشور واحد (JWT اختياري · 404 موحّد للمخفي / المحذوف / id غلط) · صفحة بالـ Page Shell بتعرض `TwPostCard full` + تعليقات · المشاركة → `/post/{id}` · الاسم رابط `/u/{tw_id}` · `twShare` مشترك (D4) — **بعد Q1 (+ Q7 / Q9)** | `server.py` · `auth.py` · جديد `post.html` + `static/post/post.js` · `tw-post-card.js` · `tw_shared.js` (`twShare`) · `ARCHITECTURE.md` (route) · `docs/rules/` (إذا انقرّر استثناء Q1) | R08 · R09 (+ CARD-08) | `python -m pytest tests/test_post_link.py -q`: منشور ظاهر → 200 للزائر · صاحبه معلّق → 404 · حظر بأي اتجاه → 404 · محذوف → 404 · id مش رقم → 404 · نفس الرد بالحالات الأربعة |
+| **U.7** | الرئيسية: `/home/feed` بيرجّع عقد المنشور الكامل (إضافة حقول بس) + `home.cards.js` بيستعمل `TwPostCard feed` (تقدير / حفظ / مشاركة / وسوم / «المزيد») · حذف `renderPostCard` و`hw-*` الخاص بالمنشور + skeleton `hw-sk*` (D10) | `server.py` (`home_feed`) · `home.cards.js` · `home.render.js` · `home-v2.css` · `home-v2.html` (shell) | R08 · R09 · R22 على P2 (+ Q4 / Q5) | `python -m pytest tests/test_home_feed_post_contract.py -q`: المنشور بالفيد فيه نفس حقول `/company/posts` · `viewer_appreciated` / `viewer_saved` صح للمستخدم |
+| **U.8** | `TwPersonCard row` + توحيد قائمتي المتابعين (D5): نافذة وحدة لـ `co-fl-*` و`sc-fl-*` · زر `twAction('follow')` · شارة نوع twT (Q13) · حذف Lucide CDN بالبروفايل | جديد `static/shared/tw-person-card.js` · `company.main.js` · `profile-v2.render.js` · `company.css` · `profile-v2.css` | R01 · R02 · R03 · R06 · R08 · R15 · R17 · R20 على U4 / U5 | `node tests/test_person_card_runtime.js`: نفس المدخل → نفس العنصر بالصفحتين · زر المتابعة من السجل · الاسم `<a href="/u/{tw_id}">` |
+| **U.9** | `TwJobCard` variants `feed` · `compact` · `application` · `visitor` · `owner` — **العقد المجمّد بـ `docs/company-jobs-and-applicants.md §2` بيضل نفسه** · `twStatusPill` (D7) | جديد `static/shared/tw-job-card.js` · `home.cards.js` · `job-detail.js` · `profile-v2.apps.js` · `notifications.html` · `company.render.js` (`renderJobs`) · `tw-card.css` | R01 · R02 · R03 · R04 · R05 · R06 · R17 · R22 على J1 → J5 | `node tests/test_job_card_runtime.js`: كل variant بيرسم أجزاءه · `owner` عدد المتقدمين `—` لما ما ينقرا · الحالة من الـ pill المشترك |
+| **U.10** | `TwOrgCard` (`side` · `row`) لـ job-detail + edu · حذف `.tw-card-lift` المكرر (D8) وإعادة تعريف `.tw-card` الرسمية · `applicant` / `candidate` بياخدوا الأساس والتوكنز بس (بدون منطق الـ pipeline — Q11) | جديد `static/shared/tw-org-card.js` · `job-detail.js` · `edu-profile.html` · `tw_shared.css` · `company.css` · `index.css` | R03 · R04 · R08 · R15 · R20 على C2 / C3 (+ U1 → U3 حسب Q11) | `node tests/test_org_card_runtime.js`: لوغو مربّع (co / edu) · شارة «موثّقة» بس لما `verified` · الاسم رابط |
+
+**الترتيب ليش هيك:** U.2 بيحط المرجع بمكوّن واحد بدون أي تغيير مرئي (مخاطرة أقل) → U.3 / U.4 بيصلّحوه بمكان واحد → U.5 / U.6 بيضيفوا القدرات (صفحات + رابط) → U.7 بيعمّمه على الرئيسية → U.8 / U.9 / U.10 باقي الأنواع، كل نوع لحاله.

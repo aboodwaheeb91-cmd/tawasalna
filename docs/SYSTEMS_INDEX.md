@@ -1294,6 +1294,17 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 61. Card System V1 [DS-CARD] 📄 (task U.1 — توثيق بس)
+**Purpose:** النظام الوحيد لكل بطاقة بتعرض بيانات حقيقية: منشور (`TwPostCard`) · وظيفة (`TwJobCard`) · شخص (`TwPersonCard`) · شركة / جهة (`TwOrgCard`) فوق أساس واحد `tw-card`.
+**Source of Truth:** `docs/design-system/CARDS.md` (CARD-00 → CARD-12) · المرجع: بطاقة منشور صفحة الشركة (`company.render.js → _postCardHtml` + `company.posts.js` + `company.css` قسم `POST CARDS`) · التقرير `docs/audits/cards-audit.md` (U.0 — PR #641). ما في كود DS-CARD لسا — المكوّن المشترك الأول بـ U.2.
+**Details:** التشريح (رأس · جسم · وسائط · عدّادات · شريط تفاعل · تعليقات · قائمة ⋯) · الأنواع والـ variants · الحالات (تحميل · فاضي · خطأ · مخفي · محذوف · زائر · مالك · أدمن) · التوكنز الموجودة (`--space-*` · `--radius-*` · `--size-font-*` · `--color-*`؛ الجديد معلّم «جديد») · RTL / موبايل / وصول · رابط المنشور `/post/{id}` (CARD-08 — 404 موحّد للمخفي والمحذوف) · 23 متطلب `CARD-R01..R23` · خطة U.2 → U.10 · 14 سؤال مفتوح.
+**Do not recreate:** ❌ HTML / CSS بطاقة خاص بصفحة لنوع اتحوّل · ❌ إخفاء بطاقة بالواجهة — الظهور من `bs.visible_sql` / `bs.is_hidden` بالسيرفر بس · ❌ شرط ظهور زر بالبطاقة بدل `twAction` · ❌ SVG / `<img>` أفاتار / نص ثابت / قياس خام · ❌ دالة وقت نسبي / عدّاد / مشاركة محلية.
+**Cross-references:** DS-IMAGE §57 · DS-ICON §56 · DS-SIZE §55 · DS-COLOR §50 · DS-OVL §48 · Actions §60 · Strings §59 · Skeleton §35 · Posts §22 / §22a / §22b / §22c · Blocks + Suspension §25f.
+**Test:** — (توثيق بس؛ أول اختبار `node tests/test_post_card_runtime.js` بـ U.2)
+**Status:** 📄 موثّق (2026-10-23 — U.1) · التنفيذ 🔜 U.2 → U.10
+
+---
+
 ### 51. CRS — Change Routing System ✅
 **Purpose:** Workflow يُطبِّق F30/F31 على مستوى الطلب — يُصنِّف نوع التغيير، يُحدِّد المالك عبر F31+SYSTEMS_INDEX، يضبط الحد الأدنى من القراءة، ويُصدر حكماً (PROCEED / STOP / DISCUSS). ليس Source of Truth لأي نظام، وليس طبقة فوق F30/F31.
 **Source of Truth:** `docs/CHANGE_ROUTER.md` — CRS-01 (Routing Engine A–I) · CRS-02 (Architectural Sanity Check) · CRS-03 (Execution Scope / Credit Control)
@@ -1438,4 +1449,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-23 — task 4.2 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-23 — task U.1 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
