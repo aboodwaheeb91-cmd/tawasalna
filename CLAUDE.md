@@ -313,6 +313,10 @@ These rules are permanent and apply to all future AI sessions.
 
 9b. **Login / register = `twApi` + `TwAuthSync.startSession(user, token)` (PR 4.8).** `startSession` (`auth-sync.js`) is the only writer of a new `tw_user` + `tw_jwt` pair — ❌ `localStorage` in `index.auth.js`. Errors: fixed text by status (login) · server's Arabic validation text for register 4xx (409 under the email field) — ❌ raw `res.json()` without a status check.
 
+9c. **Terms consent is required at registration — checked by the server (task terms · SYSTEMS_INDEX §1d).** `POST /auth/register` without `terms_accepted: true` → 422 `terms_required` (nothing written); accepted → `users.terms_accepted_at` + `users.terms_version` = `tw_terms.TERMS_VERSION` (server value only — bump it whenever `/terms` or `/privacy` text changes). The `#rTerms` checkbox is UX only (F21). Legal text = twT keys `legal.*`, and it describes only what the site really does.
+   - ❌ consent checked in the page only · ❌ a version from the client · ❌ legal text hard-coded in HTML.
+   - Test: `python -m pytest tests/test_terms_acceptance.py -q`.
+
 10. **`index.auth.js` must not contain DOM/appearance code.** UI side-effects (show/hide forms, button states, toast) belong in `index.ui.js`. The separation is mandatory — auth logic must remain testable in isolation.
 
 11. **`index.css` is scoped to the auth page.** Do not import it from any other page. Do not put shared/global styles in it.

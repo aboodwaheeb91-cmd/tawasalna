@@ -15,7 +15,7 @@
 <meta name="twitter:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://tawasolna.com">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v10">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v11">
 </head>
 <body>
 <a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
@@ -213,6 +213,16 @@
         <div id="passStrengthFill"></div>
       </div>
       <div id="passStrengthLabel"></div>
+
+      <!-- Terms + privacy consent (task terms — SYSTEMS_INDEX §1d): required; the server checks
+           terms_accepted too (422 terms_required) — the box is UX, not the gate (F21) -->
+      <div class="field terms-field" id="wrapper-rTerms">
+        <div class="terms-check">
+          <input type="checkbox" id="rTerms" aria-required="true" aria-invalid="false" aria-describedby="r-terms-error">
+          <label for="rTerms"><span data-tw-t="register.terms.prefix"></span> <a href="/terms" target="_blank" rel="noopener" data-tw-t="register.terms.terms"></a> <span data-tw-t="register.terms.and"></span><a href="/privacy" target="_blank" rel="noopener" data-tw-t="register.terms.privacy"></a></label>
+        </div>
+        <span id="r-terms-error" class="field-error" role="alert" aria-live="polite" hidden></span>
+      </div>
       <button class="cta" type="button" id="regBtn" aria-busy="false" data-tw-t="auth.register"></button>
       <div class="switch-link hidden" id="regBackPanel"><span data-tw-t="login.have_account"></span> <button type="button" class="link-btn" data-auth-go="login" data-tw-t="login.submit"></button></div>
     </div>
@@ -222,7 +232,7 @@
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
-<script src="/static/index.auth.js?v=auth-gw-v13"></script>
+<script src="/static/index.auth.js?v=auth-gw-v14"></script>
 <script src="/static/index.ui.js?v=auth-gw-v11"></script>
 </body>
 </html>

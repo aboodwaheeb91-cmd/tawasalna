@@ -194,15 +194,17 @@ function gateway(opts) {
     check('C6 2xx with a bad token → banner, no session, no redirect',
       broken.banner === STRINGS['login.err.incomplete'] && !('tw_jwt' in broken.store) && broken.timers.length === 0);
   }
-  async function register(res) {
+  async function register(res, opts) {
     const g = gateway({ auth: true, dom: true });
     g.el('rFirstName').value = 'سارة'; g.el('rLastName').value = 'علي';
     g.el('rEmail').value = 'new@b.co'; g.el('rPass').value = 'secret12';
+    g.el('rTerms').checked = !(opts && opts.noTerms);
     const calls = [];
     g.ctx.twApi = (p, o) => { calls.push([p, o]); return Promise.resolve(res); };
     await g.ctx.doRegister();
     return Object.assign(g, { calls, banner: g.el('r-form-error').text.textContent,
-                              emailErr: g.el('r-email-error').textContent });
+                              emailErr: g.el('r-email-error').textContent,
+                              termsErr: g.el('r-terms-error').textContent });
   }
   {
     const ok = await register({ ok: true, status: 200, data: { user: USER, token: GOOD_JWT } });
@@ -224,6 +226,14 @@ function gateway(opts) {
     const html = await register({ ok: false, status: 502, raw: null, error: null });
     check('C12 non-JSON 502 → fixed text (was res.json() throwing → «تعذّر الاتصال»)',
       html.banner === STRINGS['register.err.server']);
+    check('C7b register sends terms_accepted: true (task terms)', ok.calls[0][1].body.terms_accepted === true);
+    const noTerms = await register({ ok: true, status: 200, data: { user: USER, token: GOOD_JWT } }, { noTerms: true });
+    check('C13 terms box unticked → no request, error under the box (task terms)',
+      noTerms.calls.length === 0 && noTerms.termsErr === STRINGS['register.err.terms_required'] && !('tw_jwt' in noTerms.store));
+    const srvTerms = await register({ ok: false, status: 422,
+      raw: { ok: false, error: { code: 'terms_required', message: 'x', field: 'terms_accepted' } } });
+    check('C14 server 422 terms_required → error under the box, not the banner',
+      srvTerms.termsErr === STRINGS['register.err.terms_required'] && !srvTerms.banner, srvTerms.banner);
   }
 
   console.log('\nD — job-detail.js (real script, fake DOM)');

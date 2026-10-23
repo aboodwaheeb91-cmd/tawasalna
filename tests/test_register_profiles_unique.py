@@ -69,7 +69,7 @@ def _has_profiles_unique(conn) -> bool:
 def _register(email):
     return client.post("/auth/register", json={
         "first_name": "سارة", "last_name": "خالد", "email": email,
-        "password": "secret-pass-1", "user_type": "emp"})
+        "password": "secret-pass-1", "user_type": "emp", "terms_accepted": True})
 
 
 def test_registry_marks_profiles_unique_critical():

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head-->
+<!-- Unified app header (HEADER-NAV.md — guest or signed-in view) -->
+<link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/legal/legal.css?v=1">
+<title></title>
+</head>
+<!-- شروط الاستخدام (task terms · SYSTEMS_INDEX §1d) — public; every text = twT key legal.terms.* / legal.*;
+     {{terms_version}} = tw_terms.TERMS_VERSION (filled by server.py _legal_page). -->
+<body data-tw-legal-title="legal.terms.title">
+<a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
+
+<header data-tw-header data-back="/"></header>
+
+<main class="lg-main" id="main-content">
+<article class="lg-card">
+  <div class="lg-draft" role="note">
+    <i data-tw-icon="alert"></i>
+    <div><strong data-tw-t="legal.draft_title"></strong><p data-tw-t="legal.draft_body"></p></div>
+  </div>
+  <h1 class="lg-title" data-tw-t="legal.terms.title"></h1>
+  <p class="lg-version"><span data-tw-t="legal.version"></span> <span dir="ltr" id="lgVersion">{{terms_version}}</span></p>
+  <p data-tw-t="legal.terms.intro"></p>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.accounts"></h2>
+    <ul>
+      <li data-tw-t="legal.terms.accounts_1"></li>
+      <li data-tw-t="legal.terms.accounts_2"></li>
+      <li data-tw-t="legal.terms.accounts_3"></li>
+    </ul>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.use"></h2>
+    <p data-tw-t="legal.terms.use_p"></p>
+    <ul>
+      <li data-tw-t="legal.terms.use_1"></li>
+      <li data-tw-t="legal.terms.use_2"></li>
+      <li data-tw-t="legal.terms.use_3"></li>
+      <li data-tw-t="legal.terms.use_4"></li>
+    </ul>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.jobs"></h2>
+    <ul>
+      <li data-tw-t="legal.terms.jobs_1"></li>
+      <li data-tw-t="legal.terms.jobs_2"></li>
+      <li data-tw-t="legal.terms.jobs_3"></li>
+    </ul>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.verify"></h2>
+    <p data-tw-t="legal.terms.verify_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.messages"></h2>
+    <p data-tw-t="legal.terms.messages_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.content"></h2>
+    <p data-tw-t="legal.terms.content_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.reports"></h2>
+    <p data-tw-t="legal.terms.reports_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.liability"></h2>
+    <p data-tw-t="legal.terms.liability_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.end"></h2>
+    <p data-tw-t="legal.terms.end_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.law"></h2>
+    <p data-tw-t="legal.terms.law_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.changes"></h2>
+    <p data-tw-t="legal.terms.changes_p"></p>
+  </section>
+  <section class="lg-sec">
+    <h2 data-tw-t="legal.terms.contact"></h2>
+    <p data-tw-t="legal.terms.contact_p"></p>
+    <p class="lg-email" dir="ltr" data-tw-t="legal.contact_email"></p>
+  </section>
+  <p class="lg-related"><span data-tw-t="legal.related"></span> <a href="/privacy" data-tw-t="legal.see_privacy"></a></p>
+</article>
+</main>
+
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/legal/legal.js?v=1"></script>
+</body>
+</html>

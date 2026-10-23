@@ -105,6 +105,10 @@ function _loginErrorText(res){
 // (written in server.py — intentional, never str(e) — §54d); 409 = the email is taken → under
 // the email field. 429 / 5xx / network → fixed text in the form banner.
 function _registerError(res){
+  var raw = res.raw;
+  if(res.status === 422 && raw && raw.error && raw.error.code === 'terms_required'){
+    return { field: 'terms', text: twT('register.err.terms_required') };   // task terms — keyed on the code
+  }
   if(res.status === 409) return { field: 'email', text: twApiMessage(res, twT('register.err.failed')) };
   if(res.status === 429) return { field: null, text: twT('register.err.too_many') };
   if(res.status === 0)   return { field: null, text: twApiMessage(res, twT('login.err.network')) };
@@ -335,6 +339,15 @@ async function doRegister(){
   } else {
     _lClearFieldError('wrapper-rPass', 'r-pass-error');
   }
+  // Terms + privacy consent (task terms) — the server rejects without it too (422 terms_required)
+  var termsEl = document.getElementById('rTerms');
+  var termsOk = !!(termsEl && termsEl.checked);
+  if(!termsOk){
+    _lShowFieldError('wrapper-rTerms', 'r-terms-error', twT('register.err.terms_required'));
+    hasError = true;
+  } else {
+    _lClearFieldError('wrapper-rTerms', 'r-terms-error');
+  }
   if(!['emp','co','edu'].includes(curType)){
     showToast(twT('register.err.type_required'), 'error');
     hasError = true;
@@ -355,7 +368,7 @@ async function doRegister(){
   var _success = false;
   try {
     // Build payload: structured name for emp, full_name for co/edu
-    var payload = {email: email, password: pass, user_type: curType};
+    var payload = {email: email, password: pass, user_type: curType, terms_accepted: termsOk};
     if(curType === 'emp'){
       payload.first_name  = _regFirstName;
       if(_regMiddleName) payload.middle_name = _regMiddleName;
@@ -367,7 +380,9 @@ async function doRegister(){
     var res = await twApi('/auth/register', {method: 'POST', auth: false, body: payload});
     if(!res.ok){
       var err = _registerError(res);
-      if(err.field === 'email'){
+      if(err.field === 'terms'){
+        _lShowFieldError('wrapper-rTerms', 'r-terms-error', err.text);
+      } else if(err.field === 'email'){
         _rEmailErrorKind = 'taken';
         _lShowFieldError('wrapper-rEmail', 'r-email-error', err.text);
         var emailInput = document.getElementById('rEmail');
@@ -488,6 +503,18 @@ async function doRegister(){
       }
     });
   }
+
+  // Terms consent (task terms) — ticking the box clears its error; unticking after a submit re-shows it
+  var rTermsEl = document.getElementById('rTerms');
+  if(rTermsEl){
+    rTermsEl.addEventListener('change', function(){
+      if(rTermsEl.checked){
+        _lClearFieldError('wrapper-rTerms', 'r-terms-error');
+      } else if(_rSubmitAttempted){
+        _lShowFieldError('wrapper-rTerms', 'r-terms-error', twT('register.err.terms_required'));
+      }
+    });
+  }
 }());
 
 // ── Transient state reset helpers (called from index.ui.js on form switch) ───
@@ -501,6 +528,7 @@ function _resetRegisterTransientState(){
   _lClearFieldError('wrapper-rLastName',   'r-last-name-error');
   _lClearFieldError('wrapper-rEmail',      'r-email-error');
   _lClearFieldError('wrapper-rPass',       'r-pass-error');
+  _lClearFieldError('wrapper-rTerms',      'r-terms-error');
 }
 
 // ── Enter key shortcut ────────────────────────────────────────────────────────

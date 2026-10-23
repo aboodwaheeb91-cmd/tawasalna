@@ -34,7 +34,8 @@ def _rand(n=8):
 def _register(name, email, password, user_type, country_code="9620"):
     r = requests.post(f"{BASE_URL}/auth/register", json={
         "full_name": name, "email": email, "password": password,
-        "user_type": user_type, "country_code": country_code
+        "user_type": user_type, "country_code": country_code,
+        "terms_accepted": True,
     })
     d = r.json()
     return d.get("user") or d
