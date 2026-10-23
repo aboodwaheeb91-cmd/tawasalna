@@ -5393,6 +5393,18 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
 # ══ Phase 3: Company Posts Data Layer (Rule #5,#6 — Single Source) ══
 # Pure data layer. No authorization (that lives in server.py). company_id = users.id.
 
+def _visible_comment_counts_sql() -> str:
+    """Per-post count of the comments :bs_viewer sees in get_company_post_comments (task 5.4e):
+    active, author visible, and a reply's root author visible — same bs.visible_sql filter as the
+    list. One grouped subquery for all posts of :cid (no query per post)."""
+    return ("SELECT c.post_id, COUNT(*) AS cnt FROM company_post_comments c "
+            "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
+            "WHERE c.status = 'active' "
+            "AND c.post_id IN (SELECT id FROM company_posts WHERE company_id = :cid) "
+            "AND " + bs.visible_sql("c.user_id") + " AND (rc.id IS NULL OR " + bs.visible_sql("rc.user_id") + ") "
+            "GROUP BY c.post_id")
+
+
 def get_company_posts(company_id: int, viewer_user_id=None) -> list:
     """Return all posts for a company, newest first.
     Includes views_count, appreciations_count, viewer_appreciated, and viewer_saved (if viewer_user_id provided)."""
@@ -5411,9 +5423,9 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
                 "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
                 "LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_comments WHERE status='active' GROUP BY post_id) cmt ON cp.id = cmt.post_id "
+                "LEFT JOIN (" + _visible_comment_counts_sql() + ") cmt ON cp.id = cmt.post_id "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
-                cid=company_id, viewer_uid=int(viewer_user_id))
+                cid=company_id, viewer_uid=int(viewer_user_id), bs_viewer=bs._viewer(viewer_user_id))
         else:
             rows = conn.run(
                 "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
@@ -5425,9 +5437,9 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "FROM company_posts cp "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_comments WHERE status='active' GROUP BY post_id) cmt ON cp.id = cmt.post_id "
+                "LEFT JOIN (" + _visible_comment_counts_sql() + ") cmt ON cp.id = cmt.post_id "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
-                cid=company_id)
+                cid=company_id, bs_viewer=0)
         cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at",
                 "views_count", "appreciations_count", "viewer_appreciated", "viewer_saved",
                 "comments_count"]
