@@ -779,6 +779,12 @@ window.renderProfile = function renderProfile(res){
       onClick: function(){ twReportDialog({ reportedId: p.id, reportedType: 'user' }); }
     }) : null;
     if(btn) row.appendChild(btn);
+    // «حظر» (task 5.4) — signed-in visitors only (registry); confirm from the registry, call = twBlockUser
+    var blk = (typeof twAction === 'function') ? twAction('block', {
+      ownerId: p.id, mode: _vt === 'owner' ? 'owner' : _vt, className: 'sc-report-btn',
+      onClick: function(){ twBlockUser(p.id); }
+    }) : null;
+    if(blk) row.appendChild(blk);
   })();
 
   // ── Schedule Interview (PR 3.10 — shared tw-schedule.js): company viewer only. Own row

@@ -478,6 +478,61 @@
     $('coNotifyResult').addEventListener('change', function (e) { saveCompanySettings(e.target); });
   }
 
+  // ── المحظورون (task 5.4) — GET /blocks (own list, paged) · «إلغاء الحظر» = twAction('unblock') → DELETE ──
+  var blocked = { items: [], total: 0 };
+  function renderBlocked() {
+    var list = $('blockedList');
+    list.textContent = '';
+    list.removeAttribute('aria-busy');
+    if (!blocked.items.length) {
+      list.appendChild(el('div', 'st-row', null)).appendChild(el('span', 'st-val', twT('settings.blocked.empty')));
+      return;
+    }
+    blocked.items.forEach(function (u) {
+      var row = el('div', 'st-row');
+      row.appendChild(el('span', 'st-ico', null)).appendChild(twIconEl('user'));
+      var body = el('span', 'st-body');
+      body.appendChild(el('span', 'st-name', u.full_name));
+      body.appendChild(el('span', 'st-val', twT('settings.blocked.since', { date: twFormatDate(u.blocked_at) })));
+      row.appendChild(body);
+      var un = twAction('unblock', { onClick: function (c, b) { unblock(u, b); } });
+      if (un) row.appendChild(el('span', 'st-end')).appendChild(un);
+      list.appendChild(row);
+    });
+    if (blocked.items.length < blocked.total) {
+      var more = btn('settings.blocked.more');
+      more.className = 'st-row';
+      more.addEventListener('click', function () { more.disabled = true; loadBlocked(blocked.items.length); });
+      list.appendChild(more);
+    }
+  }
+  function unblock(u, b) {
+    b.disabled = true;
+    twApi('/blocks/' + encodeURIComponent(u.id), { method: 'DELETE' }).then(function (res) {
+      if (!res.ok) {
+        b.disabled = false;
+        if (res.status !== 401) showToast(twApiMessage(res, twT('settings.unblock.error')), 'error');
+        return;
+      }
+      blocked.items = blocked.items.filter(function (x) { return x.id !== u.id; });
+      blocked.total = Math.max(0, blocked.total - 1);
+      renderBlocked();
+      showToast(twT('settings.unblock.done'), 'success');
+    });
+  }
+  function loadBlocked(offset) {
+    return twApi('/blocks?offset=' + (offset || 0)).then(function (res) {
+      if (!res.ok || !res.data) {
+        $('blockedList').removeAttribute('aria-busy');
+        if (res.status !== 401) showToast(twApiMessage(res, twT('settings.blocked.load_error')), 'error');
+        return;
+      }
+      blocked.items = (offset ? blocked.items : []).concat(res.data.items || []);
+      blocked.total = Number(res.data.total) || 0;
+      renderBlocked();
+    });
+  }
+
   // verify_identity off (registry default until plan 5.1 — the OTP provider) or not for this
   // account → the KYC row never appears: no button, no text, no /kyc request.
   var kycOn = twActionState('verify_identity') !== 'hidden';
@@ -494,6 +549,7 @@
   if (kycOn) renderKycRow();
   loadAccount();
   loadNotify();
+  loadBlocked(0);
   if (isCompany) loadCompanySettings();
   if (kycOn) loadKyc();
 }());

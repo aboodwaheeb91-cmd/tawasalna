@@ -336,6 +336,8 @@ def _jwt_revoked_by_password_change(payload: dict) -> bool:
         return False
     if state is None:
         return True   # account deleted — its tokens die with it (task 5.0f); DB down is handled above
+    if state.get("suspended"):
+        return True   # suspended by the admin (task 5.4) — same 401 path as a deleted account, reversible
     if "sv" in payload:
         sv = payload.get("sv")
         if not isinstance(sv, int) or isinstance(sv, bool):
@@ -721,6 +723,7 @@ async def rate_limit_middleware(request, call_next):
 # password, rate limited). Stored: actor (admin JWT sub) · route name · path params · result · IP
 # (get_client_ip). Never the body, the password, the token or any message text.
 import admin_insights
+import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # Reads that are still recorded (task 5.3a3): data leaving the site — route names under /admin/.
@@ -918,6 +921,7 @@ def _startup_migrations():
         ("reports_targets",                   _migrate_reports_targets,            False),
         ("verified_source",                   _migrate_verified_source,            False),
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
+        ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -1353,7 +1357,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    JOIN users u ON j.company_id = u.id
                    LEFT JOIN profiles p ON j.company_id = p.user_id
                    LEFT JOIN profession_categories pc ON j.profession_id = pc.id
-                   WHERE """ + job_active_sql("j") + """
+                   WHERE """ + job_active_sql("j") + " AND " + bs.active_sql("j.company_id") + """
                    ORDER BY j.created_at DESC
                    LIMIT :pool""",
                 pool=pool,
@@ -1407,9 +1411,10 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    FROM company_posts cp
                    JOIN users u ON cp.company_id = u.id
                    LEFT JOIN profiles p ON cp.company_id = p.user_id
+                   WHERE """ + bs.visible_sql("cp.company_id") + """
                    ORDER BY cp.created_at DESC
                    LIMIT :lim""",
-                lim=post_lim
+                lim=post_lim, bs_viewer=user_id
             )
             cols = ["id","body","tags","created_at","author_name","author_tw_id","author_id","author_avatar"]
             for r in (rows or []):
@@ -1523,7 +1528,7 @@ def public_profile_smart_router(tw_id: str):
     The numeric id is never exposed in the public URL.
     """
     info = get_user_info_by_tw_id(tw_id)
-    if not info:
+    if not info or bs.is_suspended(int(info['id'])):   # suspended (task 5.4) = not found
         raise HTTPException(status_code=404, detail="الحساب غير موجود")
 
     uid   = int(info['id'])         # safe: always integer from DB
@@ -1597,6 +1602,7 @@ def get_company_profile(company_id: str, request: Request):
                 is_owner    = True
             else:
                 viewer_type = "public-user"
+    _404_if_hidden(token_uid, resolved_id, "الشركة غير موجودة")
 
     # ── Permissions per viewer_type (Rule #20) ──
     permissions = {
@@ -2741,6 +2747,7 @@ def company_posts_list(company_id: str, request: Request):
     if token_str:
         token_data = _jwt_decode(token_str)
         viewer_uid = token_data.get("user_id") if token_data else None
+    _404_if_hidden(viewer_uid, resolved_id, "الشركة غير موجودة")
     posts = get_company_posts(resolved_id, viewer_user_id=viewer_uid)
     return {"status": "success", "posts": posts}
 
@@ -2846,6 +2853,7 @@ def company_post_record_view(post_id: int, data: PostViewInput, request: Request
     token_str = auth[7:] if auth.startswith("Bearer ") else ""
     payload = _jwt_decode(token_str) if token_str else {}
     user_id = payload.get("user_id")
+    _404_if_hidden(user_id, owner, "المنشور غير موجود")
 
     # Don't count the post owner's own views
     if user_id and int(user_id) == owner:
@@ -2883,6 +2891,7 @@ def company_post_set_appreciation(post_id: int, body: AppreciationStateInput, to
     owner_id = get_post_owner(post_id)
     if not owner_id:
         raise HTTPException(status_code=404, detail="المنشور غير موجود")
+    _404_if_hidden(user_id, owner_id, "المنشور غير موجود")
     if int(owner_id) == int(user_id):
         raise HTTPException(status_code=403, detail="لا يمكنك تقدير منشورك")
     result = set_company_post_appreciation(post_id, int(user_id), body.appreciated)
@@ -2905,6 +2914,7 @@ def company_post_set_save(post_id: int, body: SaveStateInput, token=Depends(veri
     owner_id = get_post_owner(post_id)
     if not owner_id:
         raise HTTPException(status_code=404, detail="المنشور غير موجود")
+    _404_if_hidden(user_id, owner_id, "المنشور غير موجود")
     result = set_company_post_save(post_id, int(user_id), body.saved)
     return {"status": "success", **result}
 
@@ -2933,6 +2943,9 @@ def company_get_post_comments(post_id: int, request: Request, limit: Optional[in
         viewer_id = payload.get("user_id")
     lim = tw_limits.LIMITS["comments_page"] if limit is None else limit
     lim = max(1, min(int(lim), tw_limits.LIMITS["comments_page_max"]))
+    owner_id = get_post_owner(post_id)
+    if owner_id:
+        _404_if_hidden(viewer_id, owner_id, "المنشور غير موجود")
     comments, next_cursor = get_company_post_comments(post_id, viewer_id, limit=lim, cursor=cursor)
     return {"status": "success", "comments": comments, "next_cursor": next_cursor}
 
@@ -2945,6 +2958,9 @@ def company_create_post_comment(post_id: int, body: CommentInput, token=Depends(
         raise HTTPException(status_code=401, detail="يجب تسجيل الدخول للتعليق")
     if not _check_cmt_create_rate(int(user_id), post_id):
         raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
+    owner_id = get_post_owner(post_id)
+    if owner_id:
+        _404_if_hidden(user_id, owner_id, "المنشور غير موجود")
     try:
         comment = create_company_post_comment(post_id, int(user_id), body.body, body.reply_to_comment_id, body.mentioned_tw_ids or [])
     except PermissionError as e:
@@ -3048,13 +3064,13 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
             " FROM profile_follows pf"
             " JOIN users u ON u.id = pf.followed_id"
             " LEFT JOIN profiles p ON p.user_id = u.id"
-            " WHERE pf.follower_id = :vid_a" + q_a + " LIMIT :lim_a)"
+            " WHERE pf.follower_id = :vid_a AND " + bs.visible_sql("u.id", ":vid_a") + q_a + " LIMIT :lim_a)"
             " UNION ALL"
             " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
             " FROM profile_follows pf"
             " JOIN users u ON u.id = pf.follower_id"
             " LEFT JOIN profiles p ON p.user_id = u.id"
-            " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" + q_b + " LIMIT :lim_b)",
+            " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 AND " + bs.visible_sql("u.id", ":vid_b") + q_b + " LIMIT :lim_b)",
             **params))
         # Priority 4 — any matching user (only when q provided + space left)
         if q and len(results) < limit:
@@ -3062,7 +3078,7 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
                 "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
                 " FROM users u"
                 " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                " WHERE u.id != :vid AND " + bs.visible_sql("u.id", ":vid") + " AND u.full_name ILIKE :q LIMIT :lim",
                 vid=viewer_id, q=q_like, lim=limit))
 
     except Exception as _exc:
@@ -4239,6 +4255,8 @@ def login(data: LoginInput, request: Request):
         _login_fail(data.email, ip)
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
     _login_email_reset(data.email, ip)
+    if user.pop("suspended", False):   # task 5.4 — a suspended account never gets a token
+        return api_error(401, "account_suspended", "الحساب معلّق")
     sv = int(user.pop("session_version", 0) or 0)   # read with the password check — never sent to the client
     token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
                          "tw_id": user.get("tw_id",""), "sv": sv})
@@ -4494,6 +4512,7 @@ def lookup_user_by_twid(tw_id: str, token=Depends(verify_token)):
     user = get_user_by_id(uid)
     if not user:
         raise HTTPException(404, "المستخدم غير موجود")
+    _404_if_hidden(token.get("user_id"), uid, "المستخدم غير موجود")
     return {
         "id": user["id"],
         "full_name": user["full_name"],
@@ -4513,6 +4532,7 @@ def public_profile(user_id: str, request: Request):
         profile = get_profile_by_tw_id(user_id)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
+    _404_if_hidden(_optional_viewer_id(request), profile["id"], "الملف الشخصي غير موجود")
 
     # Optional JWT — determines viewer_type (same pattern as /company/profile)
     viewer_type = "guest"
@@ -4629,6 +4649,7 @@ def profile_metrics(user_id: str, request: Request):
         uid = get_user_id_by_tw_id(user_id)
     if not uid:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
+    _404_if_hidden(_optional_viewer_id(request), uid, "الملف الشخصي غير موجود")
 
     token_uid   = None
     viewer_type = "guest"
@@ -4706,6 +4727,28 @@ def full_profile(user_id: str, token=Depends(verify_token)):
     return {"status": "success", "profile": project_owner_profile(profile)}
 
 
+# ══ Blocks + Suspension — visibility guard (task 5.4 · blocks_suspension.py · SYSTEMS_INDEX §25f) ══
+# A hidden account (suspended, or a block either way) answers exactly like a missing one: 404 with the
+# endpoint's own «غير موجود» text — never a «blocked» message (the blocked side is never told).
+
+def _optional_viewer_id(request: Request) -> int:
+    """Signed-in viewer of a public read (0 = guest / invalid token)."""
+    auth_header = request.headers.get("Authorization", "")
+    payload = _jwt_decode(auth_header[7:]) if auth_header.startswith("Bearer ") else {}
+    try:
+        return int((payload or {}).get("user_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+def _404_if_hidden(viewer_id, target_id, detail: str) -> None:
+    try:
+        hidden = bs.is_hidden(viewer_id, target_id)
+    except Exception as e:
+        raise _server_error("account_visibility", e)
+    if hidden:
+        raise HTTPException(404, detail)
+
+
 # ══ Follow System (SYSTEMS_INDEX §20 · PR 3.5) ══
 # ONE rule: any signed-in account (emp / co / edu) follows any other account, never
 # itself. Guest → 401 (verify_token) → the page sends them to login. One table:
@@ -4735,6 +4778,7 @@ def _follow_set(token: dict, target_raw: str, follow: bool) -> dict:
         return {"is_following": False, "followers_count": unfollow_profile(int(viewer_id), target_id)}
     if int(viewer_id) == target_id:
         raise HTTPException(400, "لا يمكنك متابعة نفسك")
+    _404_if_hidden(viewer_id, target_id, "الحساب غير موجود")
     try:
         count = follow_profile(int(viewer_id), target_id)
     except ValueError as e:
@@ -4763,6 +4807,7 @@ def profile_follow_state(user_id: str, request: Request):
         payload = _jwt_decode(auth_header[7:])
         if payload:
             viewer_id = payload.get("user_id")
+    _404_if_hidden(viewer_id, target_id, "الحساب غير موجود")
     return api_ok(get_follow_state(target_id, viewer_id))
 
 
@@ -4789,6 +4834,7 @@ def profile_followers_list(user_id: str, request: Request, limit: int = 20, offs
         payload = _jwt_decode(auth_header[7:])
         if payload:
             viewer_id = payload.get("user_id")
+    _404_if_hidden(viewer_id, profile_id, "الملف الشخصي غير موجود")
 
     result = get_profile_followers_list(profile_id, viewer_id, limit, offset, type)
     return {"status": "success", **result}
@@ -4815,9 +4861,63 @@ def profile_following_list(user_id: str, request: Request, limit: int = 20, offs
         payload = _jwt_decode(auth_header[7:])
         if payload:
             viewer_id = payload.get("user_id")
+    _404_if_hidden(viewer_id, profile_id, "الملف الشخصي غير موجود")
 
     result = get_profile_following_list(profile_id, viewer_id, limit, offset, type)
     return {"status": "success", **result}
+
+
+# ══ User Blocks (task 5.4 · blocks_suspension.py · SYSTEMS_INDEX §25f) ══
+# JWT required. Every read / write is the caller's own blocks (blocker_id = JWT user). Blocking is silent:
+# no notification, no message to the blocked side; follows of both directions are removed; job applications
+# are untouched. The list lives in /settings («المحظورون»).
+
+def _block_target(token: dict, target_raw: str):
+    """→ (me, target id) after the per-account rate (RATES["block_set"]) — or (None, error response)."""
+    try:
+        me = int(token.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(401, "رمز غير صالح")
+    if not _rate_ok("block_set", me):
+        return None, _rate_limited()
+    return me, _resolve_account_id(target_raw)
+
+
+@app.get("/blocks")
+def blocks_list(limit: int = 20, offset: int = 0, token=Depends(verify_token)):
+    try:
+        me = int(token.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(401, "رمز غير صالح")
+    limit = max(1, min(int(limit), tw_limits.LIMITS["blocks_page_max"]))
+    try:
+        return api_ok(bs.list_blocked(me, limit, max(0, int(offset))))
+    except Exception as e:
+        raise _server_error("blocks_list", e)
+
+
+@app.put("/blocks/{user_id}")
+def block_user(user_id: str, token=Depends(verify_token)):
+    me, target = _block_target(token, user_id)
+    if me is None:
+        return target
+    try:
+        return api_ok(bs.block(me, target))
+    except bs.BlockError as e:
+        return api_error(e.status, e.code, _tw_text("block.err." + e.code))
+    except Exception as e:
+        raise _server_error("block_user", e)
+
+
+@app.delete("/blocks/{user_id}")
+def unblock_user(user_id: str, token=Depends(verify_token)):
+    me, target = _block_target(token, user_id)
+    if me is None:
+        return target
+    try:
+        return api_ok(bs.unblock(me, target))
+    except Exception as e:
+        raise _server_error("unblock_user", e)
 
 
 @app.post("/profile/{user_id}/interest")
@@ -6665,6 +6765,7 @@ def admin_get_profile(user_id: int, request: Request):
         profile = get_full_profile(user_id)
         if not profile:
             raise HTTPException(404, "المستخدم غير موجود")
+        profile["suspension"] = bs.get_suspension(user_id)   # task 5.4 — admin-only (reason / by)
         return {"status": "success", "profile": profile}
     except HTTPException:
         raise
@@ -6730,6 +6831,35 @@ def verify_user(user_id: int, request: Request, data: dict = Body(...)):
         return {"success": True}
     except Exception as e:
         raise _server_error("verify_user", e)
+
+@app.put("/admin/user/{user_id}/suspension")
+def admin_set_suspension(user_id: int, request: Request, data: dict = Body(...)):
+    """Suspend / lift — body {suspended: true|false, reason?: text (admin-only, ≤ suspend_reason_max)} (task 5.4).
+    Suspended → every request of the account 401 at once (session cache refreshed + sockets closed) and its
+    content hidden by the queries. Lifted → the same account and content come back. Nothing is deleted."""
+    claims = check_admin(request, "users.suspend")   # owner "*" passes; a staff token without it → 403
+    sus = data.get("suspended")
+    if not isinstance(sus, bool):
+        return api_error(422, "invalid_value", _tw_text("admin.suspend.err.value"), "suspended")
+    reason = data.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        return api_error(422, "invalid_value", _tw_text("admin.suspend.err.value"), "reason")
+    reason = (reason or "").strip() or None
+    too_long = _too_long(reason, "suspend_reason_max", "reason")
+    if too_long:
+        return too_long
+    try:
+        out = bs.set_suspension(user_id, sus, reason if sus else None, str(claims.get("sub") or "admin"))
+        if out is None:
+            return api_error(404, "not_found", "الحساب غير موجود")
+        from auth import get_session_state
+        _password_changed_cache_set(user_id, get_session_state(user_id))   # effective at once in this process
+    except Exception as e:
+        raise _server_error("admin_set_suspension", e)
+    if sus:
+        _ws_revoke_user(user_id, "admin_suspend")
+    _cache_del("jobs:")   # cached public job lists — a suspended company's jobs leave / come back now
+    return api_ok(out)
 
 @app.put("/admin/user/{user_id}/password")
 def admin_reset_password(user_id: int, request: Request, data: dict = Body(...)):

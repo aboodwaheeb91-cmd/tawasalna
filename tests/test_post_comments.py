@@ -1984,9 +1984,13 @@ check(
 )
 check(
     "124d. /mention/search returns following + followers from profile_follows (companies included — PR 3.5)",
-    '" WHERE pf.follower_id = :vid_a" + q_a + " LIMIT :lim_a)"' in srv_src and
-    '" WHERE pf.followed_id = :vid_b AND u.id != :vid_b2" + q_b + " LIMIT :lim_b)"' in srv_src and
-    "company_follows" not in srv_src[srv_src.find("def mention_search("):srv_src.find("def _require_company_owner(")]
+    # structure (task 5.4 — converted from a literal line): both UNION branches read profile_follows,
+    # one by follower (:vid_a) and one by followed (:vid_b, self excluded), each with its own LIMIT
+    (lambda body: len(re.findall(r"FROM profile_follows pf", body)) >= 2 and
+        re.search(r"WHERE pf\.follower_id = :vid_a\b", body) is not None and
+        re.search(r"WHERE pf\.followed_id = :vid_b AND u\.id != :vid_b2\b", body) is not None and
+        ":lim_a" in body and ":lim_b" in body and "company_follows" not in body)(
+        srv_src[srv_src.find("def mention_search("):srv_src.find("def _require_company_owner(")])
 )
 check(
     "124e. /mention/search with q uses ILIKE inside each UNION branch",

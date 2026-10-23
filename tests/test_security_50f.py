@@ -44,7 +44,7 @@ def env():
         c = auth.get_conn()
     except Exception as e:
         pytest.skip(f"test PostgreSQL unavailable: {e}")
-    for t in ("app_migrations", "kyc_submissions", "profiles", "users"):
+    for t in ("blocks", "app_migrations", "kyc_submissions", "profiles", "users"):
         c.run(f"DROP TABLE IF EXISTS {t} CASCADE")
     c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, tw_id TEXT, email TEXT UNIQUE, full_name TEXT, "
           "user_type TEXT DEFAULT 'emp', password_hash TEXT, is_verified BOOLEAN DEFAULT FALSE, "
@@ -55,6 +55,7 @@ def env():
     auth.release_conn(c)
     auth._migrate_password_changed_at()
     auth._migrate_session_version()
+    auth.bs.migrate_blocks_suspension()     # task 5.4 — users.suspended_* + blocks (read by the session check)
     server._pwd_changed_cache.clear()
     yield
 

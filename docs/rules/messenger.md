@@ -74,6 +74,7 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 | جديدة: شخصي → شخصي | متابعة متبادلة بس، وإلا 403 `mutual_follow` «يجب أن تتابعا بعضكما لبدء محادثة» |
 | جديدة: شخصي → شركة | 403 `company_start` «لا يمكنك بدء محادثة مع شركة» |
 | نوع مش معروف | 403 `forbidden` (fail closed) · حساب مش موجود → 404 `not_found` |
+| حظر بأي اتجاه أو المستلم معلّق (task 5.4 — `docs/rules/blocks-suspension.md`) | 404 `not_found` — بدء ورد، قبل أي قاعدة تانية (عمود سادس بـ `_MESSAGE_POLICY_FACTS_SQL` من `bs.visible_sql`) |
 
 17. **كل مسار بيبعت رسالة بيفحصها بنفس transaction الـ INSERT، بعد `pg_advisory_xact_lock` على الزوج** (`MESSAGE_PAIR_LOCK_SQL_*` — نفس القفل بـ `end_conversation`): `send_message_pipeline` (pg8000) و `_pipeline_asyncpg` (asyncpg) → رفض = `MessagePolicyError` وما في شي انكتب → `_message_policy_error` → `{ok:false, error:{code, message}}` (النص = twT `msg.policy.*` مع override الأدمن). الـ WebSocket ما بيبعت رسائل (typing / active_conversation بس).
 

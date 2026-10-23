@@ -6374,11 +6374,12 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/admin-job` · `/admin-job.html` | `admin_job_page` | Serves `admin-job.html` — one job (task 5.3j phase 4; HTML only — data calls are guarded) |
 | GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` |
 | PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) |
-| GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile |
+| GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile + `suspension` (task 5.4 — admin-only reason / by) |
 | PUT | `/admin/profile/{user_id}` | `admin_update_profile` | Edit a user's profile (admin-view.html name / headline / location / bio — PR 2B). Body = `ProfileUpdateInput`; same validation + error shapes as `PUT /profile/{id}` via the shared `_apply_profile_update()` — rules follow the **target** account's `user_type` (emp + `full_name` → 422 `emp_name_mutation_forbidden`). 404 unknown user. User JWT → 401 |
 | DELETE | `/admin/user/{user_id}` | `delete_user` | Delete user account |
 | PUT | `/admin/user/{user_id}/type` | `change_user_type` | Change user type |
 | PUT | `/admin/user/{user_id}/verify` | `verify_user` | Set verified badge |
+| PUT | `/admin/user/{user_id}/suspension` | `admin_set_suspension` | Suspend / lift (task 5.4 — §77). Body `{suspended: bool, reason?: text ≤ suspend_reason_max}` (admin-only reason) → `{ok, data:{suspended, suspended_at, suspended_reason, suspended_by}}` · 422 bad value · 404 unknown · perm `users.suspend` (admin token without it → 403; user JWT → 401) |
 | PUT | `/admin/user/{user_id}/password` | `admin_reset_password` | Reset password |
 | DELETE | `/admin/experience/{exp_id}` | `admin_delete_exp` | Delete experience entry |
 | DELETE | `/admin/education/{edu_id}` | `admin_delete_edu` | Delete education entry |
@@ -12864,7 +12865,7 @@ Test: `python -m pytest tests/test_account_security.py -q`.
 
 | Table | Key Columns (from `CREATE TABLE` + migrations) |
 |-------|-------------------------------------------------|
-| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) · `session_version INTEGER NOT NULL DEFAULT 0` (5.0b — `_migrate_session_version()`) |
+| `users` | id BIGSERIAL, tw_id (UNIQUE), full_name, email (UNIQUE), password_hash, user_type (default `'emp'`; `emp`/`co`/`edu`), country_code, created_at · `password_changed_at TIMESTAMPTZ NULL` (PR 1.8 — `_migrate_password_changed_at()`; see Account Security Operations) · `session_version INTEGER NOT NULL DEFAULT 0` (5.0b — `_migrate_session_version()`) · `suspended_at TIMESTAMPTZ NULL` · `suspended_reason TEXT` · `suspended_by TEXT` (task 5.4 — §77) |
 | `profiles` | user_id (UNIQUE FK → users, CASCADE), headline, bio, location, skills[], avatar_url, website, is_verified, updated_at + migrated: dob, phone, country, city, avail, availability_status (deprecated — see `docs/rules/profile-v2.md`), title, sections_order, custom_sections, profile_color, profile_style, first_name, middle_name, last_name, cover_url, short_bio |
 | `experience` | user_id FK, title, company, location, start_date, end_date, is_current, description, sort_order, created_at |
 | `education` | user_id FK, institution, degree, field, start_year, end_year, description, created_at |
@@ -13008,6 +13009,8 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 | `POST /reports/submit` | `report_type` ∈ `REPORT_TYPES` · reason required, ≤ 1000 · `target_url` ≤ 500 · `report_submit` 10 / h per account · same reporter + target (`reported_id` / `job_id`) within 24 h (`reports.created_at`) | 422 `invalid_report_type` / `reason_required` / `too_long` · 429 `rate_limited` / `duplicate_report` |
 | `GET /mention/search` | `limit` clamped to 1..`mention_limit_max` (20) · `mention_search` 60 / min per account | 429 `rate_limited` |
 | `GET /company/posts/{id}/comments` | `?limit=` threads (default 20, max 50) after `?cursor=` (thread id) | — (`next_cursor: null` on the last page) |
+| `PUT` / `DELETE /blocks/{id}` · `GET /blocks` | `block_set` 20 / h per account (block + unblock) · `?limit=` ≤ `blocks_page_max` (50) — task 5.4 | 429 `rate_limited` |
+| `PUT /admin/user/{id}/suspension` | `reason` ≤ `suspend_reason_max` (500) | 422 `too_long` (`field: reason`) |
 
 - Shape: `{ok:false, error:{code, message, field?}}` (`api_error`); `message` = twT `limits.*` via `_tw_text` (admin override wins). `twApi` / `twApiMessage` read it as is.
 - Rates use `_rate_ok(name, who)` → `_rate_hit` on the shared `_rate_store` (no new store). The repeat-report rule reads the DB (survives a restart). The old per-feature dicts (أقدّر · save · comment create / edit) are on it too since 5.0h-2 (`post_appreciate` · `post_save` · `comment_create` · `comment_edit`).
@@ -13015,3 +13018,34 @@ Tests: `python -m pytest tests/test_schedule_interview.py -q` (needs `TW_TEST_DB
 - **Scheduler (5.0h-2):** `auth.run_scheduler_cycle` — `pg_advisory_unlock` failed → the connection is closed, never returned to the pool (a pooled session still holding the lock would make every later cycle skip).
 - Comment pages are pages of **threads** (root id = `COALESCE(reply_to_comment_id, id)`, depth 1) so a reply is always on its root's page. The page renders each page with `_cmtRenderComments`, skips a comment already shown (sent after page 1) and keeps the «عرض المزيد من التعليقات» button (`post.cmt.more`) last.
 - 5.0h-2 closed P2-07 / 18 (views) · P2-17 (password bytes) · P2-16 (login lock IP + email) · P2-13 (bounded stores).
+
+---
+
+## §77 — Account Suspension + User Blocks (task 5.4)
+
+> SYSTEMS_INDEX §25f · `docs/rules/blocks-suspension.md` · test `python -m pytest tests/test_blocks_suspension.py -q`.
+
+**Module:** `blocks_suspension.py` (`bs`) — pure SQL builders at import; DB functions import `auth` lazily (auth imports `bs`). Startup migration `blocks_suspension` (critical, before `rls_lockdown`).
+
+**Schema:** `users.suspended_at TIMESTAMPTZ NULL` · `users.suspended_reason TEXT` (admin-only) · `users.suspended_by TEXT` (admin JWT `sub`) · `blocks (blocker_id INTEGER FK users CASCADE, blocked_id INTEGER FK users CASCADE, created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (blocker_id, blocked_id), CONSTRAINT blocks_no_self CHECK (blocker_id <> blocked_id))` + `idx_blocks_blocked`. RLS on `blocks` (no policy, no grant for `anon` / `authenticated` — the app's owner role is the only client; «each user reads / changes only their own blocks» is enforced in every query: `WHERE blocker_id = <JWT user>`).
+
+**Visibility rule (the one):** `bs.visible_sql(col, viewer)` = `col` not suspended AND no `blocks` row `(viewer → col)` or `(col → viewer)`; `bs.active_sql(col)` = not suspended (jobs); `bs.is_hidden(viewer, target)` = the same as a bool (viewer never hides from itself; guest = 0). `server._404_if_hidden(viewer, target, text)` → 404 with the endpoint's own «غير موجود» text.
+
+| Area | Suspended account | Block (both directions) |
+|------|-------------------|-------------------------|
+| Session | every JWT → 401 (`get_session_state.suspended` → `_jwt_decode`), sockets closed (4008), login → 401 `account_suspended` | — |
+| Profile | `/profile/{id}` · `/profile/{id}/metrics` · `/company/profile/{id}` · `/u/{tw_id}` → 404 | same 404 (not `/u` — the page has no viewer; its API call 404s) · `/profile/{id}/follow` · followers / following (+ rows left out) · `/user/lookup/{tw_id}` |
+| Posts | feed + `/company/posts/{id}` 404 + view / appreciation / save / comments 404 | same |
+| Comments | left out of every list (a hidden root takes its thread) | left out for the other side · create on the other's post 404 · mention refused |
+| Search | `/mention/search` · candidate suggestions | same |
+| Messages | `MESSAGE_POLICY_FACTS_SQL` 6th column → `not_found` 404 · conversations list + unread count | same (start + reply) |
+| Follow | — | `bs.block` deletes both rows (same transaction) · new follow 404 |
+| Jobs | `get_jobs` · `get_job` · feed jobs (`bs.active_sql`) | **not hidden** |
+| Applications / pipeline / appointments | untouched | **untouched** |
+
+**Endpoints:** `GET /blocks?limit&offset` → `{ok, data:{items:[{id, tw_id, full_name, user_type, avatar_url, blocked_at}], total}}` · `PUT /blocks/{id|tw_id}` → `{ok, data:{blocked:true}}` (idempotent; self → 422 `self_block`; unknown → 404) · `DELETE /blocks/{id|tw_id}` → `{blocked:false}` (own row only) · `PUT /admin/user/{id}/suspension` (§57). No notification on block / unblock. Suspend / lift also clears the cached public job lists (`_cache_del("jobs:")`).
+
+**Admin gate:** `check_admin(request, "users.suspend")` — an admin token without the `users.suspend` permission (plan 5.3 staff) → 403; a user JWT or no token → 401 (the existing admin-gate contract — PR 1.5).
+
+**Frontend:** `twAction('block' | 'unblock')` (`tw_actions.json` — `block` carries the DS-OVL confirm) · `twBlockUser(id)` (`tw_shared.js`) on `profile-v2.render.js` · `company.render.js` · `edu-profile.html` · «المحظورون» section in `settings.html` / `static/settings/settings.js` · `admin-view.js` actions `user.suspend` / `user.unsuspend`. Texts `action.block*` · `block.*` · `settings.blocked.*` · `admin.suspend.*` · `account.suspended` in `tw_strings.json`.
+

@@ -52,7 +52,7 @@ def env(monkeypatch):
     except Exception as e:
         pytest.skip(f"test PostgreSQL unavailable: {e}")
     try:
-        for t in ("admin_audit_log", "reports", "email_send_log", "messages", "kyc_submissions",
+        for t in ("blocks", "admin_audit_log", "reports", "email_send_log", "messages", "kyc_submissions",
                   "job_applications", "jobs", "profile_follows", *_COMPANY_TABLES, "profiles", "users"):
             c.run(f"DROP TABLE IF EXISTS {t} CASCADE")
         c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, full_name TEXT, email TEXT, user_type TEXT DEFAULT 'emp', "
@@ -80,6 +80,7 @@ def env(monkeypatch):
     finally:
         auth.release_conn(c)
     admin_insights.migrate_admin_audit_log()
+    auth.bs.migrate_blocks_suspension()   # task 5.4 — users.suspended_* + blocks (read by /mention/search)
     auth.ensure_company_tables()   # company_profiles from the real migration — never a hand-made column (5.3a4)
     assert _sql("SELECT to_regclass('company_profiles')")[0][0], "company_profiles migration failed"
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)

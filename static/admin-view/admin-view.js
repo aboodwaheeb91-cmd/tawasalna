@@ -31,6 +31,16 @@
                  confirm: 'admin.view.unverify.confirm', danger: true },
       request: function (c) { return { url: '/admin/user/' + uid(c) + '/verify', method: 'PUT', body: { is_verified: false } }; },
       done: 'admin.done.unverified' },
+    // task 5.4 — reversible; the reason is admin-only (never shown to the account)
+    'user.suspend': {
+      confirm: { title: 'admin.suspend.title', message: 'admin.suspend.message', confirm: 'admin.suspend.confirm', danger: true },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/suspension', method: 'PUT',
+                                       body: { suspended: true, reason: c.reason || '' } }; },
+      done: 'admin.done.suspended' },
+    'user.unsuspend': {
+      confirm: { title: 'admin.unsuspend.title', message: 'admin.unsuspend.message', confirm: 'admin.unsuspend.confirm' },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/suspension', method: 'PUT', body: { suspended: false } }; },
+      done: 'admin.done.unsuspended' },
     'user.delete': {
       confirm: { title: 'admin.delete_user.title', message: 'admin.delete_user.message', confirm: 'admin.delete.confirm',
                  danger: true, typeWord: 'admin.confirm.word.delete' },
@@ -151,6 +161,11 @@
   function changeType(to) {
     run('user.type', { type: to, from: typeLabel(P.user_type), to: typeLabel(to) }).then(reloadIfOk);
   }
+  function openSuspend() {
+    formDialog('admin.suspend.title', 'admin.suspend.reason', 'textarea', '', 'admin.suspend.next', function (v) {
+      return run('user.suspend', { reason: String(v || '').trim() }).then(reloadIfOk);
+    });
+  }
   function deleteUser() {
     run('user.delete').then(function (res) {
       if (res && res.ok) location.href = TwAdminShell.base() + '#users';
@@ -166,8 +181,14 @@
     var pills = el('span', 'av-btns');
     pills.appendChild(pill(typeLabel(t), t === 'emp' ? '' : t));
     pills.appendChild(pill(twT(P.is_verified ? 'admin.view.verified' : 'admin.view.unverified'), P.is_verified ? 'ok' : ''));
+    var sus = P.suspension && P.suspension.suspended ? P.suspension : null;
+    if (sus) pills.appendChild(pill(twT('admin.view.suspended'), 'danger'));
     acc.appendChild(row(P.full_name, [P.email, P.tw_id], pills).row);
     if (P.created_at) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.since', { date: twFormatDate(P.created_at) })));
+    if (sus) {
+      acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.suspended_since', { date: twFormatDateTime(sus.suspended_at) })));
+      if (sus.suspended_reason) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.suspended_reason', { reason: sus.suspended_reason })));
+    }
 
     var act = TwAdminShell.card(root, { titleKey: 'admin.view.actions', hintKey: 'admin.view.actions.hint', icon: 'settings' });
     var b1 = el('div', 'av-btns');
@@ -176,6 +197,9 @@
       : btn('primary', 'verified', 'admin.users.verify', function () { run('user.verify').then(reloadIfOk); }));
     b1.appendChild(btn('secondary', 'lock', 'admin.view.password', openPassword));
     b1.appendChild(btn('secondary', 'mail', 'admin.users.message', openMessage));
+    b1.appendChild(sus
+      ? btn('primary', 'user-check', 'admin.view.unsuspend', function () { run('user.unsuspend').then(reloadIfOk); })
+      : btn('danger', 'lock', 'admin.view.suspend', openSuspend));
     b1.appendChild(btn('danger', 'delete', 'admin.view.delete', deleteUser));
     act.appendChild(b1);
 

@@ -33,6 +33,8 @@ LIMITS = {
     "mem_store_sweep_s": 60,      # … expired keys swept at most this often, on use (no thread)
     "ip_country_cache_max": 10000,  # IP_TO_COUNTRY_CACHE — entries cap
     "ip_country_cache_ttl_s": 86400,  # … one lookup per IP per day
+    "blocks_page_max": 50,        # GET /blocks ?limit= ceiling (task 5.4)
+    "suspend_reason_max": 500,    # PUT /admin/user/{id}/suspension reason (chars — admin only)
 }
 
 RATES = {
@@ -50,6 +52,7 @@ RATES = {
     "post_save": (10, 10),        # save toggle — per account + post
     "comment_create": (10, 60),   # new comment — per account + post
     "comment_edit": (10, 60),     # comment edit — per account + comment
+    "block_set": (20, 3600),      # block / unblock (PUT + DELETE /blocks/{id}) — per account (task 5.4)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")

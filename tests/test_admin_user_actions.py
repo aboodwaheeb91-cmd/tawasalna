@@ -58,7 +58,7 @@ def env(monkeypatch):
         c = auth.get_conn()
     except Exception as e:
         pytest.skip(f"test PostgreSQL unavailable: {e}")
-    for t in ("email_notify_prefs", "email_send_log", "notifications", "password_reset_tokens", "users"):
+    for t in ("blocks", "email_notify_prefs", "email_send_log", "notifications", "password_reset_tokens", "users"):
         c.run(f"DROP TABLE IF EXISTS {t}")
     c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, tw_id TEXT, email TEXT UNIQUE, full_name TEXT, "
           "user_type TEXT DEFAULT 'emp', country_code TEXT, password_hash TEXT, "
@@ -73,6 +73,7 @@ def env(monkeypatch):
     auth.release_conn(c)
     auth._migrate_password_changed_at()
     auth._migrate_session_version()
+    auth.bs.migrate_blocks_suspension()     # task 5.4 — users.suspended_* + blocks (read by the session check)
     auth._migrate_password_reset_tokens()
     auth._migrate_email_notify()
     f = FakeResend()
