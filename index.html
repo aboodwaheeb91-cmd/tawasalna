@@ -15,7 +15,8 @@
 <meta name="twitter:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://tawasolna.com">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v11">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v12">
+<link rel="stylesheet" href="/static/support/support.css?v={{v:support.css}}">
 </head>
 <body>
 <a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
@@ -107,6 +108,7 @@
       </div>
 
       <div class="forgot-wrap">
+        <button type="button" class="forgot-link link-btn" data-support-guest data-tw-t="login.support"></button>
         <a href="/reset-password" class="forgot-link link-btn" id="forgotBtn" data-tw-t="login.forgot"></a>
       </div>
       <button type="button" class="cta" id="loginBtn" data-tw-t="login.submit"></button>
@@ -232,6 +234,9 @@
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<!-- «مشكلة بالدخول؟» → guest support form (task 7.1 — docs/rules/support.md) -->
+<script src="/static/support/support-form.js?v={{v:support-form.js}}"></script>
 <script src="/static/index.auth.js?v=auth-gw-v14"></script>
 <script src="/static/index.ui.js?v=auth-gw-v11"></script>
 </body>

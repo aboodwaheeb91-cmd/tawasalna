@@ -184,6 +184,17 @@ def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
     return f"{prefix}{cc}{rand}"
 
 
+# Entity public IDs (CLAUDE.md → Smart Public Profile Router rule 9 · ARCHITECTURE.md → Public ID System):
+# {PREFIX}{10 random A-Z0-9} — the entity prefix only, never a country code. The ONE generator for
+# every entity public_id (first user: support tickets `H` — task 7.1). Identity only, never a credential.
+_PUBLIC_ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+def generate_public_id(prefix: str) -> str:
+    import secrets
+    return prefix + "".join(secrets.choice(_PUBLIC_ID_CHARS) for _ in range(10))
+
+
 # ══ الاتصال بقاعدة البيانات ══
 # ── Connection Pool ──
 _pool = []
@@ -4053,9 +4064,12 @@ def _otp_norm_target(channel: str, target: str) -> str:
     return t.lower() if channel == "email" else re.sub(r"[\s\-()]", "", t)
 
 
-def _otp_hash(user_id: int, channel: str, target: str, code: str) -> str:
+def _otp_hash(user_id, channel: str, target: str, code: str) -> str:
+    """user_id = the account id (KYC) or a fixed subject string (guest support code — task 7.1);
+    an int gives the same hash as before (stored KYC codes stay valid)."""
     key = (os.environ.get("JWT_SECRET", "") + ":kyc-otp").encode()
-    msg = f"{int(user_id)}|{channel}|{target}|{code}".encode()
+    subject = user_id if isinstance(user_id, str) else int(user_id)
+    msg = f"{subject}|{channel}|{target}|{code}".encode()
     return _OTP_HASH_PREFIX + _hmac.new(key, msg, _hashlib.sha256).hexdigest()
 
 
@@ -4122,6 +4136,53 @@ def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> 
         return False
     finally:
         release_conn(conn)
+
+
+# ── Guest support code (task 7.1 — docs/rules/support.md) — the same OTP rules for a visitor with no
+# account: keyed hash (subject "support-guest"), bound to the normalised email, otp_ttl_minutes(),
+# otp_max_attempts(), single use. Stored in support_guest_otp (one row per email — a new code replaces
+# the old one and resets its attempts; the send limits otp_send_target / otp_send_ip run first).
+_GUEST_OTP_SUBJECT = "support-guest"
+
+
+def guest_otp_issue(email: str) -> str:
+    """New code for this email → its hash stored. Returns the plain code for the email only."""
+    tgt = _otp_norm_target("email", email)
+    if not tgt:
+        raise ValueError("otp target required")
+    code = generate_code()
+    with db_conn() as conn:
+        conn.run(
+            "INSERT INTO support_guest_otp (email, code_hash, expires_at, attempts) "
+            "VALUES (:e, :h, NOW() + :ttl * INTERVAL '1 minute', 0) "
+            "ON CONFLICT (email) DO UPDATE SET code_hash = EXCLUDED.code_hash, "
+            "expires_at = EXCLUDED.expires_at, attempts = 0, created_at = NOW()",
+            e=tgt, h=_otp_hash(_GUEST_OTP_SUBJECT, "email", tgt, code), ttl=otp_ttl_minutes())
+    return code
+
+
+def guest_otp_verify(email: str, code: str) -> bool:
+    """Same steps as _otp_verify: the attempt counted first (atomic), then compared; success = row
+    deleted (single use); the last wrong attempt kills the code."""
+    code = (code or "").strip()
+    tgt = _otp_norm_target("email", email)
+    if not code or not tgt:
+        return False
+    max_attempts = otp_max_attempts()
+    with db_conn() as conn:
+        rows = conn.run(
+            "UPDATE support_guest_otp SET attempts = attempts + 1 "
+            "WHERE email = :e AND expires_at > NOW() AND attempts < :mx RETURNING code_hash, attempts",
+            e=tgt, mx=max_attempts)
+        if not rows:
+            return False
+        stored_hash, attempts = rows[0]
+        if _hmac.compare_digest(stored_hash or "", _otp_hash(_GUEST_OTP_SUBJECT, "email", tgt, code)):
+            return bool(conn.run("DELETE FROM support_guest_otp WHERE email = :e AND code_hash = :h RETURNING email",
+                                 e=tgt, h=stored_hash))
+        if attempts >= max_attempts:
+            conn.run("DELETE FROM support_guest_otp WHERE email = :e AND code_hash = :h", e=tgt, h=stored_hash)
+        return False
 
 
 def _migrate_kyc_otp_security():

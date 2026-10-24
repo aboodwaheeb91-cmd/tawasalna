@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head-->
+<!-- Support — the account's tickets (task 7.1 · docs/rules/support.md · SYSTEMS_INDEX §62).
+     Route /support (server.py → support_page) · data: GET / POST /support/tickets ·
+     GET /support/tickets/{id} · POST …/messages · POST …/close (twApi). Logic: static/support/support.js. -->
+<link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<link rel="stylesheet" href="/static/support/support.css?v={{v:support.css}}">
+<title></title>
+<meta name="tw-page" content="auth">
+<style>
+body { background: var(--color-surface-page); color: var(--color-text-body); font-family: 'Cairo', sans-serif; min-height: 100vh; margin: 0; }
+</style>
+</head>
+<body>
+<header data-tw-header data-back="account"></header>
+
+<main class="sp-main" id="main-content">
+  <h1 class="sp-title"><i data-tw-icon="headset"></i><span data-tw-t="support.title"></span></h1>
+  <p class="sp-sub" data-tw-t="support.subtitle"></p>
+
+  <!-- list + new ticket form (hidden while a conversation is open) -->
+  <div id="spHome">
+    <section class="sp-sec">
+      <h2 class="sp-sec-title" data-tw-t="support.new.title"></h2>
+      <div class="sp-card" id="spNew"></div>
+    </section>
+    <section class="sp-sec">
+      <h2 class="sp-sec-title" data-tw-t="support.mine.title"></h2>
+      <div class="sp-card" id="spList" aria-busy="true"><p class="sp-empty" data-tw-t="common.loading"></p></div>
+    </section>
+  </div>
+
+  <!-- one conversation -->
+  <section class="sp-sec" id="spThread" hidden></section>
+</main>
+
+<!--tw:shell-scripts-->
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/support/support-form.js?v={{v:support-form.js}}"></script>
+<script src="/static/support/support.js?v={{v:support.js}}"></script>
+</body>
+</html>
