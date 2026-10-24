@@ -103,11 +103,24 @@ check("D read_html fills the marker from the cached override block",
       "_read_html_cached(name).replace(tw_strings.MARKER, _STRINGS_BLOCK, 1)" in SRV)
 check("D overrides loaded at startup (no DB call while serving a page)",
       "await asyncio.to_thread(_strings_load_overrides)" in SRV)
-get_ = SRV.split('@app.get("/admin/strings")')[1].split("\n@app.")[0]
 put_ = SRV.split('@app.put("/admin/strings")')[1].split("\n@app.")[0]
-check("D GET /admin/strings admin-only", "check_admin(request)" in get_)
+# gate = behaviour (phase 5a — content.edit): no token → 401 · admin without content.edit → 403 ·
+# owner + unknown key → 422 (validation runs before any DB call)
+os.environ.setdefault("JWT_SECRET", "test-strings-jwt-" + "j" * 32)
+import server as _srv                      # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+_srv.ADMIN_JWT_SECRET = "test-strings-admin-" + "a" * 32
+_c = TestClient(_srv.app)
+_staff = {"X-Admin-Token": _srv._admin_jwt_issue(sub="staff:s", perms=["settings.edit"])}
+_owner = {"X-Admin-Token": _srv._admin_jwt_issue()}
+_bad = {"overrides": {"no.such.key.x": "x"}}
+check("D GET /admin/strings admin + content.edit only",
+      _c.get("/admin/strings").status_code == 401 and _c.get("/admin/strings", headers=_staff).status_code == 403)
 check("D PUT /admin/strings admin-only + validated + saved + live",
-      "check_admin(request)" in put_ and "tw_strings.validate_overrides(" in put_
+      _c.put("/admin/strings", json=_bad).status_code == 401
+      and _c.put("/admin/strings", json=_bad, headers=_staff).status_code == 403
+      and _c.put("/admin/strings", json=_bad, headers=_owner).status_code == 422
+      and "tw_strings.validate_overrides(" in put_
       and "set_site_setting(tw_strings.setting_key()" in put_ and "_strings_set_overrides(clean)" in put_)
 shell = read("partials/shell-scripts.html")
 check("D shell: marker right before tw_shared.js",

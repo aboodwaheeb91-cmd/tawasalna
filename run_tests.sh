@@ -119,6 +119,7 @@ PY_DB=(
   pytest:test_admin_insights.py       # task 5.3a2 — admin audit log + stats endpoints
   pytest:test_admin_settings.py       # task 4.1 — unified admin settings (gate · validation · applies now · audit)
   pytest:test_admin_settings_security.py  # task 4.2 — security settings (range · applies now · audit marked security)
+  pytest:test_content_admin_5a.py     # phase 5a — content.edit (strings · colors · news) · colors narrowed · news window + /news/banner
   pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13

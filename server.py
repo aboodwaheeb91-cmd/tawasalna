@@ -374,6 +374,9 @@ _ADMIN_JWT_TTL = 3600
 _ADMIN_JWT_ISS = "tawasalna"
 _ADMIN_JWT_AUD = "tw-admin"
 _ADMIN_ROLES = {"admin"}   # roles accepted by check_admin; plan 5.3 adds staff roles here
+# Content screens (phase 5a — strings · theme colors · news): read + write behind this permission,
+# same pattern as tw_settings.PERM ("settings.edit"). The owner token ("*") holds both.
+CONTENT_PERM = "content.edit"
 
 def _admin_jwt_secret_ok() -> bool:
     return (len(ADMIN_JWT_SECRET) >= 32
@@ -870,6 +873,8 @@ def _admin_audit_entry(request, status: int):
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     params = request.scope.get("path_params") or {}
     target = ",".join(f"{k}={params[k]}" for k in sorted(params)) or None
+    # content writes (phase 5a) name their own target (string keys · token names · news id) — never the text
+    target = getattr(request.state, "audit_target", None) or target
     action = getattr(route, "name", "") or "-"
     if action in _AUDIT_SETTINGS_ROUTES and tw_settings.is_security(str(params.get("key", ""))):
         action += "_security"
@@ -1400,8 +1405,26 @@ def _migrate_news_posts():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # phase 5a — display window (docs/migrations/5a_news_schedule.sql, applied by hand first)
+        conn.run("ALTER TABLE news_posts ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ NULL")
+        conn.run("ALTER TABLE news_posts ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ NULL")
+        conn.run("""
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                               WHERE conname = 'news_posts_window_chk'
+                                 AND conrelid = 'news_posts'::regclass) THEN
+                    ALTER TABLE news_posts ADD CONSTRAINT news_posts_window_chk
+                        CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at);
+                END IF;
+            END $$
+        """)
     finally:
         release_conn(conn)
+
+
+# Active news (phase 5a) — the ONE rule, used by /home/feed and /news/banner.
+NEWS_ACTIVE_SQL = ("status = 'published' AND (starts_at IS NULL OR starts_at <= NOW()) "
+                   "AND (ends_at IS NULL OR ends_at > NOW())")
 
 # ══════════════════════════════════════════
 # HTML Pages
@@ -1626,7 +1649,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
             rows = conn.run(
                 """SELECT id, title, summary, body, category, country, source_url, created_at
                    FROM news_posts
-                   WHERE status = 'published'
+                   WHERE """ + NEWS_ACTIVE_SQL + """
                    ORDER BY created_at DESC
                    LIMIT :lim""",
                 lim=news_lim
@@ -2375,30 +2398,38 @@ def theme_css(request: Request):
 
 @app.get("/admin/theme/colors")
 def admin_theme_colors_get(request: Request):
-    """Admin: saved color overrides + the overridable token names (CLR-36)."""
-    check_admin(request)
+    """Admin: saved color overrides + the editable token names (CLR-36 · phase 5a: EDITABLE only)."""
+    check_admin(request, CONTENT_PERM)
     try:
         overrides = _theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY))
     except Exception as e:
         raise _server_error("admin_theme_colors_get", e)
-    return api_ok({"overrides": overrides, "tokens": sorted(_theme.KNOWN)})
+    return api_ok({"overrides": overrides, "tokens": list(_theme.EDITABLE)})
 
 @app.put("/admin/theme/colors")
 def admin_theme_colors_put(request: Request, data: dict = Body(...)):
-    """Admin: replace ALL color overrides — body {"overrides": {token: color}}; {} = defaults.
-    Known Semantic tokens + valid colors only (all-or-nothing). Every save is logged."""
-    claims = check_admin(request)
-    clean, errors = _theme.validate_overrides(data.get("overrides"))
+    """Admin: set the EDITABLE tokens — body {"overrides": {token: "#rrggbb"}}; an EDITABLE token
+    left out = back to its default. Any other token / not #RRGGBB → 400 (all-or-nothing).
+    Older stored overrides of other tokens are kept as they are (phase 5a — no data deleted)."""
+    claims = check_admin(request, CONTENT_PERM)
+    clean, errors = _theme.validate_editable(data.get("overrides"))
     if errors:
         e = errors[0]
-        return api_error(422, e["code"], e["message"], e["field"])
+        return api_error(400, e["code"], e["message"], e["field"])
+    try:
+        stored = _theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY))
+    except Exception as e:
+        raise _server_error("admin_theme_colors_put", e)
+    merged = {k: v for k, v in stored.items() if k not in _theme.EDITABLE}
+    merged.update(clean)
+    changed = sorted(k for k in _theme.EDITABLE if stored.get(k) != clean.get(k))
+    request.state.audit_target = "tokens=" + (",".join(changed) or "-")
     ensure_site_settings_table()
-    if not set_site_setting(_theme.THEME_SETTING_KEY, json.dumps(clean, sort_keys=True)):
+    if not set_site_setting(_theme.THEME_SETTING_KEY, json.dumps(merged, sort_keys=True)):
         return api_error(500, "save_failed", "تعذّر حفظ الألوان، حاول مرة أخرى")
     _theme_css_cache["css"] = None
-    print(f"[theme] color overrides saved by admin sub={claims.get('sub')!r} "
-          f"count={len(clean)} values={json.dumps(clean, sort_keys=True)}")
-    return api_ok({"overrides": clean})
+    print(f"[theme] color overrides saved by admin sub={claims.get('sub')!r} tokens={changed}")
+    return api_ok({"overrides": merged})
 
 # App icons (PWA + favicon) — real files in static/icons/, generated from the
 # official logo by scripts/gen_app_icons.py (SYSTEMS_INDEX §32). Fixed allowlist.
@@ -4137,7 +4168,7 @@ def get_logos():
 @app.get("/admin/strings")
 def admin_get_strings(request: Request):
     """Defaults + current overrides (lang = ar for now)."""
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     lang = tw_strings.DEFAULT_LANG
     return api_ok({"lang": lang, "defaults": tw_strings.DEFAULTS[lang],
                    "overrides": dict(_STRINGS_OVERRIDES), "max_len": tw_strings.MAX_LEN})
@@ -4147,11 +4178,14 @@ def admin_get_strings(request: Request):
 def admin_put_strings(request: Request, data: dict = Body(...)):
     """Replace the whole override map: {"overrides": {key: text}}. Empty text = default.
     Known keys only · ≤ MAX_LEN · no HTML · only the default's {placeholders}."""
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     try:
         clean = tw_strings.validate_overrides(data.get("overrides"))
     except tw_strings.StringsError as e:
         return api_error(422, e.code, e.message, e.field)
+    old = dict(_STRINGS_OVERRIDES)
+    changed = sorted(k for k in set(old) | set(clean) if old.get(k) != clean.get(k))
+    request.state.audit_target = "keys=" + (",".join(changed) or "-")
     ensure_site_settings_table()
     if not set_site_setting(tw_strings.setting_key(), json.dumps(clean, ensure_ascii=False)):
         return api_error(500, "save_failed", "تعذّر حفظ النصوص، حاول مرة أخرى")
@@ -7333,26 +7367,42 @@ class NewsPostInput(BaseModel):
     country: Optional[str] = None
     source_url: Optional[str] = None
     status: Optional[str] = "draft"
+    starts_at: Optional[datetime] = None   # phase 5a — display window (NULL = no bound)
+    ends_at: Optional[datetime] = None
+
+def _news_window(data: NewsPostInput):
+    """Naive times are UTC. ends_at must be after starts_at → else the 400 response."""
+    from datetime import timezone
+    for f in ("starts_at", "ends_at"):
+        v = getattr(data, f)
+        if v is not None and v.tzinfo is None:
+            setattr(data, f, v.replace(tzinfo=timezone.utc))
+    if data.starts_at and data.ends_at and data.ends_at <= data.starts_at:
+        return api_error(400, "invalid_window", "تاريخ الانتهاء لازم يكون بعد تاريخ البداية", "ends_at")
+    return None
+
+def _iso(v):
+    return v.isoformat() if v is not None and hasattr(v, "isoformat") else v
 
 @app.get("/admin/news")
 def admin_list_news(request: Request):
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     conn = get_conn()
     try:
         rows = conn.run(
             """SELECT n.id, n.title, n.summary, n.category, n.country,
                       n.source_url, n.status, n.created_at, n.updated_at,
-                      COALESCE(u.full_name,'') AS created_by_name
+                      COALESCE(u.full_name,'') AS created_by_name, n.starts_at, n.ends_at
                FROM news_posts n
                LEFT JOIN users u ON n.created_by = u.id
                ORDER BY n.created_at DESC"""
         )
         cols = ["id","title","summary","category","country","source_url",
-                "status","created_at","updated_at","created_by_name"]
+                "status","created_at","updated_at","created_by_name","starts_at","ends_at"]
         result = []
         for r in (rows or []):
             d = dict(zip(cols, r))
-            for f in ("created_at","updated_at"):
+            for f in ("created_at","updated_at","starts_at","ends_at"):
                 if d.get(f) and hasattr(d[f], "isoformat"):
                     d[f] = d[f].isoformat()
             result.append(d)
@@ -7362,30 +7412,40 @@ def admin_list_news(request: Request):
 
 @app.post("/admin/news")
 def admin_create_news(data: NewsPostInput, request: Request):
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     data.source_url = _validate_external_url(data.source_url, "source_url", "رابط المصدر")   # §54 rule 4b
+    bad = _news_window(data)
+    if bad:
+        return bad
     allowed_statuses = {"draft", "published", "archived"}
     status = data.status if data.status in allowed_statuses else "draft"
     conn = get_conn()
     try:
         rows = conn.run(
-            """INSERT INTO news_posts (title, summary, body, category, country, source_url, status)
-               VALUES (:title, :summary, :body, :category, :country, :source_url, :status)
+            """INSERT INTO news_posts (title, summary, body, category, country, source_url, status,
+                                       starts_at, ends_at)
+               VALUES (:title, :summary, :body, :category, :country, :source_url, :status,
+                       :starts_at, :ends_at)
                RETURNING id""",
             title=data.title.strip(), summary=data.summary or "",
             body=data.body or "", category=data.category or "general",
             country=data.country or "", source_url=data.source_url or "",
-            status=status
+            status=status, starts_at=data.starts_at, ends_at=data.ends_at
         )
         news_id = rows[0][0] if rows else None
-        return {"success": True, "id": news_id}
+        request.state.audit_target = f"news_id={news_id}"
+        return {"success": True, "id": news_id,
+                "starts_at": _iso(data.starts_at), "ends_at": _iso(data.ends_at)}
     finally:
         release_conn(conn)
 
 @app.put("/admin/news/{news_id}")
 def admin_update_news(news_id: int, data: NewsPostInput, request: Request):
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     data.source_url = _validate_external_url(data.source_url, "source_url", "رابط المصدر")   # §54 rule 4b
+    bad = _news_window(data)
+    if bad:
+        return bad
     allowed_statuses = {"draft", "published", "archived"}
     status = data.status if data.status in allowed_statuses else "draft"
     conn = get_conn()
@@ -7394,26 +7454,46 @@ def admin_update_news(news_id: int, data: NewsPostInput, request: Request):
             """UPDATE news_posts
                SET title=:title, summary=:summary, body=:body,
                    category=:category, country=:country, source_url=:source_url,
-                   status=:status, updated_at=NOW()
+                   status=:status, starts_at=:starts_at, ends_at=:ends_at, updated_at=NOW()
                WHERE id=:id""",
             title=data.title.strip(), summary=data.summary or "",
             body=data.body or "", category=data.category or "general",
             country=data.country or "", source_url=data.source_url or "",
-            status=status, id=news_id
+            status=status, starts_at=data.starts_at, ends_at=data.ends_at, id=news_id
         )
-        return {"success": True}
+        return {"success": True, "starts_at": _iso(data.starts_at), "ends_at": _iso(data.ends_at)}
     finally:
         release_conn(conn)
 
 @app.delete("/admin/news/{news_id}")
 def admin_delete_news(news_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     conn = get_conn()
     try:
         conn.run("DELETE FROM news_posts WHERE id=:id", id=news_id)
         return {"success": True}
     finally:
         release_conn(conn)
+
+
+@app.get("/news/banner")
+def news_banner():
+    """Public (no login): the newest ACTIVE news item (NEWS_ACTIVE_SQL) or null.
+    Safe fields only — id · title · summary · source_url (not http/https → null)."""
+    try:
+        with db_conn() as conn:
+            rows = conn.run("SELECT id, title, summary, source_url FROM news_posts WHERE "
+                            + NEWS_ACTIVE_SQL + " ORDER BY created_at DESC, id DESC LIMIT 1")
+    except Exception as e:
+        raise _server_error("news_banner", e)
+    if not rows:
+        return api_ok(None)
+    nid, title, summary, url = rows[0]
+    try:
+        url = _validate_external_url(url, "source_url")   # §54 rule 4b — same rule as the save
+    except ExternalUrlError:
+        url = None
+    return api_ok({"id": nid, "title": title, "summary": summary or "", "source_url": url})
 
 
 # ══════════════════════════════════════════════════════════════════════════

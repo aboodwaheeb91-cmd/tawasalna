@@ -86,6 +86,33 @@ def validate_overrides(data, known: dict = None):
     return clean, errors
 
 
+# Admin-editable tokens (phase 5a): PUT /admin/theme/colors accepts these two only, #RRGGBB only.
+# Older stored overrides of other KNOWN tokens stay valid — render_css still applies them and a
+# save keeps them (no data deleted).
+EDITABLE = ("--color-brand-primary", "--color-brand-accent")
+_HEX6_RE = re.compile(r"#[0-9a-f]{6}")
+
+
+def validate_editable(data):
+    """PUT body → (clean dict, errors list) — EDITABLE keys + #RRGGBB only (all-or-nothing)."""
+    if not isinstance(data, dict):
+        return {}, [{"field": "overrides", "code": "invalid_body",
+                     "message": "الألوان لازم تكون كائن JSON (توكن ← لون)"}]
+    clean, errors = {}, []
+    for key, raw in data.items():
+        if key not in EDITABLE:
+            errors.append({"field": str(key)[:64], "code": "token_not_editable",
+                           "message": "هذا التوكن غير قابل للتعديل"})
+            continue
+        value = raw.strip().lower() if isinstance(raw, str) else ""
+        if not _HEX6_RE.fullmatch(value):
+            errors.append({"field": key, "code": "invalid_color",
+                           "message": "قيمة اللون لازم تكون hex بالشكل #RRGGBB"})
+            continue
+        clean[key] = value
+    return clean, errors
+
+
 def render_css(overrides: dict, known: dict = None) -> str:
     """One `:root{...}` block — '' when there is nothing (valid) to override."""
     known = KNOWN if known is None else known

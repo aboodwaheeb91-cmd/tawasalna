@@ -6383,8 +6383,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
 | GET | `/admin-job` · `/admin-job.html` | `admin_job_page` | Serves `admin-job.html` — one job (task 5.3j phase 4; HTML only — data calls are guarded) |
-| GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` |
-| PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) |
+| GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` · permission `content.edit` (§79) |
+| PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) · `content.edit` (§79) · audit target `keys=<changed keys>` |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile + `suspension` (task 5.4 — admin-only reason / by) |
 | PUT | `/admin/profile/{user_id}` | `admin_update_profile` | Edit a user's profile (admin-view.html name / headline / location / bio — PR 2B). Body = `ProfileUpdateInput`; same validation + error shapes as `PUT /profile/{id}` via the shared `_apply_profile_update()` — rules follow the **target** account's `user_type` (emp + `full_name` → 422 `emp_name_mutation_forbidden`). 404 unknown user. User JWT → 401 |
 | DELETE | `/admin/user/{user_id}` | `delete_user` | Delete user account |
@@ -6428,8 +6428,8 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/logo` | `upload_logo` | Upload platform logo — `{filename: logo_wide\|logo_tall, data_url}`; JPEG/PNG/WebP only, no SVG (PR-7a → Image Upload Security Contract) |
 | GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
 | POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
-| GET | `/admin/theme/colors` | `admin_theme_colors_get` | DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36) — `{ok, data:{overrides, tokens}}` (saved JSON + overridable Semantic token names parsed from `tw_shared.css`) |
-| PUT | `/admin/theme/colors` | `admin_theme_colors_put` | Replace ALL color overrides — body `{overrides: {"--color-…": "#hex" \| "rgb()/rgba()"}}` (`{}` = defaults). All-or-nothing: 422 `{ok:false, error:{code: unknown_token \| invalid_color \| invalid_body, message, field}}`. Token with an `-rgb` twin → opaque hex only, twin derived. Saved to `site_settings.theme_color_tokens`; every save logged `[theme] … sub= count= values=` |
+| GET | `/admin/theme/colors` | `admin_theme_colors_get` | DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36) — `{ok, data:{overrides, tokens}}` (saved JSON + `theme_tokens.EDITABLE`) · `content.edit` (§79) |
+| PUT | `/admin/theme/colors` | `admin_theme_colors_put` | Phase 5a (§79): body `{overrides: {"--color-brand-primary" \| "--color-brand-accent": "#rrggbb"}}` — an EDITABLE token left out = default. Other token / not `#RRGGBB` → 400 `{ok:false, error:{code: token_not_editable \| invalid_color \| invalid_body, message, field}}`. Stored overrides of other tokens are kept (and still rendered by `/theme.css`). `-rgb` twin derived. Saved to `site_settings.theme_color_tokens`; audit target `tokens=<changed>` |
 | GET | `/theme.css` | `theme_css` | **Public** — the saved overrides as one `:root{}` block (empty body when none). Loaded by both shell head partials right after `tw_shared.css`. `no-cache` + `ETag`/304 · 60s per-process cache (`theme_tokens.py`) |
 | POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c). `?dry_run=true` for analysis only; `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)` |
 | GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill dry-run shortcut (§66c) |
@@ -6824,14 +6824,17 @@ CREATE TABLE news_posts (
 );
 ```
 
-### News Admin Endpoints (require `X-Admin-Token`)
+### News Admin Endpoints (require `X-Admin-Token` with `content.edit` — §79)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/news` | List all news (all statuses) |
-| `POST` | `/admin/news` | Create news post |
-| `PUT` | `/admin/news/{id}` | Update news post |
+| `GET` | `/admin/news` | List all news (all statuses) + `starts_at` / `ends_at` |
+| `POST` | `/admin/news` | Create news post (`starts_at?` / `ends_at?`; `ends_at <= starts_at` → 400) |
+| `PUT` | `/admin/news/{id}` | Update news post (same window rule) |
 | `DELETE` | `/admin/news/{id}` | Delete news post |
+| `GET` | `/news/banner` | **Public.** Newest active news `{id, title, summary, source_url}` or `null` (§79) |
+
+Feed news (`/home/feed`) and `/news/banner` show **active** news only — `server.NEWS_ACTIVE_SQL`.
 
 ### `opp_type` Field (extensibility)
 
@@ -13105,3 +13108,18 @@ A row exists only while the value differs from the default (a save of the defaul
 
 **4.1 list (approved in the PR):** see SYSTEMS_INDEX §25g — LIMITS: `message_max` 500–10 000 · `post_body_max` 500–10 000 · `post_tags_max` 1–10 · `report_reason_max` 200–5 000 · `report_url_max` 200–2 048 · `suspend_reason_max` 100–2 000; RATES (hits / window s): `message_send` 5–300 / 10–600 · `post_create` 1–50 / 60–3 600 · `post_edit` 1–100 / 60–3 600 · `post_appreciate` · `post_save` 1–60 / 5–300 · `comment_create` · `comment_edit` 1–60 / 10–600 · `mention_search` 10–120 (4.1a) / 10–600 · `report_submit` 1–50 / 300–86 400 · `block_set` 1–100 / 60–86 400.
 
+---
+
+## §79 — Content Screens Backend (phase 5a)
+
+**Permission `content.edit`** (`server.CONTENT_PERM`; owner admin JWT `perms: ["*"]` holds it): `check_admin(request, CONTENT_PERM)` on every read + write of `/admin/strings`, `/admin/theme/colors`, `/admin/news`. No / bad token → 401 · admin token without it → 403 (same as `settings.edit`, §78).
+
+**Audit:** the one `admin_audit_middleware` row per write (action = route name · actor = JWT `sub` · status → result). The endpoint names its target in `request.state.audit_target`: strings `keys=<changed keys>` · colors `tokens=<changed tokens>` · news create `news_id=<id>` (PUT / DELETE: the path param). Content, colors and news text are never written to the row.
+
+**Colors:** `theme_tokens.EDITABLE = ("--color-brand-primary", "--color-brand-accent")` (both have an `-rgb` twin in `tw_shared.css`). `validate_editable` → `#RRGGBB` only, else 400. Save = stored overrides of other tokens kept + EDITABLE replaced. `render_css` (→ `/theme.css`) still validates against `KNOWN`, so older stored overrides keep applying.
+
+**News window:** `news_posts.starts_at TIMESTAMPTZ NULL` · `ends_at TIMESTAMPTZ NULL` · `CONSTRAINT news_posts_window_chk CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)` — `docs/migrations/5a_news_schedule.sql` (by hand, before merge) + same DDL in `_migrate_news_posts` (idempotent; the constraint is added only when missing). Active = `status = 'published' AND (starts_at IS NULL OR starts_at <= NOW()) AND (ends_at IS NULL OR ends_at > NOW())` (`NEWS_ACTIVE_SQL`).
+
+**`GET /news/banner`** — public, no auth: `{ok:true, data:null}` or `{ok:true, data:{id, title, summary, source_url}}` (newest active by `created_at DESC, id DESC`; `source_url` must pass `_validate_external_url`, else `null`). No draft / archived / scheduled / expired row, no internal field. Rate limit: none — `rate_limit_middleware` limits auth / OTP / `/log/error` only; there is no general public-endpoint limit to join.
+
+Test: `python -m pytest tests/test_content_admin_5a.py -q`.
