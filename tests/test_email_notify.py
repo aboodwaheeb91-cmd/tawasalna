@@ -192,6 +192,16 @@ def test_admin_limits_are_validated(env):
                                                        "message_delay_minutes": 15, "message_throttle_hours": 2}
 
 
+def test_admin_email_names_the_inbound_switch(env):
+    """task 7.3a — the page draws «استقبال بريد الدعم» from inbound_switch (never a hard-coded key)."""
+    assert client.get("/admin/email").status_code == 401
+    g = client.get("/admin/email", headers=_admin())
+    assert g.status_code == 200
+    d = g.json()["data"]
+    assert d["inbound_switch"] == email_service.INBOUND_SWITCH
+    assert d["inbound_switch"] not in d["notify_types"]
+
+
 # ── 5. messages: unread after N minutes · one email per conversation per N hours ──
 def _send_msg(sid, rid, read=False):
     mid = _sql("INSERT INTO messages (sender_id, receiver_id, content, is_read) VALUES (:s, :r, 'hi', :rd) RETURNING id",

@@ -5,6 +5,9 @@
 //     notification, blocked by the cap) · notification types on/off · caps · message rules
 //   - PUT /admin/email {types, notify} — a type switched off, or a cap cut by half or more,
 //     asks twConfirm first (DS-OVL) · every card has an ⓘ that shows what it does
+//   - inbound support mail (task 7.3a): its own card for data.inbound_switch (never a hard-coded key) ·
+//     on only when settings.types[key] === true · switching it on asks twConfirm (warn.inbound_on);
+//     off saves with no warning (warn.type_off is not for it)
 //   - text: twT (admin.email.* / email.type.*) · icons: twIcon · colors: --color-* tokens only
 (function () {
   'use strict';
@@ -95,6 +98,19 @@
       types.appendChild(row);
     });
 
+    var ik = data.inbound_switch;
+    if (ik) {
+      var inbound = card('email.type.' + ik, 'email.type.' + ik + '.hint');
+      var irow = el('label', 'ae-row'), isw = el('input', 'ae-switch');
+      isw.type = 'checkbox';
+      isw.setAttribute('role', 'switch');
+      isw.setAttribute('data-inbound', ik);
+      isw.checked = data.settings.types[ik] === true;   // off by default — on only when explicitly true
+      irow.appendChild(el('span', 'ae-row-name', twT('email.type.' + ik)));
+      irow.appendChild(isw);
+      inbound.appendChild(irow);
+    }
+
     var limits = card('admin.email.limits', 'admin.email.limits.hint');
     numField(limits, 'daily_cap');
     numField(limits, 'monthly_cap');
@@ -112,6 +128,7 @@
   function collect() {
     var body = { types: {}, notify: {} };
     root.querySelectorAll('[data-type]').forEach(function (sw) { body.types[sw.getAttribute('data-type')] = sw.checked; });
+    root.querySelectorAll('[data-inbound]').forEach(function (sw) { body.types[sw.getAttribute('data-inbound')] = sw.checked; });
     root.querySelectorAll('[data-notify-field]').forEach(function (i) {
       body.notify[i.getAttribute('data-notify-field')] = Number(i.value);
     });
@@ -119,7 +136,10 @@
   }
   function warnings(body) {
     var out = [];
+    var ik = data.inbound_switch;
+    if (ik && body.types[ik] === true && data.settings.types[ik] !== true) out.push(twT('admin.email.warn.inbound_on'));
     Object.keys(body.types).forEach(function (k) {
+      if (k === ik) return;   // inbound: on asks (above), off needs no warning
       if (!body.types[k] && data.settings.types[k] !== false) out.push(twT('admin.email.warn.type_off', { type: twT('email.type.' + k) }));
     });
     ['daily_cap', 'monthly_cap'].forEach(function (k) {

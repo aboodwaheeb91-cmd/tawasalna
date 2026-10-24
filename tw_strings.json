@@ -627,6 +627,7 @@
     "admin.email.save_error": "تعذّر حفظ الإعدادات",
     "admin.email.warn.title": "تأكيد التغيير",
     "admin.email.warn.type_off": "سيتوقف إرسال إيميلات «{type}» لكل المستخدمين. الإشعار داخل الموقع يبقى. متأكد؟",
+    "admin.email.warn.inbound_on": "سيبدأ استقبال بريد الدعم: كل إيميل جديد إلى info@ أو support@ يفتح تذكرة زائر، والرد على إيميل دعم يُضاف إلى تذكرته. متأكد؟",
     "admin.email.warn.cap_drop": "خفض «{field}» من {old} إلى {new} قد يمنع وصول إيميلات إشعارات كثيرة. متأكد؟",
     "admin.email.warn.confirm": "نعم، احفظ",
     "login.new_user": "مستخدم جديد؟",
