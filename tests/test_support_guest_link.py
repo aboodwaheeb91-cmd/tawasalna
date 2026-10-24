@@ -13,6 +13,7 @@ Behaviour over HTTP (real PostgreSQL, in-process client):
   5  limits — support_link_resend_email (silent) · support_link_resend_ip · support_guest_reply_ticket ·
      support_track_ip (tw_settings, sec_support)
   6  headers on every /support/track path (page + API): no-store · no-referrer · noindex
+  7  support_guest_link switched off → code / tickets 503 (no code issued, no ticket) · resend same reply, no new link
 
 TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_support_guest_link.py -q
@@ -264,3 +265,24 @@ def test_track_headers():
         assert r.headers["Referrer-Policy"] == "no-referrer", r.url
         assert r.headers["X-Robots-Tag"] == "noindex", r.url
     assert client.get("/support").headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+# ── 7 support_guest_link off → fail closed ──
+def test_link_type_off_fails_closed(monkeypatch):
+    email, pid, _ = _guest_ticket()                                              # one ticket while the type is on
+    monkeypatch.setattr(email_service, "can_send", lambda key: key != "support_guest_link")
+    other = uuid.uuid4().hex[:8] + "@guest.test"
+    SENT.clear()
+    r = client.post("/support/guest/code", json={"email": other}, headers=_IP)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "otp_delivery_unavailable"
+    assert SENT == [] and _sql("SELECT COUNT(*) FROM support_guest_otp WHERE email = :e", e=other)[0][0] == 0
+    n = _sql("SELECT COUNT(*) FROM support_tickets")[0][0]
+    r = client.post("/support/guest/tickets", json={"email": other, "code": "123456", "subject": "s", "body": "b"},
+                    headers=_IP)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "otp_delivery_unavailable"
+    assert _sql("SELECT COUNT(*) FROM support_tickets")[0][0] == n
+    links = _sql("SELECT COUNT(*) FROM support_guest_access")[0][0]
+    srv._rate_store.clear()
+    off, unknown = _resend(email), _resend("nobody-" + uuid.uuid4().hex[:6] + "@guest.test")
+    assert off.status_code == unknown.status_code == 200 and off.json() == unknown.json()
+    assert SENT == [] and _sql("SELECT COUNT(*) FROM support_guest_access")[0][0] == links

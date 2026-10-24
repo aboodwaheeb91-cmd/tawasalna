@@ -4552,7 +4552,8 @@ def support_guest_code(request: Request, data: dict = Body(...)):
     email, bad = _support_guest_email(data)
     if bad:
         return bad
-    if not email_service.can_send("support_guest_otp"):   # fail closed — no code without delivery
+    # fail closed — no code without delivery, and no code when the follow-up link could not be sent (7.2a)
+    if not (email_service.can_send("support_guest_otp") and email_service.can_send("support_guest_link")):
         return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
     # Same send limits as the KYC email code: per normalised address (any account) · per client IP.
     if not _rate_ok_all([("otp_send_target", f"email:{_otp_norm_target('email', email)}"),
@@ -4590,6 +4591,8 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
         details, faq_id = _support_extra(support.GUEST_CATEGORY, data)
     except support.SupportError as e:
         return _support_err(e)
+    if not email_service.can_send("support_guest_link"):   # fail closed — a guest ticket without its link = lost
+        return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
     code = data.get("code")
     try:
         verified = isinstance(code, str) and guest_otp_verify(email, code)
@@ -4684,7 +4687,9 @@ def support_track_resend(request: Request, background_tasks: BackgroundTasks, da
         return _rate_limited()
     email = data.get("email") if isinstance(data, dict) else None
     email = email.strip().lower() if isinstance(email, str) else ""
-    if email_service.valid_address(email) and _rate_ok("support_link_resend_email", email):
+    # Type switched off → same reply, nothing sent (and no link revoked / issued).
+    if email_service.valid_address(email) and email_service.can_send("support_guest_link") \
+            and _rate_ok("support_link_resend_email", email):
         background_tasks.add_task(_support_resend_send, email)
     return api_ok({"sent": True})
 

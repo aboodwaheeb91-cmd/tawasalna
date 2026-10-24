@@ -66,6 +66,7 @@
 1. **فتح التذكرة:** `POST /support/guest/code` `{email}` → رمز · `POST /support/guest/tickets` `{email, code, subject, body, details?, faq_id?}` → 201 `{public_id}` — **الرد بيحمل رقم H بس**؛ رابط المتابعة بينبعت بإيميل `support_guest_link` (فئة SECURITY، المتغيرات escaped، «لا تشارك هذا الرابط»).
 2. الرمز = نفس نظام OTP (`auth.guest_otp_issue` / `guest_otp_verify`) + حدود `otp_send_target` / `otp_send_ip` + `support_guest_email` / `_ip` / `_global` (كما بـ 7.1).
 3. **ما في ربط تلقائي** لتذاكر الزائر بأي حساب.
+4. **Fail closed على `support_guest_link`:** إذا `email_service.can_send("support_guest_link")` = False (النوع مطفي من الأدمن أو المزوّد مش جاهز) → `/support/guest/code` و `/support/guest/tickets` بيرجّعوا نفس الـ 503 `otp_delivery_unavailable` (قبل إصدار الرمز / قبل التحقق وأي كتابة — ما بتنفتح تذكرة بدون رابط) · `/support/track/resend` نفس الرد العام بدون إرسال وبدون روابط جديدة.
 
 ### رابط متابعة الزائر (7.2a)
 
