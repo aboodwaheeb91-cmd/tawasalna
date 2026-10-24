@@ -162,6 +162,7 @@ NODE_TESTS=(
   test_session_change_stale_runtime.js   # task 5.0b — stale profile reply · job-detail session reload (vm)
   test_settings_edu_runtime.js
   test_stale_session_entry_runtime.js
+  test_support_pages_runtime.js     # task 7.2a واجهة — /support FAQ search · «لم تُحلّ» → category + faq_id · guest account only · track hash cleared · no innerHTML (vm)
   test_sw_cache_allowlist_runtime.js
   test_tw_api_runtime.js
   test_tw_shared_runtime.js

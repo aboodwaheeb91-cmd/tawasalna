@@ -32,6 +32,8 @@
                count: function (d) { return ((d && d.reports) || []).filter(function (r) { return r.status === 'pending'; }).length; } },
     kyc:     { url: '/admin/kyc',
                count: function (d) { return ((d && d.submissions) || []).filter(function (k) { return k.step === 'review'; }).length; } },
+    support: { url: '/admin/support/counts', permissionAware: true,   // status new — task 7.2a · 403 (no support.manage) = no badge, session kept
+               count: function (d) { return (d && d.data && d.data.new) || 0; } },
   };
 
   function sections() { return window.TW_ADMIN_SECTIONS || []; }
@@ -268,7 +270,7 @@
     sections().forEach(function (s) { if (s.badge && BADGE_SOURCES[s.badge]) used[s.badge] = 1; });
     return Promise.all(Object.keys(used).map(function (name) {
       var src = BADGE_SOURCES[name];
-      return TwAdminSession.fetch(src.url).then(function (r) { return r.ok ? r.json() : null; })
+      return TwAdminSession.fetch(src.url, src.permissionAware ? { permissionAware: true } : undefined).then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) { if (d) setBadge(name, src.count(d)); })
         .catch(function (e) { console.error('[TwAdminShell] badge ' + name + ':', e); });
     }));

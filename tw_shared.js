@@ -1080,6 +1080,8 @@ var _TW_HEADER_MENU_POLICY = [
   { key: 'candidates', labelKey: 'people.talent_bank', href: twTalentBankHref, show: 'auth',
     accountTypes: ['co'],
     icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>' },
+  { key: 'support', labelKey: 'menu.support', href: '/support', show: 'auth',   // task 7.2a (support UI) — DS-ICON headset
+    icon: '<path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 1 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"/><path d="M21 16v2a4 4 0 0 1-4 4h-5"/>' },
   { key: 'contact', labelKey: 'menu.contact', disabled: true, show: 'all',
     icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
   { key: 'report', labelKey: 'menu.report', disabled: true, show: 'all',

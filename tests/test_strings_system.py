@@ -6,6 +6,8 @@
   D. page delivery: <!--tw:strings--> before tw_shared.js on every page · read_html fills it · admin endpoints
   E. header + bottom nav + header menu + appointments.html carry no fixed Arabic text
   F. glossary report — forbidden words counted across the site (report only, converted places = 0)
+  G. support texts (task 7.2a واجهة): every support.FAQ_IDS id has support.faq.{cat}.{id}.q + .a · every
+     category / user status / details field + list value of support.py has its label
 
 Run: python tests/test_strings_system.py
 """
@@ -168,6 +170,27 @@ for term, review in terms:
                        ("tw_strings.json", json.dumps(AR_DICT, ensure_ascii=False))):
         if not review:
             check(f"F {name}: no «{term}»", not re.search(term, part))
+
+print("\nG — support texts (support.py lists → tw_strings keys)")
+import ast  # noqa: E402 — the lists are literals; read them without importing the DB layer
+_SUP = {n.targets[0].id: n.value for n in ast.parse(read("support.py")).body
+        if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)}
+FAQ_IDS = ast.literal_eval(_SUP["FAQ_IDS"])
+CATS = ast.literal_eval(_SUP["CATEGORIES"])
+STATUSES = ast.literal_eval(_SUP["STATUSES"])
+check("G FAQ_IDS parsed (every category)", sorted(FAQ_IDS) == sorted(CATS), sorted(FAQ_IDS))
+miss = [f"support.faq.{c}.{i}.{p}" for c, ids in FAQ_IDS.items() for i in ids for p in ("q", "a")
+        if not AR_DICT.get(f"support.faq.{c}.{i}.{p}")]
+check("G every FAQ id has q + a", not miss, miss)
+miss = [k for k in [f"support.category.{c}" for c in CATS] + [f"support.status_user.{s}" for s in STATUSES]
+        + [f"support.status.{s}" for s in STATUSES] if k not in AR_DICT]
+check("G every category + status has its label", not miss, miss)
+_FIELD_SRC = read("support.py").split("FIELDS = {")[1].split("\n}\n")[0]
+keys = set(re.findall(r'"([a-z_]+)": (?:_enum|_text|_URL|\{)', _FIELD_SRC)) - set(CATS)
+vals = {k: re.findall(r'"([a-z_]+)"', v) for k, v in re.findall(r'"([a-z_]+)": _enum\(([^)]*)\)', _FIELD_SRC)}
+miss = [f"support.field.{k}" for k in keys if f"support.field.{k}" not in AR_DICT]
+miss += [f"support.field.{k}.{v}" for k, vs in vals.items() for v in vs if f"support.field.{k}.{v}" not in AR_DICT]
+check("G every details field + list value has its label", len(keys) >= 10 and not miss, (len(keys), miss))
 
 print(f"\n{'=' * 50}\n{'FAILED: ' + str(len(failures)) if failures else 'All checks passed.'}")
 sys.exit(1 if failures else 0)

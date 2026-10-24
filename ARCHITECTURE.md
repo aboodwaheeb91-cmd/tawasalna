@@ -4716,14 +4716,14 @@ Every page path also answers at its `.html` variant unless noted.
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
 | `/settings` | `settings.html` | All |
-| `/support` | `support.html` | All (no `.html` variant) — protected: `twRequireAuth()` · support tickets (task 7.1 — §81) |
+| `/support` | `support.html` | All (no `.html` variant) — public (7.2a UI): FAQ for everyone · account: tickets · guest: account category only (task 7.1 · 7.2a — §81) |
 | `/privacy` · `/terms` | `privacy.html` · `terms.html` (`_legal_page` → `{{terms_version}}` = `tw_terms.TERMS_VERSION`; no `.html` variant) | Public — privacy policy / terms of use (draft under legal review — SYSTEMS_INDEX §1d); indexable + in the sitemap |
 | `/appointments` | `appointments.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/appointment-room` | `appointment-room.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
 | `/admin-job` | `admin-job.html` | Admin — one job (task 5.3j phase 4, see §57) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
-| `/support/track` | `support-track.html` | Guest — follow-up link page (task 7.2a — §81; placeholder until its UI task · headers no-store / no-referrer / noindex) |
+| `/support/track` | `support-track.html` | Guest — follow-up link page (task 7.2a — §81; token from the fragment, POST body only · headers + metas no-store / no-referrer / noindex) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}/support` | `admin-support.html` | Admin — support inbox (task 7.1 — §81; data needs `support.manage`) |
 
 ### Legacy Redirect Page (PR-4)
@@ -13173,7 +13173,7 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 
 ## §81 — Support Tickets (task 7.1 · 7.2a backend)
 
-**Scope:** tickets from the site + the admin inbox, **text only** · 7.2a (backend only): 8 categories + per-category `details` · statuses new / in_review / awaiting_user / resolved · guest follow-up link · admin filters / search / sort / counts / category change. Not yet: the 7.2a UI (track page = placeholder) · attachments. Rules: `docs/rules/support.md` · SYSTEMS_INDEX §62.
+**Scope:** tickets from the site + the admin inbox, **text only** · 7.2a (backend only): 8 categories + per-category `details` · statuses new / in_review / awaiting_user / resolved · guest follow-up link · admin filters / search / sort / counts / category change. 7.2a UI: see «UI» below. Not yet: attachments. Rules: `docs/rules/support.md` · SYSTEMS_INDEX §62.
 
 **Schema** (`support.SCHEMA_SQL` = the final shape — optional startup migration `support_tickets`, `CREATE … IF NOT EXISTS` only, never alters an existing table; production by hand: `docs/migrations/7.1_support_tickets.sql` → `7.2a_A_expand.sql` (before the merge) → `7.2a_B_migrate.sql` (after the deploy is Active on the merge commit, one replica); `rls_lockdown` covers every public table, the new one included):
 - `support_tickets (id SERIAL PK, public_id TEXT UNIQUE NOT NULL, user_id INTEGER NULL FK users ON DELETE CASCADE, guest_email TEXT NULL, category TEXT CHECK IN (account, verification, profile, jobs, education, technical, complaint, general), status TEXT DEFAULT 'new' CHECK IN (new, in_review, awaiting_user, resolved), priority TEXT DEFAULT 'normal' CHECK IN (normal, high, urgent), subject TEXT CHECK non-blank, details JSONB NOT NULL DEFAULT '{}' CHECK (object AND length(details::text) ≤ 4000), faq_id TEXT NULL CHECK '^[a-z0-9_]{1,64}$', legacy_category TEXT NULL, created_at · updated_at · last_message_at TIMESTAMPTZ DEFAULT NOW(), closed_at TIMESTAMPTZ NULL (= resolved time), CHECK (user_id IS NOT NULL OR guest_email IS NOT NULL), CHECK (user_id IS NOT NULL OR category = 'account'))` + `idx_support_tickets_user` · `idx_support_tickets_inbox` · `idx_support_tickets_guest_email (guest_email) WHERE user_id IS NULL`.
@@ -13198,7 +13198,7 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 | POST | `/support/tickets/{public_id}/close` | JWT | «انحلّت» → `resolved` + `closed_at` · not own → 404 |
 | POST | `/support/guest/code` | guest · `_public_rate` | `{email}` → code by email (`support_guest_otp`) · 429 · 503 |
 | POST | `/support/guest/tickets` | guest · `_public_rate` | `{email, code, subject, body, details?, faq_id?}` → 201 `{public_id}` only + `support_guest_link` email · 400 `invalid_code` · 422 · 429 |
-| GET | `/support/track` | guest | placeholder page (UI task later) |
+| GET | `/support/track` | guest | follow-up page — token from `#t=`, cleared by `history.replaceState`, sent in the POST body only (7.2a UI) |
 | POST | `/support/track/view` | guest · `_public_rate` · `support_track_ip` | `{token}` → the guest's ticket + messages (no author_id / priority / email) |
 | POST | `/support/track/reply` | guest · `_public_rate` · `support_track_ip` · `support_guest_reply_ticket` | `{token, body}` → `in_review` (reopen rule) · used link +90 days |
 | POST | `/support/track/resolve` | guest · `_public_rate` · `support_track_ip` | `{token}` → `resolved` |
@@ -13225,4 +13225,4 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 
 **Limits / IP:** every value in `tw_limits` + `tw_settings` (§78 «7.1» · «7.2a»). The IP bucket is never the only guard. Blocks / suspension do not filter tickets.
 
-**UI (7.1, untouched by 7.2a):** `/support` (`support.html` · `static/support/*`) · login page «مشكلة بالدخول؟» · admin `admin-support.html` + `static/admin-support/admin-support.js` — the admin reply must send `next_status` from 7.2a on (UI task). Texts `support.*` · `admin.support.*` · `email.support_guest_link.*` in `tw_strings.json`. Tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q`.
+**UI (7.2a):** `/support` (`support.html` · `static/support/support.js`) public — FAQ + search for everyone, account: any category + my tickets, guest: account only (OTP) · `/support/track` (`support-track.html` · `static/support/support-track.js`) · login page «مشكلة بالدخول؟» = the same guest form in a modal · shared pieces `static/support/support-form.js` · admin `admin-support.html` + `static/admin-support/admin-support.js` (filters requester / sort / q · details · FAQ question · legacy_category · reply with `next_status` · category change) · badge `support` (`/admin/support/counts`). Details: `docs/rules/support.md` → الواجهة. Texts `support.*` · `admin.support.*` · `email.support_guest_link.*` in `tw_strings.json`. Tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q`.
