@@ -1,7 +1,10 @@
-// static/admin-support/admin-support.js — admin support inbox (route: server.py → admin_support_page · task 7.1)
-//   - GET /admin/support/tickets?status&category&priority&page → newest message first · filters = the server's lists
-//   - one ticket: GET /admin/support/tickets/{id} → requester (account / guest email) + the conversation
-//   - reply = POST …/messages {body} (status → «بانتظار ردّك») · status / priority = PUT /admin/support/tickets/{id}
+// static/admin-support/admin-support.js — admin support inbox (route: server.py → admin_support_page · task 7.1 · 7.2a واجهة)
+//   - GET /admin/support/tickets?status&category&priority&requester&q&sort&page · filters + sorts = the server's lists
+//     · q = an H number or an email (searched on the server)
+//   - one ticket: GET /admin/support/tickets/{id} → requester (account / guest email) · details (text only) ·
+//     faq_id (the question itself — twT support.faq.*, category from GET /support/meta) · legacy_category · messages
+//   - reply = POST …/messages {body, next_status} — two buttons «نحتاج معلومات» (awaiting_user) · «تم الحل» (resolved)
+//     · status / priority / category = PUT /admin/support/tickets/{id} (a guest ticket stays «الدخول والحساب»)
 //     — both through TwAdminShell.run (confirm first); every write lands in the audit log (server middleware)
 //   - 401 = session over → TwAdminShell back to login · 403 = no support.manage → message here (permissionAware)
 //   - every text through textContent · dates twFormatDateTime · text twT (admin.support.* / support.*) · tokens only
@@ -10,8 +13,10 @@
   if (!TwAdminShell.start()) return;
   var root = document.getElementById('aspRoot');
   var F = window.TwSupportForm, el = F.el;
-  var meta = { statuses: [], categories: [], priorities: [] };
-  var filters = { status: '', category: '', priority: '', page: 1 };
+  var meta = { statuses: [], categories: [], priorities: [], sorts: [], requesters: [], next_statuses: [] };
+  var faqCat = {};      // faq_id → its category (GET /support/meta)
+  var enumField = {};   // details key → true when its value is a list value (label = twT)
+  var filters = { status: '', category: '', priority: '', requester: '', sort: '', q: '', page: 1 };
 
   document.title = twT('page.title', { page: twT('admin.support.title') });
   TwAdminShell.mount();
@@ -28,7 +33,7 @@
     return b;
   }
   function pill(kind, value) {
-    var cls = kind === 'status' ? (value === 'closed' ? 'is-muted' : value === 'open' ? 'is-warn' : 'is-ok')
+    var cls = kind === 'status' ? (value === 'new' ? 'is-warn' : value === 'resolved' ? 'is-ok' : 'is-muted')
       : (value === 'urgent' ? 'is-danger' : value === 'high' ? 'is-warn' : 'is-muted');
     return el('span', 'tw-adm-pill ' + cls, twT('support.' + kind + '.' + value));
   }
@@ -48,7 +53,8 @@
   var ACTIONS = {
     reply: {
       confirm: { title: 'admin.support.reply.title', message: 'admin.support.reply.message', confirm: 'admin.support.reply.confirm' },
-      request: function (c) { return { url: '/admin/support/tickets/' + encodeURIComponent(c.id) + '/messages', method: 'POST', body: { body: c.body } }; },
+      request: function (c) { return { url: '/admin/support/tickets/' + encodeURIComponent(c.id) + '/messages', method: 'POST',
+                                       body: { body: c.body, next_status: c.next } }; },
       ok: function (d) { return d && d.ok; },
       permissionAware: true, forbidden: 'admin.support.forbidden', done: 'admin.support.done.replied' },
     update: {
@@ -59,11 +65,13 @@
   };
 
   // ── list ──
+  var VALUE_KEY = { status: 'support.status.', category: 'support.category.', priority: 'support.priority.',
+                    requester: 'admin.support.requester.', sort: 'admin.support.sort.' };
   function filterSelect(parent, name, values) {
-    var f = F.field({ labelKey: 'admin.support.filter.' + name, required: false, kind: 'select',
-                      options: [['', 'common.all']].concat(values.map(function (v) { return [v, 'support.' + name + '.' + v]; })) });
-    f.wrap.querySelector('.sp-mark').remove();   // a filter is neither required nor optional
-    f.input.value = filters[name];
+    var opts = values.map(function (v) { return [v, VALUE_KEY[name] + v]; });
+    var f = F.field({ labelKey: 'admin.support.filter.' + name, noMark: true, kind: 'select',   // a filter is neither required nor optional
+                      options: name === 'sort' ? opts : [['', 'common.all']].concat(opts) });
+    f.input.value = filters[name] || (name === 'sort' ? values[0] : '');
     f.input.addEventListener('change', function () { filters[name] = f.input.value; filters.page = 1; loadList(); });
     parent.appendChild(f.wrap);
   }
@@ -75,6 +83,15 @@
     filterSelect(bar, 'status', meta.statuses);
     filterSelect(bar, 'category', meta.categories);
     filterSelect(bar, 'priority', meta.priorities);
+    filterSelect(bar, 'requester', meta.requesters);
+    filterSelect(bar, 'sort', meta.sorts);
+    var q = F.field({ labelKey: 'admin.support.filter.q', noMark: true, kind: 'search', ltr: true });
+    q.input.value = filters.q;
+    q.input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { filters.q = q.input.value.trim(); filters.page = 1; loadList(); } });
+    var go = button('admin.support.filter.search', 'tw-btn tw-btn-ghost');
+    go.addEventListener('click', function () { filters.q = q.input.value.trim(); filters.page = 1; loadList(); });
+    q.wrap.appendChild(go);
+    bar.appendChild(q.wrap);
     body.appendChild(bar);
     if (window.scSelectInit) scSelectInit();
     if (!d.items.length) { body.appendChild(el('p', 'tw-adm-msg', twT('admin.support.empty'))); return; }
@@ -117,13 +134,40 @@
       .map(function (k) { return k + '=' + encodeURIComponent(filters[k]); }).join('&');
     return getJson('/admin/support/tickets' + (q ? '?' + q : '')).then(function (j) {
       if (j && j.forbidden) { message('admin.support.forbidden'); return; }
+      if (j && j.failed && j.failed.error && j.failed.error.code === 'invalid_filter') {   // a bad q / filter → say so, keep the page
+        showToast(twT('admin.support.bad_filter'), 'error');
+        return;
+      }
       if (!j || !j.data) { if (TwAdminSession.hasLiveToken()) message('admin.support.load_error'); return; }
-      meta = { statuses: j.data.statuses, categories: j.data.categories, priorities: j.data.priorities };
+      meta = { statuses: j.data.statuses, categories: j.data.categories, priorities: j.data.priorities,
+               sorts: j.data.sorts, requesters: j.data.requesters, next_statuses: j.data.next_statuses };
       renderList(j.data);
     }).catch(function (e) { console.error('[admin-support] list:', e); message('admin.support.load_error'); });
   }
 
   // ── one ticket ──
+  function infoRow(list, labelKey, value) {
+    var row = el('div', 'asp-info-row');
+    row.appendChild(el('dt', null, twT(labelKey)));
+    row.appendChild(el('dd', null, value));
+    list.appendChild(row);
+  }
+
+  // details (text only — an enum value through its twT label) · the FAQ question · the value before stage B
+  function renderDetails(parent, t) {
+    var list = el('dl', 'asp-info');
+    Object.keys(t.details || {}).forEach(function (k) {
+      var v = String(t.details[k]);
+      infoRow(list, 'support.field.' + k, enumField[k] ? twT('support.field.' + k + '.' + v) : v);
+    });
+    if (t.faq_id) {
+      var cat = faqCat[t.faq_id];
+      infoRow(list, 'admin.support.faq', cat ? twT('support.faq.' + cat + '.' + t.faq_id + '.q') : t.faq_id);
+    }
+    if (t.legacy_category) infoRow(list, 'admin.support.legacy_category', twT('support.category.' + t.legacy_category));
+    if (list.children.length) parent.appendChild(list);
+  }
+
   function renderTicket(t) {
     root.textContent = '';
     var back = button('support.thread.back', 'tw-btn tw-btn-ghost sp-back');
@@ -137,6 +181,7 @@
     body.appendChild(head);
     body.appendChild(el('p', 'sp-hint', t.public_id + ' · ' + twT('support.category.' + t.category) + ' · '
       + requesterText(t.requester) + ' · ' + twFormatDateTime(t.created_at)));
+    renderDetails(body, t);
 
     var msgs = el('div', 'sp-msgs');
     (t.messages || []).forEach(function (m) {
@@ -148,23 +193,29 @@
     });
     body.appendChild(msgs);
 
-    // status + priority
+    // status + priority + category
     var ctl = el('div', 'asp-controls');
     var st = F.field({ labelKey: 'admin.support.filter.status', required: true, kind: 'select',
                        options: meta.statuses.map(function (v) { return [v, 'support.status.' + v]; }) });
     var pr = F.field({ labelKey: 'admin.support.filter.priority', required: true, kind: 'select',
                        options: meta.priorities.map(function (v) { return [v, 'support.priority.' + v]; }) });
+    var ca = F.field({ labelKey: 'admin.support.filter.category', required: true, kind: 'select',
+                       options: meta.categories.map(function (v) { return [v, 'support.category.' + v]; }) });
     st.input.value = t.status;
     pr.input.value = t.priority;
+    ca.input.value = t.category;
+    ca.input.disabled = t.requester && t.requester.kind === 'guest';   // a guest ticket stays account (server 422)
     var save = button('admin.support.update.save');
     ctl.appendChild(st.wrap);
     ctl.appendChild(pr.wrap);
+    ctl.appendChild(ca.wrap);
     ctl.appendChild(save);
     body.appendChild(ctl);
     save.addEventListener('click', function () {
       var change = {};
       if (st.input.value !== t.status) change.status = st.input.value;
       if (pr.input.value !== t.priority) change.priority = pr.input.value;
+      if (ca.input.value !== t.category) change.category = ca.input.value;
       if (!Object.keys(change).length) { showToast(twT('admin.support.same'), 'info'); return; }
       TwAdminShell.run(ACTIONS.update, { id: t.public_id, body: change })
         .then(function (res) { if (res && res.ok) openTicket(t.public_id); });
@@ -175,18 +226,20 @@
     var reply = F.field({ labelKey: 'admin.support.reply.label', required: true, kind: 'textarea', rows: 4,
                           max: twLimit('support_body_max'), hintKey: 'admin.support.reply.hint' });
     form.appendChild(reply.wrap);
-    var send = button('admin.support.reply.send');
     var acts = el('div', 'sp-actions');
-    acts.appendChild(send);
+    meta.next_statuses.forEach(function (next) {   // awaiting_user «نحتاج معلومات» · resolved «تم الحل»
+      var send = button('admin.support.reply.' + next, next === 'resolved' ? 'tw-btn' : 'tw-btn tw-btn-ghost');
+      send.addEventListener('click', function () {
+        var text = reply.input.value.trim();
+        F.setError(reply, text ? '' : twT('support.error.required'));
+        if (!text) return;
+        TwAdminShell.run(ACTIONS.reply, { id: t.public_id, body: text, next: next })
+          .then(function (res) { if (res && res.ok) openTicket(t.public_id); });
+      });
+      acts.appendChild(send);
+    });
     form.appendChild(acts);
     body.appendChild(form);
-    send.addEventListener('click', function () {
-      var text = reply.input.value.trim();
-      F.setError(reply, text ? '' : twT('support.error.required'));
-      if (!text) return;
-      TwAdminShell.run(ACTIONS.reply, { id: t.public_id, body: text })
-        .then(function (res) { if (res && res.ok) openTicket(t.public_id); });
-    });
     if (window.scSelectInit) scSelectInit();
   }
 
@@ -199,5 +252,13 @@
     }).catch(function (e) { console.error('[admin-support] ticket:', e); showToast(twT('admin.support.load_error'), 'error'); });
   }
 
+  twApi('/support/meta', { auth: false }).then(function (res) {
+    var faq = (res.ok && res.data && res.data.faq) || {};
+    Object.keys(faq).forEach(function (cat) { faq[cat].forEach(function (id) { faqCat[id] = cat; }); });
+    var fields = (res.ok && res.data && res.data.fields) || {};
+    Object.keys(fields).forEach(function (cat) {
+      fields[cat].forEach(function (f) { if (f.type === 'enum') enumField[f.key] = true; });
+    });
+  });
   loadList();
 })();

@@ -32,9 +32,9 @@
 .sp-row-subject { font-size: var(--size-font-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-row-meta { font-size: var(--size-font-2xs); color: var(--color-text-muted); }
 .sp-pill { flex-shrink: 0; font-size: var(--size-font-2xs); font-weight: 700; padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); background: var(--color-surface-input); color: var(--color-text-secondary); }
-.sp-pill.is-open { background: rgba(var(--color-status-info-rgb), .14); color: var(--color-status-info); }
+.sp-pill.is-in_review { background: rgba(var(--color-status-info-rgb), .14); color: var(--color-status-info); }
 .sp-pill.is-awaiting_user { background: rgba(var(--color-status-warning-rgb), .14); color: var(--color-status-warning); }
-.sp-pill.is-closed { background: var(--color-surface-input); color: var(--color-text-muted); }
+.sp-pill.is-resolved { background: rgba(var(--color-status-success-rgb), .14); color: var(--color-status-success); }
 .sp-empty { margin: 0; font-size: var(--size-font-xs); color: var(--color-text-muted); }
 .sp-thread-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 .sp-thread-subject { flex: 1; min-width: 0; margin: 0; font-size: var(--size-font-sm); font-weight: 800; overflow-wrap: anywhere; }
@@ -43,3 +43,17 @@
 .sp-bubble.is-admin { background: rgba(var(--color-brand-primary-rgb), .10); border: 1px solid rgba(var(--color-brand-primary-rgb), .18); }
 .sp-bubble-meta { display: block; margin-bottom: var(--space-1); font-size: var(--size-font-2xs); font-weight: 700; color: var(--color-text-muted); white-space: normal; }
 .sp-back { margin-bottom: var(--space-4); }
+
+/* ── 7.2a واجهة: FAQ · warning line · date lists · text link ── */
+.sp-warn { margin: 0; font-size: var(--size-font-2xs); font-weight: 700; color: var(--color-status-warning); }
+.sp-date { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.sp-link { padding: 0; border: 0; background: transparent; font-family: inherit; font-size: var(--size-font-xs); font-weight: 700; color: var(--color-brand-primary); text-decoration: underline; cursor: pointer; align-self: flex-start; }
+#spResend { margin-top: var(--space-3); }
+#spFaq { display: flex; flex-direction: column; gap: var(--space-5); margin-top: var(--space-4); }
+.sp-faq-cat-title { margin: 0 0 var(--space-2); font-size: var(--size-font-xs); font-weight: 800; color: var(--color-text-secondary); }
+.sp-faq { border-bottom: 1px solid var(--color-border-subtle); }
+.sp-faq-q { padding: var(--space-3) 0; font-size: var(--size-font-sm); font-weight: 700; cursor: pointer; }
+.sp-faq-q:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.sp-faq-a { display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-4); font-size: var(--size-font-xs); line-height: 1.9; color: var(--color-text-secondary); }
+.sp-faq-a p { margin: 0; }
+.sp-faq-a .tw-btn { align-self: flex-start; }

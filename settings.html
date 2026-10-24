@@ -40,9 +40,9 @@ body {
   background: transparent; color: inherit; font-family: inherit; text-align: start;
 }
 .st-row:last-child { border-bottom: none; }
-button.st-row { cursor: pointer; transition: background-color .15s; }
-button.st-row:hover { background: var(--color-surface-hover); }
-button.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: -2px; }
+button.st-row, a.st-row { cursor: pointer; transition: background-color .15s; text-decoration: none; }
+button.st-row:hover, a.st-row:hover { background: var(--color-surface-hover); }
+button.st-row:focus-visible, a.st-row:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: -2px; }
 .st-row.is-locked { opacity: .6; }
 .st-ico {
   width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
@@ -225,6 +225,18 @@ label.st-row.is-off { cursor: default; opacity: .6; }
         </span>
         <span class="st-end"><i data-tw-icon="lock" data-tw-size="xs"></i></span>
       </div>
+    </div>
+  </section>
+
+  <!-- ── المساعدة — /support (task 7.2a واجهة) ── -->
+  <section class="st-sec">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.help"></h2>
+    <div class="st-card">
+      <a class="st-row" href="/support">
+        <span class="st-ico"><i data-tw-icon="headset"></i></span>
+        <span class="st-body"><span class="st-name" data-tw-t="settings.support"></span></span>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </a>
     </div>
   </section>
 

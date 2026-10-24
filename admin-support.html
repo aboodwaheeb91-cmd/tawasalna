@@ -4,7 +4,7 @@
 <!--tw:shell-head:admin-->
 <!-- Admin — support inbox (task 7.1 · docs/rules/support.md · SYSTEMS_INDEX §62).
      Route: the admin panel path + /support (server.py → admin_support_page) · data: GET /admin/support/tickets ·
-     GET /admin/support/tickets/{id} · POST …/messages · PUT /admin/support/tickets/{id} (support.manage) —
+     GET /admin/support/tickets/{id} · POST …/messages {body, next_status} · PUT /admin/support/tickets/{id} (support.manage) —
      writes via TwAdminShell.run (confirm first). Header + menu + session gate: Admin Shell (task 5.3a). -->
 <link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
 <link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
@@ -14,6 +14,10 @@
 .asp-title { display: flex; align-items: center; gap: var(--space-3); font-size: var(--size-font-md); font-weight: 900; margin: 0 0 var(--space-5); }
 .asp-title svg { color: var(--color-brand-primary); }
 .asp-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); }
+.asp-info { display: flex; flex-direction: column; gap: var(--space-2); margin: 0 0 var(--space-5); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--color-surface-input); font-size: var(--size-font-xs); }
+.asp-info-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.asp-info dt { font-weight: 700; color: var(--color-text-secondary); }
+.asp-info dd { margin: 0; overflow-wrap: anywhere; }
 .asp-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); align-items: end; }
 </style>
 </head>

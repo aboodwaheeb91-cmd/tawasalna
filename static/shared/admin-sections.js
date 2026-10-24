@@ -6,7 +6,7 @@
 //   labelKey  twT key of the menu label
 //   path      relative to the admin panel root: '' = panel root · '#x' = section x of the root page
 //             · 'name' = sub page (server route = panel root + '/name')
-//   badge     optional — count source in TwAdminShell (BADGE_SOURCES): 'reports' | 'kyc'
+//   badge     optional — count source in TwAdminShell (BADGE_SOURCES): 'reports' | 'kyc' | 'support'
 // ❌ the panel slug or its prefix in this file (or any served file) — paths are relative only.
 // Order = the menu order (task 5.3a2). 'companies' = the users table with a fixed type filter (no 2nd table code).
 window.TW_ADMIN_SECTIONS = [
@@ -16,7 +16,7 @@ window.TW_ADMIN_SECTIONS = [
   { key: 'jobs',      icon: 'briefcase',        labelKey: 'admin.nav.jobs',      path: '#jobs' },
   { key: 'kyc',       icon: 'id-card',          labelKey: 'admin.nav.kyc',       path: '#kyc', badge: 'kyc' },
   { key: 'reports',   icon: 'report',           labelKey: 'admin.nav.reports',   path: '#reports', badge: 'reports' },
-  { key: 'support',   icon: 'headset',          labelKey: 'admin.nav.support',   path: 'support' },    // task 7.1
+  { key: 'support',   icon: 'headset',          labelKey: 'admin.nav.support',   path: 'support', badge: 'support' },    // task 7.1 · badge = new tickets (7.2a)
   { key: 'activity',  icon: 'activity',         labelKey: 'admin.nav.activity',  path: '#activity' },
   { key: 'audit',     icon: 'shield',           labelKey: 'admin.nav.audit',     path: '#audit' },
   { key: 'errors',    icon: 'alert',            labelKey: 'admin.nav.errors',    path: '#errors' },

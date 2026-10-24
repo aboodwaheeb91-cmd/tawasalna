@@ -78,7 +78,7 @@ check('every _FILTER_ICONS meaning is in the registry',
   missing(Object.values(FILTER_TO_REGISTRY)).length === 0, missing(Object.values(FILTER_TO_REGISTRY)));
 
 const HEADER_TO_REGISTRY = {
-  settings: 'settings', candidates: 'search', contact: 'phone', report: 'alert',
+  settings: 'settings', candidates: 'search', support: 'headset', contact: 'phone', report: 'alert',
   suggest: 'edit', logout: 'log-out', login: 'log-in', register: 'user-plus',
 };
 const tws = read('tw_shared.js');
@@ -166,7 +166,8 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'admin-settings.html',   // task 4.1 — admin settings page (Admin Shell: menu + card ⓘ + title icon)
   'admin-content.html',   // phase 5b — admin content page (Admin Shell: menu + card ⓘ + title icon)
   'privacy.html', 'terms.html',   // task terms — unified header + draft-note icon (data-tw-icon)
-  'support.html', 'admin-support.html'];   // task 7.1 — support page (unified header + title icon) · admin support inbox (Admin Shell)
+  'support.html', 'admin-support.html',   // task 7.1 — support page (unified header + title icon) · admin support inbox (Admin Shell)
+  'support-track.html'];   // task 7.2a واجهة — guest follow-up page (unified header + title icon)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {

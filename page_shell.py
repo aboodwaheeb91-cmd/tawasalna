@@ -58,6 +58,7 @@ PAGE_ASSETS = {
     "support-form.js": os.path.join("static", "support", "support-form.js"),
     "support.css": os.path.join("static", "support", "support.css"),
     "support.js": os.path.join("static", "support", "support.js"),
+    "support-track.js": os.path.join("static", "support", "support-track.js"),   # task 7.2a واجهة — guest follow-up
     "admin-support.js": os.path.join("static", "admin-support", "admin-support.js"),
 }
 

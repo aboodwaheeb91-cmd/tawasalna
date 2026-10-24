@@ -1,8 +1,8 @@
 # Support Tickets — نظام الدعم (task 7.1 · 7.2a)
 
-> إلزامي بنفس قوة `CLAUDE.md` لأي مهمة بتلمس الدعم. Spec: `docs/SYSTEMS_INDEX.md §62` · `ARCHITECTURE.md §81` · migrations `docs/migrations/7.1_support_tickets.sql` · `7.2a_A_expand.sql` · `7.2a_B_migrate.sql` · tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q`.
+> إلزامي بنفس قوة `CLAUDE.md` لأي مهمة بتلمس الدعم. Spec: `docs/SYSTEMS_INDEX.md §62` · `ARCHITECTURE.md §81` · migrations `docs/migrations/7.1_support_tickets.sql` · `7.2a_A_expand.sql` · `7.2a_B_migrate.sql` · tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q` · `node tests/test_support_pages_runtime.js`.
 >
-> **⚠️ 7.2a = Backend بس.** الواجهة (صفحة متابعة الزائر، الحقول الإضافية، الحالات الجديدة بالأزرار) بمهمة لاحقة — `/support/track` هلق صفحة placeholder، وزر الرد بشاشة الأدمن لازم يبعت `next_status` (بدونه 422). ما في مرفقات.
+> **7.2a = Backend + واجهة (مهمتين).** ما في مرفقات. الواجهة: قسم «الواجهة» تحت.
 
 ## المصدر الوحيد
 
@@ -87,9 +87,22 @@
 5. `POST …/messages` `{body, next_status}` · `PUT /admin/support/tickets/{public_id}` `{status?, priority?, category?}` — تغيير التصنيف: أول تغيير لتذكرة `legacy_category` فيها NULL بيحفظ القيمة القديمة · تذكرة زائر بتضل `account` (422 `guest_category`).
 6. **السجل:** `admin_audit_middleware` بس — `actor` · `action` (`admin_support_reply` / `admin_support_update`) · `target ticket=<public_id>` · `old_value` / `new_value` (`category=…;priority=…;status=…`). ❌ نص الرسالة أو الإيميل بالسجل.
 
-## الواجهة (7.1 — ما انلمست بـ 7.2a)
+## الواجهة (7.2a واجهة — بدون تغيير بالـ API)
 
-- `/support` (`support.html` + `static/support/support.js`) · «مشكلة بالدخول؟» بصفحة الدخول (`TwSupportForm.guestOpen()`) · `admin-support.html` + `static/admin-support/admin-support.js`. النصوص بـ `tw_strings.json` (`support.*` · `admin.support.*` · `settings.item.support_*` · `email.support_guest_otp.*` · `email.support_guest_link.*`) — 7.2a زاد مفاتيح الحالات والتصنيفات الجديدة بس.
+- **الملفات:** `support.html` + `static/support/support.js` · `support-track.html` + `static/support/support-track.js` · `admin-support.html` + `static/admin-support/admin-support.js` · القطع المشتركة بـ `static/support/support-form.js` (`TwSupportForm`: `field` · `detailFields` · `ticketForm` · `thread` · `resendForm` · `guestOpen`) — نموذج واحد للمسجّل والزائر (صفحة الدعم + نافذة «مشكلة بالدخول؟» بصفحة الدخول).
+- **`/support` عامة** (بدون `twRequireAuth`) — الجلسة من `TwAuthSync.getSessionSnapshot()` بس:
+  - الأسئلة الشائعة لكل الزوار من `GET /support/meta` (ترتيب التصنيفات والأسئلة = ترتيب السيرفر) · النص `twT('support.faq.{cat}.{id}.q|a')` كنص (`textContent`) · بحث محلي بالسؤال والجواب.
+  - تحت كل جواب «لم تُحلّ مشكلتي» ← النموذج بالتصنيف + `faq_id` معبّيين (تغيير التصنيف بيشيل `faq_id` إذا مش من التصنيف الجديد).
+  - المسجّل: أي تصنيف · قائمة طلباته بحالات المستخدم (`support.status_user.*`: وصلنا طلبك · قيد المراجعة · نحتاج معلومات منك · تم الحل) + المحادثة + الرد + «تم الحل» (`POST …/close`، `twConfirm` قبل).
+  - الزائر: «الدخول والحساب» بس (`meta.guest_category`) بمسار OTP الموجود · أسئلة التصنيفات التانية ← رابط دخول `twLoginHref('/support')` · بعد الإرسال «أرسلنا رابط المتابعة إلى بريدك» + رقم H — الرابط ما بينعرض أبداً · «فقدت رابط المتابعة؟» ← إيميل ← `POST /support/track/resend` ← نفس الرسالة العامة دائماً.
+  - الحقول الاختيارية من `meta.fields[category]`: `enum` → قائمة (`support.field.{key}.{value}`) · `date` → قوائم يوم / شهر (`date.month.*`) / سنة (`TW.fillFoundedYears`) — نص جزئي = خطأ بالصفحة · غيرها → حقل بالـ `max` من meta. ثابت تحت النموذج: «لا تكتب كلمة المرور أو أي رمز تحقق» · تحت إيميل الزائر: «بريد تستطيع الوصول إليه…».
+- **`/support/track`:** الرمز من `location.hash` (`#t=…`) مرة وحدة ← `history.replaceState` بيمسحه من الشريط ← بالذاكرة وبالـ POST body بس · الحالة والرسائل والرد و«تم الحل» من `TwSupportForm.thread` · بدون رمز / 404 → رسالة عامة + «إعادة إرسال الرابط» · `<meta name="robots" content="noindex">` + `<meta name="referrer" content="no-referrer">` بالصفحة فوق ترويسات السيرفر.
+- **الأدمن:** فلاتر الحالة · التصنيف · الأولوية · زائر / مسجّل · الترتيب (القوائم من رد السيرفر) + بحث برقم H أو الإيميل (`q`؛ 422 → رسالة) · التذكرة: `details` كنص (قيمة القائمة بتسميتها) · `faq_id` = السؤال نفسه (التصنيف من `GET /support/meta`) · `legacy_category` · الرد بزرّين من `next_statuses` («نحتاج معلومات» = awaiting_user · «تم الحل» = resolved) · الحالة / الأولوية / التصنيف بحفظ واحد (تصنيف تذكرة الزائر مقفول) — كله عبر `TwAdminShell.run` (تأكيد قبل).
+- **badge** `support` بـ `admin-sections.js` ← `BADGE_SOURCES.support` = `GET /admin/support/counts` (`new`) بـ `permissionAware` (أدمن بدون `support.manage` = بدون badge والجلسة بتضل).
+- **الروابط:** القائمة ☰ للمسجّل (`_TW_HEADER_MENU_POLICY` key `support`) · سطر «تواصل مع الدعم» بـ `/settings` (قسم «المساعدة») · أسفل `landing.html` للزوار.
+- ❌ `innerHTML` لأي نص من API أو `tw_strings` · ❌ الرمز بـ query string أو storage أو بالشريط بعد القراءة · ❌ رابط المتابعة بأي رد / صفحة · ❌ رقم حد بالكود (الـ `max` من meta / `twLimit`).
+- Test: `node tests/test_support_pages_runtime.js` · نصوص الأسئلة: `python tests/test_strings_system.py` (G).
+- النصوص بـ `tw_strings.json` (`support.*` · `support.faq.*` · `support.field.*` · `support.status_user.*` · `admin.support.*` · `menu.support` · `settings.support` · `settings.item.support_*` · `email.support_guest_otp.*` · `email.support_guest_link.*`).
 
 ## ممنوعات
 
