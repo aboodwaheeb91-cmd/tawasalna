@@ -41,6 +41,8 @@ LIMITS = {
     "support_subject_max": 120,   # support ticket subject (chars — task 7.1)
     "support_body_max": 5000,     # support ticket message (chars)
     "support_open_max": 5,        # open tickets (open + awaiting_user) per account at once
+    "support_inbound_request_max": 262144,  # POST /webhooks/resend/inbound body (bytes — the event is metadata only, task 7.3)
+    "support_inbound_fetch_max": 2097152,   # the received email fetched from Resend (bytes) — larger = ignored
 }
 
 RATES = {
@@ -73,6 +75,8 @@ RATES = {
     "support_link_resend_ip": (10, 3600),     # … per client IP
     "support_guest_reply_ticket": (20, 3600), # guest reply through the link — per ticket
     "support_track_ip": (60, 60),             # every /support/track API call — per client IP
+    "support_inbound_sender": (3, 3600),      # new ticket from an inbound email — per sender address (over it: ignored, 7.3)
+    "support_inbound_global": (100, 3600),    # … every inbound ticket together
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")

@@ -1,4 +1,4 @@
-# Unified Email System + Forgot Password + Email Change + Notification Emails (tasks 5.1a · 5.1b · 5.1c · 5.1d)
+# Unified Email System + Forgot Password + Email Change + Notification Emails (tasks 5.1a · 5.1b · 5.1c · 5.1d · 7.3)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتبعت إيميل أو بتلمس إعادة تعيين كلمة السر.
 > المواصفة: `docs/SYSTEMS_INDEX.md` §54j (الإيميل) + §1b (نسيت كلمة المرور) + §1c (تغيير الإيميل) + §54c (OTP التوثيق) · `ARCHITECTURE.md → Unified Email System + Password Reset (5.1a)`.
@@ -47,4 +47,7 @@ Test: `python -m pytest tests/test_email_change_kyc_email.py -q`.
 
 9. **إشعار رد الدعم (task 7.2b — `docs/rules/support.md` → إشعارات الرد):** قالبين **SECURITY**: `support_guest_reply` (`ticket` · `link` — «يوجد رد جديد على طلبك H…» + زر رابط المتابعة + «لا تشارك هذا الرابط») و `support_reply` (`name` · `ticket` · `link` = `/support?ticket=H…` absolute على `site_url`). **ليش SECURITY:** هاد جواب على طلب صاحبه فتحه بنفسه (متل رابط إعادة التعيين) — إذا ضاع بالحد اليومي أو بتفضيل مطفي، صاحب الطلب ما بيعرف إنه في رد وطلبه بيعلق؛ والإيميل ما فيه نص الرد (رقم H بس)، فما في محتوى بيتسرّب. الأدمن بيقدر يطفّي كل نوع (`types`). نوع الإشعار `support_reply` **مش** بـ `NOTIFICATION_EMAIL_TEMPLATES` → ما بيطلع إيميلين.
 
-Test: `python -m pytest tests/test_email_notify.py -q` · رسالة الأدمن (5.3b2): `python -m pytest tests/test_admin_user_actions.py -q` · نتيجة الطلب (5.1d): `python -m pytest tests/test_application_result_notify.py -q` · الواجهة: `node tests/test_settings_edu_runtime.js` (القسم L).
+10. **البريد الوارد + Reply-To (task 7.3 — `docs/rules/support.md` → البريد الوارد):** `send_email(..., reply_to=)` اختياري — مسموح لـ `REPLY_TO_TEMPLATES` بس (`support_reply` · `support_guest_reply` · `support_guest_link`)، غيرها أو عنوان غلط → `invalid` بدون إرسال. Resend بمكان واحد: `verify_webhook` (Svix، hmac، ±5 دقايق، سر `RESEND_WEBHOOK_SECRET` من البيئة بس) + `fetch_received` (`GET /emails/receiving/{id}`) بـ `email_service.py`. `types.support_inbound` = مفتاح مش قالب، **الافتراضي مطفي** (`OFF_BY_DEFAULT`). قراءة البريد الوارد بدها مفتاح Resend «Full access».
+- ❌ `reply_to` لقالب برّا القائمة · ❌ قراءة Resend برّا `email_service.py`.
+
+Test: `python -m pytest tests/test_email_notify.py -q` · البريد الوارد (7.3): `python -m pytest tests/test_support_inbound.py -q` · رسالة الأدمن (5.3b2): `python -m pytest tests/test_admin_user_actions.py -q` · نتيجة الطلب (5.1d): `python -m pytest tests/test_application_result_notify.py -q` · الواجهة: `node tests/test_settings_edu_runtime.js` (القسم L).

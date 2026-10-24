@@ -12,6 +12,10 @@ limits and calls these).
   support_guest_otp    guest support code (auth.guest_otp_issue / guest_otp_verify — same OTP rules as KYC)
   support_guest_access guest follow-up link (7.2a): sha256 hex of the token only · expires_at · revoked_at ·
                        last_used_at — issue_guest_link is the only writer
+  support_reply_tokens Reply-To token of the support emails (7.3): support+<token>@ — sha256 hex only,
+                       newest REPLY_TOKEN_KEEP per ticket — issue_reply_token is the only writer
+  support_inbound_events one row per handled inbound email (7.3): svix_id UNIQUE · email_id UNIQUE · outcome ·
+                       ticket_id — the same event twice = no effect. No address, no text.
 
 Rules (enforced here, inside one transaction each):
   - an account sees / replies to / resolves its own tickets only — anything else = LookupError (→ 404);
@@ -22,6 +26,9 @@ Rules (enforced here, inside one transaction each):
     SupportError reopen_expired («افتح طلباً جديداً»)
   - priority only from the admin (default normal) · a guest ticket is always category `account` (DB CHECK)
   - blocks / suspension never filter tickets (no bs.visible_sql here)
+  - inbound mail (7.3): a new email to info@ / support@ = a GUEST ticket (source email, category general —
+    never linked to an account) · mail to support+<token>@ = a message on that ticket only when From is
+    its owner's address (account email or guest_email) — anything else is ignored
 Transition 7.2a (until production stage B rewrites the rows): every read goes through normalize_sql()
 (open → new / in_review · closed → resolved · other → general); writes store the new values only.
 Pure DB — no FastAPI. Texts = twT keys (support.error.*) mapped by server.py.
@@ -34,6 +41,7 @@ import secrets
 import unicodedata
 
 from auth import db_conn, generate_public_id
+import blocks_suspension as bs
 import email_service
 
 CATEGORIES = ("account", "verification", "profile", "jobs", "education", "technical", "complaint", "general")
@@ -48,6 +56,8 @@ ADMIN_PAGE_MAX = 50
 USER_LIST_MAX = 50
 ADMIN_SORTS = ("newest", "oldest_waiting", "priority")
 REQUESTERS = ("guest", "user")
+SOURCES = ("web", "email")            # where the ticket came from (7.3) — email = inbound mail
+INBOUND_CATEGORY = "general"          # a ticket from an inbound email (7.3)
 
 # Values production may still hold until stage B (docs/migrations/7.2a_B_migrate.sql) — read only.
 _LEGACY_STATUS_CLOSED = "closed"   # → resolved
@@ -134,8 +144,10 @@ SCHEMA_SQL = (
         updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         last_message_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         closed_at       TIMESTAMPTZ NULL,
+        source          TEXT NOT NULL DEFAULT 'web' CONSTRAINT support_tickets_source_chk CHECK (source IN ({_in(SOURCES)})),
         CONSTRAINT support_tickets_owner_chk CHECK (user_id IS NOT NULL OR guest_email IS NOT NULL),
-        CONSTRAINT support_tickets_guest_category_chk CHECK (user_id IS NOT NULL OR category = '{GUEST_CATEGORY}')
+        CONSTRAINT support_tickets_guest_category_chk
+            CHECK (user_id IS NOT NULL OR category = '{GUEST_CATEGORY}' OR source = 'email')
     )""",
     "CREATE INDEX IF NOT EXISTS idx_support_tickets_user ON support_tickets (user_id, last_message_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_support_tickets_inbox ON support_tickets (status, last_message_at DESC)",
@@ -166,6 +178,22 @@ SCHEMA_SQL = (
         last_used_at TIMESTAMPTZ NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_support_guest_access_ticket ON support_guest_access (ticket_id, created_at DESC)",
+    # 7.3 — new tables only (production: docs/migrations/7.3_inbound.sql adds the source column + constraint).
+    """CREATE TABLE IF NOT EXISTS support_reply_tokens (
+        id         SERIAL PRIMARY KEY,
+        ticket_id  INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE CONSTRAINT support_reply_tokens_hash_chk CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_support_reply_tokens_ticket ON support_reply_tokens (ticket_id, created_at DESC)",
+    """CREATE TABLE IF NOT EXISTS support_inbound_events (
+        id         SERIAL PRIMARY KEY,
+        svix_id    TEXT NOT NULL UNIQUE,
+        email_id   TEXT NOT NULL UNIQUE,
+        outcome    TEXT NOT NULL CONSTRAINT support_inbound_events_outcome_chk CHECK (outcome ~ '^[a-z_]{1,32}$'),
+        ticket_id  INTEGER NULL REFERENCES support_tickets(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )""",
 )
 
 
@@ -314,7 +342,7 @@ def meta() -> dict:
 # ── helpers ──
 _TICKET_COLS = ("id", "public_id", "user_id", "guest_email", "category", "status", "priority", "subject",
                 "details", "faq_id", "legacy_category", "created_at", "updated_at", "last_message_at",
-                "closed_at", "within_reopen")
+                "closed_at", "source", "within_reopen")
 _TICKET_EXPR = {"category": _CAT_SQL, "status": _STATUS_SQL,
                 "within_reopen": f"(t.closed_at IS NULL OR t.closed_at > NOW() - {int(REOPEN_DAYS)} * INTERVAL '1 day')"}
 _TICKET_FIELDS = ", ".join(_TICKET_EXPR.get(c, "t." + c) for c in _TICKET_COLS)
@@ -370,15 +398,15 @@ def _tx(fn):
             raise
 
 
-def _insert_ticket(conn, user_id, guest_email, category, subject, details, faq_id) -> tuple:
+def _insert_ticket(conn, user_id, guest_email, category, subject, details, faq_id, source="web") -> tuple:
     status = transition(None, "open")   # written explicitly — production's default stays 'open' until stage B
     for _ in range(3):   # 36^10 ids — a clash is practically impossible, retried anyway
         rows = conn.run(
-            "INSERT INTO support_tickets (public_id, user_id, guest_email, category, status, subject, details, faq_id) "
-            "VALUES (:p, :u, :g, :c, :st, :s, CAST(:d AS jsonb), :f) ON CONFLICT (public_id) DO NOTHING "
+            "INSERT INTO support_tickets (public_id, user_id, guest_email, category, status, subject, details, faq_id, "
+            "source) VALUES (:p, :u, :g, :c, :st, :s, CAST(:d AS jsonb), :f, :src) ON CONFLICT (public_id) DO NOTHING "
             "RETURNING id, public_id",
             p=generate_public_id(PUBLIC_ID_PREFIX), u=user_id, g=guest_email, c=category, st=status, s=subject,
-            d=_dumps(details or {}), f=faq_id)
+            d=_dumps(details or {}), f=faq_id, src=source)
         if rows:
             return int(rows[0][0]), rows[0][1]
     raise RuntimeError("support public_id clash")
@@ -558,7 +586,9 @@ def guest_resend(email: str) -> list:
 
 # ── admin (support.manage) ──
 _REQUESTER_SQL = "LEFT JOIN users u ON u.id = t.user_id"
-_REQUESTER_COLS = ", u.tw_id, u.full_name, u.email, u.user_type"
+# guest_match (7.3): a guest ticket whose address is an account's email — a hint only, never a link.
+_REQUESTER_COLS = (", u.tw_id, u.full_name, u.email, u.user_type, (t.user_id IS NULL AND EXISTS (SELECT 1 FROM users ux "
+                   "WHERE lower(ux.email) = lower(t.guest_email)))")
 _ADMIN_SELECT = "SELECT " + _TICKET_FIELDS + _REQUESTER_COLS + " FROM support_tickets t " + _REQUESTER_SQL
 _ORDER = {"newest": "t.created_at DESC, t.id DESC",
           "oldest_waiting": "t.last_message_at ASC, t.id ASC",
@@ -567,9 +597,10 @@ _ORDER = {"newest": "t.created_at DESC, t.id DESC",
 
 def _admin_row(row) -> dict:
     t = _ticket(row[:len(_TICKET_COLS)])
-    tw_id, name, email, utype = row[len(_TICKET_COLS):]
+    tw_id, name, email, utype, guest_match = row[len(_TICKET_COLS):]
     t["requester"] = ({"kind": "user", "tw_id": tw_id, "name": name or "", "email": email or "", "user_type": utype}
-                      if t["user_id"] else {"kind": "guest", "email": t["guest_email"] or ""})
+                      if t["user_id"] else {"kind": "guest", "email": t["guest_email"] or "",
+                                            "matches_account": bool(guest_match)})
     for k in ("id", "user_id", "within_reopen"):
         t.pop(k)
     return t
@@ -671,7 +702,8 @@ def admin_update(public_id: str, status: str = None, priority: str = None, categ
 
     def fn(conn):
         t = _locked_ticket(conn, public_id)
-        if category is not None and t["user_id"] is None and category != GUEST_CATEGORY:
+        # a web guest ticket stays account; an inbound-email ticket (7.3) may take any category
+        if category is not None and t["user_id"] is None and t["source"] != "email" and category != GUEST_CATEGORY:
             raise SupportError(422, "guest_category", "support.error.guest_category", "category")
         old, new = {}, {}
         for field, val in (("status", status), ("priority", priority), ("category", category)):
@@ -691,4 +723,137 @@ def admin_update(public_id: str, status: str = None, priority: str = None, categ
         closed = _closed_sql(t["status"], status) if status is not None and status != t["status"] else ""
         conn.run("UPDATE support_tickets SET " + ", ".join(sets) + closed + " WHERE id = :t", **params)
         return old, new
+    return _tx(fn)
+
+
+# ── inbound mail (task 7.3 — docs/rules/support.md → البريد الوارد) ──
+INBOUND_DOMAIN = "tawasolna.com"
+INBOUND_LOCALS = ("info", "support")   # a new email here = a new guest ticket
+REPLY_LOCAL = "support"                # support+<token>@ = a message on the token's ticket
+REPLY_TOKEN_KEEP = 5                   # Reply-To tokens kept per ticket (the newest) — older replies are ignored
+_REPLY_TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+_ADDR_RE = re.compile(r"<([^<>\s]+)>\s*$")
+
+
+def reply_address(token: str) -> str:
+    return f"{REPLY_LOCAL}+{token}@{INBOUND_DOMAIN}"
+
+
+def issue_reply_token(ticket_id: int, conn=None) -> str:
+    """The ONLY writer of support_reply_tokens: a new random token for the ticket (sha256 hex stored),
+    keeps the newest REPLY_TOKEN_KEEP. → the plain token (into the Reply-To address only)."""
+    def fn(c):
+        token = secrets.token_hex(16)
+        c.run("INSERT INTO support_reply_tokens (ticket_id, token_hash) VALUES (:t, :h)",
+              t=ticket_id, h=_token_hash(token))
+        c.run("DELETE FROM support_reply_tokens WHERE ticket_id = :t AND id NOT IN (SELECT id FROM "
+              "support_reply_tokens WHERE ticket_id = :t ORDER BY created_at DESC, id DESC LIMIT :k)",
+              t=ticket_id, k=REPLY_TOKEN_KEEP)
+        return token
+    return fn(conn) if conn is not None else _tx(fn)
+
+
+def ticket_id_of(public_id: str):
+    with db_conn() as conn:
+        rows = conn.run("SELECT id FROM support_tickets WHERE public_id = :p", p=public_id)
+    return int(rows[0][0]) if rows else None
+
+
+def bare_address(value) -> str:
+    """'Name <a@b.c>' / 'a@b.c' → 'a@b.c' (lower) · anything else → ''."""
+    if not isinstance(value, str):
+        return ""
+    v = value.strip()
+    m = _ADDR_RE.search(v)
+    addr = (m.group(1) if m else v).strip().lower()
+    return addr if email_service.valid_address(addr) else ""
+
+
+def inbound_target(recipients) -> tuple:
+    """Recipient list → ("reply", token) for support+<token>@ · ("new", None) for info@ / support@ ·
+    (None, None) otherwise. A reply address wins over a plain one in the same email."""
+    new = False
+    for r in recipients if isinstance(recipients, list) else []:
+        addr = bare_address(r)
+        local, _, domain = addr.partition("@")
+        if domain != INBOUND_DOMAIN:
+            continue
+        base, plus, tag = local.partition("+")
+        if base == REPLY_LOCAL and plus:
+            if _REPLY_TOKEN_RE.match(tag):
+                return "reply", tag
+            continue
+        if local in INBOUND_LOCALS:
+            new = True
+    return ("new", None) if new else (None, None)
+
+
+def inbound_seen(svix_id: str, email_id: str) -> bool:
+    with db_conn() as conn:
+        return bool(conn.run("SELECT 1 FROM support_inbound_events WHERE svix_id = :s OR email_id = :e",
+                             s=svix_id, e=email_id))
+
+
+def _inbound_claim(conn, svix_id: str, email_id: str, outcome: str) -> int:
+    """The event row (dedupe) — None when this svix_id / email_id is already handled."""
+    rows = conn.run("INSERT INTO support_inbound_events (svix_id, email_id, outcome) VALUES (:s, :e, :o) "
+                    "ON CONFLICT DO NOTHING RETURNING id", s=svix_id, e=email_id, o=outcome)
+    return int(rows[0][0]) if rows else None
+
+
+def _inbound_done(conn, eid: int, outcome: str, ticket_id=None) -> str:
+    conn.run("UPDATE support_inbound_events SET outcome = :o, ticket_id = :t WHERE id = :i",
+             o=outcome, t=ticket_id, i=eid)
+    return outcome
+
+
+def inbound_ignore(svix_id: str, email_id: str, reason: str) -> str:
+    """Record an ignored email (so a retry is a no-op). → 'duplicate' when already recorded."""
+    def fn(conn):
+        return reason if _inbound_claim(conn, svix_id, email_id, reason) else "duplicate"
+    return _tx(fn)
+
+
+def inbound_new_ticket(svix_id: str, email_id: str, sender: str, subject: str, body: str) -> str:
+    """New email → a guest ticket (guest_email = sender, category general, source email). Never linked
+    to an account. → 'ticket' · 'duplicate'."""
+    def fn(conn):
+        eid = _inbound_claim(conn, svix_id, email_id, "processing")
+        if eid is None:
+            return "duplicate"
+        tid, _ = _insert_ticket(conn, None, sender, INBOUND_CATEGORY, subject, {}, None, source="email")
+        _insert_message(conn, tid, "guest", None, body)
+        return _inbound_done(conn, eid, "ticket", tid)
+    return _tx(fn)
+
+
+def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: str, open_max: int) -> str:
+    """Email to support+<token>@ → a message on that ticket when sender = its owner (account email or
+    guest_email); same rules as a web reply (_requester_reply: reopen within REOPEN_DAYS, open_max).
+    → 'message' · 'duplicate' · 'ignored_token' · 'ignored_owner' · 'ignored_suspended' (account suspended) ·
+    'ignored_<SupportError code>'."""
+    def fn(conn):
+        eid = _inbound_claim(conn, svix_id, email_id, "processing")
+        if eid is None:
+            return "duplicate"
+        rows = conn.run("SELECT " + _TICKET_FIELDS + ", lower(u.email) FROM support_reply_tokens r "
+                        "JOIN support_tickets t ON t.id = r.ticket_id LEFT JOIN users u ON u.id = t.user_id "
+                        "WHERE r.token_hash = :h FOR UPDATE OF t", h=_token_hash(token))
+        if not rows:
+            return _inbound_done(conn, eid, "ignored_token")
+        t = _ticket(rows[0][:len(_TICKET_COLS)])
+        owner = rows[0][len(_TICKET_COLS)] if t["user_id"] else (t["guest_email"] or "").lower()
+        if not owner or sender != owner:
+            return _inbound_done(conn, eid, "ignored_owner", t["id"])
+        # a suspended account gets 401 on the site — its email must not add a message either (blocks-suspension)
+        if t["user_id"] and bs.is_suspended(t["user_id"], conn):
+            return _inbound_done(conn, eid, "ignored_suspended", t["id"])
+        try:
+            if t["user_id"]:
+                _requester_reply(conn, t, "user", t["user_id"], body, open_max)
+            else:
+                _requester_reply(conn, t, "guest", None, body)
+        except SupportError as e:   # reopen_expired / too_many_open — nothing written, the email is dropped
+            return _inbound_done(conn, eid, "ignored_" + e.code[:24], t["id"])
+        return _inbound_done(conn, eid, "message", t["id"])
     return _tx(fn)
