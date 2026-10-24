@@ -82,19 +82,23 @@ else:
 import subprocess as _sp, json as _json
 _JS = r"""
 const vm = require('vm'), fs = require('fs');
-const c = { twEscAttr: s => String(s == null ? '' : s), twSafeImageUrl: () => '' };
+const c = { twEscAttr: s => String(s == null ? '' : s), twSafeImageUrl: () => '', twT: k => k,
+  twAvatarHtml: () => '', twRelativeTime: () => '', twActionState: () => 'enabled' };
 c.twEscHtml = c.twEscAttr; c.window = c; vm.createContext(c);
+vm.runInContext(fs.readFileSync('static/shared/tw-icons.js', 'utf8'), c);
 vm.runInContext(fs.readFileSync('static/shared/tw-post-card.js', 'utf8'), c);
 const r = v => c.TwPostCard.html({ id: 1, body: 'x', viewer_saved: v }, { authorName: 'n' });
 const btn = h => h.slice(h.indexOf('pc-btn--save'), h.indexOf('</button>', h.indexOf('pc-btn--save')));
-console.log(JSON.stringify({ on: btn(r(true)), off: btn(r(false)) }));
+console.log(JSON.stringify({ on: btn(r(true)), off: btn(r(false)),
+  checkIco: c.twIcon('bookmark-check', { size: 'sm', filled: true }), plainIco: c.twIcon('bookmark', { size: 'sm' }) }));
 """
 try:
     _out = _json.loads(_sp.run(['node', '-e', _JS], capture_output=True, text=True, check=True).stdout)
 except Exception as _e:
     _out = {'on': '', 'off': '', 'err': repr(_e)}
-if 'fill="currentColor"' in _out['on'] and 'M8.5 10' in _out['on'] and 'M8.5 10' not in _out['off']:
-    ok(10, 'TwPostCard: saved → filled bookmark-check icon ✅')
+if _out.get('checkIco') and _out['checkIco'] in _out['on'] and _out['checkIco'] not in _out['off'] \
+        and _out['plainIco'] in _out['off']:
+    ok(10, 'TwPostCard: saved → filled bookmark-check icon (DS-ICON) ✅')
 else:
     fail(10, 'icoBookmarkCheck', _out.get('err', 'saved icon not rendered'))
 
@@ -113,6 +117,8 @@ const out = {};
 function boot(signedIn) {
   const doc = makeDocument(), api = [], toast = [], pend = [], ls = { reads: 0 };
   const c = { twEscAttr: s => String(s == null ? '' : s), twSafeImageUrl: () => '', document: doc,
+    twT: k => k, twAvatarHtml: () => '', twRelativeTime: () => '', twActionState: () => 'enabled',
+    location: { pathname: '/u/C1', search: '', href: '' }, twLoginHref: n => '/login?next=' + n,
     showToast: (m, t) => toast.push(t), twApiMessage: (r, f) => f, setTimeout() {},
     localStorage: { getItem() { ls.reads++; return null; }, setItem() { ls.reads++; } },
     twApi: (p, o) => new Promise(r => { api.push([p, o.method, o.body]); pend.push(r); }) };
@@ -123,12 +129,12 @@ function boot(signedIn) {
   doc.body.appendChild(list);
   c.TwPostCard.create({ signedIn: () => signedIn, paths: { save: id => '/company/posts/' + id + '/save' } }).bind(list);
   const btn = () => list.querySelector('.pc-btn--save');
-  return { api, toast, pend, ls, btn, click: () => doc.click(btn()) };
+  return { api, toast, pend, ls, btn, click: () => doc.click(btn()), login: () => c.location.href };
 }
 (async () => {
   const t = () => new Promise(r => setImmediate(r));
   const g = boot(false); g.click();
-  out.guest = { api: g.api.length, toast: g.toast };
+  out.guest = { api: g.api.length, toast: g.toast, login: g.login() };
   const b = boot(true); b.click(); b.click();
   out.queue = { inflight: b.api.length, first: b.api[0], uiOff: b.btn().dataset.saved };
   b.pend.shift()({ ok: true, status: 200, data: { status: 'success', saved: true } }); await t();
@@ -154,10 +160,10 @@ if _o.get('queue', {}).get('first') == ['/company/posts/1/save', 'PUT', {'saved'
 else:
     fail(13, 'save endpoint', _o.get('err', str(_o.get('queue'))))
 
-if _o.get('guest') == {'api': 0, 'toast': ['info']}:
-    ok(14, 'TwPostCard: الزائر غير المسجل → toast بدون طلب ✅')
+if _o.get('guest') == {'api': 0, 'toast': [], 'login': '/login?next=/u/C1'}:
+    ok(14, 'TwPostCard: الزائر غير المسجل → صفحة الدخول (twLoginHref) بدون طلب ✅')
 else:
-    fail(14, 'guest toast', _o.get('err', str(_o.get('guest'))))
+    fail(14, 'guest login', _o.get('err', str(_o.get('guest'))))
 
 if _o.get('stale') == {'calls': 2, 'second': {'saved': False}, 'uiOff': '0'} and _o.get('rollback') == '1':
     ok(15, 'TwPostCard: no-flicker + طلب الطابور + رجوع عند الفشل ✅')

@@ -1,5 +1,5 @@
 {
-  "_doc": "Actions Registry (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60). One entry per action id. visibleWhen = server decision the page passes as a ctx flag (can_message → ctx.canMessage · can_end → ctx.canEnd — task 5.0g). Validated by tw_actions.py at server start; delivered to pages as window.TW_ACTIONS (with admin overrides) at <!--tw:strings-->; rendered only by twAction(id, ctx) in tw_shared.js.",
+  "_doc": "Actions Registry (PR 3.7 · BUTTONS.md BTN-19 · SYSTEMS_INDEX §60). One entry per action id. visibleWhen = server decision the page passes as a ctx flag (can_message → ctx.canMessage · can_end → ctx.canEnd — task 5.0g · comments_enabled → ctx.commentsEnabled — task U.3). Validated by tw_actions.py at server start; delivered to pages as window.TW_ACTIONS (with admin overrides) at <!--tw:strings-->; rendered only by twAction(id, ctx) in tw_shared.js.",
   "actions": {
     "schedule": {
       "labelKey": "action.schedule", "icon": "calendar", "type": "primary",
@@ -60,6 +60,26 @@
     "apply_job": {
       "labelKey": "action.apply_job", "icon": "send", "type": "primary",
       "visibleTo": ["guest", "emp"], "auth": true
+    },
+    "post_appreciate": {
+      "labelKey": "post.card.appreciate", "icon": "heart", "type": "ghost",
+      "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": true
+    },
+    "post_save": {
+      "labelKey": "post.card.save", "icon": "bookmark", "type": "ghost",
+      "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": true
+    },
+    "post_comment": {
+      "labelKey": "post.card.comment", "icon": "comment", "type": "ghost",
+      "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": false, "visibleWhen": ["comments_enabled"]
+    },
+    "post_edit": {
+      "labelKey": "post.card.edit", "icon": "edit", "type": "ghost",
+      "visibleTo": ["owner"], "auth": true
+    },
+    "post_delete": {
+      "labelKey": "post.card.delete", "icon": "delete", "type": "danger",
+      "visibleTo": ["owner"], "auth": true
     },
     "close_room": {
       "labelKey": "action.close_room", "icon": "lock", "type": "danger",
