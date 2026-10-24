@@ -2287,6 +2287,21 @@
     "email.type.support_reply": "رد على طلب الدعم",
     "notif.type.support_reply": "رد من الدعم",
     "notif.support_reply.title": "رد جديد على طلبك {ticket}",
-    "notif.support_reply.body": "رد فريق الدعم على طلبك — افتحه لتقرأ الرد."
+    "notif.support_reply.body": "رد فريق الدعم على طلبك — افتحه لتقرأ الرد.",
+    "email.type.support_inbound": "استقبال بريد الدعم",
+    "email.type.support_inbound.hint": "بريد جديد على info@ أو support@ بيفتح تذكرة زائر، والرد على إيميل دعم بينضاف لنفس التذكرة. مطفي افتراضياً.",
+    "support.inbound.no_subject": "رسالة بريد بدون عنوان",
+    "support.inbound.unavailable": "استقبال البريد غير متاح حالياً",
+    "support.inbound.unauthorized": "توقيع الطلب غير صالح",
+    "admin.support.source.email": "وصلت بالبريد",
+    "admin.support.matches_account": "مطابق لحساب (غير مؤكَّد)",
+    "settings.item.support_inbound_sender_hits": "تذاكر البريد لكل مرسل",
+    "settings.item.support_inbound_sender_hits.desc": "كم تذكرة جديدة بيفتح نفس عنوان البريد بإيميلات على info@ / support@ خلال المدة تحت — الزيادة بتتجاهل.",
+    "settings.item.support_inbound_sender_window_s": "مدة تذاكر البريد لكل مرسل (ثواني)",
+    "settings.item.support_inbound_sender_window_s.desc": "المدة اللي بينحسب فيها الحد فوق.",
+    "settings.item.support_inbound_global_hits": "السقف العام لتذاكر البريد",
+    "settings.item.support_inbound_global_hits.desc": "كم تذكرة من البريد الوارد لكل المرسلين مع بعض خلال المدة تحت — الزيادة بتتجاهل.",
+    "settings.item.support_inbound_global_window_s": "مدة السقف العام لتذاكر البريد (ثواني)",
+    "settings.item.support_inbound_global_window_s.desc": "المدة اللي بتنحسب فيها كل تذاكر البريد."
   }
 }

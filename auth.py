@@ -1361,7 +1361,8 @@ def email_send_stats() -> dict:
     return out
 
 
-def email_notify_user(user_id: int, template_key: str, values: dict, ref_key: str = None) -> dict:
+def email_notify_user(user_id: int, template_key: str, values: dict, ref_key: str = None,
+                      reply_to: str = None) -> dict:
     """Notification email to an account: its address + name from users, links made absolute on
     site_url (never from a request). All checks happen inside email_service.send_email."""
     import email_service
@@ -1374,7 +1375,8 @@ def email_notify_user(user_id: int, template_key: str, values: dict, ref_key: st
     link = vals.get("link") or ""
     if link.startswith("/") and not link.startswith("//"):
         vals["link"] = email_service.get_settings()["site_url"] + link
-    return email_service.send_email(rows[0][0], template_key, vals, user_id=int(user_id), ref_key=ref_key)
+    return email_service.send_email(rows[0][0], template_key, vals, user_id=int(user_id), ref_key=ref_key,
+                                    **({"reply_to": reply_to} if reply_to else {}))
 
 
 # In-site notification type → its email template (5.1c). Only these types email.

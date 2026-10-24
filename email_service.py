@@ -28,15 +28,28 @@ Categories (task 5.1c · docs/rules/email.md → Notification Emails):
                  per-conversation throttle · daily / monthly cap (counted on email_send_log).
                  No gate registered → fail-closed ("unavailable").
 Every attempt lands in email_send_log (status sent / failed / skipped_*) through the log hook.
+
+Inbound (task 7.3 · docs/rules/support.md → البريد الوارد): Resend Receiving → POST /webhooks/resend/inbound.
+  verify_webhook()   Svix signature (svix-id / svix-timestamp / svix-signature) over the raw body, HMAC-SHA256
+                     with RESEND_WEBHOOK_SECRET (whsec_…) — stdlib hmac only · timestamp ±5 min.
+  fetch_received()   GET /emails/receiving/{id} (the event carries metadata only, never the body).
+  switch             types.support_inbound — not a template; OFF by default (OFF_BY_DEFAULT).
+  reply_to           send_email(..., reply_to=) — only for REPLY_TO_TEMPLATES (support emails).
 """
+import base64
+import hashlib
+import hmac
 import html
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 
 RESEND_URL = "https://api.resend.com/emails"
+RESEND_RECEIVED_URL = "https://api.resend.com/emails/receiving/"
+WEBHOOK_TOLERANCE_S = 300   # Svix: a timestamp older (or newer) than 5 minutes = replay → refused
 SETTING_KEY = "email_settings"
 TIMEOUT_SECONDS = 10
 
@@ -86,8 +99,15 @@ NOTIFY_TYPES = tuple(k for k, v in TEMPLATES.items() if v["category"] == NOTIFIC
 PREF_GROUPS = {"notify_application_hired": "notify_application_result",
                "notify_application_rejected": "notify_application_result"}
 PREF_TYPES = tuple(dict.fromkeys(PREF_GROUPS.get(k, k) for k in NOTIFY_TYPES))
+# Inbound support mail (task 7.3) — a switch in types, not a template; starts OFF.
+INBOUND_SWITCH = "support_inbound"
+OFF_BY_DEFAULT = (INBOUND_SWITCH,)
 TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "kyc_email_otp",
-         "support_guest_otp", "support_guest_link", "support_guest_reply", "support_reply") + NOTIFY_TYPES
+         "support_guest_otp", "support_guest_link", "support_guest_reply", "support_reply") + NOTIFY_TYPES \
+    + OFF_BY_DEFAULT
+TYPE_DEFAULTS = {k: k not in OFF_BY_DEFAULT for k in TYPES}
+# Templates that may carry a Reply-To (support+<token>@ — a reply lands on the same ticket, task 7.3).
+REPLY_TO_TEMPLATES = ("support_reply", "support_guest_reply", "support_guest_link")
 
 # Notification limits (email.notify.* — admin-editable): min / max of each.
 NOTIFY_LIMITS = {
@@ -104,7 +124,7 @@ DEFAULTS = {
     "from_address": "no-reply@tawasolna.com",
     "from_name": "تواصلنا",
     "site_url": "https://tawasolna.com",
-    "types": {k: True for k in TYPES},
+    "types": dict(TYPE_DEFAULTS),
     "notify": dict(NOTIFY_DEFAULTS),
 }
 
@@ -192,7 +212,12 @@ def notify_settings() -> dict:
 def type_enabled(template_key: str) -> bool:
     if template_key not in TYPES:
         return template_key in TEMPLATES
-    return bool(_settings.get("types", {}).get(template_key, True))
+    return bool(_settings.get("types", {}).get(template_key, TYPE_DEFAULTS[template_key]))
+
+
+def inbound_enabled() -> bool:
+    """Inbound support mail switched on by the admin (types.support_inbound — default off)."""
+    return type_enabled(INBOUND_SWITCH)
 
 
 def can_send(template_key: str) -> bool:
@@ -246,7 +271,7 @@ def validate_settings(raw, current: dict = None) -> dict:
                 raise EmailSettingsError("invalid_value", "القيمة لازم تكون تشغيل / إيقاف", k)
             out["types"][k] = v
     for k in TYPES:
-        out["types"].setdefault(k, True)
+        out["types"].setdefault(k, TYPE_DEFAULTS[k])
     out["notify"] = {**NOTIFY_DEFAULTS, **(out.get("notify") or {})}
     if "notify" in raw:
         n = raw["notify"]
@@ -394,14 +419,19 @@ def _log(template_key: str, status: str, log_id=None) -> None:
         print(f"[email] send log failed template={template_key}: {type(e).__name__}")
 
 
-def send_email(to, template_key: str, vars: dict = None, user_id: int = None, ref_key: str = None) -> dict:
+def send_email(to, template_key: str, vars: dict = None, user_id: int = None, ref_key: str = None,
+               reply_to: str = None) -> dict:
     """The site's only email sender. Never raises; see module docstring for the result.
-    Notification templates need user_id (preference + cap gate); ref_key = throttle scope."""
+    Notification templates need user_id (preference + cap gate); ref_key = throttle scope.
+    reply_to — REPLY_TO_TEMPLATES only (any other template → invalid); a valid address."""
     if template_key not in TEMPLATES:
         print(f"[email] unknown template {template_key!r}")
         return {"ok": False, "code": "invalid"}
     if not valid_address(to):
         print(f"[email] invalid recipient template={template_key}")
+        return {"ok": False, "code": "invalid"}
+    if reply_to is not None and (template_key not in REPLY_TO_TEMPLATES or not valid_address(reply_to)):
+        print(f"[email] not sent template={template_key}: reply_to not allowed")
         return {"ok": False, "code": "invalid"}
     notify = category(template_key) == NOTIFICATION
     if notify and not user_id:
@@ -436,6 +466,8 @@ def send_email(to, template_key: str, vars: dict = None, user_id: int = None, re
                    "html": msg["html"], "text": msg["text"]}
         if msg["prefs_url"]:
             payload["headers"] = {"List-Unsubscribe": f"<{msg['prefs_url']}>"}
+        if reply_to:
+            payload["reply_to"] = reply_to
         code, body = _post(payload, key)
     except Exception as e:   # network / timeout / bad JSON — type only (no key, no recipient)
         print(f"[email] send failed template={template_key}: {type(e).__name__}")
@@ -448,3 +480,68 @@ def send_email(to, template_key: str, vars: dict = None, user_id: int = None, re
     print(f"[email] send failed template={template_key}: http {code}")
     _log(template_key, "failed", log_id)
     return {"ok": False, "code": "failed"}
+
+
+# ── Inbound (task 7.3) ───────────────────────────────────────────────────────
+def webhook_secret() -> str:
+    """RESEND_WEBHOOK_SECRET (whsec_…) — env only, never logged / returned. '' = webhook unavailable (503)."""
+    return (os.environ.get("RESEND_WEBHOOK_SECRET") or "").strip()
+
+
+def verify_webhook(secret: str, headers, raw: bytes, now: float = None) -> bool:
+    """Svix: base64(HMAC-SHA256(key, f"{svix-id}.{svix-timestamp}.{raw}")) must equal one of the
+    space-separated "v1,<sig>" entries · key = base64-decoded part after "whsec_" · timestamp within
+    WEBHOOK_TOLERANCE_S of now. Constant-time compare. Any missing / bad part → False."""
+    try:
+        msg_id = headers.get("svix-id") or ""
+        ts = headers.get("svix-timestamp") or ""
+        sigs = headers.get("svix-signature") or ""
+        if not (secret and msg_id and ts.isdigit() and sigs) or len(msg_id) > 128:
+            return False
+        if abs((time.time() if now is None else now) - int(ts)) > WEBHOOK_TOLERANCE_S:
+            return False
+        key = base64.b64decode(secret.split("_", 1)[1] if secret.startswith("whsec_") else secret)
+        expected = base64.b64encode(hmac.new(key, msg_id.encode() + b"." + ts.encode() + b"." + raw,
+                                             hashlib.sha256).digest()).decode()
+        for part in sigs.split(" "):
+            version, _, sig = part.partition(",")
+            if version == "v1" and hmac.compare_digest(sig.encode(), expected.encode()):
+                return True
+        return False
+    except (ValueError, TypeError, IndexError):
+        return False
+
+
+_RECEIVED_ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+
+
+def _get(url: str, key: str, max_bytes: int):
+    """One HTTPS GET to Resend → (status, dict). Body over max_bytes → (413, {}). Raises on network errors."""
+    req = urllib.request.Request(url, method="GET", headers={
+        "Authorization": "Bearer " + key, "User-Agent": "tawasolna-email/1.0", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as r:
+            body = r.read(max_bytes + 1)
+            if len(body) > max_bytes:
+                return 413, {}
+            return r.status, json.loads((body or b"{}").decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+
+
+def fetch_received(email_id, max_bytes: int):
+    """The received email (from / to / subject / text / html / headers) by its id — RESEND_API_KEY.
+    → (dict, None) or (None, reason) — reason = 'unavailable' · 'invalid' · 'http <code>' · error type.
+    html_format=cid → inline images stay cid: references (never base64 inside the html). Logs nothing."""
+    if not isinstance(email_id, str) or not _RECEIVED_ID_RE.match(email_id):
+        return None, "invalid"
+    key = _api_key()
+    if not key:
+        return None, "unavailable"
+    try:
+        code, body = _get(RESEND_RECEIVED_URL + email_id + "?html_format=cid", key, max_bytes)
+    except Exception as e:
+        return None, type(e).__name__
+    if 200 <= code < 300 and isinstance(body, dict):
+        return body, None
+    return None, f"http {code}"

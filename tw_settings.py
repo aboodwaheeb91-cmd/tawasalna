@@ -139,6 +139,11 @@ _DEFS = (
     _sec_rate("support_guest_reply_ticket", 1, 600, 86400, "sec_support"),
     _sec_rate("support_track_ip", 0,         10,   600, "sec_support"),
     _sec_rate("support_track_ip", 1,         10,   600, "sec_support"),
+    # Inbound support mail (task 7.3): new tickets per sender address + every inbound ticket together.
+    _sec_rate("support_inbound_sender", 0,   1,    20, "sec_support"),
+    _sec_rate("support_inbound_sender", 1, 600, 86400, "sec_support"),
+    _sec_rate("support_inbound_global", 0,  10,  1000, "sec_support"),
+    _sec_rate("support_inbound_global", 1, 600, 86400, "sec_support"),
 )
 
 GROUPS = ("messages", "posts", "comments", "reports", "admin", "support",

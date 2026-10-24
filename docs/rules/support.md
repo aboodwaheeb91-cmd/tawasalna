@@ -1,13 +1,13 @@
-# Support Tickets — نظام الدعم (task 7.1 · 7.2a · 7.2b)
+# Support Tickets — نظام الدعم (task 7.1 · 7.2a · 7.2b · 7.3)
 
-> إلزامي بنفس قوة `CLAUDE.md` لأي مهمة بتلمس الدعم. Spec: `docs/SYSTEMS_INDEX.md §62` · `ARCHITECTURE.md §81` · migrations `docs/migrations/7.1_support_tickets.sql` · `7.2a_A_expand.sql` · `7.2a_B_migrate.sql` · tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q` · `node tests/test_support_pages_runtime.js`.
+> إلزامي بنفس قوة `CLAUDE.md` لأي مهمة بتلمس الدعم. Spec: `docs/SYSTEMS_INDEX.md §62` · `ARCHITECTURE.md §81` · migrations `docs/migrations/7.1_support_tickets.sql` · `7.2a_A_expand.sql` · `7.2a_B_migrate.sql` · `7.3_inbound.sql` · tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q` · `python -m pytest tests/test_support_inbound.py -q` · `node tests/test_support_pages_runtime.js`.
 >
 > **7.2a = Backend + واجهة (مهمتين).** ما في مرفقات. الواجهة: قسم «الواجهة» تحت.
 
 ## المصدر الوحيد
 
 - **`support.py`** — الـ schema (`SCHEMA_SQL` = الشكل النهائي للـ DB الجديدة والـ CI، `migrate_support` = `CREATE … IF NOT EXISTS` بس، migration اختيارية `support_tickets`) · كل قراءة وكتابة للتذاكر وروابط الزائر · `transition()` (الانتقالات) · `normalize_sql()` (توحيد القيم القديمة) · `clean_details()` / `clean_faq()` · `issue_guest_link()` · القوائم الثابتة `CATEGORIES` · `STATUSES` · `PRIORITIES` · `FIELDS` · `FAQ_IDS` · `REOPEN_DAYS = 14`. `server.py` بيتحقق من المدخلات والحدود والصلاحية وبينادي هالدوال بس.
-- **الجداول:** `support_tickets` (`public_id` · `user_id` NULL للزائر · `guest_email` · `category` · `status` · `priority` · `subject` · `details` JSONB · `faq_id` · `legacy_category` · `created_at` · `updated_at` · `last_message_at` · `closed_at` = وقت الحل) · `support_messages` (`ticket_id` · `author_type` user / guest / admin · `author_id` · `body` · `created_at`) · `support_guest_otp` (رمز الزائر) · `support_guest_access` (رابط المتابعة — hash بس). RLS مفعّل (`rls_lockdown` بتغطي كل جدول بـ `public` تلقائياً) بدون أي صلاحية لـ `anon` / `authenticated`.
+- **الجداول:** `support_tickets` (`public_id` · `user_id` NULL للزائر · `guest_email` · `category` · `status` · `priority` · `subject` · `details` JSONB · `faq_id` · `legacy_category` · `created_at` · `updated_at` · `last_message_at` · `closed_at` = وقت الحل) · `support_messages` (`ticket_id` · `author_type` user / guest / admin · `author_id` · `body` · `created_at`) · `support_guest_otp` (رمز الزائر) · `support_guest_access` (رابط المتابعة — hash بس) · `support_reply_tokens` (رمز Reply-To — hash بس، 7.3) · `support_inbound_events` (منع تكرار البريد الوارد، 7.3) · `support_tickets.source` (`web` / `email`، 7.3). RLS مفعّل (`rls_lockdown` بتغطي كل جدول بـ `public` تلقائياً) بدون أي صلاحية لـ `anon` / `authenticated`.
 - **المعرّف العام:** `auth.generate_public_id("H")` — هوية بس، مش صلاحية.
 - ❌ **تعديل قيود الإنتاج من كود الإقلاع** — الإنتاج بملفات `docs/migrations/7.2a_*.sql` بإيد زعتر.
 
@@ -24,7 +24,7 @@
 | `complaint` | `content_url` |
 | `general` | بدون |
 
-- **الزائر:** `GUEST_CATEGORY = account` بس (السيرفر + `CHECK`).
+- **الزائر:** `GUEST_CATEGORY = account` بس (السيرفر + `CHECK`) — إلا تذكرة البريد الوارد (`source = email` → `general`، والأدمن بيقدر يغيّر تصنيفها — 7.3).
 - كل قيمة نص؛ الروابط `https://tawasolna.com/…` بس ≤ 300 (بدون مسافات / `"'<>\`) · بدون أحرف تحكم (Cc) · قيمة فاضية بتنشال · الحجم الكلي ≤ 4000 (CHECK بالقاعدة كمان). الخطأ: 422 `unknown_detail` / `invalid_detail` / `details_too_large` / `invalid_details`، `field = details.<key>`.
 - **`faq_id`** اختياري — لازم يكون من `support.FAQ_IDS` (مرتب حسب التصنيف)، غيره 422 `invalid_faq`.
 - **`GET /support/meta`** (عام + `_public_rate`): `categories` · `guest_category` · `fields` (لكل تصنيف: `key` · `type` · `values` / `max`) · `faq`. بدون نصوص — النصوص للواجهة من `tw_strings` (`support.category.*` …).
@@ -90,13 +90,28 @@
 6. الرمز الخام بيروح للإيميل بس — ❌ بأي رد API أو لوج. ❌ ربط تلقائي لتذاكر الزائر بالحساب.
 - Test: `python -m pytest tests/test_support_reply_notice.py -q`.
 
+## البريد الوارد (task 7.3 — Resend Receiving)
+
+قرار زعتر: إيميل جديد على `info@` أو `support@tawasolna.com` = تذكرة جديدة · الرد على إيميل دعم = رسالة على نفس التذكرة.
+
+1. **المسار** `POST /webhooks/resend/inbound` (حدث `email.received` بس) + `_public_rate`. `RESEND_WEBHOOK_SECRET` غايب → 503 · الجسم أكبر من `support_inbound_request_max` → 413 · توقيع Svix غلط أو timestamp أبعد من 5 دقايق → 401 (قبل أي DB) — `email_service.verify_webhook` (hmac من مكتبة بايثون، بدون اعتمادية). الجسم الخام بـ `await` والباقي بـ `asyncio.to_thread`.
+2. **مفتاح الإطفاء** `email_settings.types.support_inbound` (`PUT /admin/email` — متل `support_guest_link`) · **الافتراضي مطفي** · مطفي = 200 بدون أي أثر.
+3. **منع التكرار:** `support_inbound_events` (`svix_id` UNIQUE + `email_id` UNIQUE) بنفس transaction التذكرة / الرسالة · نفس الحدث مرتين = 200 بدون أثر. ما فيه إيميل ولا نص.
+4. **الفلترة:** المستلم `info@` / `support@` / `support+<token>@` بس (غيره 200 وتجاهل) · From فاضي / `mailer-daemon` / `postmaster` · `Auto-Submitted` ≠ `no` · نص فاضي → تجاهل. ❌ أي رد تلقائي على بريد وارد.
+5. **المحتوى:** الحدث ما فيه النص → `email_service.fetch_received(email_id)` (Resend `GET /emails/receiving/{id}` بـ `RESEND_API_KEY`) — فشل → 503 (Resend بيعيد). نص عادي بس: `text`، وإلا HTML بدون أي وسم (و `script` / `style` بمحتواهم) · قص بـ `support_body_max` / `support_subject_max` · ❌ المرفقات · ❌ نص / إيميل / رمز بالـ logs (`[support] inbound <outcome>` بس). **صلاحية المفتاح:** مفتاح Resend «Sending access» بيبعت بس — القراءة بدها «Full access» (F30 — مبلَّغ، ما في مفتاح جديد).
+6. **إيميل جديد = تذكرة زائر دايماً** (`support.inbound_new_ticket`): `guest_email` = From (lower) · `category = general` · `source = email` · الموضوع مقصوص، فاضي → `support.inbound.no_subject` · ❌ ربط بحساب. إيميل مطابق لحساب → `requester.matches_account` بصندوق الأدمن («مطابق لحساب (غير مؤكَّد)») تلميح بس. حد `support_inbound_sender` (لكل مرسل) + `support_inbound_global` (سقف عام) — التجاوز = تجاهل.
+7. **الرد** (`support.inbound_reply`): كل إيميل دعم صادر (`support_reply` · `support_guest_reply` · `support_guest_link`) بيحمل `Reply-To: support+<token>@tawasolna.com` — `support.issue_reply_token` (الكاتب الوحيد): `secrets.token_hex(16)` لكل إيميل، sha256 بس، آخر 5 لكل تذكرة. بريد على `support+<token>@` = رسالة على تلك التذكرة **بشرط From = إيميل صاحبها** (`users.email` للحساب أو `guest_email`)، غير هيك تجاهل · `author_type` user / guest حسب التذكرة · نفس `_requester_reply` (in_review · إعادة فتح خلال 14 يوم · `support_open_max`) — رفض = تجاهل. ❌ رقم H وحده كتفويض. رد الأدمن على تذكرة بريد = إشعار 7.2b (رابط متابعة جديد + `support_guest_reply`).
+8. **الإنتاج:** `docs/migrations/7.3_inbound.sql` بإيد زعتر قبل الدمج (فحص قراءة بـ UNION ALL · التغيير · فحص بعدي · رجوع). كود الإقلاع بينشئ الجدولين الجداد بس.
+- ❌ تذكرة من بريد بحساب · ❌ رد من بريد بدون رمز + From صاحب التذكرة · ❌ رد تلقائي · ❌ مرفقات · ❌ تحقق توقيع بمكتبة خارجية أو برّا `email_service`.
+- Test: `python -m pytest tests/test_support_inbound.py -q`.
+
 ## الأدمن (`support.manage`)
 
 1. `check_admin(request, SUPPORT_PERM)` أول شي بكل endpoint — بدون توكن / توكن مستخدم → 401 · توكن أدمن بدون الصلاحية → 403.
 2. `GET /admin/support/tickets?status&category&priority&requester&q&sort&page&limit` — `requester` ∈ guest · user · `q` = رقم H بالضبط أو الإيميل (الزائر أو الحساب) · `sort` ∈ `newest` (الافتراضي — وقت الفتح) · `oldest_waiting` (أقدم رسالة أخيرة أولاً) · `priority` (urgent → high → normal) · قيمة غلط → 422. الرد فيه القوائم (`statuses` · `categories` · `priorities` · `sorts` · `requesters` · `next_statuses`).
 3. `GET /admin/support/counts` → `{new}` (عدد التذاكر بحالة `new`).
 4. `GET /admin/support/tickets/{public_id}` → صاحب التذكرة + `details` + `faq_id` + `legacy_category` + المحادثة.
-5. `POST …/messages` `{body, next_status}` · `PUT /admin/support/tickets/{public_id}` `{status?, priority?, category?}` — تغيير التصنيف: أول تغيير لتذكرة `legacy_category` فيها NULL بيحفظ القيمة القديمة · تذكرة زائر بتضل `account` (422 `guest_category`).
+5. `POST …/messages` `{body, next_status}` · `PUT /admin/support/tickets/{public_id}` `{status?, priority?, category?}` — تغيير التصنيف: أول تغيير لتذكرة `legacy_category` فيها NULL بيحفظ القيمة القديمة · تذكرة زائر من الموقع بتضل `account` (422 `guest_category`) — تذكرة البريد الوارد (7.3) بتقبل أي تصنيف.
 6. **السجل:** `admin_audit_middleware` بس — `actor` · `action` (`admin_support_reply` / `admin_support_update`) · `target ticket=<public_id>` · `old_value` / `new_value` (`category=…;priority=…;status=…`). ❌ نص الرسالة أو الإيميل بالسجل.
 
 ## الواجهة (7.2a واجهة — بدون تغيير بالـ API)

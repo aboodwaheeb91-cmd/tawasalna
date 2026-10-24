@@ -1335,7 +1335,7 @@ def _rate_limited() -> JSONResponse:
 # (tests/test_public_rate_limit.py walks app.routes). One bucket per client IP (get_client_ip only)
 # on the shared _rate_store, value tw_settings.rate("public_ip") (admin-editable, sec_public).
 # Over it → 429 + Retry-After: API → {ok:false, error:{code:"rate_limited"}} · HTML route → a small page.
-from html import escape as _html_escape
+from html import escape as _html_escape, unescape as _html_unescape
 
 
 class PublicRateLimited(Exception):
@@ -4619,12 +4619,24 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
 # Token in the body only (POST, never a query string) · wrong / expired / revoked / not a guest ticket →
 # one 404 · support_track_ip on every call + _public_rate · reply: support_guest_reply_ticket per ticket.
 # Headers (no-store · no-referrer · noindex) = security_headers on every /support/track path.
+def _support_reply_to(ticket_id=None, public_id=None):
+    """Reply-To of a support email (7.3): support+<new token>@ — a reply lands on the same ticket.
+    Failure → None (the email still goes, without Reply-To) + one log line (type only)."""
+    try:
+        tid = ticket_id if ticket_id is not None else support.ticket_id_of(public_id)
+        return support.reply_address(support.issue_reply_token(int(tid))) if tid else None
+    except Exception as e:
+        print(f"[support] reply token failed: {type(e).__name__}")
+        return None
+
+
 def _support_send_links(email: str, links) -> None:
     """One support_guest_link email per ticket (H number + link). Never logs the token or the address."""
     site = email_service.get_settings()["site_url"]
     for public_id, token in links:
         email_service.send_email(email, "support_guest_link",
-                                 {"ticket": public_id, "link": support.track_link(site, token)})
+                                 {"ticket": public_id, "link": support.track_link(site, token)},
+                                 reply_to=_support_reply_to(public_id=public_id))
 
 
 def _support_resend_send(email: str) -> None:
@@ -4695,6 +4707,122 @@ def support_track_resend(request: Request, background_tasks: BackgroundTasks, da
     return api_ok({"sent": True})
 
 
+# ── inbound mail (task 7.3 — docs/rules/support.md → البريد الوارد · Resend Receiving) ──
+# POST /webhooks/resend/inbound — email.received only. RESEND_WEBHOOK_SECRET missing → 503 · body over
+# support_inbound_request_max → 413 · Svix signature wrong / timestamp off by > 5 min → 401 (before any DB) ·
+# switch types.support_inbound off → 200, nothing. Everything after the check answers 200 (ignored or done) —
+# except a failed fetch of the email from Resend → 503 so Resend retries (no event row written).
+# Never logs an address, a subject, a body or a token — the outcome code only. Never replies to an email.
+_INBOUND_AUTO_FROM = ("mailer-daemon", "postmaster")
+
+
+def _inbound_text(msg: dict) -> str:
+    """Plain text only: text, else the HTML with every tag removed (script / style content too)."""
+    text = msg.get("text")
+    if isinstance(text, str) and text.strip():
+        return text
+    h = msg.get("html")
+    if not isinstance(h, str):
+        return ""
+    h = re.sub(r"(?is)<(script|style|head)\b.*?</\1\s*>", " ", h)
+    h = re.sub(r"(?i)<br\s*/?>|</(p|div|li|tr|h[1-6])\s*>", "\n", h)
+    h = re.sub(r"(?s)<!--.*?-->", " ", h)
+    h = re.sub(r"<[^>]*>", " ", h)
+    return _html_unescape(h)
+
+
+def _inbound_clean(text: str, limit_name: str) -> str:
+    """Control chars out (newlines kept) · spaces folded · trimmed · cut at the tw_limits limit."""
+    text = re.sub(r"[^\S\n]+", " ", re.sub(r"[\x00-\x09\x0b-\x1f\x7f]", " ", text or "").replace("\r", ""))
+    text = re.sub(r"\n[ ]*(\n[ ]*)+", "\n\n", text).strip()
+    return text[:tw_settings.limit(limit_name)].strip()
+
+
+def _inbound_auto(headers) -> bool:
+    """Auto-Submitted ≠ no (RFC 3834) → an automatic email (never answered, never a ticket)."""
+    if isinstance(headers, dict):
+        pairs = headers.items()
+    elif isinstance(headers, list):   # [{name, value}, …]
+        pairs = [(h.get("name"), h.get("value")) for h in headers if isinstance(h, dict)]
+    else:
+        return False
+    for k, v in pairs:
+        if isinstance(k, str) and k.lower() == "auto-submitted":
+            return str(v).strip().lower() not in ("", "no")
+    return False
+
+
+def _inbound_handle(raw: bytes, svix_id: str) -> JSONResponse:
+    try:
+        event = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return api_ok({"handled": False})
+    if not isinstance(event, dict) or event.get("type") != "email.received" or not isinstance(event.get("data"), dict):
+        return api_ok({"handled": False})
+    email_id = event["data"].get("email_id")
+    if not isinstance(email_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,64}", email_id):
+        return api_ok({"handled": False})
+    if support.inbound_seen(svix_id, email_id):
+        return api_ok({"handled": False})
+
+    def ignore(reason):
+        out = support.inbound_ignore(svix_id, email_id, reason)
+        print(f"[support] inbound {out}")
+        return api_ok({"handled": False})
+
+    kind, token = support.inbound_target(event["data"].get("to"))
+    if kind is None:
+        return ignore("ignored_recipient")
+    msg, err = email_service.fetch_received(email_id, tw_settings.limit("support_inbound_fetch_max"))
+    if msg is None:
+        if err == "http 413":
+            return ignore("ignored_size")
+        print(f"[support] inbound fetch failed: {err}")
+        return api_error(503, "fetch_failed", _tw_text("support.inbound.unavailable"))
+    sender = support.bare_address(msg.get("from"))
+    if not sender or sender.split("@", 1)[0] in _INBOUND_AUTO_FROM:
+        return ignore("ignored_sender")
+    if _inbound_auto(msg.get("headers")):
+        return ignore("ignored_auto")
+    body = _inbound_clean(_inbound_text(msg), "support_body_max")
+    if not body:
+        return ignore("ignored_empty")
+    if kind == "reply":
+        out = support.inbound_reply(svix_id, email_id, token, sender, body, tw_settings.limit("support_open_max"))
+    else:
+        if not _rate_ok_all([("support_inbound_sender", sender), ("support_inbound_global", "all")]):
+            return ignore("ignored_rate")
+        subject = _inbound_clean(msg.get("subject") if isinstance(msg.get("subject"), str) else "",
+                                 "support_subject_max").replace("\n", " ") or _tw_text("support.inbound.no_subject")
+        out = support.inbound_new_ticket(svix_id, email_id, sender, subject, body)
+    print(f"[support] inbound {out}")
+    return api_ok({"handled": out in ("ticket", "message")})
+
+
+@app.post("/webhooks/resend/inbound", dependencies=[Depends(_public_rate)])
+async def resend_inbound_webhook(request: Request):
+    secret = email_service.webhook_secret()
+    if not secret:
+        return api_error(503, "unavailable", _tw_text("support.inbound.unavailable"))
+    max_bytes = tw_settings.limit("support_inbound_request_max")
+    declared = request.headers.get("content-length") or ""
+    if declared.isdigit() and int(declared) > max_bytes:
+        return api_error(413, "too_large", _tw_text("limits.too_long", max=_fmt_number(max_bytes)))
+    raw = b""
+    async for chunk in request.stream():
+        raw += chunk
+        if len(raw) > max_bytes:
+            return api_error(413, "too_large", _tw_text("limits.too_long", max=_fmt_number(max_bytes)))
+    if not email_service.verify_webhook(secret, request.headers, raw):
+        return api_error(401, "invalid_signature", _tw_text("support.inbound.unauthorized"))
+    if not email_service.inbound_enabled():
+        return api_ok({"handled": False})
+    try:
+        return await asyncio.to_thread(_inbound_handle, raw, request.headers.get("svix-id"))
+    except Exception as e:
+        raise _server_error("resend_inbound_webhook", e)
+
+
 # ── admin inbox (support.manage) ──
 def _support_audit(request: Request, public_id: str, old, new) -> None:
     def fmt(v):
@@ -4755,7 +4883,8 @@ def _support_reply_notice(n: dict) -> None:
             token = support.issue_guest_link(n["ticket_id"], keep=support.GUEST_LINK_KEEP)
             res = email_service.send_email(n["guest_email"], "support_guest_reply", {
                 "ticket": n["public_id"],
-                "link": support.track_link(email_service.get_settings()["site_url"], token)})
+                "link": support.track_link(email_service.get_settings()["site_url"], token)},
+                reply_to=_support_reply_to(ticket_id=n["ticket_id"]))
             token = None
         else:
             link = support.ticket_path(n["public_id"])
@@ -4764,7 +4893,8 @@ def _support_reply_notice(n: dict) -> None:
                                 _tw_text("notif.support_reply.body"), link, entity_type="support_ticket",
                                 entity_id=n["ticket_id"],
                                 event_key=f"support_reply:support_ticket:{n['ticket_id']}:{n['message_id']}")
-            res = email_notify_user(int(n["user_id"]), "support_reply", {"ticket": n["public_id"], "link": link})
+            res = email_notify_user(int(n["user_id"]), "support_reply", {"ticket": n["public_id"], "link": link},
+                                    reply_to=_support_reply_to(ticket_id=n["ticket_id"]))
         if not res.get("ok"):
             print(f"[support] reply notice email not sent: {res.get('code')}")
     except Exception as e:

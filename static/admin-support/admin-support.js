@@ -39,8 +39,13 @@
   }
   function requesterText(r) {
     if (!r) return '';
-    if (r.kind === 'guest') return twT('admin.support.guest') + ' · ' + r.email;
+    // inbound mail (7.3): a hint only — the address matching an account proves nothing, never a link
+    if (r.kind === 'guest') return twT('admin.support.guest') + ' · ' + r.email
+      + (r.matches_account ? ' · ' + twT('admin.support.matches_account') : '');
     return (r.name || r.tw_id || '') + ' · ' + (r.email || '');
+  }
+  function sourceText(t) {
+    return t.source === 'email' ? ' · ' + twT('admin.support.source.email') : '';
   }
   function getJson(url) {
     return TwAdminSession.fetch(url, { permissionAware: true }).then(function (r) {
@@ -103,7 +108,7 @@
       main.tabIndex = 0;
       main.appendChild(el('div', 'tw-adm-row-title', t.subject));
       main.appendChild(el('div', 'tw-adm-row-sub', t.public_id + ' · ' + twT('support.category.' + t.category) + ' · '
-        + requesterText(t.requester) + ' · ' + twFormatDateTime(t.last_message_at)));
+        + requesterText(t.requester) + sourceText(t) + ' · ' + twFormatDateTime(t.last_message_at)));
       main.addEventListener('click', function () { openTicket(t.public_id); });
       main.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(t.public_id); } });
       var acts = el('div', 'tw-adm-row-acts');
@@ -180,7 +185,7 @@
     head.appendChild(pill('priority', t.priority));
     body.appendChild(head);
     body.appendChild(el('p', 'sp-hint', t.public_id + ' · ' + twT('support.category.' + t.category) + ' · '
-      + requesterText(t.requester) + ' · ' + twFormatDateTime(t.created_at)));
+      + requesterText(t.requester) + sourceText(t) + ' · ' + twFormatDateTime(t.created_at)));
     renderDetails(body, t);
 
     var msgs = el('div', 'sp-msgs');
@@ -204,7 +209,8 @@
     st.input.value = t.status;
     pr.input.value = t.priority;
     ca.input.value = t.category;
-    ca.input.disabled = t.requester && t.requester.kind === 'guest';   // a guest ticket stays account (server 422)
+    // a web guest ticket stays account (server 422) — an inbound-email ticket (7.3) may move
+    ca.input.disabled = t.requester && t.requester.kind === 'guest' && t.source !== 'email';
     var save = button('admin.support.update.save');
     ctl.appendChild(st.wrap);
     ctl.appendChild(pr.wrap);
