@@ -21,6 +21,7 @@ Logs carry the template + reason only — never the key, the recipient or the bo
 Categories (task 5.1c · docs/rules/email.md → Notification Emails):
   security       password_reset · password_changed · email_change · email_changed · kyc_email_otp ·
                  support_guest_otp (7.1) · support_guest_link (7.2a) ·
+                 support_guest_reply · support_reply (7.2b) ·
                  admin_test — never touched by the caps or the user's preferences.
   notification   notify_* — send_email(..., user_id=, ref_key=) runs the gate first (registered by
                  server.py via set_send_hooks → auth.email_notify_reserve): user preference ·
@@ -55,6 +56,10 @@ TEMPLATES = {
     "support_guest_otp": {"category": SECURITY, "vars": ("code", "minutes"), "parts": ("subject", "body", "note")},
     # Guest follow-up link (task 7.2a) — {ticket} = the H number, {link} = /support/track#t=… (never logged).
     "support_guest_link": {"category": SECURITY, "vars": ("ticket", "link"), "parts": ("subject", "body", "button", "note")},
+    # Reply notices (task 7.2b) — SECURITY: the requester asked for this answer (a support thread, like a
+    # reset link), so it never waits on a preference or a notification cap. No reply text — only the H number.
+    "support_guest_reply": {"category": SECURITY, "vars": ("ticket", "link"), "parts": ("subject", "body", "button", "note")},
+    "support_reply":    {"category": SECURITY, "vars": ("name", "ticket", "link"), "parts": ("subject", "body", "button")},
     "admin_test":       {"category": SECURITY, "vars": (), "parts": ("subject", "body")},
     # Notification emails (5.1c) — {title} / {details} = the in-site notification's own text.
     "notify_message":                 {"category": NOTIFICATION, "vars": ("name", "sender", "link"),
@@ -82,7 +87,7 @@ PREF_GROUPS = {"notify_application_hired": "notify_application_result",
                "notify_application_rejected": "notify_application_result"}
 PREF_TYPES = tuple(dict.fromkeys(PREF_GROUPS.get(k, k) for k in NOTIFY_TYPES))
 TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "kyc_email_otp",
-         "support_guest_otp", "support_guest_link") + NOTIFY_TYPES
+         "support_guest_otp", "support_guest_link", "support_guest_reply", "support_reply") + NOTIFY_TYPES
 
 # Notification limits (email.notify.* — admin-editable): min / max of each.
 NOTIFY_LIMITS = {

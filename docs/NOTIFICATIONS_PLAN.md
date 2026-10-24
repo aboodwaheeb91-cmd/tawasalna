@@ -614,6 +614,7 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 | تسجيل دخول من جهاز جديد | system → user | 🔜 future | `security_login` | `/settings` | No agg | يحتاج device fingerprinting |
 | تغيير كلمة المرور | user → user | 🔜 future | `password_changed` | `/settings` | No agg | لا hook في settings flow |
 | إعلان عام من النظام | admin → all | 🔜 future | `announcement` | — | No agg | يحتاج broadcast system |
+| رد الأدمن على تذكرة دعم (حساب) | admin → ticket owner | ✅ impl | `support_reply` | `/support?ticket={H…}` | No agg — `event_key = support_reply:support_ticket:{ticket_id}:{message_id}` (إشعار لكل رسالة) | task 7.2b — بعد الـ commit بـ BackgroundTasks · ما بيتأثر بالتفضيلات · مش بـ `NOTIFICATION_EMAIL_TEMPLATES` (إيميل `support_reply` SECURITY منفصل) · بدون نص الرد — `docs/rules/support.md` → إشعارات الرد |
 
 ---
 

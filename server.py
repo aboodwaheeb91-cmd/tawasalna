@@ -210,6 +210,7 @@ from auth import (
 from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
 from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
 from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
+from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
 import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEMS_INDEX §62)
 
 # ── Secrets from environment — NEVER hardcoded in source ──
@@ -4739,15 +4740,48 @@ def admin_support_get(request: Request, public_id: str):
         raise _server_error("admin_support_get", e)
 
 
+# ── reply notice (task 7.2b) — after the commit, in the background; the reply text never leaves the thread ──
+# Guest: a new link (issue_guest_link keep=3) + support_guest_reply · account: bell support_reply (event_key per
+# message — not in NOTIFICATION_EMAIL_TEMPLATES, so no second email) + its own support_reply email. Both emails
+# are SECURITY (preferences / notification caps never apply). A failure = one log line (type only, never the
+# address / token / link) — the reply stays 200.
+def _support_reply_notice(n: dict) -> None:
+    try:
+        if n["user_id"] is None:
+            # the link email itself (support_guest_link) or this notice switched off → no new link, no email
+            if not (email_service.can_send("support_guest_link") and email_service.can_send("support_guest_reply")):
+                print("[support] guest reply notice skipped: email type off or unavailable")
+                return
+            token = support.issue_guest_link(n["ticket_id"], keep=support.GUEST_LINK_KEEP)
+            res = email_service.send_email(n["guest_email"], "support_guest_reply", {
+                "ticket": n["public_id"],
+                "link": support.track_link(email_service.get_settings()["site_url"], token)})
+            token = None
+        else:
+            link = support.ticket_path(n["public_id"])
+            create_notification(int(n["user_id"]), "support_reply",
+                                _tw_text("notif.support_reply.title", ticket=n["public_id"]),
+                                _tw_text("notif.support_reply.body"), link, entity_type="support_ticket",
+                                entity_id=n["ticket_id"],
+                                event_key=f"support_reply:support_ticket:{n['ticket_id']}:{n['message_id']}")
+            res = email_notify_user(int(n["user_id"]), "support_reply", {"ticket": n["public_id"], "link": link})
+        if not res.get("ok"):
+            print(f"[support] reply notice email not sent: {res.get('code')}")
+    except Exception as e:
+        print(f"[support] reply notice failed: {type(e).__name__}")
+
+
 @app.post("/admin/support/tickets/{public_id}/messages")
-def admin_support_reply(request: Request, public_id: str, data: dict = Body(...)):
+def admin_support_reply(request: Request, public_id: str, background_tasks: BackgroundTasks,
+                        data: dict = Body(...)):
     request.state.audit_target = f"ticket={public_id}"   # a refused request (401 / 403) names the ticket too
     claims = check_admin(request, SUPPORT_PERM)
     body, bad = _support_text(data, "body", "support_body_max")
     if bad:
         return bad
     try:
-        old, new = support.admin_reply(public_id, str(claims.get("sub") or "-"), body, data.get("next_status"))
+        old, new, notice = support.admin_reply(public_id, str(claims.get("sub") or "-"), body,
+                                               data.get("next_status"))
     except LookupError:
         return _support_not_found()
     except support.SupportError as e:
@@ -4755,6 +4789,7 @@ def admin_support_reply(request: Request, public_id: str, data: dict = Body(...)
     except Exception as e:
         raise _server_error("admin_support_reply", e)
     _support_audit(request, public_id, old, new)
+    background_tasks.add_task(_support_reply_notice, notice)   # after the commit + the reply (7.2b)
     return api_ok({"public_id": public_id, "status": new})
 
 
