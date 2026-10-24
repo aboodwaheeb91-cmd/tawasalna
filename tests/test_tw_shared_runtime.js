@@ -192,6 +192,7 @@ function check(name, condition, detail) {
     check('S05b — register href is /login#register',        registerItem && registerItem.href === '/login#register');
     check('S05c — login href is /login (plain)',             loginItem    && loginItem.href    === '/login');
     check('S05d — login and register hrefs are different',  loginItem && registerItem && loginItem.href !== registerItem.href);
+    check('S05e — guest sees support',                      items.indexOf('support') !== -1);
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -204,6 +205,7 @@ function check(name, condition, detail) {
     check('S07 — emp sees logout',             items.indexOf('logout') !== -1);
     check('S08 — emp does NOT see login',      items.indexOf('login') === -1);
     check('S09 — emp does NOT see candidates', items.indexOf('candidates') === -1);
+    check('S09b — emp sees support',           items.indexOf('support') !== -1);
   }
 
   // ────────────────────────────────────────────────────────────────
