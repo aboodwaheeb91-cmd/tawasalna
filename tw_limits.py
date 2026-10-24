@@ -69,6 +69,10 @@ RATES = {
     "support_guest_email": (2, 3600),    # guest ticket (login problems) — per email address
     "support_guest_ip": (2, 3600),       # … per client IP
     "support_guest_global": (60, 3600),  # … every guest ticket together (holds even when the IP is forged)
+    "support_link_resend_email": (3, 3600),   # guest follow-up link resend — per email (over it: same reply, no email — 7.2a)
+    "support_link_resend_ip": (10, 3600),     # … per client IP
+    "support_guest_reply_ticket": (20, 3600), # guest reply through the link — per ticket
+    "support_track_ip": (60, 60),             # every /support/track API call — per client IP
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")

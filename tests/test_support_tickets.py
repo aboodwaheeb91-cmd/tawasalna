@@ -7,10 +7,13 @@ Behaviour over HTTP (real PostgreSQL, in-process client):
   3  account limits — open tickets at once (support_open_max, also on reopen) · new tickets per window (support_create)
   4  guest — no / wrong code → refused · category other than account → 422 · with the code → ticket opens
      (category account, guest_email stored) · per email · per IP · global cap (tw_settings, security)
-  5  reopen window — reply on a closed ticket reopens it within 14 days of closed_at, after that 409 reopen_expired;
-     user reply → open · admin reply → awaiting_user
+  5  statuses (7.2a) — every transition (support.transition) · reopen within 14 days of closed_at (13 / 15 days),
+     after that 409 · open max on reopen · closed_at set on resolved, cleared on reopen
   6  support.manage — no token / user JWT → 401 · admin token without it → 403 · with it → 200
-  7  audit — admin reply / status / priority = admin_audit_log rows (actor · action · ticket · old → new)
+  7  audit — admin reply / status / priority / category = admin_audit_log rows (actor · action · ticket · old → new)
+  8  legacy values (7.2a transition) — open → new / in_review · closed → resolved · other → general on read
+  9  details / faq_id (7.2a) — unknown key · external link · future date · too big · bad faq → 422 · /support/meta
+  10 admin inbox (7.2a) — filters · q (H id / email) · sort · counts · category change + legacy_category
 
 TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_support_tickets.py -q
@@ -152,7 +155,7 @@ def test_open_max_and_create_rate():
     r = _new(u)
     assert r.status_code == 409 and r.json()["error"]["code"] == "too_many_open"
     client.post(f"/support/tickets/{p1}/close", headers=_h(u))
-    third = _open(u)                                     # a closed one frees a place
+    third = _open(u)                                     # a resolved one frees a place
     # reopening counts too
     r = client.post(f"/support/tickets/{p1}/messages", json={"body": "رجعت"}, headers=_h(u))
     assert r.status_code == 409 and r.json()["error"]["code"] == "too_many_open"
@@ -221,18 +224,63 @@ def test_guest_limits_email_ip_global():
     assert tw_settings.value("support_guest_global_hits") == 3 and tw_settings.REGISTRY["support_guest_global_hits"]["default"] == 60
 
 
-# ── 5 reopen window + status ──
+# ── 5 statuses + reopen window ──
+def _status(pid):
+    return _sql("SELECT status, closed_at IS NOT NULL FROM support_tickets WHERE public_id = :p", p=pid)[0]
+
+
+def _areply(pid, nxt="awaiting_user", **kw):
+    body = {"body": "جرّب هيك"}
+    if nxt is not None:
+        body["next_status"] = nxt
+    return client.post(f"/admin/support/tickets/{pid}/messages", json=body, headers=kw.get("headers") or _admin())
+
+
+def test_transition_rule():
+    t = srv.support.transition
+    assert t(None, "open") == "new"
+    assert t("new", "admin_reply", target="awaiting_user") == "awaiting_user"
+    assert t("in_review", "admin_reply", target="resolved") == "resolved"
+    for bad in (None, "new", "in_review", "x"):
+        with pytest.raises(srv.support.SupportError) as e:
+            t("new", "admin_reply", target=bad)
+        assert e.value.status == 422
+    for st in srv.support.STATUSES:
+        assert t("resolved", "admin_set", target=st) == st
+    for cur in ("new", "in_review", "awaiting_user"):
+        assert t(cur, "requester_reply") == "in_review"
+    assert t("resolved", "requester_reply", reopen_ok=True) == "in_review"
+    with pytest.raises(srv.support.SupportError) as e:
+        t("resolved", "requester_reply", reopen_ok=False)
+    assert (e.value.status, e.value.code) == (409, "reopen_expired")
+    assert t("awaiting_user", "requester_resolve") == "resolved"
+
+
+def test_status_flow_over_http():
+    u = _user()
+    pid = _open(u)
+    assert _status(pid) == ["new", False]                                         # written explicitly
+    assert _areply(pid, None).status_code == 422                                  # next_status required
+    assert _areply(pid, "in_review").json()["error"]["code"] == "invalid_next_status"
+    assert _areply(pid).json()["data"]["status"] == "awaiting_user"
+    r = client.post(f"/support/tickets/{pid}/messages", json={"body": "ما زبط"}, headers=_h(u))
+    assert r.json()["data"] == {"public_id": pid, "status": "in_review", "reopened": False}
+    assert _areply(pid, "resolved").json()["data"]["status"] == "resolved"
+    assert _status(pid) == ["resolved", True]                                     # closed_at = resolved time
+    assert client.put(f"/admin/support/tickets/{pid}", json={"status": "new"}, headers=_admin()).status_code == 200
+    assert _status(pid) == ["new", False]
+    r = client.post(f"/support/tickets/{pid}/close", headers=_h(u))                # «انحلّت»
+    assert r.json()["data"]["status"] == "resolved" and _status(pid) == ["resolved", True]
+
+
 def test_reopen_within_14_days_only():
     u = _user()
     pid = _open(u)
-    assert client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "جرّب هيك"}, headers=_admin()).json()["data"]["status"] == "awaiting_user"
-    r = client.post(f"/support/tickets/{pid}/messages", json={"body": "ما زبط"}, headers=_h(u))
-    assert r.json()["data"]["status"] == "open"
     client.post(f"/support/tickets/{pid}/close", headers=_h(u))
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '13 days' WHERE public_id = :p", p=pid)
     r = client.post(f"/support/tickets/{pid}/messages", json={"body": "رجعت"}, headers=_h(u))
-    assert r.status_code == 200 and r.json()["data"]["reopened"] is True
-    assert _sql("SELECT status, closed_at FROM support_tickets WHERE public_id = :p", p=pid)[0] == ["open", None]
+    assert r.status_code == 200 and r.json()["data"]["reopened"] is True and r.json()["data"]["status"] == "in_review"
+    assert _status(pid) == ["in_review", False]                                   # closed_at cleared
     client.post(f"/support/tickets/{pid}/close", headers=_h(u))
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '15 days' WHERE public_id = :p", p=pid)
     r = client.post(f"/support/tickets/{pid}/messages", json={"body": "رجعت"}, headers=_h(u))
@@ -244,16 +292,18 @@ def test_reopen_within_14_days_only():
 def test_support_manage_permission():
     pid = _open(_user())
     paths = [("get", "/admin/support/tickets", None), ("get", f"/admin/support/tickets/{pid}", None),
-             ("post", f"/admin/support/tickets/{pid}/messages", {"body": "x"}),
-             ("put", f"/admin/support/tickets/{pid}", {"status": "closed"})]
+             ("get", "/admin/support/counts", None),
+             ("post", f"/admin/support/tickets/{pid}/messages", {"body": "x", "next_status": "resolved"}),
+             ("put", f"/admin/support/tickets/{pid}", {"status": "resolved"})]
     for method, path, body in paths:
         kw = {"json": body} if body else {}
         assert getattr(client, method)(path, **kw).status_code == 401, path
         assert getattr(client, method)(path, headers=_h(_user()), **kw).status_code == 401, path
         assert getattr(client, method)(path, headers=_admin(["settings.edit"], "staff:3"), **kw).status_code == 403, path
     assert client.get("/admin/support/tickets", headers=_admin(["support.manage"], "staff:4")).status_code == 200
-    items = client.get("/admin/support/tickets?status=open", headers=_admin()).json()["data"]["items"]
-    assert items and all(t["status"] == "open" for t in items)
+    items = client.get("/admin/support/tickets?status=new", headers=_admin()).json()["data"]["items"]
+    assert items and all(t["status"] == "new" for t in items)
+    assert client.get("/admin/support/tickets?status=open", headers=_admin()).status_code == 422   # legacy value
     assert client.get("/admin/support/tickets?status=nope", headers=_admin()).status_code == 422
 
 
@@ -261,13 +311,115 @@ def test_support_manage_permission():
 def test_admin_actions_audited():
     pid = _open(_user())
     _sql("DELETE FROM admin_audit_log")
-    client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "ردنا"}, headers=_admin(["support.manage"], "staff:9"))
-    client.put(f"/admin/support/tickets/{pid}", json={"status": "closed", "priority": "high"}, headers=_admin())
-    client.put(f"/admin/support/tickets/{pid}", json={"status": "open"}, headers=_admin(["reports.read"], "staff:2"))
+    _areply(pid, headers=_admin(["support.manage"], "staff:9"))
+    client.put(f"/admin/support/tickets/{pid}", json={"status": "resolved", "priority": "high"}, headers=_admin())
+    client.put(f"/admin/support/tickets/{pid}", json={"status": "new"}, headers=_admin(["reports.read"], "staff:2"))
+    client.put(f"/admin/support/tickets/{pid}", json={"category": "jobs"}, headers=_admin(["support.manage"], "staff:5"))
     rows = _sql("SELECT actor, action, target, result, old_value, new_value FROM admin_audit_log ORDER BY id")
-    assert rows[0] == ["staff:9", "admin_support_reply", f"ticket={pid}", "ok", "status=open", "status=awaiting_user"]
+    assert rows[0] == ["staff:9", "admin_support_reply", f"ticket={pid}", "ok", "status=new", "status=awaiting_user"]
     assert rows[1] == ["owner", "admin_support_update", f"ticket={pid}", "ok",
-                       "priority=normal;status=awaiting_user", "priority=high;status=closed"]
+                       "priority=normal;status=awaiting_user", "priority=high;status=resolved"]
     assert rows[2][:4] == ["staff:2", "admin_support_update", f"ticket={pid}", "denied"]
-    assert "ردنا" not in str(rows)                                               # never the message text
+    assert rows[3] == ["staff:5", "admin_support_update", f"ticket={pid}", "ok", "category=technical", "category=jobs"]
+    assert "جرّب" not in str(rows)                                               # never the message text
     assert _sql("SELECT closed_at IS NOT NULL FROM support_tickets WHERE public_id = :p", p=pid)[0][0] is True
+
+
+# ── 8 legacy values (production rows before stage B) ──
+def test_legacy_values_normalised_on_read():
+    u = _user()
+    p_open, p_answered, p_closed = _open(u), _open(u), _open(u)
+    _areply(p_answered)
+    _sql("ALTER TABLE support_tickets DROP CONSTRAINT support_tickets_status_chk")
+    _sql("ALTER TABLE support_tickets DROP CONSTRAINT support_tickets_category_chk")
+    try:
+        _sql("UPDATE support_tickets SET status = 'open', category = 'other' WHERE public_id IN (:a, :b)",
+             a=p_open, b=p_answered)
+        _sql("UPDATE support_tickets SET status = 'closed', closed_at = NOW() WHERE public_id = :p", p=p_closed)
+        got = {t["public_id"]: (t["status"], t["category"])
+               for t in client.get("/support/tickets", headers=_h(u)).json()["data"]["items"]}
+        assert got == {p_open: ("new", "general"), p_answered: ("in_review", "general"), p_closed: ("resolved", "technical")}
+        assert client.get(f"/admin/support/tickets/{p_open}", headers=_admin()).json()["data"]["status"] == "new"
+        ids = [t["public_id"] for t in client.get("/admin/support/tickets?status=resolved&category=technical&q=" + p_closed,
+                                                  headers=_admin()).json()["data"]["items"]]
+        assert ids == [p_closed]
+        # open max counts legacy open rows; a write stores the new value only
+        r = client.post(f"/support/tickets/{p_open}/messages", json={"body": "و؟"}, headers=_h(u))
+        assert r.json()["data"]["status"] == "in_review"
+        client.put(f"/admin/support/tickets/{p_open}", json={"category": "account"}, headers=_admin())
+        assert _sql("SELECT status, category, legacy_category FROM support_tickets WHERE public_id = :p", p=p_open)[0] \
+            == ["in_review", "account", "other"]
+    finally:
+        _sql("UPDATE support_tickets SET status = CASE status WHEN 'open' THEN 'new' WHEN 'closed' THEN 'resolved' "
+             "ELSE status END, category = CASE category WHEN 'other' THEN 'general' ELSE category END")
+        _sql("ALTER TABLE support_tickets ADD CONSTRAINT support_tickets_status_chk CHECK "
+             "(status IN ('new', 'in_review', 'awaiting_user', 'resolved'))")
+        _sql("ALTER TABLE support_tickets ADD CONSTRAINT support_tickets_category_chk CHECK (category IN "
+             "('account', 'verification', 'profile', 'jobs', 'education', 'technical', 'complaint', 'general'))")
+
+
+# ── 9 details + faq_id ──
+def test_details_allowlist_and_faq():
+    u = _user()
+    ok = _new(u, category="technical", details={"page_url": "https://tawasolna.com/home", "device": "mobile"},
+              faq_id="page_broken")
+    assert ok.status_code == 201, ok.text
+    pid = ok.json()["data"]["public_id"]
+    d = client.get(f"/admin/support/tickets/{pid}", headers=_admin()).json()["data"]
+    assert d["details"] == {"page_url": "https://tawasolna.com/home", "device": "mobile"} and d["faq_id"] == "page_broken"
+    assert d["legacy_category"] is None
+    bad = [
+        ({"category": "technical", "details": {"color": "x"}}, "unknown_detail"),
+        ({"category": "general", "details": {"page_url": "https://tawasolna.com/x"}}, "unknown_detail"),
+        ({"category": "complaint", "details": {"content_url": "https://evil.com/x"}}, "invalid_detail"),
+        ({"category": "profile", "details": {"page_url": "http://tawasolna.com/x"}}, "invalid_detail"),
+        ({"category": "profile", "details": {"page_url": "https://tawasolna.com/" + "a" * 300}}, "invalid_detail"),
+        ({"category": "verification", "details": {"submitted_date": "2999-01-01"}}, "invalid_detail"),
+        ({"category": "verification", "details": {"submitted_date": "2026-02-30"}}, "invalid_detail"),
+        ({"category": "account", "details": {"issue": "hacked", "account_email": "bad"}}, "invalid_detail"),
+        ({"category": "account", "details": {"account_name": "a\u0007b"}}, "invalid_detail"),
+        ({"category": "account", "details": {"account_phone": "+96279abc"}}, "invalid_detail"),
+        ({"category": "education", "details": {"name": "س" * 121}}, "invalid_detail"),
+        ({"category": "jobs", "details": {"kind": 3}}, "invalid_detail"),
+        ({"category": "jobs", "details": {"x" * 10: "y" * 5000}}, "details_too_large"),
+        ({"category": "jobs", "details": ["kind"]}, "invalid_details"),
+        ({"category": "jobs", "faq_id": "nope"}, "invalid_faq"),
+    ]
+    for over, code in bad:
+        r = _new(u, **over)
+        assert r.status_code == 422 and r.json()["error"]["code"] == code, (over, r.text)
+    assert _new(u, category="verification", details={"request_type": "company", "submitted_date": "2026-01-02"}).status_code == 201
+    m = client.get("/support/meta").json()["data"]
+    assert m["categories"] == list(srv.support.CATEGORIES) and m["guest_category"] == "account"
+    assert [f["key"] for f in m["fields"]["jobs"]] == ["job_url", "kind"] and m["fields"]["general"] == []
+    assert m["faq"]["education"] == ["where"]
+
+
+# ── 10 admin inbox ──
+def test_admin_filters_search_sort_counts_category():
+    u = _user()
+    email = _sql("SELECT email FROM users WHERE id = :i", i=u["id"])[0][0]
+    a, b, c = _open(u), _open(u), _open(u)
+    client.put(f"/admin/support/tickets/{b}", json={"priority": "urgent"}, headers=_admin())
+    _areply(c)
+    _sql("UPDATE support_tickets SET last_message_at = NOW() - INTERVAL '30 days' WHERE public_id = :p", p=a)
+
+    def ids(qs):
+        r = client.get("/admin/support/tickets?" + qs, headers=_admin())
+        assert r.status_code == 200, r.text
+        return [t["public_id"] for t in r.json()["data"]["items"]]
+    assert ids("q=" + email.upper()) == [c, b, a]                                 # newest = created
+    assert ids("q=" + b.lower()) == [b]
+    assert ids("q=" + email + "&sort=oldest_waiting")[0] == a
+    assert ids("q=" + email + "&sort=priority")[0] == b
+    assert ids("q=" + email + "&status=awaiting_user") == [c]
+    assert ids("q=" + email + "&requester=guest") == []
+    assert set(ids("q=" + email + "&requester=user")) == {a, b, c}
+    for bad in ("sort=x", "requester=x", "q=abc"):
+        assert client.get("/admin/support/tickets?" + bad, headers=_admin()).status_code == 422, bad
+    n = client.get("/admin/support/counts", headers=_admin()).json()["data"]["new"]
+    assert n == _sql("SELECT COUNT(*) FROM support_tickets WHERE status = 'new'")[0][0] and n >= 2
+    client.put(f"/admin/support/tickets/{a}", json={"category": "jobs"}, headers=_admin())
+    client.put(f"/admin/support/tickets/{a}", json={"category": "general"}, headers=_admin())
+    assert _sql("SELECT category, legacy_category FROM support_tickets WHERE public_id = :p", p=a)[0] == ["general", "technical"]
+    assert client.put(f"/admin/support/tickets/{a}", json={"category": "other"}, headers=_admin()).status_code == 422
