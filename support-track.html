@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head-->
+<!-- Guest follow-up — placeholder (task 7.2a, backend only · docs/rules/support.md → رابط متابعة الزائر).
+     Route /support/track (server.py → support_track_page) · link {site_url}/support/track#t=<token> — the token
+     stays in the fragment (never sent to the server by the browser). Data: POST /support/track/view · reply ·
+     resolve · resend (body {token}). Headers no-store · no-referrer · noindex (security_headers).
+     The page UI comes in its own task. -->
+<link rel="stylesheet" href="/static/app-header.css">
+<title></title>
+<style>
+body { background: var(--color-surface-page); color: var(--color-text-body); font-family: 'Cairo', sans-serif; min-height: 100vh; margin: 0; }
+</style>
+</head>
+<body>
+<header data-tw-header></header>
+<main id="main-content">
+  <p data-tw-t="support.track.placeholder"></p>
+</main>
+<!--tw:shell-scripts-->
+</body>
+</html>

@@ -4723,6 +4723,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
 | `/admin-job` | `admin-job.html` | Admin — one job (task 5.3j phase 4, see §57) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
+| `/support/track` | `support-track.html` | Guest — follow-up link page (task 7.2a — §81; placeholder until its UI task · headers no-store / no-referrer / noindex) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}/support` | `admin-support.html` | Admin — support inbox (task 7.1 — §81; data needs `support.manage`) |
 
 ### Legacy Redirect Page (PR-4)
@@ -6393,10 +6394,11 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | PUT | `/admin/user/{user_id}/type` | `change_user_type` | Change user type |
 | PUT | `/admin/user/{user_id}/verify` | `verify_user` | Set verified badge |
 | PUT | `/admin/user/{user_id}/suspension` | `admin_set_suspension` | Suspend / lift (task 5.4 — §77). Body `{suspended: bool, reason?: text ≤ suspend_reason_max}` (admin-only reason) → `{ok, data:{suspended, suspended_at, suspended_reason, suspended_by}}` · 422 bad value · 404 unknown · perm `users.suspend` (admin token without it → 403; user JWT → 401) |
-| GET | `/admin/support/tickets` | `admin_support_list` | Support inbox (task 7.1 — §81) `?status&category&priority&page&limit≤50` — newest message first · perm `support.manage` (admin token without it → 403; user JWT → 401) |
+| GET | `/admin/support/tickets` | `admin_support_list` | Support inbox (task 7.1 · 7.2a — §81) `?status&category&priority&requester&q&sort&page&limit≤50` — sort newest (default) / oldest_waiting / priority · perm `support.manage` (admin token without it → 403; user JWT → 401) |
+| GET | `/admin/support/counts` | `admin_support_counts` | `{new}` — tickets with status new (7.2a) · `support.manage` |
 | GET | `/admin/support/tickets/{public_id}` | `admin_support_get` | One ticket + messages + requester · 404 · `support.manage` |
-| POST | `/admin/support/tickets/{public_id}/messages` | `admin_support_reply` | Admin reply `{body ≤ 5000}` → status `awaiting_user` · audit target `ticket=<id>` old → new status · `support.manage` |
-| PUT | `/admin/support/tickets/{public_id}` | `admin_support_update` | `{status?, priority?}` — the only priority writer · 422 bad value · audit `status=…;priority=…` old → new · `support.manage` |
+| POST | `/admin/support/tickets/{public_id}/messages` | `admin_support_reply` | Admin reply `{body ≤ 5000, next_status ∈ awaiting_user / resolved (required)}` · audit target `ticket=<id>` old → new status · `support.manage` |
+| PUT | `/admin/support/tickets/{public_id}` | `admin_support_update` | `{status?, priority?, category?}` — the only priority / category writer · 422 bad value · audit `category=…;priority=…;status=…` old → new · `support.manage` |
 | PUT | `/admin/user/{user_id}/password` | `admin_reset_password` | Reset password |
 | DELETE | `/admin/experience/{exp_id}` | `admin_delete_exp` | Delete experience entry |
 | DELETE | `/admin/education/{edu_id}` | `admin_delete_edu` | Delete education entry |
@@ -10217,7 +10219,7 @@ Country data belongs in the DB on the entity/user record. Reasons: country can c
 | `L` | Lesson | درس | `lessons.public_id` | internal only |
 | `Q` | Quiz/Exam | اختبار | `quizzes.public_id` | internal only |
 | `S` | Certificate | شهادة | `certificates.public_id` | `/cert/{public_id}` |
-| `H` | Support ticket (task 7.1) | تذكرة دعم | `support_tickets.public_id` | internal (`/support` · admin inbox) ✅ live — first user of `generate_public_id` |
+| `H` | Support ticket (task 7.1) | تذكرة دعم | `support_tickets.public_id` | internal (`/support` · admin inbox · guest link email) ✅ live — first user of `generate_public_id` |
 
 #### Generator Pattern (planned)
 
@@ -13116,6 +13118,7 @@ A row exists only while the value differs from the default (a save of the defaul
 **6 — public routes (group `sec_public`, `security: true`):** `public_ip` 60–2 000 / 10–600 (default 240 / 60) — §80.
 
 **7.1 — support tickets (§81):** group `support`: `support_open_max` 1–20 (default 5) · `support_create` 1–50 / 600–86 400 (10 / 3 600). Group `sec_support` (`security: true`): `support_guest_email` 1–10 / 600–86 400 (2 / 3 600) · `support_guest_ip` 1–20 / 600–86 400 (2 / 3 600) · `support_guest_global` 10–1 000 / 600–86 400 (60 / 3 600).
+**7.2a — guest follow-up link (§81):** group `sec_support` (`security: true`): `support_link_resend_email` 1–10 / 600–86 400 (3 / 3 600) · `support_link_resend_ip` 1–50 / 600–86 400 (10 / 3 600) · `support_guest_reply_ticket` 1–100 / 600–86 400 (20 / 3 600) · `support_track_ip` 10–600 / 10–600 (60 / 60).
 
 **4.1 list (approved in the PR):** see SYSTEMS_INDEX §25g — LIMITS: `message_max` 500–10 000 · `post_body_max` 500–10 000 · `post_tags_max` 1–10 · `report_reason_max` 200–5 000 · `report_url_max` 200–2 048 · `suspend_reason_max` 100–2 000; RATES (hits / window s): `message_send` 5–300 / 10–600 · `post_create` 1–50 / 60–3 600 · `post_edit` 1–100 / 60–3 600 · `post_appreciate` · `post_save` 1–60 / 5–300 · `comment_create` · `comment_edit` 1–60 / 10–600 · `mention_search` 10–120 (4.1a) / 10–600 · `report_submit` 1–50 / 300–86 400 · `block_set` 1–100 / 60–86 400.
 
@@ -13168,36 +13171,58 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 
 
 
-## §81 — Support Tickets (task 7.1) — غير مكتمل لحد 7.2 + 7.3
+## §81 — Support Tickets (task 7.1 · 7.2a backend)
 
-**Scope:** tickets from the site + the admin inbox, **text only**. Not in 7.1: replies by email (7.2 — the guest receives nothing yet; only `guest_email` is stored) · attachments · 7.3. Rules: `docs/rules/support.md` · SYSTEMS_INDEX §62.
+**Scope:** tickets from the site + the admin inbox, **text only** · 7.2a (backend only): 8 categories + per-category `details` · statuses new / in_review / awaiting_user / resolved · guest follow-up link · admin filters / search / sort / counts / category change. Not yet: the 7.2a UI (track page = placeholder) · attachments. Rules: `docs/rules/support.md` · SYSTEMS_INDEX §62.
 
-**Schema** (`support.SCHEMA_SQL` — optional startup migration `support_tickets`; production by hand: `docs/migrations/7.1_support_tickets.sql`, read-only checks first; `rls_lockdown` covers the new tables):
-- `support_tickets (id SERIAL PK, public_id TEXT UNIQUE NOT NULL, user_id INTEGER NULL FK users ON DELETE CASCADE, guest_email TEXT NULL, category TEXT CHECK IN (account, profile, jobs, technical, complaint, other), status TEXT DEFAULT 'open' CHECK IN (open, awaiting_user, closed), priority TEXT DEFAULT 'normal' CHECK IN (normal, high, urgent), subject TEXT CHECK non-blank, created_at · updated_at · last_message_at TIMESTAMPTZ DEFAULT NOW(), closed_at TIMESTAMPTZ NULL, CHECK (user_id IS NOT NULL OR guest_email IS NOT NULL), CHECK (user_id IS NOT NULL OR category = 'account'))` + `idx_support_tickets_user (user_id, last_message_at DESC)` · `idx_support_tickets_inbox (status, last_message_at DESC)`.
-- `support_messages (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, author_type TEXT CHECK IN (user, guest, admin), author_id TEXT NULL (account id · admin JWT sub · guest NULL), body TEXT CHECK non-blank, created_at)` + `idx_support_messages_ticket`.
-- `support_guest_otp (email TEXT PK, code_hash TEXT, expires_at TIMESTAMPTZ, attempts INT DEFAULT 0, created_at)` — the guest code (one row per normalised email).
-- `public_id` = `auth.generate_public_id("H")` — `H` + 10 × A-Z0-9 (`secrets`), no country code (Public ID System prefix table).
+**Schema** (`support.SCHEMA_SQL` = the final shape — optional startup migration `support_tickets`, `CREATE … IF NOT EXISTS` only, never alters an existing table; production by hand: `docs/migrations/7.1_support_tickets.sql` → `7.2a_A_expand.sql` (before the merge) → `7.2a_B_migrate.sql` (after the deploy is Active on the merge commit, one replica); `rls_lockdown` covers every public table, the new one included):
+- `support_tickets (id SERIAL PK, public_id TEXT UNIQUE NOT NULL, user_id INTEGER NULL FK users ON DELETE CASCADE, guest_email TEXT NULL, category TEXT CHECK IN (account, verification, profile, jobs, education, technical, complaint, general), status TEXT DEFAULT 'new' CHECK IN (new, in_review, awaiting_user, resolved), priority TEXT DEFAULT 'normal' CHECK IN (normal, high, urgent), subject TEXT CHECK non-blank, details JSONB NOT NULL DEFAULT '{}' CHECK (object AND length(details::text) ≤ 4000), faq_id TEXT NULL CHECK '^[a-z0-9_]{1,64}$', legacy_category TEXT NULL, created_at · updated_at · last_message_at TIMESTAMPTZ DEFAULT NOW(), closed_at TIMESTAMPTZ NULL (= resolved time), CHECK (user_id IS NOT NULL OR guest_email IS NOT NULL), CHECK (user_id IS NOT NULL OR category = 'account'))` + `idx_support_tickets_user` · `idx_support_tickets_inbox` · `idx_support_tickets_guest_email (guest_email) WHERE user_id IS NULL`.
+- `support_messages (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, author_type TEXT CHECK IN (user, guest, admin), author_id TEXT NULL, body TEXT CHECK non-blank, created_at)` + `idx_support_messages_ticket`.
+- `support_guest_otp (email TEXT PK, code_hash TEXT, expires_at TIMESTAMPTZ, attempts INT DEFAULT 0, created_at)`.
+- `support_guest_access (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, token_hash TEXT UNIQUE CHECK '^[0-9a-f]{64}$', created_at, expires_at NOT NULL, revoked_at NULL, last_used_at NULL)` + `idx_support_guest_access_ticket (ticket_id, created_at DESC)`.
+- **Transition (until stage B):** production constraints accept old + new values (stage A), the default stays `'open'` → the INSERT writes `status = 'new'`. Every read / filter / sort / count goes through `support.normalize_sql()` (open → in_review with an admin message, else new · closed → resolved · other → general); writes store new values only.
+
+**Statuses** (`support.transition` — the only rule): open → `new` · admin reply → `next_status` ∈ awaiting_user / resolved (required, 422) · admin PUT → any · requester reply on new / in_review / awaiting_user → `in_review` · on resolved within `REOPEN_DAYS` (14) of `closed_at` → `in_review` (`reopened`, open max for an account), later → 409 `reopen_expired` · requester «انحلّت» → `resolved`. `closed_at` set on → resolved, cleared on leaving it. `support_open_max` counts status ≠ resolved.
+
+**details / faq_id:** `support.FIELDS` (per-category allowlist — enum / text ≤ n / `https://tawasolna.com/…` ≤ 300 / TW id / email / phone / date not in the future) · strings only, no control chars, empty dropped, ≤ 4000 → else 422 (`field = details.<key>`). `faq_id` ∈ `support.FAQ_IDS` or 422. `GET /support/meta` (public, `_public_rate`) = categories · guest_category · fields · faq — no texts.
 
 **Endpoints:**
 
 | Method | Path | Auth | Behaviour |
 |--------|------|------|-----------|
+| GET | `/support/meta` | public · `_public_rate` | lists only (categories · fields per category · FAQ ids) |
 | GET | `/support/tickets` | JWT | own tickets (≤ 50, newest message first) + `categories` + `open_max` — no priority |
-| POST | `/support/tickets` | JWT | `{category, subject ≤ 120, body ≤ 5000}` → 201 `{public_id}` · empty / too long / bad category → 422 · `priority` → 422 `priority_forbidden` · `support_create` → 429 · `support_open_max` → 409 `too_many_open` |
-| GET | `/support/tickets/{public_id}` | JWT | own ticket + messages + `can_reopen`; another account's → 404 |
-| POST | `/support/tickets/{public_id}/messages` | JWT | `{body}` → status `open`; closed ≤ 14 days since `closed_at` → reopened (open max applies), later → 409 `reopen_expired`; not own → 404 |
-| POST | `/support/tickets/{public_id}/close` | JWT | → `closed` + `closed_at`; not own → 404 |
-| POST | `/support/guest/code` | guest · `_public_rate` | `{email}` → code by email (`support_guest_otp`); `otp_send_target` + `otp_send_ip` → 429 `otp_rate_limited`; email not deliverable → 503 |
-| POST | `/support/guest/tickets` | guest · `_public_rate` | `{email, code, subject, body}` → 201 `{public_id}` (category `account`, other → 422) · no / wrong / used code → 400 `invalid_code` · then `support_guest_email` + `support_guest_ip` + `support_guest_global` (`_rate_ok_all`) → 429 |
-| GET | `/admin/support/tickets` | `support.manage` | `?status&category&priority&page&limit≤50` — newest message first, requester (account tw_id · name · email / guest email) · bad filter → 422 |
-| GET | `/admin/support/tickets/{public_id}` | `support.manage` | ticket + messages (+ admin `author_id`) · 404 |
-| POST | `/admin/support/tickets/{public_id}/messages` | `support.manage` | `{body}` → status `awaiting_user` (closed too, `closed_at` cleared) · audit old → new status |
-| PUT | `/admin/support/tickets/{public_id}` | `support.manage` | `{status?, priority?}` — the only priority writer; `closed` → `closed_at = NOW()`, other → NULL · bad value → 422 · audit `status=…;priority=…` old → new |
+| POST | `/support/tickets` | JWT | `{category, subject ≤ 120, body ≤ 5000, details?, faq_id?}` → 201 `{public_id}` (status new) · 422 · `priority` → 422 · 429 · 409 `too_many_open` |
+| GET | `/support/tickets/{public_id}` | JWT | own ticket + details + faq_id + messages + `can_reopen`; another account's → 404 |
+| POST | `/support/tickets/{public_id}/messages` | JWT | `{body}` → `in_review`; resolved ≤ 14 days → reopened, later → 409 · not own → 404 |
+| POST | `/support/tickets/{public_id}/close` | JWT | «انحلّت» → `resolved` + `closed_at` · not own → 404 |
+| POST | `/support/guest/code` | guest · `_public_rate` | `{email}` → code by email (`support_guest_otp`) · 429 · 503 |
+| POST | `/support/guest/tickets` | guest · `_public_rate` | `{email, code, subject, body, details?, faq_id?}` → 201 `{public_id}` only + `support_guest_link` email · 400 `invalid_code` · 422 · 429 |
+| GET | `/support/track` | guest | placeholder page (UI task later) |
+| POST | `/support/track/view` | guest · `_public_rate` · `support_track_ip` | `{token}` → the guest's ticket + messages (no author_id / priority / email) |
+| POST | `/support/track/reply` | guest · `_public_rate` · `support_track_ip` · `support_guest_reply_ticket` | `{token, body}` → `in_review` (reopen rule) · used link +90 days |
+| POST | `/support/track/resolve` | guest · `_public_rate` · `support_track_ip` | `{token}` → `resolved` |
+| POST | `/support/track/resend` | guest · `_public_rate` · `support_link_resend_ip` (429) · `support_link_resend_email` (silent) | `{email}` → always `200 {sent: true}` |
+| GET | `/admin/support/tickets` | `support.manage` | `?status&category&priority&requester&q&sort&page&limit≤50` · bad value → 422 |
+| GET | `/admin/support/counts` | `support.manage` | `{new}` |
+| GET | `/admin/support/tickets/{public_id}` | `support.manage` | ticket + requester + details + faq_id + legacy_category + messages (+ admin `author_id`) · 404 |
+| POST | `/admin/support/tickets/{public_id}/messages` | `support.manage` | `{body, next_status}` · audit old → new status |
+| PUT | `/admin/support/tickets/{public_id}` | `support.manage` | `{status?, priority?, category?}` · first category change keeps `legacy_category` · guest ticket stays `account` (422) · audit |
 
-**Admin gate:** `check_admin(request, SUPPORT_PERM)` (`"support.manage"`; owner token `perms: ["*"]`) first in every admin endpoint: no token / user JWT → 401 · admin token without it → 403 (the admin-gate contract of PR 1.5, same as `settings.edit`). **Audit:** `admin_audit_middleware` — `actor` · `action` (`admin_support_reply` / `admin_support_update`) · `target ticket=<public_id>` (set before the gate, so refused rows name the ticket) · `old_value` / `new_value` · `created_at`; never the message text.
+**Guest follow-up link — security (7.2a):**
+- **Token:** `secrets.token_urlsafe(32)` (256 bits) from `support.issue_guest_link(ticket_id, keep=3)` — the only writer; only `sha256(token)` hex is stored (UNIQUE + CHECK hex-64). The plain token exists in memory for the email only — never in the DB, a log line, an API reply or the audit log.
+- **Delivery:** `{site_url}/support/track#t=<token>` in the `support_guest_link` email (security category, values escaped by `email_service.render`, «لا تشارك هذا الرابط»). The fragment is never sent to a server by the browser (no access-log / Referer leak); the page sends it in a POST body only.
+- **Lifetime:** 90 days from issue; a guest reply sets the used link to now + 90 days. A new link keeps at most `keep` active (`keep - 1` older + the new). `resend` revokes every link of each ticket (`keep=0`) and issues one new.
+- **Lookup:** `token_hash = sha256(token)` AND not revoked AND not expired AND `support_tickets.user_id IS NULL` — anything else → one 404 (`support.error.track_not_found`), same body for wrong / expired / revoked / malformed / account ticket. A malformed token never reaches the DB. `last_used_at` updated on every success.
+- **Enumeration:** `resend` answers `200 {sent: true}` for every address; lookup + new links + emails run after the reply (BackgroundTasks) — the time says nothing either. Over `support_link_resend_email` → same reply, no email.
+- **Limits:** `_public_rate` + `support_track_ip` (60 / min, before the lookup — guessing costs a bucket) · `support_guest_reply_ticket` (20 / h per ticket, whatever the IP) · `support_link_resend_ip` (10 / h) · `support_link_resend_email` (3 / h). Client IP = `get_client_ip()` only.
+- **Headers** (`security_headers` middleware, every `/support/track` path and status): `Cache-Control: no-store` · `Referrer-Policy: no-referrer` · `X-Robots-Tag: noindex`.
+- **What the guest sees:** own ticket fields + messages — never `author_id`, priority, `legacy_category`, the email or another ticket. No automatic link of a guest ticket to an account.
 
-**Guest code:** `auth.guest_otp_issue(email)` / `guest_otp_verify(email, code)` — the KYC OTP rules on a separate store: `_otp_hash` (HMAC-SHA256 keyed on `JWT_SECRET`, subject `support-guest`; an int subject keeps the KYC hashes unchanged) · expiry `otp_ttl_minutes()` · `otp_max_attempts()` counted atomically before the compare · `hmac.compare_digest` · deleted on success (single use) and on the last wrong try.
+**Admin gate:** `check_admin(request, SUPPORT_PERM)` first in every admin endpoint: no token / user JWT → 401 · admin token without it → 403. **Audit:** `admin_audit_middleware` — actor · action (`admin_support_reply` / `admin_support_update`) · `target ticket=<public_id>` · `old_value` / `new_value`; never the message text.
 
-**Limits / IP:** every value in `tw_limits` + `tw_settings` (§78 «7.1»). Client IP = `get_client_ip()` only (unchanged). The IP bucket is never the only guard: the per-email bucket and the global bucket hold with a forged IP. Blocks / suspension do not filter tickets.
+**Guest code:** `auth.guest_otp_issue(email)` / `guest_otp_verify(email, code)` — the KYC OTP rules on a separate store (unchanged by 7.2a).
 
-**UI:** `/support` (`support.html` · `static/support/support.js` · `static/support/support-form.js` (`TwSupportForm`: field with label + «إلزامي» / «اختياري» · guest form) · `static/support/support.css`) · login page «مشكلة بالدخول؟» (`[data-support-guest]`, DS-OVL `twModal`) · admin `admin-support.html` (panel + `/support`) · `static/admin-support/admin-support.js` (filters · list · ticket · reply · status / priority via `TwAdminShell.run`). Texts `support.*` · `admin.support.*` in `tw_strings.json`. Test `python -m pytest tests/test_support_tickets.py -q`.
+**Limits / IP:** every value in `tw_limits` + `tw_settings` (§78 «7.1» · «7.2a»). The IP bucket is never the only guard. Blocks / suspension do not filter tickets.
+
+**UI (7.1, untouched by 7.2a):** `/support` (`support.html` · `static/support/*`) · login page «مشكلة بالدخول؟» · admin `admin-support.html` + `static/admin-support/admin-support.js` — the admin reply must send `next_status` from 7.2a on (UI task). Texts `support.*` · `admin.support.*` · `email.support_guest_link.*` in `tw_strings.json`. Tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q`.
