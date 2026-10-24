@@ -164,6 +164,7 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'admin-view.html',   // task 5.3b — admin user page (Admin Shell: menu + card ⓘ + action icons)
   'admin-job.html',   // task 5.3j phase 4 — admin job page (Admin Shell: menu + card ⓘ + action icons)
   'admin-settings.html',   // task 4.1 — admin settings page (Admin Shell: menu + card ⓘ + title icon)
+  'admin-content.html',   // phase 5b — admin content page (Admin Shell: menu + card ⓘ + title icon)
   'privacy.html', 'terms.html'];   // task terms — unified header + draft-note icon (data-tw-icon)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];

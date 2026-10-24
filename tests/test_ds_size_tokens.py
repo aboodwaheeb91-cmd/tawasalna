@@ -102,6 +102,7 @@ _PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html'
                   'admin-view.html',   # task 5.3b — admin user page rebuilt on the Admin Shell (task-approved)
                   'admin-job.html',   # task 5.3j phase 4 — new admin job page on the Admin Shell (task-approved; new code on tokens)
                   'admin-settings.html',   # task 4.1 — new admin settings page on the Admin Shell (new code on tokens)
+                  'admin-content.html',   # phase 5b — new admin content page on the Admin Shell (new code on tokens)
                   'static/shared/tw-card.css']   # task U.3 — DS-CARD post card on DS-SIZE tokens (CARDS.md CARD-R04 / CARD-04)
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
