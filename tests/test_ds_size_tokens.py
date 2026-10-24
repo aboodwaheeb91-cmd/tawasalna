@@ -103,7 +103,8 @@ _PHASE_C_FILES = ['job-detail.html', 'static/job/job-detail.css', 'landing.html'
                   'admin-job.html',   # task 5.3j phase 4 — new admin job page on the Admin Shell (task-approved; new code on tokens)
                   'admin-settings.html',   # task 4.1 — new admin settings page on the Admin Shell (new code on tokens)
                   'admin-content.html',   # phase 5b — new admin content page on the Admin Shell (new code on tokens)
-                  'static/shared/tw-card.css']   # task U.3 — DS-CARD post card on DS-SIZE tokens (CARDS.md CARD-R04 / CARD-04)
+                  'static/shared/tw-card.css',   # task U.3 — DS-CARD post card on DS-SIZE tokens (CARDS.md CARD-R04 / CARD-04)
+                  'support.html', 'static/support/support.css', 'admin-support.html']   # task 7.1 — new support page + admin inbox (new code on tokens)
 _USE_RE = re.compile(r'var\(\s*--(?:size|radius|space)-')
 try:
     base = subprocess.run(['git', 'merge-base', 'origin/main', 'HEAD'], cwd=_ROOT,

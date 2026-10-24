@@ -165,7 +165,8 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'admin-job.html',   // task 5.3j phase 4 — admin job page (Admin Shell: menu + card ⓘ + action icons)
   'admin-settings.html',   // task 4.1 — admin settings page (Admin Shell: menu + card ⓘ + title icon)
   'admin-content.html',   // phase 5b — admin content page (Admin Shell: menu + card ⓘ + title icon)
-  'privacy.html', 'terms.html'];   // task terms — unified header + draft-note icon (data-tw-icon)
+  'privacy.html', 'terms.html',   // task terms — unified header + draft-note icon (data-tw-icon)
+  'support.html', 'admin-support.html'];   // task 7.1 — support page (unified header + title icon) · admin support inbox (Admin Shell)
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'docs', 'tests']);
 const consumers = [];
 (function walk(dir) {
