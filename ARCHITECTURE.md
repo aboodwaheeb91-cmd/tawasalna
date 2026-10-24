@@ -2522,6 +2522,7 @@ Experience Modal:    exCountry, exCity, exStart, exEnd
 | Three-dots Action Menu (⋮) | exp.js + render.js | ✅ Stable | #49+#50 |
 | Custom Select System (11 selects) | tw-select.js (active runtime) — profile-v2.select.js (Legacy, not loaded) | ✅ Stable | #53 |
 | Custom Select Scroll Fix | tw-select.js | ✅ Stable | #54 |
+| Post Card `TwPostCard` (DS-CARD — رسم بطاقة المنشور، صفحة الشركة) | static/shared/tw-post-card.js (API: CARDS.md CARD-13) | ✅ Stable | U.2 |
 
 ---
 

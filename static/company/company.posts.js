@@ -431,12 +431,6 @@
     return key;
   }
 
-  function _fmtViewsCount(n) {
-    n = Number(n) || 0;
-    if (n >= 1000) { var k = n / 1000; return (k % 1 === 0 ? k : k.toFixed(1)) + 'K مشاهدة'; }
-    return n + ' مشاهدة';
-  }
-
   function _sendView(postId) {
     var signedIn     = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
     var body    = {};
@@ -455,7 +449,7 @@
           var next = cur + 1;
           vEl.dataset.viewsCount = next;
           var svg = vEl.querySelector('svg');
-          vEl.innerHTML = (svg ? svg.outerHTML : '') + _fmtViewsCount(next);
+          vEl.innerHTML = (svg ? svg.outerHTML : '') + TwPostCard.formatViews(next);
         }
       });
   }
@@ -495,11 +489,9 @@
   }
 
   // ── Post Save ─────────────────────────────────────────────────────────────
-  var _ICO_BOOKMARK_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-  var _ICO_BOOKMARK_CHECK   = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M8.5 10l2.5 2.5 5-5" fill="none" stroke="var(--color-surface-page)" stroke-width="2"/></svg>';
-
+  // Button content = TwPostCard (one copy with the first render — task U.2, D2 / D3)
   function _renderSaveButton(btn, active) {
-    btn.innerHTML = (active ? _ICO_BOOKMARK_CHECK : _ICO_BOOKMARK_OUTLINE) + (active ? 'محفوظ' : 'حفظ');
+    btn.innerHTML = TwPostCard.saveButtonInner(active);
     if (active) { btn.classList.add('save-active');    }
     else        { btn.classList.remove('save-active'); }
     btn.dataset.saved = active ? '1' : '0';
@@ -583,16 +575,11 @@
   }
 
   // ── Post Appreciation ─────────────────────────────────────────────────────
-  var _ICO_HEART_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-  var _ICO_HEART_FILLED  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-
   function _renderAppreciationButton(btn, active, count) {
-    var ico   = active ? _ICO_HEART_FILLED : _ICO_HEART_OUTLINE;
-    var label = count > 0 ? ('أقدّر · ' + count) : 'أقدّر';
     if (active) { btn.classList.add('appr-active');    }
     else        { btn.classList.remove('appr-active'); }
     btn.dataset.apprCount = count;
-    btn.innerHTML = ico + label;
+    btn.innerHTML = TwPostCard.apprButtonInner(active, count);
   }
 
   // ── Desired State Queue — one request in flight per post, UI always immediate ──
