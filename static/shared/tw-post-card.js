@@ -5,15 +5,20 @@
 // escaping, same text. U.2b moved the behaviour (appreciate / save desired-state queue, view
 // tracking, comments panel open / close, ⋯ menu, share) from company.posts.js as-is — bound by
 // event delegation on the classes / data-* below. Styles: static/shared/tw-card.css.
+// U.3: every part from its system — text twT (post.card.* / action.share) · icons DS-ICON (twIcon)
+// · avatar DS-IMAGE (twAvatarHtml) · time twRelativeTime / twFormatDate · buttons from the Actions
+// Registry (post_appreciate · post_comment · share · post_save · post_edit · post_delete —
+// twActionState decides who sees each; guest on an auth action → twLoginHref).
 //
 // Usage:
-//   TwPostCard.html(post, { authorName, avatarUrl, canEdit }) → HTML string (one .post-card)
+//   TwPostCard.html(post, { authorName, avatarUrl, authorType, canEdit }) → HTML string (one .post-card)
 //     post       — a /company/posts item: id · body · tags[] · theme_color · created_at ·
 //                  views_count · appreciations_count · viewer_appreciated · comments_enabled ·
 //                  comments_count · viewer_saved
 //     authorName — name in the head (escaped here) · first char = avatar fallback
-//     avatarUrl  — raw URL; passes twSafeImageUrl here (unsafe → initial letter)
-//     canEdit    — true → ⋯ owner menu (edit / delete) · false → none (visitor)
+//     avatarUrl  — raw URL; twAvatarHtml checks it (unsafe / missing → initial letter)
+//     authorType — emp / co / edu → avatar shape (DS-IMAGE)
+//     canEdit    — true → owner mode for the registry (⋯ edit / delete) · false → none
 //   TwPostCard.apprButtonInner(active, count) → inner HTML of .pc-btn--appr (icon + label)
 //   TwPostCard.saveButtonInner(active)        → inner HTML of .pc-btn--save (icon + label)
 //   TwPostCard.initClamps(container)          → 3-line clamp + «المزيد» for every .post-body-wrap
@@ -22,58 +27,49 @@
 //     page-specific parts (API paths, session check, share info, edit / delete, comments)
 //     come in opts — see create() below
 //
-// All user / API text goes through twEscHtml / twEscAttr (tw_shared.js) — resolved at call time.
+// All user / API text (and twT text) goes through twEscHtml / twEscAttr (tw_shared.js) — resolved at call time.
 (function () {
   'use strict';
 
-  // Inline SVGs (DS-ICON conversion = U.3)
-  var ICO_EDIT   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-  var ICO_TRASH  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
-  var ICO_EYE    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-  var ICO_CLOCK  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-  var ICO_SHARE  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
-  var ICO_HEART_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-  var ICO_HEART_FILLED  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-  var ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-  var ICO_BOOKMARK       = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-  var ICO_BOOKMARK_CHECK = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M8.5 10l2.5 2.5 5-5" fill="none" stroke="var(--color-surface-page)" stroke-width="2"/></svg>';
-  var ICO_MORE = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>';
-  var ICO_LESS = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>';
+  // Icons = DS-ICON (twIcon) · text = twT (post.card.*) · avatar = DS-IMAGE (twAvatarHtml) ·
+  // button visibility = Actions Registry (twActionState — tw_actions.json) — task U.3.
+  function ico(name, size, filled) {
+    return typeof window.twIcon === 'function' ? window.twIcon(name, { size: size, filled: !!filled }) : '';
+  }
+  function t(key, vars) { return window.twEscHtml(window.twT(key, vars)); }
+  function lbl(key, vars) { return '<span class="tw-act-lbl">' + t(key, vars) + '</span>'; }
 
   function _truthy(v) { return v === true || v === 'true' || v === 1; }
 
-  function relativeTime(iso) {
-    if (!iso) return '';
-    var then = new Date(iso).getTime();
-    if (isNaN(then)) return '';
-    var diff = Math.floor((Date.now() - then) / 1000);
-    if (diff < 60)      return 'الآن';
-    if (diff < 3600)    return 'منذ ' + Math.floor(diff / 60) + ' دقيقة';
-    if (diff < 86400)   return 'منذ ' + Math.floor(diff / 3600) + ' ساعة';
-    if (diff < 604800)  return 'منذ ' + Math.floor(diff / 86400) + ' يوم';
-    if (diff < 2592000) return 'منذ ' + Math.floor(diff / 604800) + ' أسبوع';
-    return new Date(iso).toLocaleDateString('ar');
-  }
+  // Shared relative time (tw_shared.js twRelativeTime — CARD-R05); kept on TwPostCard for callers.
+  function relativeTime(iso) { return window.twRelativeTime(iso); }
 
   function formatViews(n) {
     n = Number(n) || 0;
-    if (n >= 1000) { var k = n / 1000; return (k % 1 === 0 ? k : k.toFixed(1)) + 'K مشاهدة'; }
-    return n + ' مشاهدة';
+    if (n >= 1000) { var k = n / 1000; return window.twT('post.card.views', { count: (k % 1 === 0 ? k : k.toFixed(1)) + 'K' }); }
+    return window.twT('post.card.views', { count: n });
   }
 
   function apprButtonInner(active, count) {
-    return (active ? ICO_HEART_FILLED : ICO_HEART_OUTLINE) + (count > 0 ? ('أقدّر · ' + count) : 'أقدّر');
+    return ico('heart', 'sm', active) + (count > 0 ? lbl('post.card.appreciate_n', { count: count }) : lbl('post.card.appreciate'));
   }
 
   function saveButtonInner(active) {
-    return (active ? ICO_BOOKMARK_CHECK : ICO_BOOKMARK) + (active ? 'محفوظ' : 'حفظ');
+    return ico(active ? 'bookmark-check' : 'bookmark', 'sm', active) + lbl(active ? 'post.card.saved' : 'post.card.save');
+  }
+
+  // One card button from the registry: hidden → '' · else <button type=button data-tw-action>.
+  // The card is an HTML string (company list = innerHTML), so clicks go through bind()'s
+  // delegation — the registry decides who sees it (twActionState), the same as twAction.
+  function actBtn(id, ctx, cls, attrs, inner) {
+    if (window.twActionState(id, ctx) === 'hidden') return '';
+    return '<button type="button" class="' + cls + '" data-tw-action="' + id + '"' + attrs + '>' + inner + '</button>';
   }
 
   function html(post, opts) {
     opts = opts || {};
     var esc = window.twEscHtml, escAttr = window.twEscAttr;
-    var name      = opts.authorName;
-    var avatarUrl = window.twSafeImageUrl(opts.avatarUrl || '');
+    var name = opts.authorName;
 
     // Resolve theme color — null/unknown → teal
     var colorKey = (post.theme_color && window.TW && TW.POST_THEME_COLORS && TW.POST_THEME_COLORS[post.theme_color])
@@ -82,45 +78,47 @@
       || { accent: 'var(--color-categorical-teal)', soft: 'rgba(var(--color-categorical-teal-rgb),.12)', glow: 'rgba(var(--color-categorical-teal-rgb),.18)' };
     var cardStyle = '--pa:' + clr.accent + '; --pa-s:' + clr.soft + '; --pa-g:' + clr.glow;
 
-    // Avatar: real logo or initial letter
-    var avaContent = avatarUrl
-      ? '<img src="' + escAttr(avatarUrl) + '" alt="">'
-      : '<span class="post-ava--init">' + esc((name || '?').charAt(0)) + '</span>';
+    // Avatar / logo: DS-IMAGE (URL check + fallback letter + shape by account type)
+    var avaHtml = window.twAvatarHtml({ full_name: name, avatar_url: opts.avatarUrl, user_type: opts.authorType }, 'lg');
 
     // Tags — themed class so they inherit --pa from the card
     var tagsHtml = '';
     if (post.tags && post.tags.length) {
-      tagsHtml = '<div class="job-tags">' + post.tags.map(function (t) {
-        return '<span class="jtag jtag-themed">' + esc(t) + '</span>';
+      tagsHtml = '<div class="job-tags">' + post.tags.map(function (tag) {
+        return '<span class="jtag jtag-themed">' + esc(tag) + '</span>';
       }).join('') + '</div>';
     }
 
-    // 3-dot owner menu
+    // Registry context: canEdit (server permission) = the owner signal (VM mode) · comments flag
+    var ctx = { mode: opts.canEdit ? 'owner' : undefined, commentsEnabled: post.comments_enabled !== false };
+
+    // ⋯ owner menu — shown only when the registry gives at least one item
     var pid = escAttr(String(post.id));
-    var dotsHtml = opts.canEdit
+    var dataPid = ' data-post-id="' + pid + '"';
+    var menuItems = actBtn('post_edit', ctx, 'pc-dots-edit', dataPid, ico('edit', 'sm') + lbl('post.card.edit'))
+      + actBtn('post_delete', ctx, 'pc-dots-delete', dataPid, ico('delete', 'sm') + lbl('post.card.delete'));
+    var dotsHtml = menuItems
       ? '<div class="pc-dots">'
-          + '<button class="pc-dots-btn" data-post-id="' + pid + '" aria-label="خيارات">&#8943;</button>'
-          + '<div class="pc-dots-menu" id="pc-dm-' + pid + '">'
-            + '<button class="pc-dots-edit" data-post-id="' + pid + '">' + ICO_EDIT + 'تعديل</button>'
-            + '<button class="pc-dots-delete" data-post-id="' + pid + '">' + ICO_TRASH + 'حذف</button>'
-          + '</div>'
+          + '<button type="button" class="pc-dots-btn"' + dataPid + ' aria-label="' + t('post.card.options') + '">' + ico('more', 'lg') + '</button>'
+          + '<div class="pc-dots-menu" id="pc-dm-' + pid + '">' + menuItems + '</div>'
         + '</div>'
       : '';
 
-    var commentsOn = post.comments_enabled !== false;
     var appCount   = Number(post.appreciations_count) || 0;
     var appActive  = _truthy(post.viewer_appreciated);
     var cmtCount   = Number(post.comments_count) || 0;
     var saveActive = _truthy(post.viewer_saved);
+    var cmtBtn = actBtn('post_comment', ctx, 'pc-btn pc-btn--cmt', dataPid + ' data-cmt-count="' + cmtCount + '"',
+      ico('comment', 'sm') + (cmtCount > 0 ? lbl('post.card.comment_n', { count: cmtCount }) : lbl('post.card.comment')));
 
     return '<div class="post-card" data-post-id="' + pid + '" style="' + cardStyle + '">'
       + '<div class="post-head">'
-        + '<div class="post-ava">' + avaContent + '</div>'
+        + '<div class="post-ava">' + avaHtml + '</div>'
         + '<div class="post-head-info">'
           + '<div class="post-nm">' + esc(name) + '</div>'
           + '<div class="post-meta-row">'
-            + '<span class="post-date">' + ICO_CLOCK + relativeTime(post.created_at) + '</span>'
-            + '<span class="post-views" data-views-count="' + (Number(post.views_count) || 0) + '">' + ICO_EYE + formatViews(post.views_count) + '</span>'
+            + '<span class="post-date">' + ico('clock', 'xs') + esc(relativeTime(post.created_at)) + '</span>'
+            + '<span class="post-views" data-views-count="' + (Number(post.views_count) || 0) + '">' + ico('eye', 'xs') + esc(formatViews(post.views_count)) + '</span>'
           + '</div>'
         + '</div>'
         + dotsHtml
@@ -128,25 +126,25 @@
       + '<div class="post-body-wrap">'
         + '<div class="post-body">'
           + '<span class="post-body-text">' + esc(post.body) + '</span>'
-          + '<button type="button" class="post-more-inline" aria-label="عرض المزيد">'
+          + '<button type="button" class="post-more-inline" aria-label="' + t('post.card.more') + '">'
             + '<span class="post-more-ellipsis">…</span>'
-            + ICO_MORE
+            + ico('show-more', 'lg')
           + '</button>'
         + '</div>'
-        + '<button type="button" class="post-less-btn" aria-label="عرض أقل">'
-          + ICO_LESS
+        + '<button type="button" class="post-less-btn" aria-label="' + t('post.card.less') + '">'
+          + ico('show-less', 'lg')
         + '</button>'
       + '</div>'
       + tagsHtml
       + '<div class="pc-actions">'
-        + '<button class="pc-btn pc-btn--appr' + (appActive ? ' appr-active' : '') + '" data-post-id="' + pid + '" data-appr-count="' + appCount + '">' + apprButtonInner(appActive, appCount) + '</button>'
-        + (commentsOn
-            ? '<button class="pc-btn pc-btn--cmt" data-post-id="' + pid + '" data-cmt-count="' + cmtCount + '">' + ICO_COMMENT + (cmtCount > 0 ? ('تعليق · ' + cmtCount) : 'تعليق') + '</button>'
-            : '')
-        + '<button class="pc-btn pc-btn--share" data-post-id="' + pid + '">' + ICO_SHARE + 'مشاركة</button>'
-        + '<button class="pc-btn pc-btn--save' + (saveActive ? ' save-active' : '') + '" data-post-id="' + pid + '" data-saved="' + (saveActive ? '1' : '0') + '">' + saveButtonInner(saveActive) + '</button>'
+        + actBtn('post_appreciate', ctx, 'pc-btn pc-btn--appr' + (appActive ? ' appr-active' : ''),
+            dataPid + ' data-appr-count="' + appCount + '"', apprButtonInner(appActive, appCount))
+        + cmtBtn
+        + actBtn('share', ctx, 'pc-btn pc-btn--share', dataPid, ico('share', 'sm') + lbl('action.share'))
+        + actBtn('post_save', ctx, 'pc-btn pc-btn--save' + (saveActive ? ' save-active' : ''),
+            dataPid + ' data-saved="' + (saveActive ? '1' : '0') + '"', saveButtonInner(saveActive))
       + '</div>'
-      + (commentsOn ? '<div class="pc-cmts-panel" id="pc-cmt-panel-' + pid + '" data-post-id="' + pid + '" style="display:none"></div>' : '')
+      + (cmtBtn ? '<div class="pc-cmts-panel" id="pc-cmt-panel-' + pid + '" data-post-id="' + pid + '" style="display:none"></div>' : '')
     + '</div>';
   }
 
@@ -214,6 +212,8 @@
     var comments = opts.comments || {};
     function signedIn() { return !!(opts.signedIn && opts.signedIn()); }
     function toast(msg, type) { if (window.showToast) showToast(msg, type); }
+    // Guest on a registry action with auth:true (appreciate / save) → login, back here (BTN-19 rule 3)
+    function toLogin() { location.href = twLoginHref(location.pathname + location.search); }
     function cardBtn(postId, cls) {
       var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
       return card ? card.querySelector(cls) : null;
@@ -248,7 +248,7 @@
             if (btn && orig) renderSave(btn, orig.active);
             delete _saveDesired[postId];
             delete _saveOrigState[postId];
-            toast('الرجاء التمهّل قليلاً', 'error');
+            toast(twT('post.card.slow_down'), 'error');
             return;
           }
 
@@ -256,7 +256,7 @@
             if (btn && orig) renderSave(btn, orig.active);
             delete _saveDesired[postId];
             delete _saveOrigState[postId];
-            toast(twApiMessage(res, 'تعذّر حفظ المنشور'), 'error');
+            toast(twApiMessage(res, twT('post.card.save_failed')), 'error');
             return;
           }
 
@@ -276,10 +276,7 @@
     }
 
     function toggleSave(postId) {
-      if (!signedIn()) {
-        toast('سجّل دخولك لحفظ المنشور', 'info');
-        return;
-      }
+      if (!signedIn()) { toLogin(); return; }
       var btn = cardBtn(postId, '.pc-btn--save');
       if (!btn) return;
 
@@ -327,7 +324,7 @@
             if (btn && orig) renderAppr(btn, orig.active, orig.count);
             delete _apprDesired[postId];
             delete _apprOrigState[postId];
-            toast(res.status === 403 ? 'لا يمكنك تقدير منشورك' : 'الرجاء التمهّل قليلاً', 'error');
+            toast(twT(res.status === 403 ? 'post.card.own_appreciate' : 'post.card.slow_down'), 'error');
             return;
           }
 
@@ -335,7 +332,7 @@
             if (btn && orig) renderAppr(btn, orig.active, orig.count);
             delete _apprDesired[postId];
             delete _apprOrigState[postId];
-            toast(twApiMessage(res, 'تعذّر تسجيل التقدير'), 'error');
+            toast(twApiMessage(res, twT('post.card.appreciate_failed')), 'error');
             return;
           }
 
@@ -359,10 +356,7 @@
     }
 
     function toggleAppr(postId) {
-      if (!signedIn()) {
-        toast('سجّل دخولك لتقدّر هذا المنشور', 'info');
-        return;
-      }
+      if (!signedIn()) { toLogin(); return; }
 
       var btn = cardBtn(postId, '.pc-btn--appr');
       if (!btn) return;
@@ -493,20 +487,20 @@
       var ta = document.createElement('textarea');
       ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
       document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); toast('تم نسخ رابط المنشور ✓', 'success'); }
-      catch (e) { toast('تعذّر النسخ تلقائياً', 'error'); }
+      try { document.execCommand('copy'); toast(twT('post.card.link_copied'), 'success'); }
+      catch (e) { toast(twT('post.card.copy_failed'), 'error'); }
       document.body.removeChild(ta);
     }
 
     function share(postId) {
       var info = opts.shareInfo(postId);
       var name = info.name, url = info.url;
-      var shareText = 'منشور من ' + name + ' على تواصلنا:\n' + url;
+      var shareText = twT('post.card.share_text', { name: name, url: url });
       if (navigator.share) {
-        navigator.share({ title: 'منشور: ' + name, text: shareText, url: url }).catch(function () {});
+        navigator.share({ title: twT('post.card.share_title', { name: name }), text: shareText, url: url }).catch(function () {});
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareText)
-          .then(function () { toast('تم نسخ رابط المنشور ✓', 'success'); })
+          .then(function () { toast(twT('post.card.link_copied'), 'success'); })
           .catch(function () { shareFallback(shareText); });
       } else {
         shareFallback(shareText);

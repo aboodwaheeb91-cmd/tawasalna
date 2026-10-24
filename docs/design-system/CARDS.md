@@ -1,7 +1,7 @@
 # [DS-CARD] Card System V1 — نظام البطاقات الموحّد
 
 > **النظام الرسمي الوحيد لكل بطاقة بتعرض بيانات حقيقية بتواصلنا:** منشور · وظيفة · شخص · شركة / جهة تعليمية.
-> **الحالة:** 🟡 U.2 منفّذ كامل (رسم بطاقة المنشور + سلوك أزرارها بـ `static/shared/tw-post-card.js` + CSS بـ `static/shared/tw-card.css` — بدون تغيير شكل ولا سلوك؛ القسم CARD-13) · الباقي U.3 → U.10 (القسم CARD-12).
+> **الحالة:** 🟡 U.2 منفّذ كامل (رسم بطاقة المنشور + سلوك أزرارها بـ `static/shared/tw-post-card.js` + CSS بـ `static/shared/tw-card.css` — بدون تغيير شكل ولا سلوك؛ القسم CARD-13) · ✅ U.3 (تنظيف المكوّن — CARD-13 → U.3) · الباقي U.4 → U.10 (القسم CARD-12).
 > **المرجع (المصدر):** بطاقة المنشور بصفحة الشركة — `static/company/company.render.js → _postCardHtml()` · `renderPosts()` · `_initPostClamps()` + السلوك بـ `static/company/company.posts.js` (`_toggleAppreciation` · `_toggleSave` · `_toggleCommentPanel` · `_sharePost` · `initPostViewTracking` · `deletePost`) + الـ CSS بـ `static/company/company.css` (قسم `POST CARDS` + `POST COMMENTS PANEL`).
 > **التقرير:** `docs/audits/cards-audit.md` (U.0 — PR #641). أرقام الأماكن (P1 · J1 · U1 · C1 …) والتكرار (D1 … D12) من التقرير نفسه.
 > **الأنظمة اللي بيعتمد عليها (ما بيعيد بناءها):** DS-IMAGE (F38) · DS-ICON (F37) · DS-SIZE (F36) · DS-COLOR (F35) · DS-OVL (F33) · DS-FEEDBACK (F34) · Actions Registry (BTN-19 · SYSTEMS_INDEX §60) · Strings `twT` (§59) · `twFormatDate` / `twFormatNumber` (§59a) · Skeleton `tw-skeleton.css` (§35) · Blocks + Suspension (`docs/rules/blocks-suspension.md` · §25f) · Post Appreciation / Save / Comments (§22a / §22b / §22c).
@@ -179,7 +179,7 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 | قائمة ⋯ | `--color-surface-elevated` | نفسه |
 | حذف | `--color-status-danger` | نفسه |
 | أقدّر فعّال | `--pa` | نفسه |
-| حفظ فعّال | `--color-status-warning` ❌ (معناه تحذير) | **«جديد» `--color-action-save`** أو `--pa` — **سؤال مفتوح Q3** (R07) |
+| حفظ فعّال | `--color-status-warning` ❌ (معناه تحذير) | **`--color-action-save`** (+`-rgb` — `sky-400`) ✅ Q3 مُجاب (R07 · U.3) |
 | focus | — | `--color-border-focus` (نفس `.tw-act:focus-visible`) |
 
 ---
@@ -279,7 +279,7 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 | CARD-R04 | كل الأحجام من `--size-*` / `--space-*` / `--radius-*` (CARD-04) | P1 · P2 · كل الأنواع | U.3 |
 | CARD-R05 | التاريخ بعد الحد النسبي عبر `twFormatDate` + دالة وقت نسبي مشتركة وحدة (D1) | P1 · P2 · J1 · J2 · J3 · J5 | U.3 |
 | CARD-R06 | كل أزرار البطاقة عبر `twAction` — شرط التعليق (`comments_enabled`) والـ ⋯ (`can_edit`) من السجل / السياق، مش بالصفحة | P1 · P2 · J1 · U4 · U5 | U.3 |
-| CARD-R07 | لون الحفظ الفعّال token بمعنى صحيح (مش `--color-status-warning`) | P1 · P2 | U.3 (بعد Q3) |
+| CARD-R07 | لون الحفظ الفعّال token بمعنى صحيح (مش `--color-status-warning`) — ✅ `--color-action-save` (Q3) | P1 · P2 | U.3 ✅ |
 | CARD-R08 | الاسم / اللوغو `<a>` لـ `/u/{tw_id}` لما البطاقة برّا صفحة صاحبها | P2 · U4 · J2 · C2 | U.6 |
 | CARD-R09 | المشاركة بتشارك رابط المنشور `/post/{id}` (CARD-08) | P1 · P2 | U.6 |
 | CARD-R10 | المشاهدات بمكان / أيقونة ما بتنقرا كجزء من التاريخ | P1 · P2 | U.4 |
@@ -303,7 +303,7 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 
 1. **Q1 — رابط المنشور الرقمي:** `/post/{id}` بيتعارض مع Smart Router rule 8 (الرقم داخلي) و rule 9 (public_id بادئة `P`). نسجّله استثناء صريح بـ CLAUDE.md / `ARCHITECTURE.md §C`، ولا نستعمل public_id `P…` بنفس المسار؟ (لازم قبل U.6)
 2. **Q2 — الثيمات s1–s5:** مش موجودة بالكود (التقرير 0.2). المقصود الـ 8 ألوان `TW.POST_THEME_COLORS`، ولا تصميم جديد؟
-3. **Q3 — لون الحفظ الفعّال:** token جديد (`--color-action-save`) ولا لون المنشور `--pa`؟ (R07)
+3. **Q3 — لون الحفظ الفعّال:** ✅ **مُجاب (2026-10-24 — صاحب المشروع): token جديد بدل لون التحذير** — `--color-action-save` بـ DS-COLOR Section B (`tw_shared.css`) = `var(--color-prim-sky-400)` (`#38bdf8`) + توأم `-rgb`، تباين ≈ 9.2:1 على خلفية الصفحة. مش `--pa`. المستهلك: `.pc-btn--save.save-active` / `:hover` بـ `tw-card.css` (U.3 · R07 · COLOR-SYSTEM.md → task U.3).
 4. **Q4 — التعليقات بالرئيسية:** لوحة تعليقات جوّا البطاقة (متل صفحة الشركة)، ولا زر «تعليق» بيفتح `/post/{id}`؟
 5. **Q5 — الضغط على بطاقة الرئيسية:** البطاقة كلها بتفتح صفحة الشركة (اليوم)، ولا الاسم بس رابط والنص بيفتح `/post/{id}`؟
 6. **Q6 — المشاهدات:** بتبين لكل الناس (اليوم) ولا للمالك بس؟ وزيارة `/post/{id}` بتنعدّ مشاهدة؟
@@ -325,7 +325,7 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 | المرحلة | النطاق | الملفات المتوقعة | المتطلبات | التستات اللي لازم تنضاف |
 |---------|--------|------------------|-----------|--------------------------|
 | **U.2** ✅ كامل (CARD-13): رسم (U.2) + سلوك + CSS (U.2b) | **المرجع → المكوّن المشترك أول:** نقل `_postCardHtml` + سلوك الأزرار (desired-state queue · تتبّع المشاهدة · قص النص · لوحة التعليقات) لـ `TwPostCard` **بدون تغيير سلوك ولا شكل** + أساس `tw-card.css` (classes بس، نفس القيم) · صفحة الشركة بتستعمله · حذف النسخ المكررة D2 / D3 | جديد `static/shared/tw-post-card.js` · `static/shared/tw-card.css` · `partials/` (shell) · `company.render.js` · `company.posts.js` · `company.css` (حذف `POST CARDS` المنقول) | — (أساس لكل المتطلبات) | `node tests/test_post_card_runtime.js` (vm): render → عناصر الرأس / الجسم / الأزرار · تبديل أقدّر وحفظ + رجوع عند الفشل · المالك بيشوف ⋯ والزائر لا |
-| **U.3** | تنظيف المكوّن نفسه: twT · DS-ICON · DS-IMAGE · tokens · `twFormatDate` + وقت نسبي مشترك · `twAction` لكل الأزرار + إجراءات السجل (`post_appreciate` · `post_save` · `post_comment` · `share` · `post_edit` · `post_delete`) · لون الحفظ (بعد Q3) | `tw-post-card.js` · `tw-card.css` · `tw_strings.json` · `tw_actions.json` · `tw_shared.js` (الوقت النسبي) · `tw_shared.css` (shadow — «جديد» إذا انقرّر) | R01 · R02 · R03 · R04 · R05 · R06 · R07 | نفس `test_post_card_runtime.js`: النص من twT · ما في `<svg>` يدوي · `twActionState` بيخفي ⋯ لغير المالك · الوقت النسبي input → output |
+| **U.3** ✅ (CARD-13 → U.3) | تنظيف المكوّن نفسه: twT · DS-ICON · DS-IMAGE · tokens · `twFormatDate` + وقت نسبي مشترك · `twAction` لكل الأزرار + إجراءات السجل (`post_appreciate` · `post_save` · `post_comment` · `share` · `post_edit` · `post_delete`) · لون الحفظ (بعد Q3) | `tw-post-card.js` · `tw-card.css` · `tw_strings.json` · `tw_actions.json` · `tw_shared.js` (الوقت النسبي) · `tw_shared.css` (shadow — «جديد» إذا انقرّر) | R01 · R02 · R03 · R04 · R05 · R06 · R07 | نفس `test_post_card_runtime.js`: النص من twT · ما في `<svg>` يدوي · `twActionState` بيخفي ⋯ لغير المالك · الوقت النسبي input → output |
 | **U.4** | وصول + موبايل بالمكوّن: `article` · aria · `type="button"` · `:focus-visible` · قائمة ⋯ DS-OVL + Escape · عدّاد منفصل · وضع الأيقونة + رقم · إعادة القص · مكان المشاهدات · قياس التباين | `tw-post-card.js` · `tw-card.css` | R10 · R11 · R12 · R13 · R14 · R15 · R16 · R17 · R18 · R19 · R20 · R21 | runtime: `aria-pressed` بيتبدّل مع الضغط · `aria-expanded` على التعليق والـ ⋯ · Escape بيسكّر ويرجّع الـ focus · كل button `type=button` |
 | **U.5** | الحالات + الصفحات: `twCardSkeleton` · `twEmptyState` (+ «إعادة المحاولة») بـ `tw_shared.js` / `tw-skeleton.css` · pagination لـ `GET /company/posts/{id}` (حد بـ `tw_limits.py`، إضافة params بس — F14) · «عرض المزيد» (Q12) | `server.py` · `auth.py` (`get_company_posts`) · `tw_limits.py` · `tw_shared.js` · `tw-skeleton.css` · `tw-post-card.js` · `company.render.js` | R22 · R23 | `python -m pytest tests/test_company_posts_pagination.py -q`: الحد بيتطبّق · الصفحة التانية ما بتكرر · الفلتر `visible_sql` لسا شغّال بالصفحة التانية |
 | **U.6** | رابط المنشور: `GET /post/{id}` (صفحة) + endpoint قراءة منشور واحد (JWT اختياري · 404 موحّد للمخفي / المحذوف / id غلط) · صفحة بالـ Page Shell بتعرض `TwPostCard full` + تعليقات · المشاركة → `/post/{id}` · الاسم رابط `/u/{tw_id}` · `twShare` مشترك (D4) — **بعد Q1 (+ Q7 / Q9)** | `server.py` · `auth.py` · جديد `post.html` + `static/post/post.js` · `tw-post-card.js` · `tw_shared.js` (`twShare`) · `ARCHITECTURE.md` (route) · `docs/rules/` (إذا انقرّر استثناء Q1) | R08 · R09 (+ CARD-08) | `python -m pytest tests/test_post_link.py -q`: منشور ظاهر → 200 للزائر · صاحبه معلّق → 404 · حظر بأي اتجاه → 404 · محذوف → 404 · id مش رقم → 404 · نفس الرد بالحالات الأربعة |
@@ -355,4 +355,33 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 **الصفحة:** `company.render.js → _postCardHtml(post)` صار wrapper رفيع داخلي (مش على `window`): بيعطي اسم الشركة (`|| 'الشركة'`) + اللوغو + `permissions.can_edit` · `renderPosts` → `TwPostCard.initClamps`. `company.posts.js` بيرسم الأزرار بعد الضغط عبر `apprButtonInner` / `saveButtonInner` والمشاهدات عبر `formatViews`.
 **السلوك (U.2b — منقول من `company.posts.js` حرفياً):** desired-state queue لأقدّر والحفظ (طلب واحد بالطيران لكل منشور، الواجهة فورية، طلب الطابور بآخر حالة مطلوبة، رجوع لحالة ما قبل الضغط عند 403 / 429 / فشل) · تتبّع المشاهدة (`IntersectionObserver` 50% + 800ms، مرة لكل منشور بالجلسة، العدّاد +1 لما `recorded`) · فتح / سكّر لوحة التعليقات (وحدة مفتوحة بس) · قائمة ⋯ · «المزيد / أقل» · المشاركة (`navigator.share` → clipboard → textarea، نفس النص — `/post/{id}` = U.6). المكوّن ما بيعرف إنه بصفحة شركة.
 **ضل بالصفحة (ليش):** `company.posts.js` → `TwPostCard.create({...})` بالأجزاء الخاصة بالشركة: مسارات `/company/posts/{id}/…` · `TwCompanyPage.signedIn` · `cp_vk` · اسم الشركة + `/u/{tw_id}` للمشاركة · التعديل (`_getPostById` → `openPostModal`) · الحذف (`deletePost` — تأكيد DS-OVL + طلب) · محتوى التعليقات كلّه (§22c: بناء اللوحة، تحميل، إرسال، ردود، منشن، قائمة ⋮ التعليق — نفس delegation الصفحة) · `window.initPostViewTracking` ضل اسم (بيستدعيه `company.render.js`) وبينادي `trackViews`. اختيار `html()` (string) بدل `render()` → `HTMLElement` بالتقرير §5.2: عشان المخرجات تضل حرفياً نفس `list.innerHTML = posts.map(...).join('')`.
-**Test:** `node tests/test_post_card_runtime.js` — `TwPostCard.html` = نسخة مجمّدة من الكود القديم (`tests/fixtures/legacy_company_post_card.js`) حرف بحرف: مالك · زائر · لوغو · بدون لوغو · لوغو غير آمن · تعليقات مطفّاة · حالات نشطة + عدّادات + وسوم · نص طويل · HTML / سكربت (escape) + أزرار ما بعد الضغط + `renderPosts` عبر المكوّن · **U.2b** (DOM صغير بيقرا الـ markup الحقيقي — `tests/fixtures/post_card_dom.js`): أقدّر / حفظ + رجوع عند الفشل / 403 / 429 · ضغطات سريعة = طلب واحد بالطيران + طابور · الزائر → toast بدون طلب · ⋯ للمالك بس + سكّر برّا + callbacks · المشاهدة مرة وحدة + العدّاد · المشاركة (share / clipboard / fallback بنفس النص) · ربط `company.posts.js` · `tw-card.css` = القسم القديم المجمّد (`tests/fixtures/legacy_post_cards.css`) وما ضل منه شي بـ `company.css`.
+**Test (U.2 / U.2b — الفحص الحرفي اتبدّل بـ U.3، شوف تحت):** `node tests/test_post_card_runtime.js` — `TwPostCard.html` = نسخة مجمّدة من الكود القديم (`tests/fixtures/legacy_company_post_card.js` — انحذفت بـ U.3) حرف بحرف: مالك · زائر · لوغو · بدون لوغو · لوغو غير آمن · تعليقات مطفّاة · حالات نشطة + عدّادات + وسوم · نص طويل · HTML / سكربت (escape) + أزرار ما بعد الضغط + `renderPosts` عبر المكوّن · **U.2b** (DOM صغير بيقرا الـ markup الحقيقي — `tests/fixtures/post_card_dom.js`): أقدّر / حفظ + رجوع عند الفشل / 403 / 429 · ضغطات سريعة = طلب واحد بالطيران + طابور · الزائر → toast بدون طلب · ⋯ للمالك بس + سكّر برّا + callbacks · المشاهدة مرة وحدة + العدّاد · المشاركة (share / clipboard / fallback بنفس النص) · ربط `company.posts.js` · `tw-card.css` = القسم القديم المجمّد (`tests/fixtures/legacy_post_cards.css`) وما ضل منه شي بـ `company.css`.
+
+### U.3 ✅ — تنظيف المكوّن (2026-10-24)
+
+كل جزء بالبطاقة صار من نظامه — نفس الـ DOM / الكلاسات / `data-*` / السلوك، ونفس API (`html` · `create` · `bind` · `trackViews` · `toggleComments`) + خيار جديد اختياري `opts.authorType`.
+
+| المتطلب | شو انعمل |
+|---------|----------|
+| R01 نص | كل نص من `twT`: `post.card.*` (أزرار · ⋯ · «المزيد / أقل» · مشاهدة · toasts · نص المشاركة) + `action.share` + الوقت `time.rel.*` — صفر نص عربي بالكود |
+| R02 أيقونات | 12 SVG يدوي → `twIcon` (`heart` · `comment` · `share` · `bookmark` / `bookmark-check` · `edit` · `delete` · `more` · `clock` · `eye` · `show-more` / `show-less`) |
+| R03 صورة | `twAvatarHtml({full_name, avatar_url, user_type: opts.authorType}, 'lg')` — الصفحة بتمرّق `authorType: 'co'` · انحذف `<img>` / حرف البديل اليدوي + `.post-ava img` / `.post-ava--init` |
+| R04 أحجام | كل padding / margin / gap / font-size / radius / أبعاد أيقونة بـ `tw-card.css` من `--space-*` / `--radius-*` / `--size-font-*` / `--size-icon-*` (جدول CARD-04). ضل خام: حدود `1px` · الظلال (`--shadow-*` لسّا ما انقرّر — CARD-04) · `min-width:90px` لقائمة ⋯ (مش بجدول CARD-04 — U.4 / R14 بتحوّلها لـ DS-OVL) |
+| R05 وقت | `twRelativeTime` جديد بـ `tw_shared.js` (SYSTEMS_INDEX §59a) — بعد 30 يوم `twFormatDate` (كان `toLocaleDateString('ar')`) · `TwPostCard.relativeTime` = هي نفسها |
+| R06 أزرار | السجل `tw_actions.json`: `post_appreciate` · `post_save` (`auth`) · `post_comment` (`visibleWhen: comments_enabled` → `ctx.commentsEnabled`) · `share` (موجود) · `post_edit` / `post_delete` (`owner`). الظهور = `twActionState` (المالك = `canEdit` من السيرفر كـ `ctx.mode:'owner'`) · ⋯ بيبين بس إذا في بند واحد ظاهر · كل `button` إله `type="button"` + `data-tw-action`. البطاقة HTML string (قائمة الشركة `innerHTML`) فالضغط بيضل بالـ delegation تبع `bind()` |
+| R07 لون الحفظ | `--color-action-save` (Q3) بدل `--color-status-warning` — الحفظ الفعّال + hover · علامة الصح بأيقونة `bookmark-check` مقصوصة بـ `--color-surface-page` (متل قبل) |
+
+**تغيير سلوك (من السجل — BTN-19 القاعدة 3 · CARD-05 «زائر غير مسجّل»):** الضيف بيكبس «أقدّر» أو «حفظ» → `twLoginHref(path + query)` (صفحة الدخول ومنها رجعة لنفس الصفحة) بدل toast «سجّل دخولك…». التعليق والمشاركة للضيف ما تغيّروا.
+**فرق مرئي (نصي):**
+
+| العنصر | قبل | بعد |
+|--------|-----|-----|
+| زر ⋯ | حرف `⋯` (أفقي) | أيقونة DS-ICON `more` (نقاط عمودية) |
+| أيقونات الأزرار / القائمة | SVG يدوي stroke 1.8 | DS-ICON (نفس الأشكال تقريباً — Lucide الأحدث) · أيقونات القائمة 13 → 14px · أيقونات الـ meta 10 → 12px |
+| اللوغو | مربع 48 بزاوية 11px + تدرّج خلفية | DS-IMAGE `.tw-ava--lg` مربع (`--radius-lg` 12) + بديل الحرف تبع النظام |
+| الاسم / النص | `.8rem` | `--size-font-md` (.82rem) |
+| «محفوظ» الفعّال | كهرماني (لون التحذير) | `--color-action-save` سماوي |
+| تاريخ أقدم من 30 يوم | `toLocaleDateString('ar')` | «1 يناير 2025» (`twFormatDate`) |
+
+**Test:** `node tests/test_post_card_runtime.js` (A–D + K لـ U.3 · E–J سلوك U.2b) · `python tests/test_post_save.py` (10 أيقونة DS-ICON · 14 الضيف → الدخول). النسختين المجمّدتين (`tests/fixtures/legacy_company_post_card.js` · `legacy_post_cards.css`) انحذفوا — U.3 بيغيّر المخرجات عن قصد، والفحص صار سلوكي.
+

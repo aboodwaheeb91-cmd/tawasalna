@@ -28,7 +28,7 @@ TARGETS = ("emp", "co", "edu")
 TYPES = ("primary", "secondary", "danger", "ghost")
 CONDITIONS = ("verified",)
 # visibleWhen: signed-in viewer sees the button only when the server said yes (ctx flag) — task 5.0g
-VISIBLE_WHEN = ("can_message", "can_end")
+VISIBLE_WHEN = ("can_message", "can_end", "comments_enabled")   # comments_enabled — post card (task U.3)
 OVERRIDE_FIELDS = ("enabled", "visibleTo")
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")

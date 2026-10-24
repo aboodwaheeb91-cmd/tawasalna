@@ -784,7 +784,7 @@ Before → Click → Loading → Result → Back → Refresh
 1. **الصفحة ما بتكتب شرط ظهور لزر إجراء.** بتنادي `twAction(id, ctx)` → زر أو `null`. السياق: `ownerId` (صاحب الصفحة/الهدف) · `targetType` · `mode` (إشارة VM موجودة) · `disabled` / `verified` (حالة) · `href` · `onClick`.
 2. **مين بيشوف = `visibleTo`** من الأوضاع الموجودة (VM-01/02): `guest` · `owner` · `emp` · `co` · `edu` (مسجّل مش صاحب الصفحة) + `targets` (نوع الهدف). برّاها → **Hidden** (BTN-17 — مش Disabled).
 3. **مين بيكبس:** `auth: true` + ضيف → الزر ظاهر وكبسته → `twLoginHref` مع رجعة لنفس الصفحة · `enabledWhen` / `ctx.disabled` → **Disabled** (حالة، مش صلاحية).
-3b. **`visibleWhen` (task 5.0g) — قرار من السيرفر:** `can_message` → `ctx.canMessage` · `can_end` → `ctx.canEnd`. مسجّل والقيمة مش `true` → **Hidden** (fail closed)؛ الضيف بيضل يشوف زر الدخول. القيمة من `twCanMessage(otherId)` بس (`GET /messages/can-send/{id}` — نفس `can_send_message` اللي بيفحص الإرسال) — ❌ الصفحة تحسبها.
+3b. **`visibleWhen` (task 5.0g) — قرار من السيرفر:** `can_message` → `ctx.canMessage` · `can_end` → `ctx.canEnd` · `comments_enabled` → `ctx.commentsEnabled` (task U.3 — `post.comments_enabled` من الـ API؛ إجراء بدون `auth` فالضيف كمان بيتخبّى). مسجّل والقيمة مش `true` → **Hidden** (fail closed)؛ الضيف بيضل يشوف زر الدخول. القيمة من `twCanMessage(otherId)` بس (`GET /messages/can-send/{id}` — نفس `can_send_message` اللي بيفحص الإرسال) — ❌ الصفحة تحسبها.
 4. **النوع → ستايل موحّد** `.tw-act .tw-act-{type}` (BTN-02/03: شفاف، border + نص + أيقونة من عائلة وحدة، توكنز بس). `ctx.className` بيحل محله بس لمكان إله شكل خاص (FAB، أزرار صفحة لسّا ما اتحوّلت).
 5. **الخطورة:** إجراء بـ `confirm` بالسجل → `twConfirm` (DS-OVL) قبل التنفيذ؛ `danger:true` → زر خطر + focus على «إلغاء» (BTN-13). بدون `tw-overlay.js` بالصفحة → ما بينفّذ.
 6. **الأدمن (قاعدة التحكم الكامل):** `PUT /admin/actions` → `{id: {enabled:false}}` بيخفيه عن الكل · إجراء مطفّى افتراضياً بالسجل (`"enabled": false` — PR 4.7) بيشتغل بـ `{id: {enabled:true}}` · `{id: {visibleTo:[…]}}` بيغيّر الجمهور. id أو حقل أو جمهور مش معروف → 422.
@@ -803,8 +803,13 @@ Before → Click → Loading → Result → Back → Refresh
 | `edit_profile` — تعديل الملف | secondary | `owner` | المالك | — | `edu-profile.html` (PR 4.7) · `profile-showcase.html` (PR 4.2a — `#scEditProfileBtn`, icon only) · company 🔜 |
 | `verify_identity` — توثيق الهوية | primary | `emp` · `co` · `edu` (صاحب الحساب بصفحة `/settings`) — **مطفّى افتراضياً** (`"enabled": false`) لحد 5.1؛ الأدمن بيشغّله `{"enabled": true}` | الحساب نفسه (§23 — `/kyc/*` بـ JWT) | — | `static/settings/settings.js` (PR 4.7) — مطفّى → صف التوثيق ما بينرسم |
 | `report` — إبلاغ | ghost | `guest` · `emp` · `co` · `edu` | مسجّل (§24 · `POST /reports/submit` بـ JWT) — ضيف → دخول | — | `profile-showcase.html` (PR 4.2a — `#scReportRow`) · `job-detail` (PR 4.8) — both → `twReportDialog` · company 🔜 |
-| `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | `profile-showcase.html` (PR 4.2a — QR modal `#scQrShareBtn`) · `job-detail` (PR 4.8) · company 🔜 |
+| `share` — مشاركة | ghost | الكل | الكل (بدون دخول) | — | `profile-showcase.html` (PR 4.2a — QR modal `#scQrShareBtn`) · `job-detail` (PR 4.8) · `TwPostCard` (task U.3) · company 🔜 |
 | `apply_job` — التقديم للوظيفة | primary | `guest` · `emp` | `emp` بس (§15 · غيره 403) — ضيف → دخول | — | المرحلة 4 |
+| `post_appreciate` — أقدّر | ghost | الكل (`guest` · `owner` · `emp` · `co` · `edu`) | مسجّل (§22a — صاحب المنشور → 403) — ضيف → دخول | — | `TwPostCard` (task U.3) |
+| `post_save` — حفظ المنشور | ghost | الكل | مسجّل (§22b) — ضيف → دخول | — | `TwPostCard` (task U.3) |
+| `post_comment` — تعليق (فتح لوحة التعليقات) | ghost | الكل · `visibleWhen: comments_enabled` | الكل (القراءة بدون دخول — الكتابة جوّا اللوحة §22c) | — | `TwPostCard` (task U.3) |
+| `post_edit` — تعديل المنشور | ghost | `owner` (= `permissions.can_edit` من السيرفر → `ctx.mode`) | المالك (السيرفر بيتحقق — 403) | — | `TwPostCard` قائمة ⋯ (task U.3) |
+| `post_delete` — حذف المنشور | danger | `owner` | المالك (السيرفر بيتحقق — 403) | `twConfirm` danger بالصفحة (`deletePost`) | `TwPostCard` قائمة ⋯ (task U.3) |
 | `close_room` — إغلاق الغرفة | danger | `co` | الشركة صاحبة الموعد بس (`auth.close_appointment`) | `twConfirm` danger | المرحلة 4 (`appointment-room.html`) |
 
 > القيم متطابقة مع SYSTEMS_INDEX (§15 · §18 · §20 · §23 · §23b · §24) ومع فحص الـ endpoint نفسه. أي اختلاف بيظهر وقت تحويل صفحة بالمرحلة 4 → تعديل بالسجل (مش بالصفحة) + سطر هون.

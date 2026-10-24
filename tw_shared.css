@@ -230,6 +230,9 @@
   --color-talent-bank-rgb:      var(--color-prim-indigo-500-rgb);
   --color-talent-bank-text:     var(--color-prim-indigo-300);    /* label + badge text */
   --color-talent-bank-text-rgb: var(--color-prim-indigo-300-rgb);
+  /* Active save «محفوظ» on a post card — its own meaning, not a warning (task U.3 · CARDS.md Q3) */
+  --color-action-save:     var(--color-prim-sky-400);
+  --color-action-save-rgb: var(--color-prim-sky-400-rgb);
   /* Default cover gradient (no cover image) */
   --color-cover-start:     var(--color-prim-cover-900);
   --color-cover-start-rgb: var(--color-prim-cover-900-rgb);

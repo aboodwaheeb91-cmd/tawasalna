@@ -1,21 +1,23 @@
 /**
- * test_post_card_runtime.js — task U.2: TwPostCard (static/shared/tw-post-card.js) renders the
- * company page post card exactly as the pre-U.2 code did (golden = tests/fixtures/
- * legacy_company_post_card.js, a frozen copy). Real code in a Node vm with the real
- * escaping / URL helpers of tw_shared.js.
- *   A  owner · visitor · logo · no logo · unsafe logo · comments off · active states · long text
- *      → TwPostCard.html === legacy _postCardHtml (byte for byte)
- *   B  HTML / script in body · tags · name · id → escaped (no raw tag reaches the markup)
- *   C  button re-render (company.posts.js) = TwPostCard.apprButtonInner / saveButtonInner = legacy
- *   D  company.render.js renderPosts uses TwPostCard (owner sees ⋯, visitor does not)
+ * test_post_card_runtime.js — DS-CARD post card (static/shared/tw-post-card.js) in a Node vm with
+ * the real shared code: twT + tw_strings.json · twActionState + tw_actions.json · twAvatarHtml ·
+ * twRelativeTime / twFormatDate (tw_shared.js) · twIcon (tw-icons.js).
+ *   — task U.3: every part from its system —
+ *   A  text from twT (an override changes the card) · every <svg> from DS-ICON · avatar = DS-IMAGE
+ *   B  buttons from the Actions Registry: ⋯ only for the owner (twActionState) · comments off →
+ *      no button / panel · admin off → hidden · every button type=button + data-tw-action
+ *   C  HTML / script in body · tags · name · id → escaped
+ *   D  twRelativeTime input → output (shared, after 30 days = twFormatDate) · formatViews
+ *   D2 company.render.js renders through TwPostCard (owner sees ⋯, visitor does not)
  *   — task U.2b: behaviour on the real markup (tests/fixtures/post_card_dom.js) —
  *   E  appreciate: toggle · success · rollback on failure / 403 · two fast clicks = one request
- *   F  save: same queue + rollback · guest → toast, no request
+ *   F  save: same queue + rollback · guest → login (twLoginHref), no request
  *   G  ⋯ menu: owner only · open / outside-click close · edit / delete callbacks (int id)
  *   H  views: sent once per post after the dwell · guest visitor key · count updated
  *   I  share: navigator.share → clipboard → textarea fallback, same text as before
  *   J  company.posts.js wires the page parts into TwPostCard.create (paths · session · share · callbacks)
- *   K  tw-card.css = the old POST CARDS section (frozen fixture) · nothing left in company.css
+ *   K  tw-card.css: sizes from tokens · no hex · active save = --color-action-save (not warning,
+ *      AA contrast) · card rules not in company.css · load order
  *
  * Run: node tests/test_post_card_runtime.js
  */
@@ -39,23 +41,30 @@ function fnText(src, name) {
   }
   return src.slice(i, j + 1);
 }
+const varLine = (src, name) => src.match(new RegExp('^var ' + name + ' = .*$', 'm'))[0];
 const SHARED = read('tw_shared.js');
-const HELPERS = ['twEscAttr', 'twSafeImageUrl'].map(n => fnText(SHARED, n)).join('\n') + '\nvar twEscHtml = twEscAttr;';
+const FNS = ['twEscAttr', 'twSafeImageUrl', 'twT', 'twFormatDate', 'twRelativeTime', '_twAvatarSpec', 'twAvatarHtml',
+  '_twActDef', '_twActAudience', 'twActionState'];
+const HELPERS = ['_twTWarned', '_TW_AVA_PX', '_twActWarned', '_TW_ACT_VISIBLE_WHEN'].map(n => varLine(SHARED, n)).join('\n')
+  + '\n' + FNS.map(n => fnText(SHARED, n)).join('\n') + '\nvar twEscHtml = twEscAttr;\n'
+  + FNS.concat('twEscHtml').map(n => 'window.' + n + '=' + n + ';').join('');
+const DICT = JSON.parse(read('tw_strings.json')).ar;
+const ACTIONS = JSON.parse(read('tw_actions.json')).actions;
 
 const NOW = Date.parse('2026-10-24T12:00:00Z');
-function makeCtx() {
-  const ctx = { console, Number, String, Math, isNaN, parseFloat };
+function makeCtx(o) {
+  o = o || {};
+  const ctx = { console: { log: console.log, warn() {}, error: console.error }, Number, String, Math, isNaN, parseFloat, isFinite, Array, Object, JSON };
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext('Date.now = function () { return ' + NOW + '; };', ctx);
-  vm.runInContext(HELPERS + '\nwindow.twEscAttr=twEscAttr;window.twEscHtml=twEscHtml;window.twSafeImageUrl=twSafeImageUrl;', ctx);
+  ctx.TW_STRINGS = { dict: Object.assign({}, DICT, o.dict || {}) };
+  ctx.TW_ACTIONS = { actions: Object.assign(JSON.parse(JSON.stringify(ACTIONS)), o.actions || {}) };
+  ctx.TwAuthSync = { getSessionSnapshot: () => o.snap || { isAuthenticated: false } };
+  vm.runInContext(HELPERS, ctx, { filename: 'tw_shared.js (helpers)' });
+  vm.runInContext(read('static/shared/tw-icons.js'), ctx, { filename: 'tw-icons.js' });
   vm.runInContext(read('static/shared/tw-options-data.js'), ctx, { filename: 'tw-options-data.js' });
   vm.runInContext(read('static/shared/tw-post-card.js'), ctx, { filename: 'tw-post-card.js' });
-  vm.runInContext(read('tests/fixtures/legacy_company_post_card.js')
-    + '\nwindow._legacyCard = _postCardHtml; window._legacyAppr = _renderAppreciationButton; window._legacySave = _renderSaveButton;',
-    ctx, { filename: 'legacy_company_post_card.js' });
-  // legacy code reads _esc / _escAttr from company.render.js scope
-  vm.runInContext('var _esc = twEscHtml, _escAttr = twEscAttr;', ctx);
   return ctx;
 }
 
@@ -64,79 +73,117 @@ const BASE = { id: 7, body: 'منشور قصير', tags: [], theme_color: 'teal'
   views_count: 3, appreciations_count: 0, viewer_appreciated: false, comments_enabled: true,
   comments_count: 0, viewer_saved: false };
 const XSS = '<script>alert(1)</script><img src=x onerror=alert(2)>"\'&';
+const REGISTERED = { isAuthenticated: true, userId: 55, userType: 'emp' };
+const card = (ctx, post, opts) => ctx.TwPostCard.html(Object.assign({}, BASE, post || {}),
+  Object.assign({ authorName: 'شركة النور', avatarUrl: 'https://cdn.x/logo.png', authorType: 'co', canEdit: false }, opts || {}));
+const buttons = h => [...h.matchAll(/<button\b[^>]*>/g)].map(m => m[0]);
 
-const CASES = [
-  ['owner + logo',          { can_edit: true },  { full_name: 'شركة النور', avatar_url: 'https://cdn.x/logo.png' }, {}],
-  ['visitor + logo',        { can_edit: false }, { full_name: 'شركة النور', avatar_url: 'https://cdn.x/logo.png' }, {}],
-  ['visitor, no logo',      { can_edit: false }, { full_name: 'شركة النور', avatar_url: '' }, {}],
-  ['unsafe logo → initial', { can_edit: false }, { full_name: 'شركة', avatar_url: 'javascript:alert(1)' }, {}],
-  ['no profile name',       null,                { full_name: '', avatar_url: null }, {}],
-  ['active + counts + tags + color', { can_edit: true }, { full_name: 'ش', avatar_url: '/static/x.png' },
-    { viewer_appreciated: 'true', appreciations_count: 12, viewer_saved: 1, comments_count: 4,
-      tags: ['توظيف', 'فعالية'], theme_color: 'purple', views_count: 1500, created_at: ago(90000) }],
-  ['comments off + unknown color + old date', { can_edit: false }, { full_name: 'ش', avatar_url: '' },
-    { comments_enabled: false, theme_color: 'nope', created_at: '2025-01-01T00:00:00Z', views_count: 2000 }],
-  ['long text',             { can_edit: false }, { full_name: 'ش', avatar_url: '' }, { body: 'كلمة '.repeat(400) }],
-  ['HTML / script everywhere', { can_edit: true }, { full_name: XSS, avatar_url: 'https://x/a.png?"><b>' },
-    { id: '9"><b>', body: XSS, tags: [XSS] }],
-];
-
-console.log('\nA/B — TwPostCard.html === legacy _postCardHtml');
-for (const [name, perms, profile, extra] of CASES) {
-  const ctx = makeCtx();
-  const post = Object.assign({}, BASE, extra);
-  ctx.companyState = { profile: profile, permissions: perms };
-  const legacy = ctx._legacyCard(post);
-  const now = ctx.TwPostCard.html(post, {
-    authorName: profile.full_name || 'الشركة', avatarUrl: profile.avatar_url,
-    canEdit: !!(perms && perms.can_edit) });
-  check(name + ' — identical', now === legacy, now === legacy ? '' : '\n    new: ' + now.slice(0, 300) + '\n    old: ' + legacy.slice(0, 300));
-  check(name + ' — ⋯ only for owner', now.includes('pc-dots-btn') === !!(perms && perms.can_edit));
-  if (name.startsWith('HTML')) {
-    check('script tag escaped', !now.includes('<script>') && now.includes('&lt;script&gt;'));
-    check('img onerror not a tag', !now.includes('<img src=x'));
-    check('id escaped in attributes', !now.includes('data-post-id="9"><b>') && now.includes('9&quot;&gt;&lt;b&gt;'));
-  }
-}
-
-console.log('\nC — button re-render');
+console.log('\nA — text / icons / avatar from their systems (U.3)');
 {
   const ctx = makeCtx();
-  for (const [active, count] of [[true, 0], [true, 5], [false, 0], [false, 3]]) {
-    const b = { classList: { add() {}, remove() {} }, dataset: {} };
-    ctx._legacyAppr(b, active, count);
-    check('appr ' + active + '/' + count, ctx.TwPostCard.apprButtonInner(active, count) === b.innerHTML);
-  }
-  for (const active of [true, false]) {
-    const b = { classList: { add() {}, remove() {} }, dataset: {} };
-    ctx._legacySave(b, active);
-    check('save ' + active, ctx.TwPostCard.saveButtonInner(active) === b.innerHTML);
-  }
+  const h = card(ctx, { appreciations_count: 12, comments_count: 4, views_count: 1500 }, { canEdit: true });
+  const want = ['post.card.appreciate_n', 'post.card.comment_n', 'action.share', 'post.card.save', 'post.card.edit', 'post.card.delete']
+    .map(k => ctx.twEscHtml(ctx.twT(k, { count: k === 'post.card.appreciate_n' ? 12 : 4 })));
+  check('A1 every label = its twT value', want.every(w => h.includes('<span class="tw-act-lbl">' + w + '</span>')));
+  check('A2 aria labels + views + time from twT', h.includes('aria-label="' + DICT['post.card.options'] + '"')
+    && h.includes('aria-label="' + DICT['post.card.more'] + '"') && h.includes('aria-label="' + DICT['post.card.less'] + '"')
+    && h.includes(DICT['post.card.views'].replace('{count}', '1.5K')) && h.includes(DICT['time.rel.minutes'].replace('{n}', '2')));
+  const o = makeCtx({ dict: { 'post.card.save': 'SAVE-X', 'action.share': 'SHARE-X', 'post.card.options': 'OPT-X', 'time.rel.minutes': 'M{n}' } });
+  const ho = card(o, {}, { canEdit: true });
+  check('A3 admin text override reaches the card (no fixed text)', ho.includes('>SAVE-X<') && ho.includes('>SHARE-X<')
+    && ho.includes('aria-label="OPT-X"') && ho.includes('M2'));
+  const svgs = (h.match(/<svg\b/g) || []).length, dsIcons = (h.match(/<svg [^>]*class="tw-ico[" ]/g) || []).length;
+  check('A4 every <svg> is a DS-ICON twIcon (no hand-written SVG)', svgs >= 10 && svgs === dsIcons, svgs + ' / ' + dsIcons);
+  check('A5 no Arabic literal left in tw-post-card.js code', !read('static/shared/tw-post-card.js').split('\n')
+    .filter(l => !/^\s*\/\//.test(l)).some(l => /[ء-ي]/.test(l)));
+  check('A6 logo = DS-IMAGE twAvatarHtml (co → org shape)', h.includes(ctx.twAvatarHtml({ full_name: 'شركة النور',
+    avatar_url: 'https://cdn.x/logo.png', user_type: 'co' }, 'lg')) && h.includes('tw-ava--org'));
+  const bad = card(ctx, {}, { avatarUrl: 'javascript:alert(1)' });
+  check('A7 unsafe logo → DS-IMAGE fallback letter, no <img>', !/<img\b/.test(bad) && bad.includes('data-fb="1"') && !bad.includes('javascript:'));
+  const none = card(ctx, {}, { avatarUrl: '', authorName: '' });
+  check('A8 no name / logo → fallback, nothing breaks', none.includes('tw-ava__fb') && !/<img\b/.test(none));
 }
 
-console.log('\nD — company.render.js renders through TwPostCard');
+console.log('\nB — buttons from the Actions Registry (U.3)');
+{
+  for (const [who, snap] of [['guest', null], ['registered', REGISTERED]]) {
+    const ctx = makeCtx({ snap });
+    const h = card(ctx);
+    check('B1 ' + who + ' → no ⋯ (twActionState hides post_edit / post_delete)', !h.includes('pc-dots')
+      && ctx.twActionState('post_edit', {}) === 'hidden' && ctx.twActionState('post_delete', {}) === 'hidden');
+    check('B2 ' + who + ' → appreciate · comment · share · save', ['post_appreciate', 'post_comment', 'share', 'post_save']
+      .every(id => h.includes('data-tw-action="' + id + '"')));
+  }
+  const ctx = makeCtx({ snap: REGISTERED });
+  const own = card(ctx, {}, { canEdit: true });
+  check('B3 owner → ⋯ with edit + delete', own.includes('pc-dots-btn') && own.includes('data-tw-action="post_edit"')
+    && own.includes('data-tw-action="post_delete"'));
+  check('B4 guest on appreciate / save = login (auth), share = enabled', makeCtx().twActionState('post_save', {}) === 'login'
+    && makeCtx().twActionState('post_appreciate', {}) === 'login' && makeCtx().twActionState('share', {}) === 'enabled');
+  const off = card(ctx, { comments_enabled: false });
+  check('B5 comments off → no comment button, no panel (registry visibleWhen)', !off.includes('pc-btn--cmt')
+    && !off.includes('pc-cmts-panel') && card(ctx).includes('pc-cmts-panel'));
+  const adm = makeCtx({ snap: REGISTERED, actions: { post_save: Object.assign({}, ACTIONS.post_save, { off: true }),
+    post_edit: Object.assign({}, ACTIONS.post_edit, { off: true }), post_delete: Object.assign({}, ACTIONS.post_delete, { off: true }) } });
+  const ha = card(adm, {}, { canEdit: true });
+  check('B6 admin off → hidden (save gone · ⋯ gone when both items off)', !ha.includes('pc-btn--save') && !ha.includes('pc-dots'));
+  check('B7 every button type="button"', buttons(own).every(b => b.includes('type="button"')), buttons(own).length);
+  const st = card(ctx, { viewer_appreciated: 'true', appreciations_count: 2, viewer_saved: 1 });
+  check('B8 active states kept (appr-active · save-active · data-saved)', st.includes('pc-btn--appr appr-active')
+    && st.includes('pc-btn--save save-active') && st.includes('data-saved="1"') && st.includes('data-appr-count="2"'));
+  const filled = ctx.twIcon('bookmark-check', { size: 'sm', filled: true });
+  check('B9 saved → filled bookmark-check (DS-ICON)', ctx.TwPostCard.saveButtonInner(true).startsWith(filled)
+    && ctx.TwPostCard.saveButtonInner(false).startsWith(ctx.twIcon('bookmark', { size: 'sm' })));
+}
+
+console.log('\nC — escaping');
+{
+  const ctx = makeCtx();
+  const h = card(ctx, { id: '9"><b>', body: XSS, tags: [XSS] }, { authorName: XSS, avatarUrl: 'https://x/a.png?"><b>', canEdit: true });
+  check('C1 script tag escaped', !h.includes('<script>') && h.includes('&lt;script&gt;'));
+  check('C2 img onerror not a tag', !h.includes('<img src=x'));
+  check('C3 id escaped in attributes', !h.includes('data-post-id="9"><b>') && h.includes('9&quot;&gt;&lt;b&gt;'));
+  check('C4 logo URL escaped', !h.includes('?"><b>'));
+}
+
+console.log('\nD — shared relative time (twRelativeTime) + views');
+{
+  const ctx = makeCtx();
+  const rel = v => ctx.twRelativeTime(v);
+  check('D1 < 1 min → time.rel.now', rel(ago(30)) === DICT['time.rel.now']);
+  check('D2 minutes / hours / days / weeks', rel(ago(120)) === 'منذ 2 دقيقة' && rel(ago(7200)) === 'منذ 2 ساعة'
+    && rel(ago(3 * 86400)) === 'منذ 3 يوم' && rel(ago(15 * 86400)) === 'منذ 2 أسبوع');
+  check('D3 ≥ 30 days → twFormatDate (Gregorian, Western digits)', rel('2025-01-01T12:00:00Z') === ctx.twFormatDate('2025-01-01T12:00:00Z')
+    && rel('2025-01-01T12:00:00Z') === '1 يناير 2025');
+  check('D4 empty / invalid → ""', rel('') === '' && rel(null) === '' && rel('nope') === '');
+  check('D5 TwPostCard.relativeTime = the shared one', ctx.TwPostCard.relativeTime(ago(7200)) === rel(ago(7200)));
+  check('D6 formatViews from twT', ctx.TwPostCard.formatViews(3) === '3 مشاهدة' && ctx.TwPostCard.formatViews(1500) === '1.5K مشاهدة'
+    && ctx.TwPostCard.formatViews(2000) === '2K مشاهدة');
+}
+
+console.log('\nD2 — company.render.js renders through TwPostCard');
 {
   const ctx = makeCtx();
   const list = { innerHTML: '' }, empty = { style: {} };
   Object.assign(ctx, {
-    twT: k => k, twIcon: Object.assign(() => '', { hydrate() {} }), requestAnimationFrame() {},
+    requestAnimationFrame() {},
     document: { getElementById: id => (id === 'postsList' ? list : id === 'postsEmpty' ? empty : null),
                 querySelectorAll: () => [], addEventListener() {} },
     setInterval() {}, setTimeout() {},
   });
-  let calls = 0;
+  ctx.twIcon.hydrate = () => 0;
+  let calls = 0, lastOpts = null;
   const orig = ctx.TwPostCard.html;
-  ctx.TwPostCard.html = function () { calls++; return orig.apply(this, arguments); };
-  delete ctx._postCardHtml;   // the legacy fixture's global — render.js must not re-expose one
+  ctx.TwPostCard.html = function (p, o) { calls++; lastOpts = o; return orig.apply(this, arguments); };
   vm.runInContext(read('static/company/company.render.js'), ctx, { filename: 'company.render.js' });
-  check('_postCardHtml not exposed', ctx._postCardHtml === undefined);
+  check('D2.1 _postCardHtml not exposed', ctx._postCardHtml === undefined);
   ctx.companyState = { profile: { full_name: 'شركة', avatar_url: '' }, permissions: { can_edit: true } };
   ctx.renderPosts([BASE, Object.assign({}, BASE, { id: 8 })]);
-  check('TwPostCard.html called per post', calls === 2, calls);
-  check('owner list has ⋯', (list.innerHTML.match(/pc-dots-btn/g) || []).length === 2);
+  check('D2.2 TwPostCard.html called per post (author type co)', calls === 2 && lastOpts.authorType === 'co');
+  check('D2.3 owner list has ⋯', (list.innerHTML.match(/pc-dots-btn/g) || []).length === 2);
   ctx.companyState.permissions = { can_edit: false };
   ctx.renderPosts([BASE]);
-  check('visitor list has no ⋯', !list.innerHTML.includes('pc-dots-btn') && list.innerHTML.includes('pc-btn--appr'));
+  check('D2.4 visitor list has no ⋯', !list.innerHTML.includes('pc-dots-btn') && list.innerHTML.includes('pc-btn--appr'));
 }
 
 // ── U.2b — behaviour on the real markup ─────────────────────────────────────
@@ -147,7 +194,7 @@ const fail = st => ({ ok: false, status: st, data: null, error: {} });
 
 function bootCards(o) {
   o = o || {};
-  const ctx = makeCtx();
+  const ctx = makeCtx({ snap: o.signedIn === false ? null : REGISTERED });
   const doc = makeDocument();
   const calls = { api: [], toast: [], edit: [], del: [], build: [], load: [], ls: {}, timers: [], observed: [] };
   const pending = [];
@@ -158,6 +205,8 @@ function bootCards(o) {
     twApi: (path, op) => new Promise(res => { calls.api.push({ path, method: op.method, body: op.body }); pending.push(res); }),
     localStorage: { getItem: k => calls.ls[k] || null, setItem: (k, v) => { calls.ls[k] = v; } },
     navigator: o.navigator || {},
+    location: { pathname: '/u/C1', search: '?tab=posts', href: '' },
+    twLoginHref: n => '/login?next=' + encodeURIComponent(n),
     IntersectionObserver: function (cb) { calls.io = cb; this.observe = el => calls.observed.push(el); this.disconnect = () => {}; },
   });
   const list = doc.createElement('div');
@@ -241,9 +290,11 @@ function bootCards(o) {
   }
   {
     const b = bootCards({ signedIn: false });
-    b.click(b.q('.pc-btn--save')); b.click(b.q('.pc-btn--appr'));
-    check('F7 guest → info toasts, no request, no state change', b.calls.api.length === 0
-      && b.calls.toast.length === 2 && b.calls.toast.every(t => t[1] === 'info')
+    b.click(b.q('.pc-btn--save'));
+    const toSave = b.ctx.location.href; b.ctx.location.href = '';
+    b.click(b.q('.pc-btn--appr'));
+    check('F7 guest → login with return path (BTN-19), no request, no toast, no state change', b.calls.api.length === 0
+      && toSave === '/login?next=%2Fu%2FC1%3Ftab%3Dposts' && b.ctx.location.href === toSave && b.calls.toast.length === 0
       && !b.q('.pc-btn--save').classList.contains('save-active') && !b.q('.pc-btn--appr').classList.contains('appr-active'));
   }
 
@@ -346,30 +397,46 @@ function bootCards(o) {
     check('J10 DOMContentLoaded binds the posts list', bound === list);
   }
 
-  console.log('\nK — tw-card.css = old POST CARDS section');
+  console.log('\nK — tw-card.css: tokens only · active save = --color-action-save');
   {
     const rules = css => {
       const m = new Map();
       css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/([^{}]+)\{([^{}]*)\}/g, (_, sel, body) => {
-        const decl = body.split(';').map(d => d.trim().replace(/\s+/g, ' ').replace(/\s*:\s*/, ':')).filter(Boolean).join(';');
-        sel.split(',').map(x => x.trim().replace(/\s+/g, ' ')).forEach(x => m.set(x, (m.get(x) ? m.get(x) + ';' : '') + decl));
+        const decl = body.split(';').map(d => d.trim().replace(/\s+/g, ' ').replace(/\s*:\s*/, ':')).filter(Boolean);
+        sel.split(',').map(x => x.trim().replace(/\s+/g, ' ')).forEach(x => m.set(x, (m.get(x) || []).concat(decl)));
       });
       return m;
     };
-    const old = rules(read('tests/fixtures/legacy_post_cards.css'));
-    const card = rules(read('static/shared/tw-card.css'));
+    const cardCss = read('static/shared/tw-card.css');
+    const card = rules(cardCss);
+    const decls = [...card.values()].flat();
+    check('K1 no hex color in the card', !/#[0-9a-f]{3,8}\b/i.test(cardCss.replace(/\/\*[\s\S]*?\*\//g, '')));
+    const SIZE_PROPS = /^(padding|margin[\w-]*|gap|font-size|border-radius|width|height|top|left)$/;
+    const raw = decls.filter(d => SIZE_PROPS.test(d.split(':')[0]) && /\d(px|rem|em)\b/.test(d));
+    check('K2 every size from --space / --radius / --size tokens (CARD-04)', raw.length === 0, raw.join(' | '));
+    const save = card.get('.pc-btn--save.save-active') || [];
+    check('K3 active save → var(--color-action-save)', save.includes('color:var(--color-action-save)')
+      && (card.get('.pc-btn--save:hover') || []).includes('color:var(--color-action-save)'));
+    check('K4 no warning color left in the card (save or other)', !/--color-status-warning/.test(cardCss));
+    const tok = read('tw_shared.css');
+    const def = n => (tok.match(new RegExp('^\\s*' + n + ':\\s*([^;]+);', 'm')) || [])[1];
+    const resolve = n => { const v = def(n).trim(); const m = v.match(/^var\((--[\w-]+)\)$/); return m ? resolve(m[1]) : v; };
+    const saveHex = resolve('--color-action-save'), warnHex = resolve('--color-status-warning');
+    check('K5 token in DS-COLOR Section B (+ -rgb twin), ≠ warning', /^#[0-9a-f]{6}$/i.test(saveHex) && saveHex !== warnHex
+      && !!def('--color-action-save-rgb') && tok.indexOf('--color-action-save:') > tok.indexOf('Section B'));
+    const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const cr = contrast(saveHex, resolve('--color-surface-page'));
+    check('K6 AA contrast on the page background (≥ 4.5)', cr >= 4.5, cr.toFixed(2));
     const page = rules(read('static/company/company.css'));
-    const PAGE_OWNED = ['.posts-owner-bar', '#postsEmpty'];   // the page's list, not the card — stay in company.css
-    const moved = [...old.keys()].filter(k => !PAGE_OWNED.includes(k));
-    const diff = moved.filter(k => card.get(k) !== old.get(k));
-    check('K1 every card selector in tw-card.css with the same values', moved.length > 40 && diff.length === 0, diff.join(' | '));
-    check('K2 tw-card.css has nothing extra', [...card.keys()].every(k => old.has(k)) && card.size === moved.length);
-    const left = moved.filter(k => page.has(k));
-    check('K3 none of them left in company.css', left.length === 0, left.join(' | '));
-    check('K4 page list rules stay in company.css', PAGE_OWNED.every(k => page.get(k) === old.get(k) && !card.has(k)));
+    const left = [...card.keys()].filter(k => page.has(k));
+    check('K7 no card rule in company.css', left.length === 0, left.join(' | '));
+    check('K8 page list rules stay in company.css', ['.posts-owner-bar', '#postsEmpty'].every(k => page.has(k) && !card.has(k)));
+    check('K9 avatar = DS-IMAGE (old .post-ava img / --init rules gone)', !card.has('.post-ava img') && !card.has('.post-ava--init'));
     const html = read('company-profile.html');
     const iCard = html.indexOf('/static/shared/tw-card.css?v={{v:tw-card.css}}'), iPage = html.indexOf('/static/company/company.css');
-    check('K5 company page loads tw-card.css (versioned) right before company.css', iCard > 0 && iPage > iCard
+    check('K10 company page loads tw-card.css (versioned) right before company.css', iCard > 0 && iPage > iCard
       && !/<link[^>]*>/.test(html.slice(html.indexOf('>', iCard) + 1, iPage)));
   }
 

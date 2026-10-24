@@ -412,6 +412,23 @@ function twFormatDateTime(value) {
 }
 window.twFormatDateTime = twFormatDateTime;
 
+// twRelativeTime(value) → «الآن» · «منذ 5 دقيقة» · «منذ 3 ساعة» · «منذ 2 يوم» · «منذ 1 أسبوع» (time.rel.*),
+// then the date exactly as twFormatDate from 30 days on (task U.3 · CARD-R05). The ONE relative-time
+// formatter for cards — never a page-local "منذ …" function. Empty / invalid → ''.
+function twRelativeTime(value) {
+  if (value === null || value === undefined || value === '') return '';
+  var then = new Date(value).getTime();
+  if (!isFinite(then)) return '';
+  var diff = Math.floor((Date.now() - then) / 1000);
+  if (diff < 60)      return twT('time.rel.now');
+  if (diff < 3600)    return twT('time.rel.minutes', { n: Math.floor(diff / 60) });
+  if (diff < 86400)   return twT('time.rel.hours', { n: Math.floor(diff / 3600) });
+  if (diff < 604800)  return twT('time.rel.days', { n: Math.floor(diff / 86400) });
+  if (diff < 2592000) return twT('time.rel.weeks', { n: Math.floor(diff / 604800) });
+  return twFormatDate(value);
+}
+window.twRelativeTime = twRelativeTime;
+
 // ── Number display (task 5.3a3 · SYSTEMS_INDEX §59a) ──
 // twFormatNumber(n) → «12,345» / «-1,234.5»: thousands separator «,» and Western digits — the same
 // digits as twFormatDate. The ONE formatter for showing a count — never toLocaleString('ar-…')
@@ -795,7 +812,7 @@ function _twActAudience(ctx) {
   return (snap && snap.isAuthenticated && snap.userType) || 'guest';
 }
 
-var _TW_ACT_VISIBLE_WHEN = { can_message: 'canMessage', can_end: 'canEnd' };   // registry key → ctx flag
+var _TW_ACT_VISIBLE_WHEN = { can_message: 'canMessage', can_end: 'canEnd', comments_enabled: 'commentsEnabled' };   // registry key → ctx flag
 
 function twActionState(id, ctx) {
   ctx = ctx || {};

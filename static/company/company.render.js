@@ -589,12 +589,13 @@
   }
 
   // ── Posts ─────────────────────────────────────────────────────
-  // Card markup = TwPostCard (static/shared/tw-post-card.js — task U.2); page supplies author + owner flag.
+  // Card markup = TwPostCard (static/shared/tw-post-card.js — task U.2); page supplies author (+ type) + owner flag.
   function _postCardHtml(post) {
     var prof = window.companyState && companyState.profile;
     return TwPostCard.html(post, {
       authorName: prof ? (prof.full_name || 'الشركة') : 'الشركة',
       avatarUrl:  prof ? prof.avatar_url : '',
+      authorType: 'co',
       canEdit:    !!(window.companyState && companyState.permissions && companyState.permissions.can_edit)
     });
   }
