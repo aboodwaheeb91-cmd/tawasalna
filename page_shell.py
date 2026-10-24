@@ -51,6 +51,8 @@ PAGE_ASSETS = {
     "admin-jobs.js": os.path.join("static", "shared", "admin-jobs.js"),   # task 5.3j phase 4 — job actions
     "admin-job.js": os.path.join("static", "admin-job", "admin-job.js"),  # the admin job page
     "admin-settings.js": os.path.join("static", "admin-settings", "admin-settings.js"),  # task 4.1 — settings page
+    "admin-content.js": os.path.join("static", "admin-content", "admin-content.js"),     # phase 5b — content page
+    "tw-news-banner.js": os.path.join("static", "shared", "tw-news-banner.js"),          # phase 5b — news banner
     "tw-options-data.js": os.path.join("static", "shared", "tw-options-data.js"),
 }
 

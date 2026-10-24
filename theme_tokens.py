@@ -113,6 +113,34 @@ def validate_editable(data):
     return clean, errors
 
 
+_VAR_RE = re.compile(r"var\(\s*(--[a-z0-9-]+)\s*\)")
+
+
+def editable_defaults(css_text: str = None) -> dict:
+    """{token: "#rrggbb"} — the tw_shared.css default of every EDITABLE token, var() chains
+    resolved inside that file (phase 5b: the admin screen's default value + preview).
+    A token that does not resolve to a 6-digit hex is left out."""
+    if css_text is None:
+        with open(os.path.join(_ROOT, "tw_shared.css"), encoding="utf-8") as f:
+            css_text = f.read()
+    defs = {}
+    for name, value in re.findall(r"^\s*(--[a-z0-9-]+)\s*:\s*([^;]+);", css_text, re.M):
+        defs.setdefault(name, value.strip())   # first definition = the default (no theme remap yet)
+    out = {}
+    for token in EDITABLE:
+        value, seen = defs.get(token, ""), set()
+        while True:
+            m = _VAR_RE.fullmatch(value)
+            if not m or m.group(1) in seen:
+                break
+            seen.add(m.group(1))
+            value = defs.get(m.group(1), "")
+        value = value.lower()
+        if _HEX6_RE.fullmatch(value):
+            out[token] = value
+    return out
+
+
 def render_css(overrides: dict, known: dict = None) -> str:
     """One `:root{...}` block — '' when there is nothing (valid) to override."""
     known = KNOWN if known is None else known

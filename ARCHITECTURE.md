@@ -6428,7 +6428,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/logo` | `upload_logo` | Upload platform logo — `{filename: logo_wide\|logo_tall, data_url}`; JPEG/PNG/WebP only, no SVG (PR-7a → Image Upload Security Contract) |
 | GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
 | POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
-| GET | `/admin/theme/colors` | `admin_theme_colors_get` | DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36) — `{ok, data:{overrides, tokens}}` (saved JSON + `theme_tokens.EDITABLE`) · `content.edit` (§79) |
+| GET | `/admin/theme/colors` | `admin_theme_colors_get` | DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36) — `{ok, data:{overrides, tokens, defaults}}` (saved JSON + `theme_tokens.EDITABLE` + their `tw_shared.css` defaults — §79b) · `content.edit` (§79) |
 | PUT | `/admin/theme/colors` | `admin_theme_colors_put` | Phase 5a (§79): body `{overrides: {"--color-brand-primary" \| "--color-brand-accent": "#rrggbb"}}` — an EDITABLE token left out = default. Other token / not `#RRGGBB` → 400 `{ok:false, error:{code: token_not_editable \| invalid_color \| invalid_body, message, field}}`. Stored overrides of other tokens are kept (and still rendered by `/theme.css`). `-rgb` twin derived. Saved to `site_settings.theme_color_tokens`; audit target `tokens=<changed>` |
 | GET | `/theme.css` | `theme_css` | **Public** — the saved overrides as one `:root{}` block (empty body when none). Loaded by both shell head partials right after `tw_shared.css`. `no-cache` + `ETag`/304 · 60s per-process cache (`theme_tokens.py`) |
 | POST | `/admin/pipeline/backfill` | `admin_pipeline_backfill` | Pipeline backfill (§66c). `?dry_run=true` for analysis only; `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)` |
@@ -6828,7 +6828,7 @@ CREATE TABLE news_posts (
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/news` | List all news (all statuses) + `starts_at` / `ends_at` |
+| `GET` | `/admin/news` | List all news (all statuses) + `starts_at` / `ends_at` + `body` + `active_now` (`NEWS_ACTIVE_SQL` — §79b) |
 | `POST` | `/admin/news` | Create news post (`starts_at?` / `ends_at?`; `ends_at <= starts_at` → 400) |
 | `PUT` | `/admin/news/{id}` | Update news post (same window rule) |
 | `DELETE` | `/admin/news/{id}` | Delete news post |
@@ -13123,3 +13123,14 @@ A row exists only while the value differs from the default (a save of the defaul
 **`GET /news/banner`** — public, no auth: `{ok:true, data:null}` or `{ok:true, data:{id, title, summary, source_url}}` (newest active by `created_at DESC, id DESC`; `source_url` must pass `_validate_external_url`, else `null`). No draft / archived / scheduled / expired row, no internal field. Rate limit: none — `rate_limit_middleware` limits auth / OTP / `/log/error` only; there is no general public-endpoint limit to join.
 
 Test: `python -m pytest tests/test_content_admin_5a.py -q`.
+
+### §79b — Content Screens + News Banner (phase 5b)
+
+**Admin page** `admin-content.html` = panel root + `/content` (`server.admin_content_page`, registry key `content` in `admin-sections.js`) + `static/admin-content/admin-content.js` on the Admin Shell. Three tabs (`role=tablist`, each loaded the first time it opens; `#strings` / `#colors` / `#news` picks the first one). Access = the `/admin/strings` GET: 403 (no `content.edit`) → one «no permission» message for the page, session kept (`permissionAware`, same as `/settings`) · 401 → login. Every write = `TwAdminShell.run` (confirm first; 403 → toast).
+- **Strings:** every key of `GET /admin/strings` `defaults` (no new keys) · search by key / default / current text (≤ 50 rows shown) · save = `PUT /admin/strings` with the whole current override map + this key · «رجّع للافتراضي» = the same map without the key (empty = default).
+- **Colors:** `GET /admin/theme/colors` now also returns `defaults` = `theme_tokens.editable_defaults()` (the `tw_shared.css` default of each EDITABLE token, `var()` chain resolved, `#rrggbb`). Per token: color picker + `#RRGGBB` field · live preview (button · link · badge on a scoped `--pv` variable — nothing applied to the site) · WCAG 2.x contrast vs `--color-surface-page` and the button text (`--color-text-on-brand` for primary, `--color-text-on-fill` for accent), read with `getComputedStyle`: min < 4.5 → warning · < 3 → save disabled. Save / reset = `PUT /admin/theme/colors` with every saved EDITABLE override (reset = this token left out = default).
+- **News:** `GET /admin/news` rows now also carry `body` (the edit form sends it back — PUT replaces every field) and `active_now` = `NEWS_ACTIVE_SQL` evaluated in the query (no second "active" rule in the page). Table title · status · start · end (`twFormatDateTime`) · active now · actions. Create / edit dialog: title · summary · body · link (`twSafeLinkUrl`) · status · start / end via **`twDateTimeField`** (DS-DATE DateTime group of `tw-schedule.js`, now public: `{value?, years?}` → `{dateRow, timeRow, value(), empty()}`) — browser local time → `toISOString()` (UTC `Z`); an empty group = open bound (`null`), a half-filled one is refused. Archive = PUT with every field + `status: archived` · delete = typed word (`danger`).
+
+**News banner** `static/shared/tw-news-banner.js` (page asset on `landing.html` + `home-v2.html`, host `<div data-tw-news-banner hidden>`; precached in `sw.js` for the landing fallback): `twApi('/news/banner', {auth:false})` → `null` / failed → nothing shown, nothing logged · title + summary via `textContent` only · link via `twSafeLinkUrl` (`target=_blank`, `rel="noopener noreferrer"`) · close → `localStorage.tw_news_banner_closed = <id>` (try/catch) → that id is not shown again, a newer id is. Styles `.tw-news-banner*` in `tw_shared.css` (tokens only).
+
+Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_banner_runtime.js` · `python -m pytest tests/test_content_admin_5a.py -q` (defaults · `active_now`).

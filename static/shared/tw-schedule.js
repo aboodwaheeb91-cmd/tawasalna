@@ -23,6 +23,7 @@
 //     that is not itself. An open appointment with this person (GET /api/schedule/open —
 //     batched, jobId narrows it) turns it into «فتح الموعد» → the room. A draft (create
 //     succeeded, send failed) keeps «تحديد موعد» and the dialog re-sends that draft.
+//   twDateTimeField({value?, years?}) → the DS-DATE DateTime group alone (phase 5b — admin news window).
 //   twScheduleMount(root) → replaces every <span data-tw-schedule-slot data-candidate-id
 //     data-candidate-name data-candidate-type data-job-id data-job-title data-class> under
 //     root with twScheduleButton(...) — for pages that render cards as HTML strings.
@@ -218,19 +219,31 @@
 
   function monthName(m) { return twT('date.month.' + m); }   // DS-DATE DATE-07 labels (§59a)
 
-  function buildDateTime() {
+  // opts (phase 5b — twDateTimeField): value = Date to prefill (local) · years = year options
+  // (default this year + next year). A prefilled year / minute outside the lists is added.
+  function buildDateTime(opts) {
+    opts = opts || {};
     var now = new Date();
     var y0 = now.getFullYear();
+    var pre = opts.value instanceof Date && !isNaN(opts.value) ? opts.value : null;
+    var years = (opts.years || [y0, y0 + 1]).slice();
+    if (pre && years.indexOf(pre.getFullYear()) === -1) years.push(pre.getFullYear());
+    years.sort(function (a, b) { return a - b; });
     var months = [];
     for (var m = 1; m <= 12; m++) months.push({ value: m, label: monthName(m) });
     var hours = [];
     for (var h = 1; h <= 12; h++) hours.push({ value: h, label: String(h) });
     var mins = [];
     for (var mi = 0; mi < 60; mi += MINUTE_STEP) mins.push({ value: mi, label: (mi < 10 ? '0' : '') + mi });
+    if (pre && pre.getMinutes() % MINUTE_STEP) {
+      var pm = pre.getMinutes();
+      mins.push({ value: pm, label: (pm < 10 ? '0' : '') + pm });
+      mins.sort(function (a, b) { return a.value - b.value; });
+    }
     // Year range (DATE-06 domain contract): this year + next year — an interview is near.
     var day = sel('tw-sch-day', twT('appt.sch.day'), []);
     var mon = sel('tw-sch-mon', twT('appt.sch.month'), months);
-    var yr  = sel('tw-sch-yr', twT('appt.sch.year'), [{ value: y0, label: y0 }, { value: y0 + 1, label: y0 + 1 }]);
+    var yr  = sel('tw-sch-yr', twT('appt.sch.year'), years.map(function (y) { return { value: y, label: y }; }));
     var hr  = sel('tw-sch-hr', twT('appt.sch.hour'), hours);
     var mn  = sel('tw-sch-min', twT('appt.sch.minute'), mins);
     var ap  = sel('tw-sch-ap', twT('appt.sch.ampm'), [{ value: 'am', label: twT('appt.sch.am') }, { value: 'pm', label: twT('appt.sch.pm') }]);
@@ -246,6 +259,15 @@
         day.appendChild(o);
       }
       day.value = (keep && keep <= max) ? String(keep) : '';   // DATE-09: invalid day → empty
+    }
+    if (pre) {
+      yr.value = String(pre.getFullYear());
+      mon.value = String(pre.getMonth() + 1);
+      fillDays();
+      day.value = String(pre.getDate());
+      hr.value = String((pre.getHours() % 12) || 12);
+      mn.value = String(pre.getMinutes());
+      ap.value = pre.getHours() >= 12 ? 'pm' : 'am';
     }
     fillDays();
     mon.addEventListener('change', function () { day.value = ''; fillDays(); });   // DATE-09 cascade
@@ -266,7 +288,19 @@
         var h = (h12 % 12) + (ap.value === 'pm' ? 12 : 0);
         return new Date(y, m - 1, d, h, mm, 0, 0);
       },
+      // true = no part picked (an open bound — DATE-06 null), false = some or all parts picked
+      empty: function () {
+        return [day, mon, yr, hr, mn, ap].every(function (s) { return !s.value; });
+      },
     };
+  }
+
+  // Public (phase 5b): the same DS-DATE DateTime group for any dialog that needs a local
+  // date + time (admin news window). → {dateRow, timeRow, value() → Date | null, empty()}.
+  // The caller runs scSelectInit() after the rows are in the DOM (DS-SEL engine).
+  function twDateTimeField(opts) {
+    injectStyle();
+    return buildDateTime(opts);
   }
 
   // ── Dialog ─────────────────────────────────────────────────────────────────
@@ -538,4 +572,5 @@
   window.twScheduleInterview = twScheduleInterview;
   window.twScheduleButton = twScheduleButton;
   window.twScheduleMount = twScheduleMount;
+  window.twDateTimeField = twDateTimeField;
 })();

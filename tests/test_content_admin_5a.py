@@ -12,7 +12,8 @@ null · drafts hidden · javascript: link → null.
 Real PostgreSQL, in-process client. TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_content_admin_5a.py -q
 """
-import json, os, sys, uuid
+import json
+import re, os, sys, uuid
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -153,6 +154,13 @@ def test_writes_audited_without_content():
 
 
 # ── colors ──
+def test_colors_get_defaults_5b():
+    """phase 5b: GET returns the tw_shared.css default (#rrggbb) of every EDITABLE token for the screen."""
+    d = client.get("/admin/theme/colors", headers=_owner()).json()["data"]
+    assert set(d["defaults"]) == set(d["tokens"]) == set(theme_tokens.EDITABLE)
+    assert all(re.fullmatch(r"#[0-9a-f]{6}", v) for v in d["defaults"].values()), d["defaults"]
+
+
 def test_colors_narrowed_and_applied():
     for body in ({"--color-text-primary": "#123456"}, {PRIMARY: "#12345"}, {PRIMARY: "#1234567"},
                  {PRIMARY: "red"}, {ACCENT: "rgb(1,2,3)"}, {PRIMARY: 123}, {PRIMARY: "#abc"}):
@@ -206,3 +214,7 @@ def test_feed_and_banner_active_only():
     assert b["id"] == newest and b["source_url"] is None
     _sql("UPDATE news_posts SET status = 'draft' WHERE id = :i", i=newest)
     assert client.get("/news/banner").json()["data"]["id"] == active
+    # phase 5b: the admin list carries active_now (NEWS_ACTIVE_SQL) + body for the edit form
+    rows = {n["id"]: n for n in client.get("/admin/news", headers=_owner()).json()["news"]}
+    assert rows[active]["active_now"] is True and rows[active]["body"] == "نص داخلي"
+    assert not any(rows[i]["active_now"] for i in (future, expired, draft, newest))

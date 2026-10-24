@@ -149,6 +149,8 @@ section{position:relative;z-index:1;padding:80px 5%;}
 /* ══ VALUE CARDS ══ */
 #values{padding-top:60px;}
 .lp-wrap{max-width:1200px;margin:0 auto;}
+.lp-news{padding:0 5%;}
+.lp-news .tw-news-banner{margin:var(--space-6) 0 0;}
 .value-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-9);margin-top:var(--space-13);}
 @media(max-width:900px){.value-grid{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:480px){.value-grid{grid-template-columns:1fr;}}
@@ -269,6 +271,9 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 
 <!-- ══ MAIN ══ -->
 <main id="main">
+
+<!-- News Banner (phase 5b — static/shared/tw-news-banner.js · GET /news/banner) -->
+<div class="lp-wrap lp-news"><div data-tw-news-banner hidden></div></div>
 
 <!-- ══ HERO ══ -->
 <section id="hero" aria-label="الرئيسية">
@@ -592,6 +597,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--color-border-defau
 
 <!--tw:shell-scripts-->
 <script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-news-banner.js?v={{v:tw-news-banner.js}}"></script>
 <script>
 (function () {
   'use strict';

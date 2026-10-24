@@ -2074,6 +2074,11 @@ def admin_email_page(): return read_html("admin-email.html")
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", response_class=HTMLResponse)
 def admin_settings_page(): return read_html("admin-settings.html")
 
+# Admin — content screens (phase 5b): strings · colors · news. Data via /admin/strings ·
+# /admin/theme/colors · /admin/news (content.edit — docs/rules/content-admin.md).
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/content", response_class=HTMLResponse)
+def admin_content_page(): return read_html("admin-content.html")
+
 # ══════════════════════════════════════════
 # Schemas
 # ══════════════════════════════════════════
@@ -2404,7 +2409,8 @@ def admin_theme_colors_get(request: Request):
         overrides = _theme.parse_stored(get_site_setting(_theme.THEME_SETTING_KEY))
     except Exception as e:
         raise _server_error("admin_theme_colors_get", e)
-    return api_ok({"overrides": overrides, "tokens": list(_theme.EDITABLE)})
+    return api_ok({"overrides": overrides, "tokens": list(_theme.EDITABLE),
+                   "defaults": _theme.editable_defaults()})   # phase 5b — the screen's «رجّع للافتراضي» preview
 
 @app.put("/admin/theme/colors")
 def admin_theme_colors_put(request: Request, data: dict = Body(...)):
@@ -7390,15 +7396,19 @@ def admin_list_news(request: Request):
     conn = get_conn()
     try:
         rows = conn.run(
+            # phase 5b: body (the edit form sends it back — PUT replaces every field) +
+            # active_now from NEWS_ACTIVE_SQL itself (no second "active" rule in the page)
             """SELECT n.id, n.title, n.summary, n.category, n.country,
                       n.source_url, n.status, n.created_at, n.updated_at,
-                      COALESCE(u.full_name,'') AS created_by_name, n.starts_at, n.ends_at
-               FROM news_posts n
+                      COALESCE(u.full_name,'') AS created_by_name, n.starts_at, n.ends_at,
+                      n.body, n.active_now
+               FROM (SELECT *, (""" + NEWS_ACTIVE_SQL + """) AS active_now FROM news_posts) n
                LEFT JOIN users u ON n.created_by = u.id
                ORDER BY n.created_at DESC"""
         )
         cols = ["id","title","summary","category","country","source_url",
-                "status","created_at","updated_at","created_by_name","starts_at","ends_at"]
+                "status","created_at","updated_at","created_by_name","starts_at","ends_at",
+                "body","active_now"]
         result = []
         for r in (rows or []):
             d = dict(zip(cols, r))
