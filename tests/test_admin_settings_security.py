@@ -71,7 +71,7 @@ SEC = sorted(tw_settings.SECURITY_KEYS)
 
 # ── the list + range ──
 def test_security_list_and_ranges():
-    assert len(SEC) == 22 + 6   # 4.2 list + 4.3 otp_send_user / otp_send_target / otp_send_ip (hits + window)
+    assert len(SEC) == 22 + 6 + 2   # 4.2 list + 4.3 otp_send_user / otp_send_target / otp_send_ip + 6 public_ip (hits + window)
     assert "password_max_bytes" not in tw_settings.REGISTRY
     assert client.put("/admin/settings/password_max_bytes", json={"value": 72}, headers=_owner()).status_code == 404
     items = {it["key"]: it for it in client.get("/admin/settings", headers=_owner()).json()["data"]["items"]}

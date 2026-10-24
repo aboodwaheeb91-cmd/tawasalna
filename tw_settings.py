@@ -9,7 +9,7 @@ The ONE way the code reads an admin-editable limit / rate and the ONE writer of 
   rate(name)    → RATES (hits, window seconds) — same rule
   value(key)    → one registry setting's current value (admin value or the default)
   is_security(key) → a security setting (4.2: login locks · OTP / password reset · OTP send 4.3 · rate store · IP cache ·
-                  page sizes · dedup windows) — own page section + typed-word confirm + audit "<route>_security"
+                  page sizes · dedup windows · public routes per IP 6) — own page section + typed-word confirm + audit "<route>_security"
   set_value / reset_value → write path (PUT / POST /admin/settings/{key}); cache updated at once
   reload()      → DB → in-memory cache (startup + every CACHE_TTL_S by server.py's refresh loop).
                   DB failure → defaults + the error logged (the site keeps running, F9).
@@ -114,10 +114,14 @@ _DEFS = (
     _sec_limit("blocks_page_max",     10,    200, "sec_pages", "count"),
     _sec_rate("view_count", 1,      3600, 604800, "sec_dedup"),      # hits stay 1 (counted once) — window only
     _sec_rate("report_repeat", 1,   3600, 604800, "sec_dedup"),      # same — one report per window
+    # Public routes (task 6 — §54o): one bucket per client IP on every route that works for a guest.
+    # Minimum keeps a normal page load (≈ 8 calls) working behind a shared IP; maximum keeps it a limit.
+    _sec_rate("public_ip", 0,        60,   2000, "sec_public"),
+    _sec_rate("public_ip", 1,        10,    600, "sec_public"),
 )
 
 GROUPS = ("messages", "posts", "comments", "reports", "admin",
-          "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup")
+          "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup", "sec_public")
 
 
 def _build(defs) -> dict:

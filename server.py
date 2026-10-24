@@ -719,16 +719,22 @@ def _rate_prune(key: str, window: float) -> list:
         return _rate_prune_locked(key, window)
 
 
-def _rate_hit(key: str, limit: int, window: float) -> bool:
-    """Sliding window on the shared _rate_store. True = allowed (and counted) — one locked step."""
+def _rate_hit_retry(key: str, limit: int, window: float) -> int:
+    """Sliding window on the shared _rate_store — one locked step. Allowed → counted, 0. Over the
+    limit → seconds (≥ 1) until enough old hits leave the window for the next one to pass (Retry-After)."""
     with _rate_lock:
         hits = _rate_prune_locked(key, window)
-        if len(hits) >= limit:
-            return False
         now = _time.time()
+        if len(hits) >= limit:
+            return max(1, int(-(-(hits[len(hits) - limit] + window - now) // 1)))
         _rate_room_locked(key, now)
         _rate_store[key] = hits + [now]
-        return True
+        return 0
+
+
+def _rate_hit(key: str, limit: int, window: float) -> bool:
+    """Sliding window on the shared _rate_store. True = allowed (and counted) — one locked step."""
+    return _rate_hit_retry(key, limit, window) == 0
 
 
 def _rate_count(key: str) -> None:
@@ -1314,6 +1320,69 @@ def _rate_limited() -> JSONResponse:
     return _limit_error(429, "rate_limited", "limits.rate_limited")
 
 
+# ── Public Rate Limit (task 6 — SYSTEMS_INDEX §54o · ARCHITECTURE.md §80) ──
+# Every route that works for a guest (no auth, or optional auth) carries
+# dependencies=[Depends(_public_rate)] — or is listed in PUBLIC_RATE_EXEMPT with its reason
+# (tests/test_public_rate_limit.py walks app.routes). One bucket per client IP (get_client_ip only)
+# on the shared _rate_store, value tw_settings.rate("public_ip") (admin-editable, sec_public).
+# Over it → 429 + Retry-After: API → {ok:false, error:{code:"rate_limited"}} · HTML route → a small page.
+from html import escape as _html_escape
+
+
+class PublicRateLimited(Exception):
+    def __init__(self, retry_after: int):
+        self.retry_after = retry_after
+
+
+def _public_rate(request: Request):
+    max_hits, window = tw_settings.rate("public_ip")
+    retry = _rate_hit_retry("public_ip:" + get_client_ip(request), max_hits, window)
+    if retry:
+        raise PublicRateLimited(retry)
+
+
+_PUBLIC_RATE_HTML = ('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">'
+                     '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                     '<meta name="robots" content="noindex"><title>{text}</title></head>'
+                     '<body><p>{text}</p></body></html>')
+
+
+@app.exception_handler(PublicRateLimited)
+async def public_rate_limited_handler(request, exc):
+    rc = getattr(request.scope.get("route"), "response_class", None)
+    if isinstance(rc, type) and issubclass(rc, HTMLResponse):
+        resp = HTMLResponse(_PUBLIC_RATE_HTML.format(text=_html_escape(_tw_text("limits.rate_limited"))), status_code=429)
+    else:
+        resp = _rate_limited()
+    resp.headers["Retry-After"] = str(exc.retry_after)
+    return resp
+
+
+_EXEMPT_STATIC = "static file / page from memory — no DB"
+_EXEMPT_AUTH_RATE = "already limited per IP: _RATE_LIMITED_PATHS (+ login locks / pwreset / sec_otp)"
+PUBLIC_RATE_EXEMPT = {
+    **{p: _EXEMPT_STATIC for p in (
+        "/", "/landing.html", "/index.html", "/login", "/login.html", "/home",
+        "/profile-showcase", "/profile-showcase.html", "/edu-profile", "/edu-profile.html",
+        "/notifications", "/notifications.html", "/messages", "/messages.html",
+        "/job-detail", "/job-detail.html", "/admin-job", "/admin-job.html", "/admin-view", "/admin-view.html",
+        "/settings", "/settings.html", "/reset-password", "/privacy", "/terms", "/confirm-email",
+        "/appointments", "/appointment-room",
+        "/tw-ctrl-" + ADMIN_URL_TOKEN, "/tw-ctrl-" + ADMIN_URL_TOKEN + "/email",
+        "/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/content",
+        "/sitemap.xml", "/robots.txt", "/tw_shared.js", "/sw.js", "/manifest.json", "/theme.css",
+        "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png", "/favicon.ico",
+        "/static/{filename:path}")},
+    "/u": "always 404 — no DB",
+    "/health": "health check (Railway) — must never be refused",
+    "/ping": "health check — must never be refused",
+    "/log/error": "own per-IP bucket log-error (rate_limit_middleware)",
+    **{p: _EXEMPT_AUTH_RATE for p in (
+        "/auth/register", "/auth/login", "/auth/password-reset/request", "/auth/password-reset/confirm",
+        "/auth/email-change/confirm", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")},
+}
+
+
 def _fmt_number(n: int) -> str:
     """Thousands separator like twFormatNumber (task 5.3a3) — for numbers inside server texts."""
     return f"{int(n):,}"
@@ -1718,7 +1787,8 @@ for _legacy_path in ("/profile", "/profile.html", "/company", "/company.html",
                      "/edu", "/edu.html", "/home.html", "/jobs.html",
                      "/company-profile", "/company-profile.html"):
     app.add_api_route(_legacy_path, _legacy_redirect_page, methods=["GET"],
-                      response_class=HTMLResponse, include_in_schema=False)
+                      response_class=HTMLResponse, include_in_schema=False,
+                      dependencies=[Depends(_public_rate)])   # ?id= → DB lookup (task 6 — §54o)
 
 @app.get("/profile-showcase", response_class=HTMLResponse)
 def profile_showcase(): return read_html("profile-showcase.html")
@@ -1731,7 +1801,7 @@ def public_profile_no_id():
     """Bare /u without a tw_id — return 404 rather than an empty profile."""
     raise HTTPException(status_code=404, detail="معرف الحساب مفقود")
 
-@app.get("/u/{tw_id}", response_class=HTMLResponse)
+@app.get("/u/{tw_id}", response_class=HTMLResponse, dependencies=[Depends(_public_rate)])
 def public_profile_smart_router(tw_id: str):
     """Smart Public Router — resolves tw_id via DB (users.user_type is the source
     of truth) and serves the correct page per account type.
@@ -1790,7 +1860,7 @@ def _resolve_company_id(company_id: str) -> int:
     return resolved_id
 
 
-@app.get("/company/profile/{company_id}")
+@app.get("/company/profile/{company_id}", dependencies=[Depends(_public_rate)])
 def get_company_profile(company_id: str, request: Request):
     """
     GET /company/profile/{id}
@@ -1980,7 +2050,7 @@ def update_co_cover(company_id: int, data: CoverUrlInput, token=Depends(verify_t
 
 # ── Company Branches ──────────────────────────────────────────────────────────
 
-@app.get("/company/branches/{company_id}")
+@app.get("/company/branches/{company_id}", dependencies=[Depends(_public_rate)])
 def get_branches(company_id: int):
     """Public — returns all branches for a company ordered by display_order."""
     return {"branches": get_company_branches(company_id)}
@@ -2985,7 +3055,7 @@ def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_t
             "rating_count": result["rating_count"], "my_score": data.score}
 
 
-@app.get("/company/{company_id}/ratings")
+@app.get("/company/{company_id}/ratings", dependencies=[Depends(_public_rate)])
 def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
     """Public read-only ratings detail. Optional JWT for my_rating field."""
     resolved_id = _resolve_company_id(company_id)
@@ -3002,7 +3072,7 @@ def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
 
 
 # ══ Phase 3: Company Posts endpoints ══
-@app.get("/company/posts/{company_id}")
+@app.get("/company/posts/{company_id}", dependencies=[Depends(_public_rate)])
 def company_posts_list(company_id: str, request: Request):
     # Public read. Optional JWT → viewer_appreciated populated per post.
     resolved_id = _resolve_company_id(company_id)
@@ -3104,7 +3174,7 @@ def company_post_update(post_id: int, data: CompanyPostUpdateInput, token=Depend
     return {"status": "success", "post": post}
 
 
-@app.post("/company/posts/{post_id}/view")
+@app.post("/company/posts/{post_id}/view", dependencies=[Depends(_public_rate)])
 def company_post_record_view(post_id: int, data: PostViewInput, request: Request):
     """Record a post view. Auth is optional — logged-in users are deduplicated by user_id,
     anonymous visitors by visitor_key. Post owner views are silently ignored."""
@@ -3195,7 +3265,7 @@ class CommentUpdateInput(BaseModel):
     body: str
 
 
-@app.get("/company/posts/{post_id}/comments")
+@app.get("/company/posts/{post_id}/comments", dependencies=[Depends(_public_rate)])
 def company_get_post_comments(post_id: int, request: Request, limit: Optional[int] = None,
                               cursor: Optional[int] = None):
     """Public with optional JWT — returns active comments + viewer flags if authenticated.
@@ -4112,7 +4182,7 @@ def _score_detail_allowed(request: Request, uid: int) -> bool:
     return False
 
 
-@app.get("/profile/{user_id}/score")
+@app.get("/profile/{user_id}/score", dependencies=[Depends(_public_rate)])
 def profile_score(user_id: int, request: Request):
     """Profile completion score. Uses _calc_profile_score — no algorithm duplication.
     Public: {score, level} (the profile page shows the score to visitors — stats tile).
@@ -4157,7 +4227,7 @@ async def upload_logo(data: AdminLogoInput, request: Request):
         print(f"[Logo] DB save failed: {db_err} - cached in memory only")
     return {"status": "success", "url": logo_url}
 
-@app.get("/admin/logo")
+@app.get("/admin/logo", dependencies=[Depends(_public_rate)])
 def get_logos():
     """Get both logos - public endpoint"""
     def _get(key):
@@ -4837,7 +4907,7 @@ def lookup_user_by_twid(tw_id: str, token=Depends(verify_token)):
 # ══════════════════════════════════════════
 # Profile
 # ══════════════════════════════════════════
-@app.get("/profile/{user_id}")
+@app.get("/profile/{user_id}", dependencies=[Depends(_public_rate)])
 def public_profile(user_id: str, request: Request):
     try:
         uid = int(user_id)
@@ -4953,7 +5023,7 @@ def public_profile(user_id: str, request: Request):
         "viewer_action":   viewer_action,
     }
 
-@app.get("/profile/{user_id}/metrics")
+@app.get("/profile/{user_id}/metrics", dependencies=[Depends(_public_rate)])
 def profile_metrics(user_id: str, request: Request):
     """Read-only unified metrics endpoint. Does NOT record a view.
     Returns all profile counters + score + viewer.is_following in one request."""
@@ -5111,7 +5181,7 @@ def profile_unfollow(user_id: str, token=Depends(verify_token)):
     return {"status": "success", **_follow_set(token, user_id, False)}
 
 
-@app.get("/profile/{user_id}/follow")
+@app.get("/profile/{user_id}/follow", dependencies=[Depends(_public_rate)])
 def profile_follow_state(user_id: str, request: Request):
     """Follow state of any account: counters + viewer.is_following. Public (guest → false)."""
     target_id = _resolve_account_id(user_id)
@@ -5127,7 +5197,7 @@ def profile_follow_state(user_id: str, request: Request):
 
 _VALID_FOLLOW_TYPES = {"all", "emp", "co", "edu"}
 
-@app.get("/profile/{user_id}/followers")
+@app.get("/profile/{user_id}/followers", dependencies=[Depends(_public_rate)])
 def profile_followers_list(user_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
     """Paginated followers list. Public — no auth required. type: all|emp|co|edu"""
     if type not in _VALID_FOLLOW_TYPES:
@@ -5154,7 +5224,7 @@ def profile_followers_list(user_id: str, request: Request, limit: int = 20, offs
     return {"status": "success", **result}
 
 
-@app.get("/profile/{user_id}/following")
+@app.get("/profile/{user_id}/following", dependencies=[Depends(_public_rate)])
 def profile_following_list(user_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
     """Paginated following list (accounts this profile follows). Public — no auth required. type: all|emp|co|edu"""
     if type not in _VALID_FOLLOW_TYPES:
@@ -5297,7 +5367,7 @@ def profile_interest_remove(user_id: str, token=Depends(verify_token)):
     }
 
 
-@app.get("/professions")
+@app.get("/professions", dependencies=[Depends(_public_rate)])
 def list_professions():
     conn = get_conn()
     try:
@@ -5315,7 +5385,7 @@ _skill_catalog_cache: Optional[list] = None
 _skill_catalog_cache_ts: float = 0.0
 _SKILL_CATALOG_TTL = 3600  # 1 hour
 
-@app.get("/skills/catalog")
+@app.get("/skills/catalog", dependencies=[Depends(_public_rate)])
 def get_skills_catalog():
     import time
     global _skill_catalog_cache, _skill_catalog_cache_ts
@@ -6574,13 +6644,13 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
 # Jobs & Match
 # ══════════════════════════════════════════
 
-@app.get("/jobs")
+@app.get("/jobs", dependencies=[Depends(_public_rate)])
 def list_jobs(search: str = None, location: str = None,
                job_type: str = None, company_id: int = None):
     filters = {"search":search,"location":location,"job_type":job_type,"company_id":company_id}
     return get_jobs({k:v for k,v in filters.items() if v})
 
-@app.get("/jobs/{job_id}")
+@app.get("/jobs/{job_id}", dependencies=[Depends(_public_rate)])
 def get_job_detail(job_id: int):
     job = get_job(job_id)
     if not job: raise HTTPException(404, "الوظيفة غير موجودة")
@@ -7051,7 +7121,7 @@ def admin_delete_job(job_id: int, request: Request):
     return {"success": True, "removed": removed}
 
 
-@app.get("/stats")
+@app.get("/stats", dependencies=[Depends(_public_rate)])
 def stats():
     conn = get_conn()
     try:
@@ -7486,7 +7556,7 @@ def admin_delete_news(news_id: int, request: Request):
         release_conn(conn)
 
 
-@app.get("/news/banner")
+@app.get("/news/banner", dependencies=[Depends(_public_rate)])
 def news_banner():
     """Public (no login): the newest ACTIVE news item (NEWS_ACTIVE_SQL) or null.
     Safe fields only — id · title · summary · source_url (not http/https → null)."""
