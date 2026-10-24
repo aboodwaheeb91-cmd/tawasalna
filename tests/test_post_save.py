@@ -10,7 +10,6 @@ server  = open('server.py').read()
 auth    = open('auth.py').read()
 render  = open('static/company/company.render.js').read()
 posts   = open('static/company/company.posts.js').read()
-css     = open('static/company/company.css').read()
 
 # 1. DB migration: company_post_saves table exists
 if 'company_post_saves' in auth and 'ON DELETE CASCADE' in auth:
@@ -105,52 +104,86 @@ if 'save-active' in _out['on'] and 'data-saved="1"' in _out['on'] \
 else:
     fail(11, 'viewer_saved in render', _out.get('err', 'state not reflected'))
 
-# 12. company.posts.js: Desired State Queue vars
-if '_saveDesired' in posts and '_saveInFlight' in posts and '_saveOrigState' in posts:
-    ok(12, 'company.posts.js: Desired State Queue vars موجودة ✅')
-else:
-    fail(12, 'Save Desired State Queue', 'vars غير موجودة')
+# 12–18. Save behaviour = TwPostCard.create (task U.2b — moved from company.posts.js;
+#     behaviour on the real markup, not source text). The page passes the path (test 13).
+_JS2 = r"""
+const vm = require('vm'), fs = require('fs');
+const { makeDocument } = require('./tests/fixtures/post_card_dom.js');
+const out = {};
+function boot(signedIn) {
+  const doc = makeDocument(), api = [], toast = [], pend = [], ls = { reads: 0 };
+  const c = { twEscAttr: s => String(s == null ? '' : s), twSafeImageUrl: () => '', document: doc,
+    showToast: (m, t) => toast.push(t), twApiMessage: (r, f) => f, setTimeout() {},
+    localStorage: { getItem() { ls.reads++; return null; }, setItem() { ls.reads++; } },
+    twApi: (p, o) => new Promise(r => { api.push([p, o.method, o.body]); pend.push(r); }) };
+  c.twEscHtml = c.twEscAttr; c.window = c; vm.createContext(c);
+  vm.runInContext(fs.readFileSync('static/shared/tw-post-card.js', 'utf8'), c);
+  const list = doc.createElement('div');
+  list.innerHTML = c.TwPostCard.html({ id: 1, body: 'x' }, { authorName: 'n' });
+  doc.body.appendChild(list);
+  c.TwPostCard.create({ signedIn: () => signedIn, paths: { save: id => '/company/posts/' + id + '/save' } }).bind(list);
+  const btn = () => list.querySelector('.pc-btn--save');
+  return { api, toast, pend, ls, btn, click: () => doc.click(btn()) };
+}
+(async () => {
+  const t = () => new Promise(r => setImmediate(r));
+  const g = boot(false); g.click();
+  out.guest = { api: g.api.length, toast: g.toast };
+  const b = boot(true); b.click(); b.click();
+  out.queue = { inflight: b.api.length, first: b.api[0], uiOff: b.btn().dataset.saved };
+  b.pend.shift()({ ok: true, status: 200, data: { status: 'success', saved: true } }); await t();
+  out.stale = { calls: b.api.length, second: b.api[1] && b.api[1][2], uiOff: b.btn().dataset.saved };
+  b.pend.shift()({ ok: false, status: 500, data: null }); await t();
+  out.rollback = b.btn().dataset.saved;
+  out.ls = b.ls.reads;
+  console.log(JSON.stringify(out));
+})();
+"""
+try:
+    _o = _json.loads(_sp.run(['node', '-e', _JS2], capture_output=True, text=True, check=True).stdout)
+except Exception as _e:
+    _o = {'err': repr(_e)}
 
-# 13. company.posts.js: _toggleSave calls PUT /save
-# PR 4.3a: request through twApi (method PUT) — the path is built from the encoded post id
-if '_toggleSave' in posts and "twApi('/company/posts/' + encodeURIComponent(postId) + '/save', { method: 'PUT'" in posts:
-    ok(13, 'company.posts.js: _toggleSave يستخدم PUT /save ✅')
+if _o.get('queue', {}).get('inflight') == 1 and _o['queue']['uiOff'] == '0':
+    ok(12, 'TwPostCard: Desired State Queue — ضغطتين سريعتين = طلب واحد بالطيران ✅')
 else:
-    fail(13, '_toggleSave endpoint', 'غير موجود أو endpoint خاطئ')
+    fail(12, 'Save Desired State Queue', _o.get('err', str(_o.get('queue'))))
 
-# 14. company.posts.js: guest toast correct message
-if "سجّل دخولك لحفظ المنشور" in posts:
-    ok(14, 'company.posts.js: toast للزائر غير المسجل ✅')
+if _o.get('queue', {}).get('first') == ['/company/posts/1/save', 'PUT', {'saved': True}]:
+    ok(13, 'TwPostCard: الحفظ = PUT /save {saved} عبر twApi ✅')
 else:
-    fail(14, 'guest toast', 'رسالة الزائر غير موجودة')
+    fail(13, 'save endpoint', _o.get('err', str(_o.get('queue'))))
 
-# 15. company.posts.js: no-flicker check (desired !== srvActive check before render)
-if 'desired !== undefined && desired !== srvActive' in posts:
-    ok(15, 'company.posts.js: no-flicker check موجود في save queue ✅')
+if _o.get('guest') == {'api': 0, 'toast': ['info']}:
+    ok(14, 'TwPostCard: الزائر غير المسجل → toast بدون طلب ✅')
 else:
-    fail(15, 'no-flicker in save', 'desired !== srvActive check غير موجود')
+    fail(14, 'guest toast', _o.get('err', str(_o.get('guest'))))
 
-# 16. company.posts.js: coming-soon toast removed for save
-if "ميزة حفظ المنشورات ستتوفر قريباً" in posts:
+if _o.get('stale') == {'calls': 2, 'second': {'saved': False}, 'uiOff': '0'} and _o.get('rollback') == '1':
+    ok(15, 'TwPostCard: no-flicker + طلب الطابور + رجوع عند الفشل ✅')
+else:
+    fail(15, 'no-flicker in save', _o.get('err', str(_o.get('stale')) + ' / ' + str(_o.get('rollback'))))
+
+# 16. coming-soon toast removed for save (the "removed thing did not come back")
+if "ميزة حفظ المنشورات ستتوفر قريباً" in posts or "ميزة حفظ المنشورات ستتوفر قريباً" in open('static/shared/tw-post-card.js').read():
     fail(16, 'coming-soon toast', 'toast "ستتوفر قريباً" لا يزال موجوداً — يجب إزالته')
 else:
-    ok(16, 'company.posts.js: coming-soon toast أُزيل ✅')
+    ok(16, 'coming-soon toast أُزيل ✅')
 
-# 17. company.css: .save-active styles
-if '.pc-btn--save.save-active' in css and 'fill:currentColor' in css:
-    ok(17, 'company.css: .pc-btn--save.save-active styles موجودة ✅')
+# 17. .save-active styles — parsed rule in tw-card.css (task U.2b — moved from company.css)
+_card_css = re.sub(r'/\*.*?\*/', '', open('static/shared/tw-card.css').read(), flags=re.S)
+_rules = {sel.strip(): body for sel, body in re.findall(r'([^{}]+)\{([^{}]*)\}', _card_css)}
+if 'fill:currentColor' in _rules.get('.pc-btn--save.save-active svg', '').replace(' ', '') \
+        and '.pc-btn--save.save-active' in _rules:
+    ok(17, 'tw-card.css: .pc-btn--save.save-active styles موجودة ✅')
 else:
     fail(17, '.save-active CSS', 'غير موجود')
 
-# 18. no localStorage as source of truth for saves
-save_block = re.search(r'_toggleSave.*?_dispatchSave.*?function _dispatchSave', posts, re.DOTALL)
-if save_block:
-    if 'localStorage' not in save_block.group(0):
-        ok(18, 'company.posts.js: لا localStorage في save logic ✅')
-    else:
-        fail(18, 'localStorage in save', 'localStorage موجود في save logic')
+# 18. no localStorage as source of truth for saves (signed-in save flow never touches it)
+if _o.get('ls') == 0:
+    ok(18, 'TwPostCard: لا localStorage في save logic ✅')
 else:
-    ok(18, 'company.posts.js: لا localStorage في save logic ✅')
+    fail(18, 'localStorage in save', str(_o.get('ls', _o.get('err'))))
 
 passed = sum(1 for _,ok_,_,_ in results if ok_)
 total  = len(results)

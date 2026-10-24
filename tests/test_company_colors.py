@@ -30,7 +30,8 @@ CSS = open(CSS_PATH, encoding="utf-8").read()
 
 
 def _defs(src):
-    return set(re.findall(r"(--[\w-]+)\s*:", src))
+    # custom-property declarations only — not a BEM modifier + pseudo-class (.pc-btn--share:hover)
+    return set(re.findall(r"(?<![\w-])(--[\w-]+)\s*:", src))
 
 
 def _shared_css():
