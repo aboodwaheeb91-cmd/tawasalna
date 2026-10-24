@@ -8,7 +8,7 @@ The ONE way the code reads an admin-editable limit / rate and the ONE writer of 
   limit(name)   → LIMITS value  (admin value when the key is in the registry, else tw_limits)
   rate(name)    → RATES (hits, window seconds) — same rule
   value(key)    → one registry setting's current value (admin value or the default)
-  is_security(key) → a security setting (4.2: login locks · OTP / password reset · rate store · IP cache ·
+  is_security(key) → a security setting (4.2: login locks · OTP / password reset · OTP send 4.3 · rate store · IP cache ·
                   page sizes · dedup windows) — own page section + typed-word confirm + audit "<route>_security"
   set_value / reset_value → write path (PUT / POST /admin/settings/{key}); cache updated at once
   reload()      → DB → in-memory cache (startup + every CACHE_TTL_S by server.py's refresh loop).
@@ -95,6 +95,15 @@ _DEFS = (
     _sec_rate("pwreset_ip", 1,      600,  86400, "sec_otp"),
     _sec_rate("pwreset_email", 0,     1,     10, "sec_otp"),
     _sec_rate("pwreset_email", 1,   600,  86400, "sec_otp"),
+    # KYC OTP send (task 4.3) — per account + channel · per normalised target · per IP. Ranges keep
+    # guessing impractical: worst case per target = 10 codes / hour × otp_max_attempts at its max (10)
+    # = 2 400 guesses / day of 10^6 codes (≈ 0.24 %); window ≥ 1 hour.
+    _sec_rate("otp_send_user", 0,     1,     10, "sec_otp"),
+    _sec_rate("otp_send_user", 1,  3600,  86400, "sec_otp"),
+    _sec_rate("otp_send_target", 0,   1,     10, "sec_otp"),
+    _sec_rate("otp_send_target", 1, 3600, 86400, "sec_otp"),
+    _sec_rate("otp_send_ip", 0,       1,     30, "sec_otp"),
+    _sec_rate("otp_send_ip", 1,    3600,  86400, "sec_otp"),
     _sec_limit("mem_store_max_keys", 5000, 100000, "sec_capacity", "count"),
     _sec_limit("mem_store_sweep_s",   10,    600, "sec_capacity", "seconds"),
     _sec_limit("ip_country_cache_max", 1000, 100000, "sec_capacity", "count"),
