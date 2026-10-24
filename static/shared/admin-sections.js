@@ -21,5 +21,6 @@ window.TW_ADMIN_SECTIONS = [
   { key: 'errors',    icon: 'alert',            labelKey: 'admin.nav.errors',    path: '#errors' },
   { key: 'email',     icon: 'mail',             labelKey: 'admin.nav.email',     path: 'email' },
   { key: 'settings',  icon: 'settings-2',       labelKey: 'admin.nav.settings',  path: 'settings' },   // task 4.1
+  { key: 'content',   icon: 'file-text',        labelKey: 'admin.nav.content',   path: 'content' },    // phase 5b
   { key: 'system',    icon: 'wrench',           labelKey: 'admin.nav.system',    path: '#system' },
 ];

@@ -16,6 +16,9 @@
  *      CSV export needs a confirm and returns the file · unified search asks GET /admin/users only after typing stops
  *   H  (task 4.2) admin-settings: 403 → "no permission" on the page, session kept · 401 → login ·
  *      security settings in their own section · their save / reset need the typed word · 403 on save → toast only
+ *   I  (phase 5b) admin-content: 403 → "no permission", session kept · 401 → login · strings save sends the
+ *      whole override map, reset leaves the key out · colors: WCAG ratio · < 3:1 blocks the save, < 4.5 warns ·
+ *      news: archive keeps every field (status archived) · delete needs the typed word · start / end sent as ISO UTC
  *
  * Run: node tests/test_admin_shell_runtime.js
  */
@@ -57,7 +60,7 @@ function shell(opts) {
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     setTimeout: opts.timers ? ((fn, ms) => { opts.timers.push([fn, ms]); return opts.timers.length; }) : () => 0, clearTimeout: noop,
     document: { readyState: 'loading', addEventListener: noop, querySelector: opts.header ? (q => (q === '[data-tw-header="admin"]' ? opts.header : null)) : () => null,
-                querySelectorAll: () => [], createElement: fakeEl, getElementById: id => (opts.root && id === 'asRoot' ? opts.root : null), head: fakeEl('head'),
+                querySelectorAll: () => [], createElement: fakeEl, getElementById: id => (opts.root && id === (opts.rootId || 'asRoot') ? opts.root : null), head: fakeEl('head'),
                 body: { classList: { list: [], add(c) { this.list.push(c); } } } },
     location: { pathname: opts.path || PANEL, hash: opts.hash || '', search: opts.search || '',
                 replace: u => rec.replaced.push(u) },
@@ -93,6 +96,7 @@ function shell(opts) {
     },
   };
   ctx.twIcon.hydrate = noop;
+  Object.assign(ctx, opts.extra || {});
   ctx.window = ctx;
   vm.createContext(ctx);
   ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js',
@@ -491,6 +495,160 @@ const tick = () => new Promise(r => setImmediate(r));
       'admin.settings.security.badge', 'admin.settings.security.save.message', 'admin.settings.security.reset.message',
       'admin.settings.security.word', 'admin.audit.action.admin_settings_update_security', 'admin.audit.action.admin_settings_reset_security'];
     check('H10 every text key exists', keys.every(k => typeof S[k] === 'string'), keys.filter(k => typeof S[k] !== 'string'));
+  }
+
+  console.log('\nI — admin-content: strings · colors contrast · news (phase 5b)');
+  {
+    const PAGE = 'static/admin-content/admin-content.js';
+    const CSS = { '--color-surface-page': '#070b18', '--color-text-on-brand': '#070b18', '--color-text-on-fill': '#ffffff' };
+    const extra = {
+      getComputedStyle: () => ({ getPropertyValue: n => CSS[n] || '' }),
+      twFormatDateTime: v => 'D(' + v + ')',
+      twSafeLinkUrl: u => (/^https?:\/\/\w/.test(u) ? u : ''),
+      Option: function (t, v) { this.text = t; this.value = v; },
+      twDateTimeField: o => ({ dateRow: fakeEl('div'), timeRow: fakeEl('div'), empty: () => !o.value,
+        value: () => (o.value ? o.value : null) }),
+    };
+    const page = o => shell(Object.assign({ page: PAGE, path: PANEL + '/content', token: LIVE, root: fakeEl('div'),
+                                            rootId: 'acRoot', extra }, o));
+    const texts = el => [el.textContent].concat((el.children || []).flatMap(texts));
+    const all = el => [el].concat((el.children || []).flatMap(all));
+    const find = (el, fn) => all(el).find(fn);
+    const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
+    const puts = r => r.requests.filter(q => q[1] !== 'GET');
+
+    const f = page({ status: 403 });
+    await settle();
+    check('I1 403 → "no permission" message, no navigation, session kept',
+      texts(f.ctx.document.getElementById('acRoot')).includes('admin.content.forbidden') && f.rec.replaced.length === 0 && !!f.store.tw_adm_token);
+    const e = page({ status: 401 });
+    await settle();
+    check('I2 401 → back to the panel login (expired)', e.rec.replaced[0] === PANEL + '?session=expired');
+
+    // strings: save = whole map with this key · reset = map without it
+    const SJ = { ok: true, data: { defaults: { 'a.one': 'واحد', 'b.two': 'اتنين' }, overrides: { 'b.two': 'معدّل' }, max_len: 300 } };
+    const s = page({ json: SJ, confirmAnswer: true });
+    await settle();
+    const root = s.ctx.document.getElementById('acRoot');
+    const rows = all(root).filter(x => x.attrs && x.attrs['data-string']);
+    check('I3 every key listed with default + current value', rows.length === 2
+      && find(rows[1], x => x.tagName === 'input').value === 'معدّل', rows.map(r => r.attrs['data-string']));
+    const btnIn = (row, key) => find(row, x => x.tagName === 'button' && x.textContent === key);
+    find(rows[0], x => x.tagName === 'input').value = 'جديد';
+    btnIn(rows[0], 'admin.content.save').fire('click');
+    await settle();
+    let w = puts(s.rec);
+    check('I4 save → PUT /admin/strings with the whole override map', w.length === 1 && w[0][0] === '/admin/strings' && w[0][1] === 'PUT'
+      && JSON.stringify(JSON.parse(w[0][2]).overrides) === JSON.stringify({ 'b.two': 'معدّل', 'a.one': 'جديد' }), JSON.stringify(w));
+    const s2 = page({ json: SJ, confirmAnswer: true });
+    await settle();
+    const r2 = all(s2.ctx.document.getElementById('acRoot')).filter(x => x.attrs && x.attrs['data-string']);
+    check('I5 reset off for a key without override', btnIn(r2[0], 'admin.content.reset').disabled === true);
+    btnIn(r2[1], 'admin.content.reset').fire('click');
+    await settle();
+    w = puts(s2.rec);
+    check('I6 reset → the key left out (empty = default)', w.length === 1 && JSON.stringify(JSON.parse(w[0][2]).overrides) === '{}', JSON.stringify(w));
+    const s3 = page({ json: SJ });
+    await settle();
+    const search = find(s3.ctx.document.getElementById('acRoot'), x => x.tagName === 'input' && x.type === 'search');
+    search.value = 'اتنين';
+    const list = find(s3.ctx.document.getElementById('acRoot'), x => (x.children || []).some(c => c.attrs && c.attrs['data-string']));
+    list.children = [];   // the fake element keeps children on textContent = '' — the page clears it there
+    search.fire('input');
+    const shown = all(s3.ctx.document.getElementById('acRoot')).filter(x => x.attrs && x.attrs['data-string']).map(x => x.attrs['data-string']);
+    check('I7 search by text finds the key', JSON.stringify(shown) === '["b.two"]', JSON.stringify(shown));
+
+    // colors: contrast + block / warn
+    const C = s.ctx.TwAdminContent;
+    check('I8 WCAG ratio white / black = 21', Math.abs(C.contrast('#ffffff', '#000000') - 21) < 0.01);
+    const lv = v => C.colorCheck('--color-brand-primary', v).level;
+    check('I9 levels: teal ok · #777777 warn (< 4.5) · #5a5a5a block (< 3)',
+      lv('#00c896') === 'ok' && lv('#777777') === 'warn' && lv('#5a5a5a') === 'block', [lv('#00c896'), lv('#777777'), lv('#5a5a5a')]);
+    const CJ = { ok: true, data: { tokens: ['--color-brand-primary', '--color-brand-accent'],
+      defaults: { '--color-brand-primary': '#00c896', '--color-brand-accent': '#8b5cf6' }, overrides: { '--color-brand-accent': '#7c3aed' } } };
+    const c = page({ json: CJ, confirmAnswer: true });
+    await settle();
+    await c.ctx.TwAdminContent.show('colors');
+    await settle();
+    const crow = find(c.ctx.document.getElementById('acRoot'), x => x.attrs && x.attrs['data-color'] === '--color-brand-primary');
+    const hex = find(crow, x => x.tagName === 'input' && x.type === 'text');
+    const save = btnIn(crow, 'admin.content.save');
+    hex.value = '#5a5a5a';
+    hex.fire('input');
+    const blocked = save.disabled === true && texts(crow).includes('admin.content.colors.block');
+    save.fire('click');
+    await settle();
+    check('I10 contrast < 3:1 → save off + message, no request', blocked && puts(c.rec).length === 0, JSON.stringify(puts(c.rec)));
+    hex.value = '#777777';
+    hex.fire('input');
+    check('I11 contrast < 4.5:1 → warning, save allowed', save.disabled === false && texts(crow).includes('admin.content.colors.warn'));
+    save.fire('click');
+    await settle();
+    w = puts(c.rec);
+    check('I12 save keeps the other saved color', w.length === 1 && w[0][0] === '/admin/theme/colors'
+      && JSON.stringify(JSON.parse(w[0][2]).overrides) === JSON.stringify({ '--color-brand-accent': '#7c3aed', '--color-brand-primary': '#777777' }), JSON.stringify(w));
+
+    // news
+    const NJ = { news: [{ id: 7, title: 'T', summary: 'S', body: 'B', category: 'general', country: '', source_url: '',
+      status: 'published', starts_at: null, ends_at: null, active_now: true }] };
+    const n = page({ json: NJ, confirmAnswer: true });
+    await settle();
+    await n.ctx.TwAdminContent.show('news');
+    await settle();
+    const nroot = n.ctx.document.getElementById('acRoot');
+    const tr = find(nroot, x => x.attrs && x.attrs['data-news'] === '7');
+    check('I13 table row: title · status · active_now from the server', !!tr && texts(tr).includes('T')
+      && texts(tr).includes('admin.content.news.active.yes'));
+    btnIn(tr, 'admin.content.news.archive').fire('click');
+    await settle();
+    w = puts(n.rec);
+    const ab = w[0] && JSON.parse(w[0][2]);
+    check('I14 archive → PUT with every field kept + status archived', w.length === 1 && w[0][0] === '/admin/news/7' && w[0][1] === 'PUT'
+      && ab.status === 'archived' && ab.body === 'B' && ab.summary === 'S' && ab.title === 'T', JSON.stringify(w));
+    const d = page({ json: NJ, confirmAnswer: true });
+    await settle();
+    await d.ctx.TwAdminContent.show('news');
+    await settle();
+    const dtr = find(d.ctx.document.getElementById('acRoot'), x => x.attrs && x.attrs['data-news'] === '7');
+    btnIn(dtr, 'admin.content.news.delete').fire('click');
+    await settle();
+    const dm = d.rec.modals[0];
+    check('I15 delete → typed-word dialog (not a plain confirm), button off', !!dm && d.rec.confirms.length === 0 && dm.disabled[1] === true);
+    dm.opts.onClose('cancel');
+    await settle();
+    check('I16 delete cancelled → no request', puts(d.rec).length === 0);
+    // create: local pick → ISO UTC
+    const k = page({ json: { news: [] }, confirmAnswer: true });
+    await settle();
+    await k.ctx.TwAdminContent.show('news');
+    await settle();
+    const START = new Date(2026, 9, 1, 9, 30);
+    k.ctx.twDateTimeField = () => ({ dateRow: fakeEl('div'), timeRow: fakeEl('div'), empty: () => false, value: () => START });
+    btnIn(k.ctx.document.getElementById('acRoot'), 'admin.content.news.add').fire('click');
+    const fm = k.rec.modals[0];
+    find(fm.opts.content, x => x.tagName === 'input').value = 'خبر';
+    const bad = fm.opts.actions[1].onClick();
+    check('I17 end not after start → stays open, no request', bad === false && puts(k.rec).length === 0);
+    const k2 = page({ json: { news: [] }, confirmAnswer: true });
+    await settle();
+    await k2.ctx.TwAdminContent.show('news');
+    await settle();
+    let call = 0;
+    k2.ctx.twDateTimeField = () => { const v = call++ ? null : START;
+      return { dateRow: fakeEl('div'), timeRow: fakeEl('div'), empty: () => !v, value: () => v }; };
+    btnIn(k2.ctx.document.getElementById('acRoot'), 'admin.content.news.add').fire('click');
+    const fm2 = k2.rec.modals[0];
+    find(fm2.opts.content, x => x.tagName === 'input').value = 'خبر';
+    await fm2.opts.actions[1].onClick();
+    w = puts(k2.rec);
+    const nb = w[0] && JSON.parse(w[0][2]);
+    check('I18 create → POST /admin/news, start = ISO UTC of the local pick, open end = null',
+      w.length === 1 && w[0][0] === '/admin/news' && w[0][1] === 'POST' && nb.starts_at === START.toISOString()
+      && /Z$/.test(nb.starts_at) && nb.ends_at === null && nb.title === 'خبر', JSON.stringify(w));
+    const S = JSON.parse(read('tw_strings.json')).ar;
+    const used = read(PAGE).match(/'admin\.(?:content|done)\.[a-z_.]+'/g).map(x => x.slice(1, -1))
+      .filter(x => !/\.$/.test(x));
+    check('I19 every literal text key exists', used.every(x => typeof S[x] === 'string'), used.filter(x => typeof S[x] !== 'string'));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

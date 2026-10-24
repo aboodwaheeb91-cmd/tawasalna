@@ -12,4 +12,6 @@
 5b. **النصوص وحالة «ما في وظيفة» (PR 4.14):** كل نص بالنافذة والزر عبر `twT` (`appt.sch.*`، الأشهر `date.month.*`). الشركة ما عندها وظيفة فعّالة → «إرسال الدعوة» مطفّي (`disabled` + `ctl.setActionDisabled` من DS-OVL) + رابط «انشر وظيفة» من `twPostJobHref()` (صفحة الشركة `?post_job=1` → نموذج النشر). ❌ رابط نشر وظيفة مبني باليد.
 6. ❌ مودال موعد خاص بصفحة · ❌ حقل `application_id` (أو أي رقم داخلي) يكتبه المستخدم · ❌ `fetch` مباشر لـ `/api/appointments` أو `/api/schedule/*` (كله `twApi`) · ❌ `<input type="date|time">` بالنافذة (DS-DATE dropdowns) · ❌ إضافة شخص لـ pipeline للموعد بغير `_shortlist_candidate_in_tx`.
 
+7. **`twDateTimeField({value?, years?})` (phase 5b):** نفس مجموعة التاريخ والوقت (DS-DATE: يوم / شهر / سنة + ساعة / دقيقة / ص-م، محرك DS-SEL) عامة لأي نافذة بدها تاريخ + وقت محلي (أول مستخدم: نافذة الخبر بالأدمن). → `{dateRow, timeRow, value() → Date | null, empty()}` · قيمة مبدئية بتنضاف سنتها / دقيقتها للقائمة · المستدعي بينادي `scSelectInit()`. ❌ مجموعة تاريخ ووقت تانية بصفحة.
+
 Tests: `python -m pytest tests/test_schedule_interview.py -q` (`TW_TEST_DB_URL`) · `node tests/test_schedule_interview_runtime.js`.

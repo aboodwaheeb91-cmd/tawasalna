@@ -8,7 +8,7 @@
 //   - New API endpoints need NO change here: the API is never cached by default.
 //
 // Bump BUILD_TIME whenever this file changes so `activate` deletes old caches.
-const BUILD_TIME = '20261008_1200';
+const BUILD_TIME = '20261024_1200';
 const CACHE_NAME = 'tawasolna-v6-' + BUILD_TIME;
 
 // Precached public pages. OFFLINE_FALLBACK is the single offline response for
@@ -27,6 +27,7 @@ const STATIC_ASSETS = [
   '/static/tw_shared.js',
   '/static/shared/auth-sync.js',
   '/static/shared/tw-icons.js',
+  '/static/shared/tw-news-banner.js',   // phase 5b — landing news banner (offline: no data → nothing shown)
   '/static/app-header.css',
   '/static/33333.svg'
 ];
