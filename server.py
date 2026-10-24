@@ -4336,6 +4336,7 @@ def admin_get_email(request: Request):
                    "defaults": email_service.DEFAULTS, "types": list(email_service.TYPES),
                    "categories": {k: v["category"] for k, v in email_service.TEMPLATES.items()},
                    "notify_types": list(email_service.NOTIFY_TYPES),
+                   "inbound_switch": email_service.INBOUND_SWITCH,
                    "notify_limits": {k: list(v) for k, v in email_service.NOTIFY_LIMITS.items()},
                    "stats": stats,
                    "templates": {k: [f"email.{k}.{p}" for p in v["parts"]]
