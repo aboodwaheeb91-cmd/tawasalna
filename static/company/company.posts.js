@@ -366,36 +366,6 @@
     });
   }
 
-  // ── Post share ────────────────────────────────────────────────
-  function _sharePostFallback(text) {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط المنشور ✓', 'success'); }
-    catch (e) { if (window.showToast) showToast('تعذّر النسخ تلقائياً', 'error'); }
-    document.body.removeChild(ta);
-  }
-
-  function _sharePost(postId) {
-    var coName = (window.companyState && companyState.profile && companyState.profile.full_name)
-      ? companyState.profile.full_name : 'شركة';
-    var twId = (window.companyState && companyState.profile && companyState.profile.tw_id)
-      ? companyState.profile.tw_id : null;
-    var url = twId
-      ? (location.origin || '') + '/u/' + encodeURIComponent(twId)
-      : location.href;
-    var shareText = 'منشور من ' + coName + ' على تواصلنا:\n' + url;
-    if (navigator.share) {
-      navigator.share({ title: 'منشور: ' + coName, text: shareText, url: url }).catch(function () {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(shareText)
-        .then(function () { if (window.showToast) showToast('تم نسخ رابط المنشور ✓', 'success'); })
-        .catch(function () { _sharePostFallback(shareText); });
-    } else {
-      _sharePostFallback(shareText);
-    }
-  }
-
   // ── Event bindings ──────────────────────────────────────────────
   function _bindPostEvents() {
     var q = function (id) { return document.getElementById(id); };
@@ -415,266 +385,6 @@
     if (postCancelBtn) postCancelBtn.addEventListener('click', function () { _closePostOverlay(); });
   }
 
-  // ── Post View Tracking ────────────────────────────────────────────────────
-  var _viewedThisSession = {};  // post_id → true; resets on page reload
-  var _postViewObserver  = null;
-
-  function _getOrCreateVisitorKey() {
-    var key = localStorage.getItem('cp_vk');
-    if (!key) {
-      key = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        var r = Math.random() * 16 | 0;
-        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-      });
-      localStorage.setItem('cp_vk', key);
-    }
-    return key;
-  }
-
-  function _sendView(postId) {
-    var signedIn     = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
-    var body    = {};
-    if (!signedIn) body.visitor_key = _getOrCreateVisitorKey();
-
-    twApi('/company/posts/' + encodeURIComponent(postId) + '/view', { method: 'POST', body: body })
-      .then(function (res) {
-        var d = res.ok ? res.data : null;   // best-effort — a failed view is not shown
-        if (d && d.status === 'success' && d.recorded) {
-          // Bump the displayed count +1 without a full reload
-          var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
-          if (!card) return;
-          var vEl = card.querySelector('.post-views');
-          if (!vEl) return;
-          var cur = parseInt(vEl.dataset.viewsCount, 10) || 0;
-          var next = cur + 1;
-          vEl.dataset.viewsCount = next;
-          var svg = vEl.querySelector('svg');
-          vEl.innerHTML = (svg ? svg.outerHTML : '') + TwPostCard.formatViews(next);
-        }
-      });
-  }
-
-  function initPostViewTracking(container) {
-    // Disconnect previous observer if list was re-rendered
-    if (_postViewObserver) { _postViewObserver.disconnect(); _postViewObserver = null; }
-    if (!container || typeof IntersectionObserver === 'undefined') return;
-
-    var DWELL_MS = 800; // card must be visible for 800ms before counting
-    var timers   = {};  // post_id → timeout handle
-
-    _postViewObserver = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        var pid = entry.target.dataset.postId;
-        if (!pid || _viewedThisSession[pid]) return;
-        if (entry.isIntersecting) {
-          if (!timers[pid]) {
-            timers[pid] = setTimeout(function () {
-              delete timers[pid];
-              if (!_viewedThisSession[pid]) {
-                _viewedThisSession[pid] = true;
-                _sendView(pid);
-              }
-            }, DWELL_MS);
-          }
-        } else {
-          // Card left viewport before dwell time — cancel timer
-          if (timers[pid]) { clearTimeout(timers[pid]); delete timers[pid]; }
-        }
-      });
-    }, { threshold: 0.5 });  // 50% of card must be visible
-
-    container.querySelectorAll('.post-card[data-post-id]').forEach(function (card) {
-      _postViewObserver.observe(card);
-    });
-  }
-
-  // ── Post Save ─────────────────────────────────────────────────────────────
-  // Button content = TwPostCard (one copy with the first render — task U.2, D2 / D3)
-  function _renderSaveButton(btn, active) {
-    btn.innerHTML = TwPostCard.saveButtonInner(active);
-    if (active) { btn.classList.add('save-active');    }
-    else        { btn.classList.remove('save-active'); }
-    btn.dataset.saved = active ? '1' : '0';
-  }
-
-  var _saveDesired   = {};
-  var _saveInFlight  = {};
-  var _saveOrigState = {};
-
-  function _saveGetBtn(postId) {
-    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
-    return card ? card.querySelector('.pc-btn--save') : null;
-  }
-
-  function _dispatchSave(postId) {
-    var desired = _saveDesired[postId];
-    if (desired === undefined) return;
-    var signedIn = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
-    if (!signedIn) return;
-
-    _saveInFlight[postId] = true;
-
-    twApi('/company/posts/' + encodeURIComponent(postId) + '/save', { method: 'PUT', body: { saved: desired } })
-      .then(function (res) {
-        _saveInFlight[postId] = false;
-        var btn  = _saveGetBtn(postId);
-        var orig = _saveOrigState[postId];
-
-        if (res.status === 429) {
-          if (btn && orig) _renderSaveButton(btn, orig.active);
-          delete _saveDesired[postId];
-          delete _saveOrigState[postId];
-          if (window.showToast) showToast('الرجاء التمهّل قليلاً', 'error');
-          return;
-        }
-
-        if (!res.ok || !res.data || res.data.status !== 'success') {
-          if (btn && orig) _renderSaveButton(btn, orig.active);
-          delete _saveDesired[postId];
-          delete _saveOrigState[postId];
-          if (window.showToast) showToast(twApiMessage(res, 'تعذّر حفظ المنشور'), 'error');
-          return;
-        }
-
-        var srvActive = !!res.data.saved;
-        var desired   = _saveDesired[postId];
-
-        if (desired !== undefined && desired !== srvActive) {
-          _saveOrigState[postId] = { active: srvActive };
-          _dispatchSave(postId);
-          return;
-        }
-
-        if (btn) _renderSaveButton(btn, srvActive);
-        delete _saveDesired[postId];
-        delete _saveOrigState[postId];
-      });
-  }
-
-  function _toggleSave(postId) {
-    var signedIn = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
-    if (!signedIn) {
-      if (window.showToast) showToast('سجّل دخولك لحفظ المنشور', 'info');
-      return;
-    }
-    var btn = _saveGetBtn(postId);
-    if (!btn) return;
-
-    var currentActive = btn.classList.contains('save-active');
-    var desired       = !currentActive;
-
-    if (!_saveInFlight[postId]) {
-      _saveOrigState[postId] = { active: currentActive };
-    }
-
-    _saveDesired[postId] = desired;
-    _renderSaveButton(btn, desired);
-
-    if (_saveInFlight[postId]) return;
-    _dispatchSave(postId);
-  }
-
-  // ── Post Appreciation ─────────────────────────────────────────────────────
-  function _renderAppreciationButton(btn, active, count) {
-    if (active) { btn.classList.add('appr-active');    }
-    else        { btn.classList.remove('appr-active'); }
-    btn.dataset.apprCount = count;
-    btn.innerHTML = TwPostCard.apprButtonInner(active, count);
-  }
-
-  // ── Desired State Queue — one request in flight per post, UI always immediate ──
-  var _apprDesired   = {};  // postId -> bool  (last desired state)
-  var _apprInFlight  = {};  // postId -> bool  (request running?)
-  var _apprOrigState = {};  // postId -> {active, count}  (pre-click state for rollback)
-
-  function _apprGetBtn(postId) {
-    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
-    return card ? card.querySelector('.pc-btn--appr') : null;
-  }
-
-  function _dispatchAppreciation(postId) {
-    var desired = _apprDesired[postId];
-    if (desired === undefined) return;
-    var signedIn = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
-    if (!signedIn) return;
-
-    _apprInFlight[postId] = true;
-
-    twApi('/company/posts/' + encodeURIComponent(postId) + '/appreciation', { method: 'PUT', body: { appreciated: desired } })
-      .then(function (res) {
-        _apprInFlight[postId] = false;
-        var btn = _apprGetBtn(postId);
-        var orig = _apprOrigState[postId];
-
-        if (res.status === 403 || res.status === 429) {
-          // Owner / rate-limit — full rollback, clear queue
-          if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
-          delete _apprDesired[postId];
-          delete _apprOrigState[postId];
-          if (window.showToast) {
-            showToast(res.status === 403 ? 'لا يمكنك تقدير منشورك' : 'الرجاء التمهّل قليلاً', 'error');
-          }
-          return;
-        }
-
-        if (!res.ok || !res.data || res.data.status !== 'success') {
-          if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
-          delete _apprDesired[postId];
-          delete _apprOrigState[postId];
-          if (window.showToast) showToast(twApiMessage(res, 'تعذّر تسجيل التقدير'), 'error');
-          return;
-        }
-
-        var srvActive = !!res.data.appreciated;
-        var srvCount  = Number(res.data.appreciations_count) || 0;
-        var desired   = _apprDesired[postId];
-
-        if (desired !== undefined && desired !== srvActive) {
-          // Server response is stale — user clicked again while request was in flight.
-          // Keep UI on desired (no flicker); update orig for accurate rollback on failure.
-          _apprOrigState[postId] = { active: srvActive, count: srvCount };
-          _dispatchAppreciation(postId);
-          return;
-        }
-
-        // Server matches desired (or no pending desired) — safe to sync UI.
-        if (btn) _renderAppreciationButton(btn, srvActive, srvCount);
-        delete _apprDesired[postId];
-        delete _apprOrigState[postId];
-      });
-  }
-
-  function _toggleAppreciation(postId) {
-    var signedIn = TwCompanyPage.signedIn();   // TwAuthSync snapshot (company.state.js)
-    if (!signedIn) {
-      if (window.showToast) showToast('سجّل دخولك لتقدّر هذا المنشور', 'info');
-      return;
-    }
-
-    var btn = _apprGetBtn(postId);
-    if (!btn) return;
-
-    // Current UI state (reflects latest desired, not server)
-    var currentActive = btn.classList.contains('appr-active');
-    var currentCount  = parseInt(btn.dataset.apprCount, 10) || 0;
-    var desired       = !currentActive;
-    var nextCount     = desired ? currentCount + 1 : Math.max(0, currentCount - 1);
-
-    // Capture original state only before the first in-flight request
-    if (!_apprInFlight[postId]) {
-      _apprOrigState[postId] = { active: currentActive, count: currentCount };
-    }
-
-    // Record desired and update UI immediately
-    _apprDesired[postId] = desired;
-    _renderAppreciationButton(btn, desired, nextCount);
-
-    // If already in flight, the response handler will pick up the new desired
-    if (_apprInFlight[postId]) return;
-
-    _dispatchAppreciation(postId);
-  }
-
   // ── Post Comments ─────────────────────────────────────────────────────────
   var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
   var _ICO_CLOCK   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
@@ -682,7 +392,6 @@
   var _ICO_CMT_EXPAND   = '<span class="pc-cmt-ellipsis" aria-hidden="true">…</span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>';
   var _ICO_CMT_COLLAPSE = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>';
 
-  var _cmtOpenPanelId  = null; // postId whose panel is currently visible
   var _cmtEditInFlight = {};   // commentId -> bool — prevents concurrent PATCH requests
   var _cmtOpenMenuId   = null; // commentId whose ⋮ menu is currently open
   var _cmtPortalMenu   = null; // single portal <div> on document.body (lazy-created)
@@ -1736,32 +1445,6 @@
     list.appendChild(more);
   }
 
-  function _toggleCommentPanel(postId) {
-    var pid = String(postId);
-
-    // Close any other open panel
-    if (_cmtOpenPanelId && _cmtOpenPanelId !== pid) {
-      var old = _cmtGetPanel(_cmtOpenPanelId);
-      if (old) old.style.display = 'none';
-      _cmtOpenPanelId = null;
-    }
-
-    var panel = _cmtGetPanel(pid);
-    if (!panel) return; // comments_enabled=false — no panel in DOM
-
-    if (panel.style.display !== 'none') {
-      panel.style.display = 'none';
-      _cmtOpenPanelId = null;
-      return;
-    }
-
-    // First open: build input row + list shell
-    _cmtPopulatePanel(pid);
-    panel.style.display = '';
-    _cmtLoadComments(pid);
-    _cmtOpenPanelId = pid;
-  }
-
   function _cmtHandleSend(postId) {
     var panel = _cmtGetPanel(postId);
     if (!panel) return;
@@ -2000,25 +1683,50 @@
       });
   }
 
+  // ── Post card behaviour = TwPostCard (task U.2b) — only the page-specific parts live here ──
+  function _postPath(postId, action) {
+    return '/company/posts/' + encodeURIComponent(postId) + '/' + action;
+  }
+  var _postCard = TwPostCard.create({
+    signedIn: function () { return TwCompanyPage.signedIn(); },   // TwAuthSync snapshot (company.state.js)
+    paths: {
+      appreciation: function (id) { return _postPath(id, 'appreciation'); },
+      save:         function (id) { return _postPath(id, 'save'); },
+      view:         function (id) { return _postPath(id, 'view'); },
+    },
+    visitorKeyName: 'cp_vk',
+    shareInfo: function () {
+      var coName = (window.companyState && companyState.profile && companyState.profile.full_name)
+        ? companyState.profile.full_name : 'شركة';
+      var twId = (window.companyState && companyState.profile && companyState.profile.tw_id)
+        ? companyState.profile.tw_id : null;
+      var url = twId
+        ? (location.origin || '') + '/u/' + encodeURIComponent(twId)
+        : location.href;
+      return { name: coName, url: url };
+    },
+    onEdit: function (postId) {
+      var postData = window._getPostById ? window._getPostById(postId) : null;
+      if (postData) openPostModal(postData);
+    },
+    onDelete: deletePost,
+    comments: { build: _cmtPopulatePanel, load: _cmtLoadComments },
+  });
+
   window.openPostModal        = openPostModal;
   window._closePostOverlay    = _closePostOverlay;
   window.createPost           = createPost;
   window.updatePost           = updatePost;
   window.deletePost           = deletePost;
-  window.initPostViewTracking = initPostViewTracking;
+  window.initPostViewTracking = function (container) { _postCard.trackViews(container); };
 
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
     _bindTagPickerEvents();
     _bindColorPickerEvents();
 
-    // Close 3-dot menus (post and portal comment menu) when clicking outside
+    // Close the portal comment menu when clicking outside (post ⋯ menus = TwPostCard)
     document.addEventListener('click', function (e) {
-      if (!e.target.closest('.pc-dots')) {
-        document.querySelectorAll('.pc-dots-menu.open').forEach(function (m) {
-          m.classList.remove('open');
-        });
-      }
       if (_cmtPortalMenu && _cmtPortalMenu.style.display !== 'none') {
         if (!e.target.closest('#pc-cmt-portal-menu') && !e.target.closest('.pc-cmt-menu-btn')) {
           _cmtHidePortalMenu();
@@ -2066,8 +1774,9 @@
       if (ta) _cmtInsertMention(ta, item.dataset.mentionName, item.dataset.mentionTwId || null);
     });
 
-    // Event delegation for post card buttons
+    // Event delegation: card buttons = TwPostCard · comment items (§22c) = below
     var postsList = document.getElementById('postsList');
+    _postCard.bind(postsList);
     if (postsList) {
       postsList.addEventListener('click', function (e) {
         // Comment body expand — show full text, switch to collapse icon
@@ -2110,66 +1819,6 @@
           }
           return;
         }
-        // Read more — show full text inline, no overlay
-        var moreBtn = e.target.closest('.post-more-inline');
-        if (moreBtn) {
-          var wrap = moreBtn.closest('.post-body-wrap');
-          if (!wrap) return;
-          var textSpan = wrap.querySelector('.post-body-text');
-          var lessBtn  = wrap.querySelector('.post-less-btn');
-          if (textSpan && wrap._pbFull) textSpan.textContent = wrap._pbFull;
-          moreBtn.style.display = 'none';
-          if (lessBtn) lessBtn.style.display = 'block';
-          return;
-        }
-        // Read less — restore truncated text
-        var lessBtn = e.target.closest('.post-less-btn');
-        if (lessBtn) {
-          var wrap = lessBtn.closest('.post-body-wrap');
-          if (!wrap) return;
-          var textSpan = wrap.querySelector('.post-body-text');
-          var moreInline = wrap.querySelector('.post-more-inline');
-          if (textSpan && wrap._pbShort) textSpan.textContent = wrap._pbShort;
-          lessBtn.style.display = 'none';
-          if (moreInline) moreInline.style.display = 'inline-flex';
-          return;
-        }
-        // 3-dot toggle
-        var dotsBtn = e.target.closest('.pc-dots-btn[data-post-id]');
-        if (dotsBtn) {
-          e.stopPropagation();
-          var menu = document.getElementById('pc-dm-' + dotsBtn.getAttribute('data-post-id'));
-          if (menu) menu.classList.toggle('open');
-          return;
-        }
-        // 3-dot edit
-        var editDots = e.target.closest('.pc-dots-edit[data-post-id]');
-        if (editDots) {
-          var epid = parseInt(editDots.getAttribute('data-post-id'), 10);
-          var edm  = document.getElementById('pc-dm-' + epid);
-          if (edm) edm.classList.remove('open');
-          var postData = window._getPostById ? window._getPostById(epid) : null;
-          if (postData) openPostModal(postData);
-          return;
-        }
-        // 3-dot delete
-        var delDots = e.target.closest('.pc-dots-delete[data-post-id]');
-        if (delDots) {
-          var pid = parseInt(delDots.getAttribute('data-post-id'), 10);
-          var dm  = document.getElementById('pc-dm-' + pid);
-          if (dm) dm.classList.remove('open');
-          deletePost(pid);
-          return;
-        }
-        // Share
-        var shareBtn = e.target.closest('.pc-btn--share[data-post-id]');
-        if (shareBtn) { _sharePost(shareBtn.getAttribute('data-post-id')); return; }
-        // Appreciate
-        var apprBtn = e.target.closest('.pc-btn--appr[data-post-id]');
-        if (apprBtn) { _toggleAppreciation(apprBtn.getAttribute('data-post-id')); return; }
-        // Comment panel toggle
-        var cmtBtn = e.target.closest('.pc-btn--cmt[data-post-id]');
-        if (cmtBtn) { _toggleCommentPanel(cmtBtn.getAttribute('data-post-id')); return; }
         // Comment send
         var cmtSend = e.target.closest('.pc-cmts-send[data-post-id]');
         if (cmtSend) { _cmtHandleSend(cmtSend.getAttribute('data-post-id')); return; }
@@ -2197,9 +1846,6 @@
           if (pnl) _cmtHandleReply(pnl.dataset.postId, cmtReplyBtn.dataset.authorName, cmtReplyBtn.dataset.cmtId);
           return;
         }
-        // Save
-        var saveBtn = e.target.closest('.pc-btn--save[data-post-id]');
-        if (saveBtn) { _toggleSave(saveBtn.getAttribute('data-post-id')); return; }
       });
     }
   });
