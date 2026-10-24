@@ -41,6 +41,7 @@ import secrets
 import unicodedata
 
 from auth import db_conn, generate_public_id
+import blocks_suspension as bs
 import email_service
 
 CATEGORIES = ("account", "verification", "profile", "jobs", "education", "technical", "complaint", "general")
@@ -829,7 +830,8 @@ def inbound_new_ticket(svix_id: str, email_id: str, sender: str, subject: str, b
 def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: str, open_max: int) -> str:
     """Email to support+<token>@ → a message on that ticket when sender = its owner (account email or
     guest_email); same rules as a web reply (_requester_reply: reopen within REOPEN_DAYS, open_max).
-    → 'message' · 'duplicate' · 'ignored_token' · 'ignored_owner' · 'ignored_<SupportError code>'."""
+    → 'message' · 'duplicate' · 'ignored_token' · 'ignored_owner' · 'ignored_suspended' (account suspended) ·
+    'ignored_<SupportError code>'."""
     def fn(conn):
         eid = _inbound_claim(conn, svix_id, email_id, "processing")
         if eid is None:
@@ -843,6 +845,9 @@ def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: st
         owner = rows[0][len(_TICKET_COLS)] if t["user_id"] else (t["guest_email"] or "").lower()
         if not owner or sender != owner:
             return _inbound_done(conn, eid, "ignored_owner", t["id"])
+        # a suspended account gets 401 on the site — its email must not add a message either (blocks-suspension)
+        if t["user_id"] and bs.is_suspended(t["user_id"], conn):
+            return _inbound_done(conn, eid, "ignored_suspended", t["id"])
         try:
             if t["user_id"]:
                 _requester_reply(conn, t, "user", t["user_id"], body, open_max)

@@ -15,6 +15,7 @@ monkeypatched email_service.fetch_received, outgoing emails are recorded — no 
   7  HTML only → plain text (tags + script removed) · cut at support_body_max
   8  switch types.support_inbound off (default) → 200, nothing written
   9  send_email: reply_to outside the support templates → invalid (nothing sent)
+ 10  suspended account + right token + its own From → ignored, no new message (blocks-suspension)
 
 TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_support_inbound.py -q
@@ -28,6 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import auth
+import blocks_suspension as bs
 import email_service
 import server as srv
 import tw_settings
@@ -250,3 +252,33 @@ def test_reply_to_only_support_templates(monkeypatch):
     res = email_service.send_email("x@example.org", "password_reset", {"link": "https://tawasolna.com/x"},
                                    reply_to="support+" + "a" * 32 + "@tawasolna.com")
     assert res == {"ok": False, "code": "invalid"}
+
+
+# ── 10 suspended account ──
+def test_suspended_account_reply_ignored():
+    n = uuid.uuid4().hex[:10]
+    email = n + "@acc.test"
+    uid, tw = _sql("INSERT INTO users (tw_id, full_name, email, password_hash, user_type) "
+                   "VALUES (:t, :n, :e, 'x', 'emp') RETURNING id, tw_id", t="U" + n, n="User" + n, e=email)[0]
+    h = {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": int(uid), "user_type": "emp", "tw_id": tw})}
+    r = client.post("/support/tickets", json={"category": "general", "subject": "سؤال", "body": "نص"}, headers=h)
+    assert r.status_code == 201, r.text
+    pid = r.json()["data"]["public_id"]
+    tid = _sql("SELECT id FROM support_tickets WHERE public_id = :p", p=pid)[0][0]
+    r = client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "رد", "next_status": "awaiting_user"},
+                    headers=_admin())
+    assert r.status_code == 200, r.text
+    reply_to = [rt for to, key, _, rt in SENT if key == "support_reply"][0]
+    assert reply_to
+    bs.set_suspension(int(uid), True, None, "owner")
+
+    def count():
+        return _sql("SELECT COUNT(*) FROM support_messages WHERE ticket_id = :t", t=tid)[0][0]
+    n0 = count()
+    r, _, email_id = _post([reply_to], sender=email, text="رد من حساب معلّق")
+    assert r.status_code == 200
+    assert count() == n0
+    assert _sql("SELECT outcome FROM support_inbound_events WHERE email_id = :e", e=email_id)[0][0] == "ignored_suspended"
+    bs.set_suspension(int(uid), False, None, "owner")
+    r, _, _ = _post([reply_to], sender=email, text="رد بعد فك التعليق")
+    assert count() == n0 + 1
