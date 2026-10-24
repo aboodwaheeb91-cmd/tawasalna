@@ -170,5 +170,10 @@
     renderFaq();
     openForm(signedIn ? '' : meta.guest_category, '');
   });
-  if (signedIn) loadList();
+  if (signedIn) {
+    loadList();
+    // /support?ticket=H… — the bell + support_reply email link (7.2b); the server answers 404 for another's
+    var deep = /[?&]ticket=(H[A-Z0-9]{1,40})(?:&|$)/.exec(location.search || '');
+    if (deep) openTicket(deep[1]);
+  }
 })();

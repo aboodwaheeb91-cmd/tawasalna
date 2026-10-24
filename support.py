@@ -384,9 +384,11 @@ def _insert_ticket(conn, user_id, guest_email, category, subject, details, faq_i
     raise RuntimeError("support public_id clash")
 
 
-def _insert_message(conn, ticket_id: int, author_type: str, author_id, body: str) -> None:
-    conn.run("INSERT INTO support_messages (ticket_id, author_type, author_id, body) VALUES (:t, :a, :i, :b)",
-             t=ticket_id, a=author_type, i=None if author_id is None else str(author_id), b=body)
+def _insert_message(conn, ticket_id: int, author_type: str, author_id, body: str) -> int:
+    rows = conn.run("INSERT INTO support_messages (ticket_id, author_type, author_id, body) "
+                    "VALUES (:t, :a, :i, :b) RETURNING id",
+                    t=ticket_id, a=author_type, i=None if author_id is None else str(author_id), b=body)
+    return int(rows[0][0])
 
 
 def _set_status(conn, t: dict, new: str, message: bool) -> None:
@@ -464,6 +466,11 @@ def user_resolve(public_id: str, user_id: int) -> dict:
 # ── guest follow-up link ──
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def ticket_path(public_id: str) -> str:
+    """The account's ticket on /support (7.2b — bell + support_reply email); support.js opens it."""
+    return "/support?ticket=" + public_id
 
 
 def track_link(site_url: str, token: str) -> str:
@@ -636,14 +643,17 @@ def _locked_ticket(conn, public_id: str) -> dict:
 
 
 def admin_reply(public_id: str, admin_sub: str, body: str, next_status) -> tuple:
-    """Admin reply + next_status ∈ ADMIN_REPLY_STATUSES (required). → (old status, new status)."""
+    """Admin reply + next_status ∈ ADMIN_REPLY_STATUSES (required). → (old status, new status, notify) —
+    notify = {ticket_id, public_id, message_id, user_id, guest_email} for the reply notice (7.2b), sent by
+    the caller after the commit; never the reply text."""
     new = transition(None, "admin_reply", target=next_status)   # 422 before any read
 
     def fn(conn):
         t = _locked_ticket(conn, public_id)
-        _insert_message(conn, t["id"], "admin", admin_sub, body)
+        mid = _insert_message(conn, t["id"], "admin", admin_sub, body)
         _set_status(conn, t, new, message=True)
-        return t["status"], new
+        return t["status"], new, {"ticket_id": t["id"], "public_id": t["public_id"], "message_id": mid,
+                                  "user_id": t["user_id"], "guest_email": t["guest_email"]}
     return _tx(fn)
 
 

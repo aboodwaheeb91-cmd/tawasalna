@@ -2275,6 +2275,18 @@
     "email.support_guest_link.body": "هذا رابط متابعة طلب الدعم رقم {ticket}. منه بتشوف ردود فريق الدعم وبترد عليهم.",
     "email.support_guest_link.button": "متابعة الطلب",
     "email.support_guest_link.note": "لا تشارك هذا الرابط مع أي أحد — أي شخص معه الرابط بيقدر يشوف طلبك ويرد عليه. إذا لم تطلبه، تجاهل هذه الرسالة.",
-    "email.type.support_guest_link": "رابط متابعة طلب دعم الزائر"
+    "email.type.support_guest_link": "رابط متابعة طلب دعم الزائر",
+    "email.support_guest_reply.subject": "رد جديد على طلبك {ticket} — تواصلنا",
+    "email.support_guest_reply.body": "يوجد رد جديد على طلبك {ticket}. افتح رابط المتابعة لتقرأه وترد عليه.",
+    "email.support_guest_reply.button": "متابعة الطلب",
+    "email.support_guest_reply.note": "لا تشارك هذا الرابط مع أي أحد — أي شخص معه الرابط بيقدر يشوف طلبك ويرد عليه.",
+    "email.type.support_guest_reply": "رد على طلب دعم الزائر",
+    "email.support_reply.subject": "رد جديد على طلبك {ticket} — تواصلنا",
+    "email.support_reply.body": "مرحباً {name}، يوجد رد جديد من فريق الدعم على طلبك {ticket}.",
+    "email.support_reply.button": "فتح الطلب",
+    "email.type.support_reply": "رد على طلب الدعم",
+    "notif.type.support_reply": "رد من الدعم",
+    "notif.support_reply.title": "رد جديد على طلبك {ticket}",
+    "notif.support_reply.body": "رد فريق الدعم على طلبك — افتحه لتقرأ الرد."
   }
 }

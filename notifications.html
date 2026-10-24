@@ -429,7 +429,7 @@ body {
     comment: ['comment', 'reply', 'mention'],
     follow:  ['follow'],
     verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected'],
-    admin:   ['admin_message']   /* 5.3b2 */
+    admin:   ['admin_message', 'support_reply']   /* 5.3b2 · 7.2b */
   };
 
   /* Type → icon (DS-ICON) + tone (CSS data-tone → DS-COLOR tokens) + label key */
@@ -445,6 +445,7 @@ body {
     verify:      { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     kyc:         { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     admin_message: { icon: 'mail',       tone: 'brand',  filter: 'admin' },   /* 5.3b2 */
+    support_reply: { icon: 'headset',    tone: 'brand',  filter: 'admin' },   /* 7.2b — admin replied to your support ticket */
     job_admin:   { icon: 'briefcase',    tone: 'brand',  filter: 'job' },     /* 5.3j — admin hid / unhid / reactivated / extended a job */
     job_updated: { icon: 'briefcase',    tone: 'brand',  filter: 'job' },     /* 5.3j phase 4 — a job you applied to was edited by the admin */
     system:      { icon: 'notifications', tone: '',      filter: 'system' }

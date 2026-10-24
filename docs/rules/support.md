@@ -1,4 +1,4 @@
-# Support Tickets — نظام الدعم (task 7.1 · 7.2a)
+# Support Tickets — نظام الدعم (task 7.1 · 7.2a · 7.2b)
 
 > إلزامي بنفس قوة `CLAUDE.md` لأي مهمة بتلمس الدعم. Spec: `docs/SYSTEMS_INDEX.md §62` · `ARCHITECTURE.md §81` · migrations `docs/migrations/7.1_support_tickets.sql` · `7.2a_A_expand.sql` · `7.2a_B_migrate.sql` · tests `python -m pytest tests/test_support_tickets.py -q` · `python -m pytest tests/test_support_guest_link.py -q` · `node tests/test_support_pages_runtime.js`.
 >
@@ -78,6 +78,18 @@
 - **الترويسات** على كل مسار `/support/track` (الصفحة والـ API، أي status): `Cache-Control: no-store` · `Referrer-Policy: no-referrer` · `X-Robots-Tag: noindex` (`security_headers` بـ `server.py`).
 - ❌ الرمز الخام بالقاعدة / اللوج / الرد · ❌ الرمز بـ query string · ❌ رد مختلف لرمز منتهي عن غلط · ❌ رابط بيوصل لتذكرة حساب.
 
+## إشعارات الرد (task 7.2b)
+
+رد الأدمن (`POST /admin/support/tickets/{public_id}/messages`) → `support.admin_reply` بيرجّع `(old, new, notice)` (`ticket_id` · `public_id` · `message_id` · `user_id` · `guest_email` — بدون نص الرد) → `_support_reply_notice` بـ `server.py` **بعد الـ commit وبعد الرد** (`BackgroundTasks`).
+
+1. **تذكرة زائر:** `support.issue_guest_link(ticket_id, keep=3)` → رابط جديد وبيضلوا آخر 3 فعّالين + إيميل `support_guest_reply` (`ticket` · `link`) — «يوجد رد جديد على طلبك H…» + زر الرابط. **بدون نص الرد.**
+2. **تذكرة حساب:** جرس عبر `auth.create_notification` — النوع `support_reply` · `entity_type = support_ticket` · `event_key = support_reply:support_ticket:{ticket_id}:{message_id}` (إشعار واحد لكل رسالة، التكرار ما بيعمل شي) · الرابط من الـ backend `support.ticket_path(public_id)` = `/support?ticket=H…` (`support.js` بيفتح التذكرة؛ تذكرة غيرك = 404 من السيرفر) · النص `notif.support_reply.title` / `.body` من `tw_strings`. + إيميل `support_reply` منفصل (`name` · `ticket` · `link`) عبر `auth.email_notify_user` → `send_email`.
+3. **SECURITY:** القالبين ما بيتأثروا بتفضيلات المستخدم ولا بحدود الإشعارات، والجرس كمان ما بيتأثر بالتفضيلات. `support_reply` **مش** بـ `NOTIFICATION_EMAIL_TEMPLATES` / `NOTIFY_TYPES` → إيميل واحد بس (السبب: `docs/rules/email.md` البند 9).
+4. **الفشل:** أي خطأ (إيميل / إشعار / رابط) → سطر لوج `[support] reply notice …` (نوع الخطأ أو `code` بس — بدون إيميل ولا رمز ولا رابط) والرد بيضل 200.
+5. **`support_guest_link` أو `support_guest_reply` مطفي (أو المزوّد مش جاهز):** الرد ناجح · ما بينصدر رابط ولا بينلغى رابط · سطر لوج بس.
+6. الرمز الخام بيروح للإيميل بس — ❌ بأي رد API أو لوج. ❌ ربط تلقائي لتذاكر الزائر بالحساب.
+- Test: `python -m pytest tests/test_support_reply_notice.py -q`.
+
 ## الأدمن (`support.manage`)
 
 1. `check_admin(request, SUPPORT_PERM)` أول شي بكل endpoint — بدون توكن / توكن مستخدم → 401 · توكن أدمن بدون الصلاحية → 403.
@@ -102,7 +114,7 @@
 - **الروابط:** القائمة ☰ للمسجّل (`_TW_HEADER_MENU_POLICY` key `support`) · سطر «تواصل مع الدعم» بـ `/settings` (قسم «المساعدة») · أسفل `landing.html` للزوار.
 - ❌ `innerHTML` لأي نص من API أو `tw_strings` · ❌ الرمز بـ query string أو storage أو بالشريط بعد القراءة · ❌ رابط المتابعة بأي رد / صفحة · ❌ رقم حد بالكود (الـ `max` من meta / `twLimit`).
 - Test: `node tests/test_support_pages_runtime.js` · نصوص الأسئلة: `python tests/test_strings_system.py` (G).
-- النصوص بـ `tw_strings.json` (`support.*` · `support.faq.*` · `support.field.*` · `support.status_user.*` · `admin.support.*` · `menu.support` · `settings.support` · `settings.item.support_*` · `email.support_guest_otp.*` · `email.support_guest_link.*`).
+- النصوص بـ `tw_strings.json` (`support.*` · `support.faq.*` · `support.field.*` · `support.status_user.*` · `admin.support.*` · `menu.support` · `settings.support` · `settings.item.support_*` · `email.support_guest_otp.*` · `email.support_guest_link.*` · `email.support_guest_reply.*` · `email.support_reply.*` · `notif.support_reply.*`).
 
 ## ممنوعات
 
