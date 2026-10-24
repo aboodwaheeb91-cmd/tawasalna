@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head:admin-->
+<!-- Admin — support inbox (task 7.1 · docs/rules/support.md · SYSTEMS_INDEX §62).
+     Route: the admin panel path + /support (server.py → admin_support_page) · data: GET /admin/support/tickets ·
+     GET /admin/support/tickets/{id} · POST …/messages · PUT /admin/support/tickets/{id} (support.manage) —
+     writes via TwAdminShell.run (confirm first). Header + menu + session gate: Admin Shell (task 5.3a). -->
+<link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
+<link rel="stylesheet" href="/static/shared/tw-select.css?v={{v:tw-select.css}}">
+<link rel="stylesheet" href="/static/support/support.css?v={{v:support.css}}">
+<title></title>
+<style>
+.asp-title { display: flex; align-items: center; gap: var(--space-3); font-size: var(--size-font-md); font-weight: 900; margin: 0 0 var(--space-5); }
+.asp-title svg { color: var(--color-brand-primary); }
+.asp-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); }
+.asp-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); align-items: end; }
+</style>
+</head>
+<body class="tw-adm-body-page">
+<header data-tw-header="admin" hidden></header>
+
+<main class="tw-adm-main" id="main-content">
+  <h1 class="asp-title"><i data-tw-icon="headset"></i><span data-tw-t="admin.support.title"></span></h1>
+  <div id="aspRoot" aria-live="polite"><p class="tw-adm-msg" data-tw-t="common.loading"></p></div>
+</main>
+
+<!--tw:strings-->
+<!--tw:shell-scripts:admin-->
+<script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
+<script src="/static/shared/admin-sections.js?v={{v:admin-sections.js}}"></script>
+<script src="/static/shared/admin-shell.js?v={{v:admin-shell.js}}"></script>
+<script src="/static/support/support-form.js?v={{v:support-form.js}}"></script>
+<script src="/static/admin-support/admin-support.js?v={{v:admin-support.js}}"></script>
+</body>
+</html>

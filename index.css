@@ -206,7 +206,7 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 .reg-step-sub{font-size:.68rem;color:var(--auth-text-subdued);line-height:1.5;}
 
 /* ── Forgot password ── */
-.forgot-wrap{text-align:left;margin-bottom:12px;}
+.forgot-wrap{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;}
 .forgot-link{font-size:.7rem;color:var(--auth-text-faint);text-decoration:none;}
 .forgot-link:hover{color:var(--auth-text-faint-hover);}
 

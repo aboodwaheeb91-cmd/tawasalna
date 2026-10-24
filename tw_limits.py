@@ -38,6 +38,9 @@ LIMITS = {
     "suspend_reason_max": 500,    # PUT /admin/user/{id}/suspension reason (chars — admin only)
     "otp_ttl_min": 10,            # KYC OTP (email / phone) — code lifetime in minutes (auth._otp_issue · task 4.2)
     "otp_max_attempts": 5,        # … wrong tries before the code dies (auth._otp_verify)
+    "support_subject_max": 120,   # support ticket subject (chars — task 7.1)
+    "support_body_max": 5000,     # support ticket message (chars)
+    "support_open_max": 5,        # open tickets (open + awaiting_user) per account at once
 }
 
 RATES = {
@@ -62,6 +65,10 @@ RATES = {
     "pwreset_ip": (10, 3600),     # POST /auth/password-reset/request — per client IP (task 5.1a → 4.2)
     "pwreset_email": (3, 3600),   # … per email address (over it: same reply, no email)
     "public_ip": (240, 60),       # every public route (works for a guest) — per client IP, one bucket (task 6 — §54o)
+    "support_create": (10, 3600),        # new support ticket — per account (task 7.1)
+    "support_guest_email": (2, 3600),    # guest ticket (login problems) — per email address
+    "support_guest_ip": (2, 3600),       # … per client IP
+    "support_guest_global": (60, 3600),  # … every guest ticket together (holds even when the IP is forged)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
@@ -84,7 +91,8 @@ def _load_post_tags(path: str = os.path.join(_ROOT, "static", "shared", "tw-opti
 POST_TAGS = _load_post_tags()
 
 # What the pages need (window.TW_LIMITS) — limits only, no rates.
-_CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max")
+_CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max",
+                  "support_subject_max", "support_body_max")
 
 
 def page_block(limit=None) -> str:

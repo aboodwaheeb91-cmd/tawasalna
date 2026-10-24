@@ -209,6 +209,8 @@ from auth import (
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
 from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
+from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
+import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEMS_INDEX §62)
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
@@ -1068,6 +1070,7 @@ def _startup_migrations():
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
+        ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -1370,6 +1373,7 @@ PUBLIC_RATE_EXEMPT = {
         "/appointments", "/appointment-room",
         "/tw-ctrl-" + ADMIN_URL_TOKEN, "/tw-ctrl-" + ADMIN_URL_TOKEN + "/email",
         "/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/content",
+        "/support", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/support",
         "/sitemap.xml", "/robots.txt", "/tw_shared.js", "/sw.js", "/manifest.json", "/theme.css",
         "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png", "/favicon.ico",
         "/static/{filename:path}")},
@@ -2148,6 +2152,13 @@ def admin_settings_page(): return read_html("admin-settings.html")
 # /admin/theme/colors · /admin/news (content.edit — docs/rules/content-admin.md).
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/content", response_class=HTMLResponse)
 def admin_content_page(): return read_html("admin-content.html")
+
+# Support tickets (task 7.1 — docs/rules/support.md): the account's page + the admin inbox.
+@app.get("/support", response_class=HTMLResponse)
+def support_page(): return read_html("support.html")
+
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/support", response_class=HTMLResponse)
+def admin_support_page(): return read_html("admin-support.html")
 
 # ══════════════════════════════════════════
 # Schemas
@@ -4381,6 +4392,259 @@ def admin_settings_update(request: Request, key: str, data: dict = Body(...)):
 def admin_settings_reset(request: Request, key: str):
     """Back to the tw_limits default (the row deleted)."""
     return _settings_write(request, key, lambda actor: tw_settings.reset_value(key, actor))
+
+
+# ══ Support Tickets (task 7.1 · docs/rules/support.md · SYSTEMS_INDEX §62 · ARCHITECTURE §81) ══
+# Not complete until 7.2 (reply by email to the guest) + 7.3. Every rule lives in support.py; here: input
+# check (text only, subject ≤ support_subject_max, message ≤ support_body_max, empty → 422), limits
+# (tw_settings), the gate. Priority is the admin's only — `priority` in a user / guest body → 422.
+# Account: verify_token, own tickets only (any other → 404). Guest (login problems only): _public_rate +
+# the OTP send limits (otp_send_target / otp_send_ip) + support_guest_email / _ip / _global after the code.
+# Admin: check_admin(request, SUPPORT_PERM) first in every endpoint (owner token "*" holds it) — no / bad
+# token → 401 · admin token without it → 403. Audit = admin_audit_middleware (audit_target + audit_change).
+SUPPORT_PERM = "support.manage"
+
+
+def _support_err(e: "support.SupportError") -> JSONResponse:
+    return api_error(e.status, e.code, _tw_text(e.text_key))
+
+
+def _support_text(data: dict, field: str, limit_name: str):
+    """(clean text, None) or (None, 422 response) — str only, trimmed, not empty, within the limit."""
+    v = data.get(field)
+    if v is None:
+        v = ""
+    if not isinstance(v, str):
+        return None, api_error(422, "invalid_value", _tw_text("support.error.invalid_value"), field)
+    v = v.strip()
+    if not v:
+        return None, api_error(422, "required", _tw_text("support.error.required"), field)
+    return v, _too_long(v, limit_name, field)
+
+
+def _support_no_priority(data: dict):
+    if "priority" in data:
+        return api_error(422, "priority_forbidden", _tw_text("support.error.priority_forbidden"), "priority")
+    return None
+
+
+def _support_uid(token) -> int:
+    uid = int(token.get("user_id") or 0)
+    if not uid:
+        raise HTTPException(401, "غير مصرح")
+    return uid
+
+
+def _support_not_found() -> JSONResponse:
+    return api_error(404, "not_found", _tw_text("support.error.not_found"))
+
+
+@app.get("/support/tickets")
+def support_my_tickets(token=Depends(verify_token)):
+    uid = _support_uid(token)
+    try:
+        return api_ok({"items": support.list_user_tickets(uid), "categories": list(support.CATEGORIES),
+                       "open_max": tw_settings.limit("support_open_max")})
+    except Exception as e:
+        raise _server_error("support_my_tickets", e)
+
+
+@app.post("/support/tickets")
+def support_create_ticket(data: dict = Body(...), token=Depends(verify_token)):
+    uid = _support_uid(token)
+    bad = _support_no_priority(data)
+    if bad:
+        return bad
+    category = data.get("category")
+    if category not in support.CATEGORIES:
+        return api_error(422, "invalid_category", _tw_text("support.error.category"), "category")
+    subject, bad = _support_text(data, "subject", "support_subject_max")
+    if bad:
+        return bad
+    body, bad = _support_text(data, "body", "support_body_max")
+    if bad:
+        return bad
+    if not _rate_ok("support_create", uid):
+        return _rate_limited()
+    try:
+        return api_ok(support.create_user_ticket(uid, category, subject, body,
+                                                 tw_settings.limit("support_open_max")), status=201)
+    except support.SupportError as e:
+        return _support_err(e)
+    except Exception as e:
+        raise _server_error("support_create_ticket", e)
+
+
+@app.get("/support/tickets/{public_id}")
+def support_my_ticket(public_id: str, token=Depends(verify_token)):
+    uid = _support_uid(token)
+    try:
+        return api_ok(support.get_user_ticket(public_id, uid))
+    except LookupError:
+        return _support_not_found()
+    except Exception as e:
+        raise _server_error("support_my_ticket", e)
+
+
+@app.post("/support/tickets/{public_id}/messages")
+def support_reply(public_id: str, data: dict = Body(...), token=Depends(verify_token)):
+    uid = _support_uid(token)
+    body, bad = _support_text(data, "body", "support_body_max")
+    if bad:
+        return bad
+    try:
+        return api_ok(support.user_reply(public_id, uid, body, tw_settings.limit("support_open_max")))
+    except LookupError:
+        return _support_not_found()
+    except support.SupportError as e:
+        return _support_err(e)
+    except Exception as e:
+        raise _server_error("support_reply", e)
+
+
+@app.post("/support/tickets/{public_id}/close")
+def support_close(public_id: str, token=Depends(verify_token)):
+    uid = _support_uid(token)
+    try:
+        return api_ok(support.user_close(public_id, uid))
+    except LookupError:
+        return _support_not_found()
+    except Exception as e:
+        raise _server_error("support_close", e)
+
+
+# ── guest (login problems) — step 1: a code to the email · step 2: the code + the ticket ──
+def _support_guest_email(data: dict):
+    email = data.get("email")
+    email = email.strip().lower() if isinstance(email, str) else ""
+    if not email_service.valid_address(email):
+        return None, api_error(422, "invalid_email", _tw_text("support.error.email"), "email")
+    return email, None
+
+
+@app.post("/support/guest/code", dependencies=[Depends(_public_rate)])
+def support_guest_code(request: Request, data: dict = Body(...)):
+    email, bad = _support_guest_email(data)
+    if bad:
+        return bad
+    if not email_service.can_send("support_guest_otp"):   # fail closed — no code without delivery
+        return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
+    # Same send limits as the KYC email code: per normalised address (any account) · per client IP.
+    if not _rate_ok_all([("otp_send_target", f"email:{_otp_norm_target('email', email)}"),
+                         ("otp_send_ip", get_client_ip(request))]):
+        return _otp_rate_limited()
+    try:
+        code = guest_otp_issue(email)
+        res = email_service.send_email(email, "support_guest_otp", {"code": code, "minutes": otp_ttl_minutes()})
+        code = None
+    except Exception as e:
+        raise _server_error("support_guest_code", e)
+    if not res.get("ok"):
+        return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
+    return api_ok({"sent": True, "minutes": otp_ttl_minutes()})
+
+
+@app.post("/support/guest/tickets", dependencies=[Depends(_public_rate)])
+def support_guest_ticket(request: Request, data: dict = Body(...)):
+    bad = _support_no_priority(data)
+    if bad:
+        return bad
+    category = data.get("category", support.GUEST_CATEGORY)
+    if category != support.GUEST_CATEGORY:      # the server decides — a guest writes about login only
+        return api_error(422, "guest_category", _tw_text("support.error.guest_category"), "category")
+    email, bad = _support_guest_email(data)
+    if bad:
+        return bad
+    subject, bad = _support_text(data, "subject", "support_subject_max")
+    if bad:
+        return bad
+    body, bad = _support_text(data, "body", "support_body_max")
+    if bad:
+        return bad
+    code = data.get("code")
+    try:
+        verified = isinstance(code, str) and guest_otp_verify(email, code)
+    except Exception as e:
+        raise _server_error("support_guest_ticket", e)
+    if not verified:
+        return api_error(400, "invalid_code", _tw_text("support.error.code_invalid"), "code")
+    # Per email · per IP · every guest together — one locked step; the email + global caps hold even
+    # when the IP is forged.
+    if not _rate_ok_all([("support_guest_email", email), ("support_guest_ip", get_client_ip(request)),
+                         ("support_guest_global", "all")]):
+        return _rate_limited()
+    try:
+        return api_ok(support.create_guest_ticket(email, subject, body), status=201)
+    except Exception as e:
+        raise _server_error("support_guest_ticket", e)
+
+
+# ── admin inbox (support.manage) ──
+def _support_audit(request: Request, public_id: str, old, new) -> None:
+    def fmt(v):
+        return ";".join(f"{k}={v[k]}" for k in sorted(v)) if isinstance(v, dict) else f"status={v}"
+    request.state.audit_target = f"ticket={public_id}"
+    request.state.audit_change = (fmt(old), fmt(new))
+
+
+@app.get("/admin/support/tickets")
+def admin_support_list(request: Request, status: str = "", category: str = "", priority: str = "",
+                       page: int = 1, limit: int = 20):
+    check_admin(request, SUPPORT_PERM)
+    try:
+        out = support.admin_list(status, category, priority, page, limit)
+    except support.SupportError as e:
+        return _support_err(e)
+    except Exception as e:
+        raise _server_error("admin_support_list", e)
+    out.update(statuses=list(support.STATUSES), categories=list(support.CATEGORIES),
+               priorities=list(support.PRIORITIES))
+    return api_ok(out)
+
+
+@app.get("/admin/support/tickets/{public_id}")
+def admin_support_get(request: Request, public_id: str):
+    check_admin(request, SUPPORT_PERM)
+    try:
+        return api_ok(support.admin_get(public_id))
+    except LookupError:
+        return _support_not_found()
+    except Exception as e:
+        raise _server_error("admin_support_get", e)
+
+
+@app.post("/admin/support/tickets/{public_id}/messages")
+def admin_support_reply(request: Request, public_id: str, data: dict = Body(...)):
+    request.state.audit_target = f"ticket={public_id}"   # a refused request (401 / 403) names the ticket too
+    claims = check_admin(request, SUPPORT_PERM)
+    body, bad = _support_text(data, "body", "support_body_max")
+    if bad:
+        return bad
+    try:
+        old, new = support.admin_reply(public_id, str(claims.get("sub") or "-"), body)
+    except LookupError:
+        return _support_not_found()
+    except Exception as e:
+        raise _server_error("admin_support_reply", e)
+    _support_audit(request, public_id, old, new)
+    return api_ok({"public_id": public_id, "status": new})
+
+
+@app.put("/admin/support/tickets/{public_id}")
+def admin_support_update(request: Request, public_id: str, data: dict = Body(...)):
+    """{status?, priority?} — the only writer of priority."""
+    request.state.audit_target = f"ticket={public_id}"
+    check_admin(request, SUPPORT_PERM)
+    try:
+        old, new = support.admin_update(public_id, data.get("status"), data.get("priority"))
+    except LookupError:
+        return _support_not_found()
+    except support.SupportError as e:
+        return _support_err(e)
+    except Exception as e:
+        raise _server_error("admin_support_update", e)
+    _support_audit(request, public_id, old, new)
+    return api_ok({"public_id": public_id, **new})
 
 
 # ── Notification email preferences — the signed-in user's own (task 5.1c) ──

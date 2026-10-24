@@ -9,7 +9,7 @@ The ONE way the code reads an admin-editable limit / rate and the ONE writer of 
   rate(name)    → RATES (hits, window seconds) — same rule
   value(key)    → one registry setting's current value (admin value or the default)
   is_security(key) → a security setting (4.2: login locks · OTP / password reset · OTP send 4.3 · rate store · IP cache ·
-                  page sizes · dedup windows · public routes per IP 6) — own page section + typed-word confirm + audit "<route>_security"
+                  page sizes · dedup windows · public routes per IP 6 · guest support tickets 7.1) — own page section + typed-word confirm + audit "<route>_security"
   set_value / reset_value → write path (PUT / POST /admin/settings/{key}); cache updated at once
   reload()      → DB → in-memory cache (startup + every CACHE_TTL_S by server.py's refresh loop).
                   DB failure → defaults + the error logged (the site keeps running, F9).
@@ -118,10 +118,22 @@ _DEFS = (
     # Minimum keeps a normal page load (≈ 8 calls) working behind a shared IP; maximum keeps it a limit.
     _sec_rate("public_ip", 0,        60,   2000, "sec_public"),
     _sec_rate("public_ip", 1,        10,    600, "sec_public"),
+    # Support tickets (task 7.1 — docs/rules/support.md). Signed-in account: open tickets at once + new
+    # tickets per window. Guest (login problems only): per email · per IP · all guests together — the
+    # email + global caps hold even when the client IP is forged.
+    _limit("support_open_max",     1,     20, "support", "count"),
+    _rate("support_create", 0,     1,     50, "support"),
+    _rate("support_create", 1,   600,  86400, "support"),
+    _sec_rate("support_guest_email", 0,   1,     10, "sec_support"),
+    _sec_rate("support_guest_email", 1, 600,  86400, "sec_support"),
+    _sec_rate("support_guest_ip", 0,      1,     20, "sec_support"),
+    _sec_rate("support_guest_ip", 1,    600,  86400, "sec_support"),
+    _sec_rate("support_guest_global", 0, 10,   1000, "sec_support"),
+    _sec_rate("support_guest_global", 1, 600, 86400, "sec_support"),
 )
 
-GROUPS = ("messages", "posts", "comments", "reports", "admin",
-          "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup", "sec_public")
+GROUPS = ("messages", "posts", "comments", "reports", "admin", "support",
+          "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup", "sec_public", "sec_support")
 
 
 def _build(defs) -> dict:

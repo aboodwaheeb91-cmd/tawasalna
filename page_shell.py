@@ -54,6 +54,11 @@ PAGE_ASSETS = {
     "admin-content.js": os.path.join("static", "admin-content", "admin-content.js"),     # phase 5b — content page
     "tw-news-banner.js": os.path.join("static", "shared", "tw-news-banner.js"),          # phase 5b — news banner
     "tw-options-data.js": os.path.join("static", "shared", "tw-options-data.js"),
+    # Support tickets (task 7.1 — docs/rules/support.md)
+    "support-form.js": os.path.join("static", "support", "support-form.js"),
+    "support.css": os.path.join("static", "support", "support.css"),
+    "support.js": os.path.join("static", "support", "support.js"),
+    "admin-support.js": os.path.join("static", "admin-support", "admin-support.js"),
 }
 
 _PAGE_PLACEHOLDER = re.compile(r"\{\{v:([^}]*)\}\}")
