@@ -13106,6 +13106,8 @@ A row exists only while the value differs from the default (a save of the defaul
 
 **4.3 — KYC OTP send (group `sec_otp`, `security: true`, same `_sec_rate` as 4.2):** `otp_send_user` 1–10 / 3 600–86 400 (default 5 / 3 600) · `otp_send_target` 1–10 / 3 600–86 400 (5 / 3 600) · `otp_send_ip` 1–30 / 3 600–86 400 (10 / 3 600). Worst case per target: 10 codes / hour × `otp_max_attempts` at its max (10) = 2 400 guesses / day of 10^6 codes (≈ 0.24 %).
 
+**6 — public routes (group `sec_public`, `security: true`):** `public_ip` 60–2 000 / 10–600 (default 240 / 60) — §80.
+
 **4.1 list (approved in the PR):** see SYSTEMS_INDEX §25g — LIMITS: `message_max` 500–10 000 · `post_body_max` 500–10 000 · `post_tags_max` 1–10 · `report_reason_max` 200–5 000 · `report_url_max` 200–2 048 · `suspend_reason_max` 100–2 000; RATES (hits / window s): `message_send` 5–300 / 10–600 · `post_create` 1–50 / 60–3 600 · `post_edit` 1–100 / 60–3 600 · `post_appreciate` · `post_save` 1–60 / 5–300 · `comment_create` · `comment_edit` 1–60 / 10–600 · `mention_search` 10–120 (4.1a) / 10–600 · `report_submit` 1–50 / 300–86 400 · `block_set` 1–100 / 60–86 400.
 
 ---
@@ -13134,3 +13136,24 @@ Test: `python -m pytest tests/test_content_admin_5a.py -q`.
 **News banner** `static/shared/tw-news-banner.js` (page asset on `landing.html` + `home-v2.html`, host `<div data-tw-news-banner hidden>`; precached in `sw.js` for the landing fallback): `twApi('/news/banner', {auth:false})` → `null` / failed → nothing shown, nothing logged · title + summary via `textContent` only · link via `twSafeLinkUrl` (`target=_blank`, `rel="noopener noreferrer"`) · close → `localStorage.tw_news_banner_closed = <id>` (try/catch) → that id is not shown again, a newer id is. Styles `.tw-news-banner*` in `tw_shared.css` (tokens only).
 
 Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_banner_runtime.js` · `python -m pytest tests/test_content_admin_5a.py -q` (defaults · `active_now`).
+
+---
+
+## §80 — Public Rate Limit (task 6 — HTTP only)
+
+**Rule:** every HTTP route that works for a guest (no auth, **or optional auth** — e.g. `/profile/{id}/score`, `/company/profile/{id}`) carries `dependencies=[Depends(_public_rate)]`, or is listed in `server.PUBLIC_RATE_EXEMPT` with its reason. `tests/test_public_rate_limit.py` walks `app.routes`: a route without `verify_token` and without a body guard (`check_admin` · `SCHEDULER_SECRET` · `_settings_write`) that has neither → CI fails. WebSocket before auth is out of scope (AUD-P2-19).
+
+**Limited (one bucket `public_ip:{ip}`):** `GET /news/banner` · `/jobs` · `/jobs/{id}` · `/company/profile/{id}` · `/company/branches/{id}` · `/company/{id}/ratings` · `/company/posts/{id}` · `/company/posts/{id}/comments` · `POST /company/posts/{id}/view` · `GET /profile/{id}` · `/profile/{id}/score` · `/metrics` · `/follow` · `/followers` · `/following` · `/professions` · `/skills/catalog` · `/stats` · `/admin/logo` (GET — public logo) · **HTML:** `/u/{tw_id}` + the legacy routes (`/profile`, `/company-profile`, … — `?id=` → DB lookup).
+
+**Exempt (`PUBLIC_RATE_EXEMPT`, reason per path):** static pages / files from memory (`/`, `/login`, `/home`, `/static/*`, `/tw_shared.js`, `/sw.js`, `/theme.css`, icons, `robots.txt`, `sitemap.xml`, admin shell pages …) · `/u` (always 404) · `/health` · `/ping` · `/log/error` (own bucket) · `_RATE_LIMITED_PATHS` guest routes (`/auth/register` · `/auth/login` · `/auth/password-reset/{request,confirm}` · `/auth/email-change/confirm` · `<panel>/login`) — their limits (20 / min `ip:` + login locks + `pwreset_*` + `sec_otp`) are not repeated.
+
+**Value:** `RATES["public_ip"] = (240, 60)` — 240 requests / 60 s per client IP (a `/u/{tw_id}` page load ≈ 8 calls → ≈ 30 pages / min, room for shared IPs / CGNAT). Read per request via `tw_settings.rate("public_ip")` — admin-editable, `security: true`, group `sec_public`: `public_ip_hits` 60–2 000 · `public_ip_window_s` 10–600 (`settings.edit` + typed-word confirm + audit `admin_settings_*_security`, §78). Applies at once.
+
+**IP:** `get_client_ip(request)` only (§52 — `CLIENT_IP_SOURCE=x_real_ip` on Railway). No other header read.
+
+**Store:** the shared `_rate_store` / `_rate_lock` via `_rate_hit_retry(key, limit, window)` — the one locked step of `_rate_hit` (which now wraps it), returning 0 (allowed, counted) or the seconds until the next hit passes. Kind `public_ip` is evictable (not `_RATE_NO_EVICT`): a botnet flood keeps memory capped at `mem_store_max_keys` per kind without touching login locks. A refused request is not counted.
+
+**Over the limit → 429 + `Retry-After: <s>`** (`PublicRateLimited` → `public_rate_limited_handler`): API route → `{ok:false, error:{code:"rate_limited", message}}` (`_rate_limited()`, twT `limits.rate_limited`) · HTML route (`response_class` = `HTMLResponse`) → a small `lang="ar" dir="rtl"` page with the same twT text (escaped), `noindex`.
+
+❌ a second store / limiter for public routes · ❌ a guest route without `_public_rate` or an exempt reason · ❌ reading `X-Forwarded-For` / `X-Real-IP` here · ❌ `_public_rate` on a `_RATE_LIMITED_PATHS` route or `/log/error` (double count). Test: `python -m pytest tests/test_public_rate_limit.py -q`.
+

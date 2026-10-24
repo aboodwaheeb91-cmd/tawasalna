@@ -167,7 +167,7 @@ def test_db_failure_falls_back_to_defaults(monkeypatch):
 # ── registry ──
 def test_registry_is_an_allowlist():
     security_only = re.compile(r"^(login_|mem_store_|ip_country_cache_|otp|pwreset|view_count|report_repeat|"
-                               r"comments_page|mention_limit_max|blocks_page_max)")   # task 4.2 → security=True
+                               r"comments_page|mention_limit_max|blocks_page_max|public_ip)")   # task 4.2 → security=True · public_ip: task 6 — §54o
     for key, d in tw_settings.REGISTRY.items():
         src = d["source"]
         assert src[0] in ("LIMITS", "RATES") and not src[1].startswith("password_"), key   # bcrypt cut: never

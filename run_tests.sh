@@ -128,6 +128,7 @@ PY_DB=(
   pytest:test_input_limits_50h.py     # task 5.0h — input / flood limits: messages · posts · reports · mention search · comment pages
   pytest:test_input_limits_50h2.py    # task 5.0h-2 — message rate · view dedupe · password bytes · login lock IP + email · bounded stores · scheduler unlock
   pytest:test_otp_send_limits_43.py   # task 4.3 — KYC OTP send limits (account · target · IP) + single-instance warning
+  pytest:test_public_rate_limit.py   # task 6 — public routes per-IP limit (429 + Retry-After · HTML vs JSON · exempt · structure · settings)
   pytest:test_rate_store_54d.py       # task 5.4d — _rate_store: one capped section per kind · login locks never evict other counters · no sort per request
   pytest:test_privacy_boundary_http.py  # task 5.0e — privacy boundary groups A–F + H, in-process (no live server)
   pytest:test_scheduler_reliable_63.py  # task 6.3 — internal loop · advisory lock · stale reset · email retry · /health scheduler

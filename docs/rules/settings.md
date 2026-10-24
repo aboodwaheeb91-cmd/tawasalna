@@ -24,6 +24,7 @@
    - **`password_max_bytes` ممنوع ينضاف أبداً** — حد bcrypt (72 بايت) ثابت. ❌ أي مفتاح سر أو حد ثابت تقنياً.
    - `OTP` و `pwreset` صاروا بـ `tw_limits` (`LIMITS otp_ttl_min` / `otp_max_attempts` · `RATES pwreset_ip` / `pwreset_email`) — الافتراضي ما تغيّر (10 دق · 5 محاولات · 10 / ساعة لكل IP · 3 / ساعة لكل إيميل).
    - **4.3:** حدود إرسال OTP (`otp_send_user` · `otp_send_target` · `otp_send_ip` — عدد + نافذة) بمجموعة `sec_otp` بنفس `_sec_rate` تبع 4.2. النطاقات: المرات 1–10 / 1–10 / 1–30، المدة 3 600–86 400 ث. أسوأ حالة لنفس الوجهة: 10 رموز بالساعة × `otp_max_attempts` بأعلى قيمة (10) = حوالي 2 400 تخمين باليوم من مليون (≈ 0.24%).
+   - **6:** حد الصفحات العامة لكل IP (`public_ip_hits` 60–2 000 · `public_ip_window_s` 10–600، الافتراضي 240 / 60) بمجموعة `sec_public` — يُقرأ بكل طلب عبر `_public_rate` (SYSTEMS_INDEX §54o · ARCHITECTURE §80).
 
 8b. **نسخة وحدة بس (task 4.3):** مخزن الحدود (`_rate_store` — الـ rates · أقفال الدخول · حدود OTP) بالذاكرة، فهو صحيح بس بنسخة وحدة: `Procfile` عملية uvicorn وحدة (بدون `--workers`) + Railway replicas = **1**. أكتر من worker أو replica → كل وحدة إلها عدّاداتها → كل حد بيتضاعف. عند التشغيل `WEB_CONCURRENCY` أو `--workers` > 1 → سطر تحذير `⚠️  [rate-store]` بالـ log (ما بيوقّف السيرفر). تعديل الإعداد نفسه بيوصل لكل worker خلال 30 ثانية (القاعدة 4) — بس العدّادات ما بتنشارك. ❌ تست «نسختين بيشاركوا العدّاد». النقل لـ Postgres / Redis اقتراح بس (PR 4.3).
 

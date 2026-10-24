@@ -61,6 +61,7 @@ RATES = {
     "block_set": (20, 3600),      # block / unblock (PUT + DELETE /blocks/{id}) — per account (task 5.4)
     "pwreset_ip": (10, 3600),     # POST /auth/password-reset/request — per client IP (task 5.1a → 4.2)
     "pwreset_email": (3, 3600),   # … per email address (over it: same reply, no email)
+    "public_ip": (240, 60),       # every public route (works for a guest) — per client IP, one bucket (task 6 — §54o)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
