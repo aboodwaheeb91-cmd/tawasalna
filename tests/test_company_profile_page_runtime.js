@@ -114,6 +114,7 @@ function boot(opts) {
   vm.createContext(ctx);
   vm.runInContext(HELPERS + '\nwindow.twEscAttr=twEscAttr;window.twEscHtml=twEscHtml;window.twSafeImageUrl=twSafeImageUrl;window.twSafeLinkUrl=twSafeLinkUrl;', ctx);
   if (opts.icons) vm.runInContext(read('static/shared/tw-icons.js'), ctx, { filename: 'tw-icons.js' });
+  vm.runInContext(read('static/shared/tw-post-card.js'), ctx, { filename: 'tw-post-card.js' });   // U.2 — card markup
   ['state', 'permissions', 'api', 'render', 'posts'].forEach(m =>
     vm.runInContext(read('static/company/company.' + m + '.js'), ctx, { filename: 'company.' + m + '.js' }));
   ctx._companyProfileIdFromRoute = 123;

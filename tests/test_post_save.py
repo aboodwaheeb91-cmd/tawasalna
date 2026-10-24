@@ -78,19 +78,32 @@ if '_check_save_rate' in server:
 else:
     fail(9, '404 check', 'دالة company_post_set_save غير موجودة')
 
-# 10. company.render.js: saved-state icon = icoBookmarkCheck (filled) — the documented
-#     contract (docs/rules/post-save.md rule 3: icoBookmarkCheck / icoBookmark). The old
-#     name icoBookmarkFilled was renamed; this check was stale (PR 2B).
-if 'icoBookmarkCheck' in render and 'fill="currentColor"' in render:
-    ok(10, 'company.render.js: icoBookmarkCheck موجود ✅')
+# 10 + 11. Save button first render = TwPostCard (task U.2 — behaviour, not source text):
+#     viewer_saved → .save-active + data-saved="1" + filled bookmark-check icon; else outline.
+import subprocess as _sp, json as _json
+_JS = r"""
+const vm = require('vm'), fs = require('fs');
+const c = { twEscAttr: s => String(s == null ? '' : s), twSafeImageUrl: () => '' };
+c.twEscHtml = c.twEscAttr; c.window = c; vm.createContext(c);
+vm.runInContext(fs.readFileSync('static/shared/tw-post-card.js', 'utf8'), c);
+const r = v => c.TwPostCard.html({ id: 1, body: 'x', viewer_saved: v }, { authorName: 'n' });
+const btn = h => h.slice(h.indexOf('pc-btn--save'), h.indexOf('</button>', h.indexOf('pc-btn--save')));
+console.log(JSON.stringify({ on: btn(r(true)), off: btn(r(false)) }));
+"""
+try:
+    _out = _json.loads(_sp.run(['node', '-e', _JS], capture_output=True, text=True, check=True).stdout)
+except Exception as _e:
+    _out = {'on': '', 'off': '', 'err': repr(_e)}
+if 'fill="currentColor"' in _out['on'] and 'M8.5 10' in _out['on'] and 'M8.5 10' not in _out['off']:
+    ok(10, 'TwPostCard: saved → filled bookmark-check icon ✅')
 else:
-    fail(10, 'icoBookmarkCheck', 'غير موجود')
+    fail(10, 'icoBookmarkCheck', _out.get('err', 'saved icon not rendered'))
 
-# 11. company.render.js: save button uses viewer_saved
-if 'viewer_saved' in render and 'save-active' in render and 'data-saved' in render:
-    ok(11, 'company.render.js: save button uses viewer_saved + save-active ✅')
+if 'save-active' in _out['on'] and 'data-saved="1"' in _out['on'] \
+        and 'save-active' not in _out['off'] and 'data-saved="0"' in _out['off']:
+    ok(11, 'TwPostCard: save button follows viewer_saved + save-active ✅')
 else:
-    fail(11, 'viewer_saved in render', f'viewer_saved={("viewer_saved" in render)}, save-active={("save-active" in render)}')
+    fail(11, 'viewer_saved in render', _out.get('err', 'state not reflected'))
 
 # 12. company.posts.js: Desired State Queue vars
 if '_saveDesired' in posts and '_saveInFlight' in posts and '_saveOrigState' in posts:
