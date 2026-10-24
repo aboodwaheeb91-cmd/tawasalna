@@ -130,6 +130,15 @@ _DEFS = (
     _sec_rate("support_guest_ip", 1,    600,  86400, "sec_support"),
     _sec_rate("support_guest_global", 0, 10,   1000, "sec_support"),
     _sec_rate("support_guest_global", 1, 600, 86400, "sec_support"),
+    # Guest follow-up link (task 7.2a): resend per email · per IP · guest replies per ticket · track calls per IP.
+    _sec_rate("support_link_resend_email", 0, 1,    10, "sec_support"),
+    _sec_rate("support_link_resend_email", 1, 600, 86400, "sec_support"),
+    _sec_rate("support_link_resend_ip", 0,    1,    50, "sec_support"),
+    _sec_rate("support_link_resend_ip", 1,  600, 86400, "sec_support"),
+    _sec_rate("support_guest_reply_ticket", 0, 1,  100, "sec_support"),
+    _sec_rate("support_guest_reply_ticket", 1, 600, 86400, "sec_support"),
+    _sec_rate("support_track_ip", 0,         10,   600, "sec_support"),
+    _sec_rate("support_track_ip", 1,         10,   600, "sec_support"),
 )
 
 GROUPS = ("messages", "posts", "comments", "reports", "admin", "support",

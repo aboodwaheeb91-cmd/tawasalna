@@ -560,6 +560,11 @@ async def security_headers(request, call_next):
         if response.headers.get("content-type", "").startswith("text/html") \
                 and not _is_indexable_page(request.url.path):
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        if request.url.path == "/support/track" or request.url.path.startswith("/support/track/"):
+            # guest follow-up link (task 7.2a — ARCHITECTURE §81): page + API, every status
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["X-Robots-Tag"] = "noindex"
     except Exception as e:
         print(f"[security_headers] {request.url.path}: {type(e).__name__}: {e}")
     return response
@@ -1373,7 +1378,7 @@ PUBLIC_RATE_EXEMPT = {
         "/appointments", "/appointment-room",
         "/tw-ctrl-" + ADMIN_URL_TOKEN, "/tw-ctrl-" + ADMIN_URL_TOKEN + "/email",
         "/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/content",
-        "/support", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/support",
+        "/support", "/support/track", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/support",
         "/sitemap.xml", "/robots.txt", "/tw_shared.js", "/sw.js", "/manifest.json", "/theme.css",
         "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png", "/favicon.ico",
         "/static/{filename:path}")},
@@ -2156,6 +2161,10 @@ def admin_content_page(): return read_html("admin-content.html")
 # Support tickets (task 7.1 — docs/rules/support.md): the account's page + the admin inbox.
 @app.get("/support", response_class=HTMLResponse)
 def support_page(): return read_html("support.html")
+
+# Guest follow-up page (task 7.2a) — placeholder until its UI task; headers = security_headers (/support/track).
+@app.get("/support/track", response_class=HTMLResponse)
+def support_track_page(): return read_html("support-track.html")
 
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/support", response_class=HTMLResponse)
 def admin_support_page(): return read_html("admin-support.html")
@@ -4394,8 +4403,8 @@ def admin_settings_reset(request: Request, key: str):
     return _settings_write(request, key, lambda actor: tw_settings.reset_value(key, actor))
 
 
-# ══ Support Tickets (task 7.1 · docs/rules/support.md · SYSTEMS_INDEX §62 · ARCHITECTURE §81) ══
-# Not complete until 7.2 (reply by email to the guest) + 7.3. Every rule lives in support.py; here: input
+# ══ Support Tickets (task 7.1 · 7.2a · docs/rules/support.md · SYSTEMS_INDEX §62 · ARCHITECTURE §81) ══
+# Every rule lives in support.py (statuses = support.transition · details = support.clean_details); here: input
 # check (text only, subject ≤ support_subject_max, message ≤ support_body_max, empty → 422), limits
 # (tw_settings), the gate. Priority is the admin's only — `priority` in a user / guest body → 422.
 # Account: verify_token, own tickets only (any other → 404). Guest (login problems only): _public_rate +
@@ -4406,7 +4415,12 @@ SUPPORT_PERM = "support.manage"
 
 
 def _support_err(e: "support.SupportError") -> JSONResponse:
-    return api_error(e.status, e.code, _tw_text(e.text_key))
+    return api_error(e.status, e.code, _tw_text(e.text_key), e.field)
+
+
+def _support_extra(category: str, data: dict):
+    """(details, faq_id) checked by support.clean_details / clean_faq — SupportError → 422."""
+    return support.clean_details(category, data.get("details")), support.clean_faq(data.get("faq_id"))
 
 
 def _support_text(data: dict, field: str, limit_name: str):
@@ -4439,6 +4453,12 @@ def _support_not_found() -> JSONResponse:
     return api_error(404, "not_found", _tw_text("support.error.not_found"))
 
 
+@app.get("/support/meta", dependencies=[Depends(_public_rate)])
+def support_meta():
+    """Categories · allowed details fields per category · FAQ ids — lists only (texts = tw_strings)."""
+    return api_ok(support.meta())
+
+
 @app.get("/support/tickets")
 def support_my_tickets(token=Depends(verify_token)):
     uid = _support_uid(token)
@@ -4464,11 +4484,15 @@ def support_create_ticket(data: dict = Body(...), token=Depends(verify_token)):
     body, bad = _support_text(data, "body", "support_body_max")
     if bad:
         return bad
+    try:
+        details, faq_id = _support_extra(category, data)
+    except support.SupportError as e:
+        return _support_err(e)
     if not _rate_ok("support_create", uid):
         return _rate_limited()
     try:
         return api_ok(support.create_user_ticket(uid, category, subject, body,
-                                                 tw_settings.limit("support_open_max")), status=201)
+                                                 tw_settings.limit("support_open_max"), details, faq_id), status=201)
     except support.SupportError as e:
         return _support_err(e)
     except Exception as e:
@@ -4504,9 +4528,10 @@ def support_reply(public_id: str, data: dict = Body(...), token=Depends(verify_t
 
 @app.post("/support/tickets/{public_id}/close")
 def support_close(public_id: str, token=Depends(verify_token)):
+    """«انحلّت» → resolved (path kept from 7.1)."""
     uid = _support_uid(token)
     try:
-        return api_ok(support.user_close(public_id, uid))
+        return api_ok(support.user_resolve(public_id, uid))
     except LookupError:
         return _support_not_found()
     except Exception as e:
@@ -4561,6 +4586,10 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
     body, bad = _support_text(data, "body", "support_body_max")
     if bad:
         return bad
+    try:
+        details, faq_id = _support_extra(support.GUEST_CATEGORY, data)
+    except support.SupportError as e:
+        return _support_err(e)
     code = data.get("code")
     try:
         verified = isinstance(code, str) and guest_otp_verify(email, code)
@@ -4574,9 +4603,90 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
                          ("support_guest_global", "all")]):
         return _rate_limited()
     try:
-        return api_ok(support.create_guest_ticket(email, subject, body), status=201)
+        out = support.create_guest_ticket(email, subject, body, details, faq_id)
     except Exception as e:
         raise _server_error("support_guest_ticket", e)
+    # The follow-up link goes by email only — the reply carries the H number, never the link.
+    _support_send_links(email, [(out["public_id"], out.pop("token"))])
+    return api_ok({"public_id": out["public_id"]}, status=201)
+
+
+# ── guest follow-up link (task 7.2a — ARCHITECTURE §81 → guest link security) ──
+# Token in the body only (POST, never a query string) · wrong / expired / revoked / not a guest ticket →
+# one 404 · support_track_ip on every call + _public_rate · reply: support_guest_reply_ticket per ticket.
+# Headers (no-store · no-referrer · noindex) = security_headers on every /support/track path.
+def _support_send_links(email: str, links) -> None:
+    """One support_guest_link email per ticket (H number + link). Never logs the token or the address."""
+    site = email_service.get_settings()["site_url"]
+    for public_id, token in links:
+        email_service.send_email(email, "support_guest_link",
+                                 {"ticket": public_id, "link": support.track_link(site, token)})
+
+
+def _support_resend_send(email: str) -> None:
+    try:
+        _support_send_links(email, support.guest_resend(email))
+    except Exception as e:
+        print(f"[support] link resend failed: {type(e).__name__}")
+
+
+def _support_track_not_found() -> JSONResponse:
+    return api_error(404, "not_found", _tw_text("support.error.track_not_found"))
+
+
+def _support_track(request: Request, fn):
+    if not _rate_ok("support_track_ip", get_client_ip(request)):
+        return _rate_limited()
+    try:
+        return api_ok(fn())
+    except LookupError:
+        return _support_track_not_found()
+    except support.SupportError as e:
+        return _support_err(e)
+
+
+@app.post("/support/track/view", dependencies=[Depends(_public_rate)])
+def support_track_view(request: Request, data: dict = Body(...)):
+    try:
+        return _support_track(request, lambda: support.guest_view(data.get("token")))
+    except Exception as e:
+        raise _server_error("support_track_view", e)
+
+
+@app.post("/support/track/reply", dependencies=[Depends(_public_rate)])
+def support_track_reply(request: Request, data: dict = Body(...)):
+    bad = _support_no_priority(data)
+    if bad:
+        return bad
+    body, bad = _support_text(data, "body", "support_body_max")
+    if bad:
+        return bad
+    try:
+        return _support_track(request, lambda: support.guest_reply(
+            data.get("token"), body, allow=lambda pid: _rate_ok("support_guest_reply_ticket", pid)))
+    except Exception as e:
+        raise _server_error("support_track_reply", e)
+
+
+@app.post("/support/track/resolve", dependencies=[Depends(_public_rate)])
+def support_track_resolve(request: Request, data: dict = Body(...)):
+    try:
+        return _support_track(request, lambda: support.guest_resolve(data.get("token")))
+    except Exception as e:
+        raise _server_error("support_track_resolve", e)
+
+
+@app.post("/support/track/resend", dependencies=[Depends(_public_rate)])
+def support_track_resend(request: Request, background_tasks: BackgroundTasks, data: dict = Body(...)):
+    """{email} → always the same reply. Lookup + new links + emails run after the reply (timing says
+    nothing). Over the per-email rate → same reply, no email (like pwreset_email)."""
+    if not _rate_ok("support_link_resend_ip", get_client_ip(request)):
+        return _rate_limited()
+    email = data.get("email") if isinstance(data, dict) else None
+    email = email.strip().lower() if isinstance(email, str) else ""
+    if email_service.valid_address(email) and _rate_ok("support_link_resend_email", email):
+        background_tasks.add_task(_support_resend_send, email)
+    return api_ok({"sent": True})
 
 
 # ── admin inbox (support.manage) ──
@@ -4589,17 +4699,28 @@ def _support_audit(request: Request, public_id: str, old, new) -> None:
 
 @app.get("/admin/support/tickets")
 def admin_support_list(request: Request, status: str = "", category: str = "", priority: str = "",
-                       page: int = 1, limit: int = 20):
+                       page: int = 1, limit: int = 20, requester: str = "", q: str = "", sort: str = ""):
     check_admin(request, SUPPORT_PERM)
     try:
-        out = support.admin_list(status, category, priority, page, limit)
+        out = support.admin_list(status, category, priority, page, limit, requester, q, sort)
     except support.SupportError as e:
         return _support_err(e)
     except Exception as e:
         raise _server_error("admin_support_list", e)
     out.update(statuses=list(support.STATUSES), categories=list(support.CATEGORIES),
-               priorities=list(support.PRIORITIES))
+               priorities=list(support.PRIORITIES), sorts=list(support.ADMIN_SORTS),
+               requesters=list(support.REQUESTERS), next_statuses=list(support.ADMIN_REPLY_STATUSES))
     return api_ok(out)
+
+
+@app.get("/admin/support/counts")
+def admin_support_counts(request: Request):
+    """{new} — tickets nobody has answered yet (status new)."""
+    check_admin(request, SUPPORT_PERM)
+    try:
+        return api_ok({"new": support.admin_count_new()})
+    except Exception as e:
+        raise _server_error("admin_support_counts", e)
 
 
 @app.get("/admin/support/tickets/{public_id}")
@@ -4621,9 +4742,11 @@ def admin_support_reply(request: Request, public_id: str, data: dict = Body(...)
     if bad:
         return bad
     try:
-        old, new = support.admin_reply(public_id, str(claims.get("sub") or "-"), body)
+        old, new = support.admin_reply(public_id, str(claims.get("sub") or "-"), body, data.get("next_status"))
     except LookupError:
         return _support_not_found()
+    except support.SupportError as e:
+        return _support_err(e)
     except Exception as e:
         raise _server_error("admin_support_reply", e)
     _support_audit(request, public_id, old, new)
@@ -4632,11 +4755,11 @@ def admin_support_reply(request: Request, public_id: str, data: dict = Body(...)
 
 @app.put("/admin/support/tickets/{public_id}")
 def admin_support_update(request: Request, public_id: str, data: dict = Body(...)):
-    """{status?, priority?} — the only writer of priority."""
+    """{status?, priority?, category?} — the only writer of priority and of a category change."""
     request.state.audit_target = f"ticket={public_id}"
     check_admin(request, SUPPORT_PERM)
     try:
-        old, new = support.admin_update(public_id, data.get("status"), data.get("priority"))
+        old, new = support.admin_update(public_id, data.get("status"), data.get("priority"), data.get("category"))
     except LookupError:
         return _support_not_found()
     except support.SupportError as e:
