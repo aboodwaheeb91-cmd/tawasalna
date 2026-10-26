@@ -4616,9 +4616,11 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
     return api_ok({"public_id": out["public_id"]}, status=201)
 
 
-# ── guest follow-up link (task 7.2a — ARCHITECTURE §81 → guest link security) ──
+# ── guest follow-up link (task 7.2a · 7.4 — ARCHITECTURE §81 → guest link security) ──
 # Token in the body only (POST, never a query string) · wrong / expired / revoked / not a guest ticket →
 # one 404 · support_track_ip on every call + _public_rate · reply: support_guest_reply_ticket per ticket.
+# 7.4: the link names the ticket only — view {token} → {ticket, masked email}. Reading / replying / resolving
+# needs {session} from /support/track/verify (OTP to the stored guest_email) — wrong / expired / revoked → one 401.
 # Headers (no-store · no-referrer · noindex) = security_headers on every /support/track path.
 def _support_reply_to(ticket_id=None, public_id=None):
     """Reply-To of a support email (7.3): support+<new token>@ — a reply lands on the same ticket.
@@ -4651,6 +4653,10 @@ def _support_track_not_found() -> JSONResponse:
     return api_error(404, "not_found", _tw_text("support.error.track_not_found"))
 
 
+def _support_track_session_error() -> JSONResponse:
+    return api_error(401, "session_required", _tw_text("support.error.track_session"))
+
+
 def _support_track(request: Request, fn):
     if not _rate_ok("support_track_ip", get_client_ip(request)):
         return _rate_limited()
@@ -4658,16 +4664,79 @@ def _support_track(request: Request, fn):
         return api_ok(fn())
     except LookupError:
         return _support_track_not_found()
+    except support.GuestSessionError:
+        return _support_track_session_error()
     except support.SupportError as e:
         return _support_err(e)
 
 
 @app.post("/support/track/view", dependencies=[Depends(_public_rate)])
 def support_track_view(request: Request, data: dict = Body(...)):
+    """{session} → the conversation · {token} (no session) → {ticket, email (masked), verified: false} only."""
     try:
-        return _support_track(request, lambda: support.guest_view(data.get("token")))
+        if "session" in data:
+            return _support_track(request, lambda: support.guest_view(data.get("session")))
+        return _support_track(request, lambda: support.guest_link_info(data.get("token")))
     except Exception as e:
         raise _server_error("support_track_view", e)
+
+
+def _support_track_code_send(token) -> None:
+    """After the reply (timing says nothing): a valid link → a code to its stored guest_email. The per-ticket
+    cooldown + the KYC per-address limit → silently nothing. Never logs the address, the code or the token."""
+    try:
+        owner = support.guest_link_owner(token)
+    except LookupError:
+        return
+    except Exception as e:
+        print(f"[support] track code lookup failed: {type(e).__name__}")
+        return
+    email = owner["email"]
+    if not _rate_ok_all([("support_track_code_ticket", owner["ticket_id"]),
+                         ("otp_send_target", f"email:{_otp_norm_target('email', email)}")]):
+        return
+    try:
+        code = guest_otp_issue(email)
+        email_service.send_email(email, "support_guest_otp", {"code": code, "minutes": otp_ttl_minutes()})
+        code = None
+    except Exception as e:
+        print(f"[support] track code failed: {type(e).__name__}")
+
+
+@app.post("/support/track/code", dependencies=[Depends(_public_rate)])
+def support_track_code(request: Request, background_tasks: BackgroundTasks, data: dict = Body(...)):
+    """{token} → always the same reply (the address comes from the ticket — never from the client)."""
+    ip = get_client_ip(request)
+    if not _rate_ok("support_track_ip", ip):
+        return _rate_limited()
+    if not email_service.can_send("support_guest_otp"):
+        return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
+    if not _rate_ok("otp_send_ip", ip):
+        return _otp_rate_limited()
+    background_tasks.add_task(_support_track_code_send, data.get("token"))
+    return api_ok({"sent": True, "minutes": otp_ttl_minutes()})
+
+
+@app.post("/support/track/verify", dependencies=[Depends(_public_rate)])
+def support_track_verify(request: Request, data: dict = Body(...)):
+    """{token, code} → {session} (GUEST_SESSION_HOURS, fixed). Wrong code → 422 (attempts = the OTP rules)."""
+    if not _rate_ok("support_track_ip", get_client_ip(request)):
+        return _rate_limited()
+    token, code = data.get("token"), data.get("code")
+    try:
+        try:
+            owner = support.guest_link_owner(token)
+        except LookupError:
+            return _support_track_not_found()
+        if not (isinstance(code, str) and guest_otp_verify(owner["email"], code)):
+            return api_error(422, "invalid_code", _tw_text("support.error.code_invalid"), "code")
+        try:
+            session = support.open_guest_session(token)
+        except LookupError:
+            return _support_track_not_found()
+        return api_ok({"session": session, "expires_in": support.GUEST_SESSION_HOURS * 3600})
+    except Exception as e:
+        raise _server_error("support_track_verify", e)
 
 
 @app.post("/support/track/reply", dependencies=[Depends(_public_rate)])
@@ -4680,7 +4749,7 @@ def support_track_reply(request: Request, data: dict = Body(...)):
         return bad
     try:
         return _support_track(request, lambda: support.guest_reply(
-            data.get("token"), body, allow=lambda pid: _rate_ok("support_guest_reply_ticket", pid)))
+            data.get("session"), body, allow=lambda pid: _rate_ok("support_guest_reply_ticket", pid)))
     except Exception as e:
         raise _server_error("support_track_reply", e)
 
@@ -4688,7 +4757,7 @@ def support_track_reply(request: Request, data: dict = Body(...)):
 @app.post("/support/track/resolve", dependencies=[Depends(_public_rate)])
 def support_track_resolve(request: Request, data: dict = Body(...)):
     try:
-        return _support_track(request, lambda: support.guest_resolve(data.get("token")))
+        return _support_track(request, lambda: support.guest_resolve(data.get("session")))
     except Exception as e:
         raise _server_error("support_track_resolve", e)
 

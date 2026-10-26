@@ -11,7 +11,10 @@ limits and calls these).
                        body · created_at
   support_guest_otp    guest support code (auth.guest_otp_issue / guest_otp_verify — same OTP rules as KYC)
   support_guest_access guest follow-up link (7.2a): sha256 hex of the token only · expires_at · revoked_at ·
-                       last_used_at — issue_guest_link is the only writer
+                       last_used_at — issue_guest_link is the only writer. The link names the ticket only (7.4)
+  support_guest_sessions guest follow-up session (7.4): after the OTP on the ticket's guest_email — sha256 hex only ·
+                       expires_at = GUEST_SESSION_HOURS fixed (never extended) · revoked_at — a new link revokes them;
+                       view / reply / resolve accept a session only
   support_reply_tokens Reply-To token of the support emails (7.3): support+<token>@ — sha256 hex only,
                        newest REPLY_TOKEN_KEEP per ticket — issue_reply_token is the only writer
   support_inbound_events one row per handled inbound email (7.3): svix_id UNIQUE · email_id UNIQUE · outcome ·
@@ -19,7 +22,8 @@ limits and calls these).
 
 Rules (enforced here, inside one transaction each):
   - an account sees / replies to / resolves its own tickets only — anything else = LookupError (→ 404);
-    a guest link reaches its own guest ticket only (same 404 for a wrong / expired / revoked token)
+    a guest link names its own guest ticket only (same 404 for a wrong / expired / revoked token) · reading /
+    replying / resolving needs a guest session of that ticket (GuestSessionError → one 401)
   - statuses new → in_review → awaiting_user → resolved — every change through transition()
   - open tickets per account (status ≠ resolved) ≤ open_max — create AND reopen (row lock on users)
   - a reply on a resolved ticket within REOPEN_DAYS of closed_at reopens it (→ in_review), after that →
@@ -106,11 +110,16 @@ FAQ_IDS = {
 _FAQ_ALL = frozenset(f for ids in FAQ_IDS.values() for f in ids)
 
 # ── guest follow-up link ──
-GUEST_LINK_DAYS = 90      # a new link lives this long; each guest reply extends the used one again
+GUEST_LINK_DAYS = 90      # a new link lives this long (never extended — the link authorises nothing, 7.4)
+GUEST_SESSION_HOURS = 24  # a guest session (after the OTP) lives this long, fixed — never extended (7.4)
 GUEST_LINK_KEEP = 3       # active links per ticket (the newest ones) after a new one is issued
 GUEST_RESEND_MAX = 5      # tickets in one resend (newest first)
 TRACK_PATH = "/support/track"
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
+
+
+class GuestSessionError(Exception):
+    """Guest session wrong / expired / revoked / not this ticket (7.4) → server maps to one 401."""
 
 
 class SupportError(Exception):
@@ -178,6 +187,16 @@ SCHEMA_SQL = (
         last_used_at TIMESTAMPTZ NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_support_guest_access_ticket ON support_guest_access (ticket_id, created_at DESC)",
+    # 7.4 — new table only (rls_lockdown covers it).
+    """CREATE TABLE IF NOT EXISTS support_guest_sessions (
+        id         SERIAL PRIMARY KEY,
+        ticket_id  INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE CONSTRAINT support_guest_sessions_hash_chk CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_support_guest_sessions_ticket ON support_guest_sessions (ticket_id)",
     # 7.3 — new tables only (production: docs/migrations/7.3_inbound.sql adds the source column + constraint).
     """CREATE TABLE IF NOT EXISTS support_reply_tokens (
         id         SERIAL PRIMARY KEY,
@@ -509,9 +528,12 @@ def track_link(site_url: str, token: str) -> str:
 def issue_guest_link(ticket_id: int, keep: int = GUEST_LINK_KEEP, conn=None) -> str:
     """The ONLY writer of support_guest_access. Revokes every active link of the ticket except the newest
     keep - 1, then a new one (GUEST_LINK_DAYS) → at most `keep` active (keep=0 / 1 → only the new one).
+    Every guest session of the ticket is revoked too (7.4 — a new link = verify again).
     Returns the plain token (for the email only — only its sha256 hex is stored)."""
     def fn(c):
         c.run("SELECT id FROM support_tickets WHERE id = :t FOR UPDATE", t=ticket_id)
+        c.run("UPDATE support_guest_sessions SET revoked_at = NOW() WHERE ticket_id = :t AND revoked_at IS NULL",
+              t=ticket_id)
         c.run("UPDATE support_guest_access SET revoked_at = NOW() WHERE ticket_id = :t AND revoked_at IS NULL "
               "AND id NOT IN (SELECT id FROM support_guest_access WHERE ticket_id = :t AND revoked_at IS NULL "
               "AND expires_at > NOW() ORDER BY created_at DESC, id DESC LIMIT :k)",
@@ -545,31 +567,78 @@ def create_guest_ticket(email: str, subject: str, body: str, details: dict = Non
     return _tx(fn)
 
 
-def guest_view(token) -> dict:
+def mask_email(email: str) -> str:
+    """a***@gmail.com — the first character of the local part only (7.4: the code screen names the address)."""
+    local, _, domain = (email or "").partition("@")
+    return (local[:1] or "*") + "***@" + domain
+
+
+def guest_link_info(token) -> dict:
+    """The link names its ticket only (7.4): {ticket, email (masked), verified: False} — no subject, status or
+    message. Wrong / expired / revoked → LookupError (one 404)."""
     def fn(conn):
         _, t = _guest_access(conn, token)
+        return {"ticket": t["public_id"], "email": mask_email(t["guest_email"]), "verified": False}
+    return _tx(fn)
+
+
+def guest_link_owner(token) -> dict:
+    """{ticket_id, public_id, email} of a valid link — server only (the code goes to the stored guest_email,
+    never to an address from the client). Never in a reply."""
+    def fn(conn):
+        _, t = _guest_access(conn, token)
+        return {"ticket_id": int(t["id"]), "public_id": t["public_id"], "email": t["guest_email"]}
+    return _tx(fn)
+
+
+def open_guest_session(token) -> str:
+    """After the OTP (server.py): the link is checked again (locked) → a new session for its ticket,
+    GUEST_SESSION_HOURS fixed. Returns the plain session token — only its sha256 hex is stored."""
+    def fn(conn):
+        _, t = _guest_access(conn, token)
+        session = secrets.token_urlsafe(32)
+        conn.run("INSERT INTO support_guest_sessions (ticket_id, token_hash, expires_at) "
+                 "VALUES (:t, :h, NOW() + :n * INTERVAL '1 hour')", t=t["id"], h=_token_hash(session),
+                 n=GUEST_SESSION_HOURS)
+        return session
+    return _tx(fn)
+
+
+def _guest_session(conn, session) -> dict:
+    """The locked guest ticket of a live session — wrong / expired / revoked / not a guest ticket →
+    GuestSessionError (one 401). A link token never passes here (different table)."""
+    if not isinstance(session, str) or not _TOKEN_RE.match(session):
+        raise GuestSessionError("session")
+    rows = conn.run("SELECT " + _TICKET_FIELDS + " FROM support_guest_sessions s "
+                    "JOIN support_tickets t ON t.id = s.ticket_id WHERE s.token_hash = :h AND s.revoked_at IS NULL "
+                    "AND s.expires_at > NOW() AND t.user_id IS NULL FOR UPDATE OF t", h=_token_hash(session))
+    if not rows:
+        raise GuestSessionError("session")
+    return _ticket(rows[0])
+
+
+def guest_view(session) -> dict:
+    def fn(conn):
+        t = _guest_session(conn, session)
         out = _requester_view(t)
+        out["verified"] = True
         out["messages"] = _messages(conn, t["id"], admin=False)
         return out
     return _tx(fn)
 
 
-def guest_reply(token, body: str, allow=None) -> dict:
-    """allow(public_id) → False = the per-ticket rate is full → 429 (nothing written). The used link lives
-    GUEST_LINK_DAYS from now."""
+def guest_reply(session, body: str, allow=None) -> dict:
+    """allow(public_id) → False = the per-ticket rate is full → 429 (nothing written). Nothing is extended."""
     def fn(conn):
-        aid, t = _guest_access(conn, token)
+        t = _guest_session(conn, session)
         if allow is not None and not allow(t["public_id"]):
             raise SupportError(429, "rate_limited", "limits.rate_limited")
-        out = _requester_reply(conn, t, "guest", None, body)
-        conn.run("UPDATE support_guest_access SET expires_at = NOW() + :d * INTERVAL '1 day' WHERE id = :a",
-                 a=aid, d=GUEST_LINK_DAYS)
-        return out
+        return _requester_reply(conn, t, "guest", None, body)
     return _tx(fn)
 
 
-def guest_resolve(token) -> dict:
-    return _tx(lambda conn: _requester_resolve(conn, _guest_access(conn, token)[1]))
+def guest_resolve(session) -> dict:
+    return _tx(lambda conn: _requester_resolve(conn, _guest_session(conn, session)))
 
 
 def guest_resend(email: str) -> list:

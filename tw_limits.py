@@ -75,6 +75,7 @@ RATES = {
     "support_link_resend_ip": (10, 3600),     # … per client IP
     "support_guest_reply_ticket": (20, 3600), # guest reply through the link — per ticket
     "support_track_ip": (60, 60),             # every /support/track API call — per client IP
+    "support_track_code_ticket": (1, 60),     # /support/track/code — resend cooldown per ticket (over it: same reply, no email — 7.4)
     "support_inbound_sender": (3, 3600),      # new ticket from an inbound email — per sender address (over it: ignored, 7.3)
     "support_inbound_global": (100, 3600),    # … every inbound ticket together
 }

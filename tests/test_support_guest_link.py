@@ -1,13 +1,16 @@
 """
-test_support_guest_link.py — task 7.2a: the guest follow-up link (docs/rules/support.md → رابط متابعة الزائر ·
-ARCHITECTURE.md §81 → guest link security).
+test_support_guest_link.py — task 7.2a · 7.4: the guest follow-up link + the guest session after the OTP
+(docs/rules/support.md → رابط متابعة الزائر · ARCHITECTURE.md §81 → guest link security).
 
 Behaviour over HTTP (real PostgreSQL, in-process client):
   1  guest ticket → a support_guest_link email (H number + /support/track#t=<token>) · the reply carries the H
      number only · the DB holds the sha256 hex only (no raw token in the DB or in the server output)
-  2  view / reply / resolve with the token · wrong / expired / revoked → the same 404 · last_used_at ·
-     a reply extends the used link (+90 days) · reopen window 14 days · no internal data (author_id, priority)
+  2  view / reply / resolve with the session · wrong / expired / revoked link → the same 404 · last_used_at ·
+     nothing extends the link · reopen window 14 days · no internal data (author_id, priority)
   3  a link never reaches an account's ticket or another guest's ticket
+  8  (7.4) link without a session → view = H number + masked email only · reply / resolve with the link token →
+     401 · /code sends to the stored guest_email only · verify → a session for its ticket only · expired /
+     revoked session → 401 · resend / a new link revokes the sessions · 24 h fixed
   4  issue_guest_link keep=3 · resend revokes every link + a new one, same reply for a known / unknown email,
      only unresolved / resolved < 14 days, newest 5
   5  limits — support_link_resend_email (silent) · support_link_resend_ip · support_guest_reply_ticket ·
@@ -101,11 +104,40 @@ def _token_of(pid):
 
 
 def _view(token, ip="8.8.4.4"):
+    """The link alone (7.4) — names the ticket only."""
     return client.post("/support/track/view", json={"token": token}, headers={"X-Real-IP": ip})
 
 
-def _reply(token, body="لسا ما زبط", ip="8.8.4.4"):
-    return client.post("/support/track/reply", json={"token": token, "body": body}, headers={"X-Real-IP": ip})
+def _code(token, ip="8.8.4.4"):
+    return client.post("/support/track/code", json={"token": token}, headers={"X-Real-IP": ip})
+
+
+def _verify(token, code, ip="8.8.4.4"):
+    return client.post("/support/track/verify", json={"token": token, "code": code}, headers={"X-Real-IP": ip})
+
+
+def _session(token):
+    """link → /code → the emailed code → /verify → the session (the real flow)."""
+    for k in [k for k in list(srv._rate_store) if k.startswith(("support_track_code", "otp_send"))]:
+        del srv._rate_store[k]
+    SENT.clear()
+    assert _code(token).status_code == 200
+    assert SENT and SENT[-1][1] == "support_guest_otp", SENT
+    r = _verify(token, SENT[-1][2]["code"])
+    assert r.status_code == 200, r.text
+    return r.json()["data"]["session"]
+
+
+def _sview(session, ip="8.8.4.4"):
+    return client.post("/support/track/view", json={"session": session}, headers={"X-Real-IP": ip})
+
+
+def _reply(session, body="لسا ما زبط", ip="8.8.4.4"):
+    return client.post("/support/track/reply", json={"session": session, "body": body}, headers={"X-Real-IP": ip})
+
+
+def _resolve(session):
+    return client.post("/support/track/resolve", json={"session": session}, headers=_IP)
 
 
 def _resend(email, ip="8.8.4.4"):
@@ -132,35 +164,39 @@ def test_ticket_sends_link_hash_only(capsys):
 # ── 2 view / reply / resolve ──
 def test_view_reply_resolve_and_404s():
     email, pid, token = _guest_ticket()
-    r = _view(token)
+    ses = _session(token)
+    r = _sview(ses)
     assert r.status_code == 200
     d = r.json()["data"]
-    assert d["public_id"] == pid and d["status"] == "new" and d["details"] == {"issue": "no_code"}
+    assert d["public_id"] == pid and d["status"] == "new" and d["details"] == {"issue": "no_code"} and d["verified"] is True
     assert "priority" not in d and "legacy_category" not in d and "guest_email" not in d
     assert _sql("SELECT last_used_at IS NOT NULL FROM support_guest_access WHERE token_hash = :h", h=_h(token))[0][0]
     client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "جرّب", "next_status": "awaiting_user"},
                 headers={"X-Admin-Token": srv._admin_jwt_issue(sub="staff:7")})
-    msgs = _view(token).json()["data"]["messages"]
+    token = SENT[-1][2]["link"].split("#t=")[1]                                  # the admin reply = a new link …
+    assert _sview(ses).status_code == 401                                        # … that revoked the session
+    ses = _session(token)
+    msgs = _sview(ses).json()["data"]["messages"]
     assert [m["author_type"] for m in msgs] == ["guest", "admin"] and all("author_id" not in m for m in msgs)
     _sql("UPDATE support_guest_access SET expires_at = NOW() + INTERVAL '1 day' WHERE token_hash = :h", h=_h(token))
-    r = _reply(token)
+    r = _reply(ses)
     assert r.status_code == 200 and r.json()["data"]["status"] == "in_review"
-    assert _sql("SELECT expires_at > NOW() + INTERVAL '89 days' FROM support_guest_access WHERE token_hash = :h",
-                h=_h(token))[0][0] is True                                       # extended +90 days
-    assert client.post("/support/track/resolve", json={"token": token}, headers=_IP).json()["data"]["status"] == "resolved"
+    assert _sql("SELECT expires_at < NOW() + INTERVAL '2 days' FROM support_guest_access WHERE token_hash = :h",
+                h=_h(token))[0][0] is True                                       # a reply extends nothing (7.4)
+    assert _resolve(ses).json()["data"]["status"] == "resolved"
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '15 days' WHERE public_id = :p", p=pid)
-    assert _reply(token).status_code == 409
+    assert _reply(ses).status_code == 409
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '13 days' WHERE public_id = :p", p=pid)
-    assert _reply(token).json()["data"]["reopened"] is True
-    # wrong / expired / revoked / malformed → the same 404
+    assert _reply(ses).json()["data"]["reopened"] is True
+    # wrong / expired / revoked / malformed link → the same 404 (view · code-free verify)
     wrong = _view("A" * 43).json()
     _sql("UPDATE support_guest_access SET expires_at = NOW() - INTERVAL '1 second' WHERE token_hash = :h", h=_h(token))
     expired = _view(token).json()
     _, _, t2 = _guest_ticket()
     _sql("UPDATE support_guest_access SET revoked_at = NOW() WHERE token_hash = :h", h=_h(t2))
     revoked = _view(t2).json()
-    for res in (wrong, expired, revoked, _view("").json(), _view(None).json(), _reply(t2).json(),
-                client.post("/support/track/resolve", json={"token": token}, headers=_IP).json()):
+    for res in (wrong, expired, revoked, _view("").json(), _view(None).json(), _verify(t2, "123456").json(),
+                _verify(token, "123456").json()):
         assert res == wrong and res["error"]["code"] == "not_found"
 
 
@@ -168,7 +204,7 @@ def test_view_reply_resolve_and_404s():
 def test_link_reaches_its_own_guest_ticket_only():
     _, pid_a, token_a = _guest_ticket()
     _, pid_b, _ = _guest_ticket()
-    assert _view(token_a).json()["data"]["public_id"] == pid_a
+    assert _view(token_a).json()["data"]["ticket"] == pid_a
     # a link row pointing at an account's ticket never opens it
     uid, tw = _sql("INSERT INTO users (tw_id, full_name, email, password_hash, user_type) VALUES "
                    "(:t, 'U', :e, 'x', 'emp') RETURNING id, tw_id", t="U" + uuid.uuid4().hex[:10],
@@ -177,9 +213,9 @@ def test_link_reaches_its_own_guest_ticket_only():
     upid = client.post("/support/tickets", json={"category": "jobs", "subject": "s", "body": "b"}, headers=h).json()["data"]["public_id"]
     tid = _sql("SELECT id FROM support_tickets WHERE public_id = :p", p=upid)[0][0]
     tok = support.issue_guest_link(tid)
-    assert _view(tok).status_code == 404 and _reply(tok).status_code == 404
+    assert _view(tok).status_code == 404 and _verify(tok, "123456").status_code == 404
     assert _sql("SELECT COUNT(*) FROM support_messages WHERE ticket_id = :t", t=tid)[0][0] == 1
-    assert pid_b not in str(_view(token_a).json())
+    assert pid_b not in str(_sview(_session(token_a)).json())
 
 
 # ── 4 keep=3 + resend ──
@@ -204,7 +240,7 @@ def test_keep_three_and_resend_revokes_all():
     for t in toks:
         assert _view(t).status_code == 404
     new = {v["ticket"]: v["link"].split("#t=")[1] for _, _, v in SENT}
-    assert _view(new[pid]).json()["data"]["public_id"] == pid
+    assert _view(new[pid]).json()["data"]["ticket"] == pid
     assert _sql("SELECT COUNT(*) FROM support_guest_access WHERE ticket_id = :t AND revoked_at IS NULL", t=tid)[0][0] == 1
 
 
@@ -233,6 +269,7 @@ def test_limits():
         assert _resend(email, ip="1.1.1.1").status_code == 200
     assert len(SENT) == 3
     token = SENT[-1][2]["link"].split("#t=")[1]                                  # the resend revoked the old one
+    ses = _session(token)
     tw_settings._set_overrides({"support_link_resend_ip_hits": 2})
     srv._rate_store.clear()
     assert _resend("a@x.test", ip="2.2.2.2").status_code == 200
@@ -240,10 +277,10 @@ def test_limits():
     assert _resend("c@x.test", ip="2.2.2.2").status_code == 429
     srv._rate_store.clear()
     tw_settings._set_overrides({"support_guest_reply_ticket_hits": 2})
-    assert _reply(token, ip="3.3.3.1").status_code == 200
-    assert _reply(token, ip="3.3.3.2").status_code == 200
+    assert _reply(ses, ip="3.3.3.1").status_code == 200
+    assert _reply(ses, ip="3.3.3.2").status_code == 200
     n = _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id WHERE t.public_id = :p", p=pid)[0][0]
-    r = _reply(token, ip="3.3.3.3")                                              # per ticket — any IP
+    r = _reply(ses, ip="3.3.3.3")                                                # per ticket — any IP
     assert r.status_code == 429
     assert _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id WHERE t.public_id = :p", p=pid)[0][0] == n
     srv._rate_store.clear()
@@ -257,8 +294,8 @@ def test_limits():
 # ── 6 headers ──
 def test_track_headers():
     _, _, token = _guest_ticket()
-    res = [client.get("/support/track"), _view(token), _view("C" * 43), _reply(token, body=""),
-           client.post("/support/track/resolve", json={"token": "x"}, headers=_IP), _resend("q@x.test")]
+    res = [client.get("/support/track"), _view(token), _view("C" * 43), _reply("x", body=""), _resolve("x"),
+           _code(token), _verify(token, "1"), _sview("x"), _resend("q@x.test")]
     assert res[0].status_code == 200 and "text/html" in res[0].headers["content-type"]
     for r in res:
         assert r.headers["Cache-Control"] == "no-store", r.url
@@ -286,3 +323,76 @@ def test_link_type_off_fails_closed(monkeypatch):
     off, unknown = _resend(email), _resend("nobody-" + uuid.uuid4().hex[:6] + "@guest.test")
     assert off.status_code == unknown.status_code == 200 and off.json() == unknown.json()
     assert SENT == [] and _sql("SELECT COUNT(*) FROM support_guest_access")[0][0] == links
+
+
+# ── 8 the link names the ticket — the session (after the OTP) authorises (7.4) ──
+def _link_only_ok(r, pid):
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert d == {"ticket": pid, "email": d["email"], "verified": False}
+    return d
+
+
+def test_link_without_session_names_the_ticket_only():
+    email, pid, token = _guest_ticket()
+    d = _link_only_ok(_view(token), pid)
+    assert d["email"] == email[0] + "***@guest.test" and email not in str(d)
+    for r in (_reply(token), _resolve(token), _sview(token),                      # the link token is not a session
+              client.post("/support/track/reply", json={"token": token, "body": "x"}, headers=_IP),
+              client.post("/support/track/resolve", json={"token": token}, headers=_IP)):
+        assert r.status_code == 401 and r.json()["error"]["code"] == "session_required", r.text
+    assert _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id "
+                "WHERE t.public_id = :p", p=pid)[0][0] == 1
+    assert _sql("SELECT status FROM support_tickets WHERE public_id = :p", p=pid)[0][0] == "new"
+
+
+def test_code_goes_to_the_stored_guest_email_only():
+    email, pid, token = _guest_ticket()
+    srv._rate_store.clear()
+    SENT.clear()
+    r = client.post("/support/track/code", json={"token": token, "email": "attacker@evil.test"}, headers=_IP)
+    assert r.status_code == 200
+    assert [(to, key) for to, key, _ in SENT] == [(email, "support_guest_otp")]
+    # resend cooldown (per ticket) → the same reply, no email
+    again = _code(token, ip="9.9.9.9")
+    assert again.status_code == 200 and again.json() == r.json() and len(SENT) == 1
+    # a wrong link → the same reply, nothing sent
+    assert _code("D" * 43).json() == r.json() and len(SENT) == 1
+    # wrong code → 422 (general text), right code → a session
+    bad = _verify(token, "000000" if SENT[0][2]["code"] != "000000" else "111111")
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_code"
+    ok = _verify(token, SENT[0][2]["code"])
+    assert ok.status_code == 200 and len(ok.json()["data"]["session"]) >= 40
+    assert ok.json()["data"]["session"] not in str(_sql("SELECT * FROM support_guest_sessions"))   # hash only
+
+
+def test_session_opens_its_ticket_only_and_expires():
+    _, pid_a, token_a = _guest_ticket()
+    _, pid_b, token_b = _guest_ticket()
+    ses_a = _session(token_a)
+    assert _sview(ses_a).json()["data"]["public_id"] == pid_a
+    ses_b = _session(token_b)
+    assert _sview(ses_b).json()["data"]["public_id"] == pid_b and pid_b not in str(_sview(ses_a).json())
+    assert _sql("SELECT expires_at BETWEEN NOW() + INTERVAL '23 hours' AND NOW() + INTERVAL '24 hours' "
+                "FROM support_guest_sessions WHERE token_hash = :h", h=_h(ses_a))[0][0] is True
+    _reply(ses_a)
+    assert _sql("SELECT expires_at < NOW() + INTERVAL '24 hours' FROM support_guest_sessions WHERE token_hash = :h",
+                h=_h(ses_a))[0][0] is True                                       # never extended
+    _sql("UPDATE support_guest_sessions SET expires_at = NOW() - INTERVAL '1 second' WHERE token_hash = :h", h=_h(ses_a))
+    for r in (_sview(ses_a), _reply(ses_a), _resolve(ses_a), _sview("E" * 43), _sview(""), _sview(None)):
+        assert r.status_code == 401 and r.json() == _sview("E" * 43).json()
+    assert _sview(ses_b).status_code == 200
+
+
+def test_resend_revokes_the_sessions():
+    email, pid, token = _guest_ticket()
+    ses = _session(token)
+    assert _sview(ses).status_code == 200
+    srv._rate_store.clear()
+    SENT.clear()
+    assert _resend(email).status_code == 200
+    assert _sview(ses).status_code == 401
+    assert _sql("SELECT COUNT(*) FROM support_guest_sessions s JOIN support_tickets t ON t.id = s.ticket_id "
+                "WHERE t.public_id = :p AND s.revoked_at IS NULL", p=pid)[0][0] == 0
+    new = SENT[-1][2]["link"].split("#t=")[1]
+    assert _sview(_session(new)).json()["data"]["public_id"] == pid

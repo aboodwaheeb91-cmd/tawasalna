@@ -13173,7 +13173,7 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 
 
 
-## §81 — Support Tickets (task 7.1 · 7.2a backend · 7.3 inbound mail)
+## §81 — Support Tickets (task 7.1 · 7.2a backend · 7.3 inbound mail · 7.4 guest OTP session)
 
 **Scope:** tickets from the site + the admin inbox, **text only** · 7.2a (backend only): 8 categories + per-category `details` · statuses new / in_review / awaiting_user / resolved · guest follow-up link · admin filters / search / sort / counts / category change. 7.2a UI: see «UI» below. Not yet: attachments. Rules: `docs/rules/support.md` · SYSTEMS_INDEX §62.
 
@@ -13182,6 +13182,7 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 - `support_messages (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, author_type TEXT CHECK IN (user, guest, admin), author_id TEXT NULL, body TEXT CHECK non-blank, created_at)` + `idx_support_messages_ticket`.
 - `support_guest_otp (email TEXT PK, code_hash TEXT, expires_at TIMESTAMPTZ, attempts INT DEFAULT 0, created_at)`.
 - `support_guest_access (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, token_hash TEXT UNIQUE CHECK '^[0-9a-f]{64}$', created_at, expires_at NOT NULL, revoked_at NULL, last_used_at NULL)` + `idx_support_guest_access_ticket (ticket_id, created_at DESC)`.
+- `support_guest_sessions (id SERIAL PK, ticket_id FK support_tickets ON DELETE CASCADE, token_hash TEXT UNIQUE CHECK '^[0-9a-f]{64}$', created_at, expires_at NOT NULL (= created + 24 h, never extended), revoked_at NULL)` + `idx_support_guest_sessions_ticket` (7.4 — startup creates the table only; `rls_lockdown` covers it).
 - **Transition (until stage B):** production constraints accept old + new values (stage A), the default stays `'open'` → the INSERT writes `status = 'new'`. Every read / filter / sort / count goes through `support.normalize_sql()` (open → in_review with an admin message, else new · closed → resolved · other → general); writes store new values only.
 
 **Statuses** (`support.transition` — the only rule): open → `new` · admin reply → `next_status` ∈ awaiting_user / resolved (required, 422) · admin PUT → any · requester reply on new / in_review / awaiting_user → `in_review` · on resolved within `REOPEN_DAYS` (14) of `closed_at` → `in_review` (`reopened`, open max for an account), later → 409 `reopen_expired` · requester «انحلّت» → `resolved`. `closed_at` set on → resolved, cleared on leaving it. `support_open_max` counts status ≠ resolved.
@@ -13201,9 +13202,11 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 | POST | `/support/guest/code` | guest · `_public_rate` | `{email}` → code by email (`support_guest_otp`) · 429 · 503 |
 | POST | `/support/guest/tickets` | guest · `_public_rate` | `{email, code, subject, body, details?, faq_id?}` → 201 `{public_id}` only + `support_guest_link` email · 400 `invalid_code` · 422 · 429 |
 | GET | `/support/track` | guest | follow-up page — token from `#t=`, cleared by `history.replaceState`, sent in the POST body only (7.2a UI) |
-| POST | `/support/track/view` | guest · `_public_rate` · `support_track_ip` | `{token}` → the guest's ticket + messages (no author_id / priority / email) |
-| POST | `/support/track/reply` | guest · `_public_rate` · `support_track_ip` · `support_guest_reply_ticket` | `{token, body}` → `in_review` (reopen rule) · used link +90 days |
-| POST | `/support/track/resolve` | guest · `_public_rate` · `support_track_ip` | `{token}` → `resolved` |
+| POST | `/support/track/view` | guest · `_public_rate` · `support_track_ip` | `{token}` → `{ticket, email (masked), verified:false}` only (7.4) · `{session}` → the guest's ticket + messages (no author_id / priority / email) · bad session 401 |
+| POST | `/support/track/code` | guest · `_public_rate` · `support_track_ip` · `otp_send_ip` (429) · `otp_send_target` + `support_track_code_ticket` (silent) | `{token}` → OTP to the ticket's stored `guest_email` · always `200 {sent, minutes}` · 503 type off (7.4) |
+| POST | `/support/track/verify` | guest · `_public_rate` · `support_track_ip` | `{token, code}` → `{session, expires_in}` (24 h fixed) · 422 `invalid_code` · 404 bad link (7.4) |
+| POST | `/support/track/reply` | guest · `_public_rate` · `support_track_ip` · `support_guest_reply_ticket` | `{session, body}` → `in_review` (reopen rule) · nothing extended · 401 |
+| POST | `/support/track/resolve` | guest · `_public_rate` · `support_track_ip` | `{session}` → `resolved` · 401 |
 | POST | `/support/track/resend` | guest · `_public_rate` · `support_link_resend_ip` (429) · `support_link_resend_email` (silent) | `{email}` → always `200 {sent: true}` |
 | GET | `/admin/support/tickets` | `support.manage` | `?status&category&priority&requester&q&sort&page&limit≤50` · bad value → 422 |
 | GET | `/admin/support/counts` | `support.manage` | `{new}` |
@@ -13215,12 +13218,13 @@ Tests: `node tests/test_admin_shell_runtime.js` (I) · `node tests/test_news_ban
 **Guest follow-up link — security (7.2a):**
 - **Token:** `secrets.token_urlsafe(32)` (256 bits) from `support.issue_guest_link(ticket_id, keep=3)` — the only writer; only `sha256(token)` hex is stored (UNIQUE + CHECK hex-64). The plain token exists in memory for the email only — never in the DB, a log line, an API reply or the audit log.
 - **Delivery:** `{site_url}/support/track#t=<token>` in the `support_guest_link` email (security category, values escaped by `email_service.render`, «لا تشارك هذا الرابط»). The fragment is never sent to a server by the browser (no access-log / Referer leak); the page sends it in a POST body only.
-- **Lifetime:** 90 days from issue; a guest reply sets the used link to now + 90 days. A new link keeps at most `keep` active (`keep - 1` older + the new). `resend` revokes every link of each ticket (`keep=0`) and issues one new.
+- **Lifetime:** 90 days from issue, never extended (7.4 — a reply no longer touches the link). A new link keeps at most `keep` active (`keep - 1` older + the new). `resend` revokes every link of each ticket (`keep=0`) and issues one new.
 - **Lookup:** `token_hash = sha256(token)` AND not revoked AND not expired AND `support_tickets.user_id IS NULL` — anything else → one 404 (`support.error.track_not_found`), same body for wrong / expired / revoked / malformed / account ticket. A malformed token never reaches the DB. `last_used_at` updated on every success.
 - **Enumeration:** `resend` answers `200 {sent: true}` for every address; lookup + new links + emails run after the reply (BackgroundTasks) — the time says nothing either. Over `support_link_resend_email` → same reply, no email.
 - **Limits:** `_public_rate` + `support_track_ip` (60 / min, before the lookup — guessing costs a bucket) · `support_guest_reply_ticket` (20 / h per ticket, whatever the IP) · `support_link_resend_ip` (10 / h) · `support_link_resend_email` (3 / h). Client IP = `get_client_ip()` only.
 - **Headers** (`security_headers` middleware, every `/support/track` path and status): `Cache-Control: no-store` · `Referrer-Policy: no-referrer` · `X-Robots-Tag: noindex`.
-- **What the guest sees:** own ticket fields + messages — never `author_id`, priority, `legacy_category`, the email or another ticket. No automatic link of a guest ticket to an account.
+- **Link ≠ authorisation (7.4):** the link alone → `{ticket, masked email, verified:false}` (`support.guest_link_info`). Content / reply / resolve need a **guest session**: `/support/track/code` (explicit, same reply always) sends the OTP to the ticket's stored `guest_email` (`auth.guest_otp_issue`, template `support_guest_otp`) → `/support/track/verify` (`auth.guest_otp_verify`, same attempt limit) → `support.open_guest_session` (link re-checked under lock, `secrets.token_urlsafe(32)`, sha256 hex stored, 24 h fixed). Lookup = hash AND not revoked AND not expired AND guest ticket → else `support.GuestSessionError` → one 401 `session_required` (the link token is a different table — never accepted). `issue_guest_link` revokes every session of the ticket (resend · admin-reply link) in the same transaction. A forwarded email gives the H number and the masked address only.
+- **What the guest sees (with a session):** own ticket fields + messages — never `author_id`, priority, `legacy_category`, the email or another ticket. No automatic link of a guest ticket to an account.
 
 **Admin gate:** `check_admin(request, SUPPORT_PERM)` first in every admin endpoint: no token / user JWT → 401 · admin token without it → 403. **Audit:** `admin_audit_middleware` — actor · action (`admin_support_reply` / `admin_support_update`) · `target ticket=<public_id>` · `old_value` / `new_value`; never the message text.
 

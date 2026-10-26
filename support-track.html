@@ -4,10 +4,11 @@
 <!--tw:shell-head-->
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<!-- Guest follow-up (task 7.2a واجهة · docs/rules/support.md → رابط متابعة الزائر + الواجهة).
+<!-- Guest follow-up (task 7.2a واجهة · 7.4 · docs/rules/support.md → رابط متابعة الزائر + الواجهة).
      Route /support/track (server.py → support_track_page) · link {site_url}/support/track#t=<token> — the token
-     stays in the fragment, is read once, removed from the address bar (history.replaceState) and sent in the
-     POST body only: /support/track/view · reply · resolve. 404 → one general text + /support/track/resend.
+     stays in the fragment, is read once, removed from the address bar (history.replaceState), kept in
+     sessionStorage and sent in the POST body only. The link names the ticket only (view {token}) → OTP to the
+     ticket's email (/code · /verify) → {session} → view · reply · resolve. 404 → one general text + /support/track/resend.
      Headers no-store · no-referrer · noindex (security_headers) + the metas above.
      Logic: static/support/support-form.js (shared pieces) + static/support/support-track.js. -->
 <link rel="stylesheet" href="/static/app-header.css">
