@@ -6653,11 +6653,21 @@ check(
     "178-14. reschedule_appointment: schedules appointment_deadline_expire",
     'appointment_deadline_expire' in _resched178 and 'schedule_job' in _resched178
 )
+def _addjob_reminder_after_conn():
+    # task 8.0 — structure (ast): the reminder call sits after the `with db_conn()` block, not inside it.
+    # Behaviour (scheduled only after COMMIT) — tests/test_add_job_transaction.py.
+    import ast as _ast
+    fn = next(n for n in _ast.parse(_auth178).body
+              if isinstance(n, _ast.FunctionDef) and n.name == 'add_job')
+    with_idx = [i for i, n in enumerate(fn.body) if isinstance(n, _ast.With)]
+    call_idx = [i for i, n in enumerate(fn.body)
+                if any(isinstance(c, _ast.Call) and getattr(c.func, 'id', '') == 'schedule_job_expiry_reminder'
+                       for c in _ast.walk(n))]
+    return bool(with_idx) and bool(call_idx) and min(call_idx) > max(with_idx) \
+        and isinstance(fn.body[-1], _ast.Return)
 check(
-    "178-15. add_job: schedules job_expiring_soon after conn release (return moved outside try)",
-    'schedule_job' in _addjob178 and 'job_expiring_soon' in _addjob178
-    and 'return result' in _addjob178
-    and _addjob178.index('return result') > _addjob178.index('release_conn')
+    "178-15. add_job: schedules job_expiring_soon after the conn block (outside the transaction)",
+    _addjob_reminder_after_conn()
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
