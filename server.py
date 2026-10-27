@@ -822,12 +822,18 @@ def _login_fail(email: str, ip: str) -> None:
         _rate_count(f"{name}:{who}")
 
 
-def _login_email_reset(email: str, ip: str = None) -> None:
+def _login_email_reset(email: str, ip: str = None, every_ip: bool = False) -> None:
+    """Clears the email bucket + the pair bucket of ip. every_ip (password reset — task 7.5b) → the pair
+    bucket of this email from EVERY IP too. The IP bucket (login_ip) is never cleared here."""
     who = _login_lock_who(email, ip or "")
     with _rate_lock:
         _rate_store.pop("login_email:" + who["login_email"], None)
         if ip:
             _rate_store.pop("login_ip_email:" + who["login_ip_email"], None)
+        if every_ip:
+            sec = _rate_store.section("login_ip_email")
+            for key in [k for k in (sec or ()) if k.split(":", 1)[1].partition("|")[2] == who["login_email"]]:
+                del _rate_store[key]
 
 
 _RATE_LIMITED_PATHS = frozenset({
@@ -4677,10 +4683,11 @@ def _support_track(request: Request, fn):
 # A link token is never accepted as a session (another table) — missing / wrong / expired / revoked → one 401.
 @app.post("/support/track/view", dependencies=[Depends(_public_rate)])
 def support_track_view(request: Request, data: dict = Body(...)):
-    """{session} → the conversation · {token} only → H number + masked address · both → the session only."""
+    """{session} → the conversation · {token} only → H number + masked address · both (7.5b) → the
+    conversation only when the session's ticket = the link's ticket, else 401 (no fallback to the link)."""
     try:
         if "session" in data:
-            return _support_track(request, lambda: support.guest_view(data.get("session")))
+            return _support_track(request, lambda: support.guest_view(data.get("session"), data.get("token")))
         return _support_track(request, lambda: support.guest_link_info(data.get("token")))
     except Exception as e:
         raise _server_error("support_track_view", e)
@@ -5429,7 +5436,7 @@ def password_reset_confirm(data: PasswordResetConfirmInput, background_tasks: Ba
         raise _server_error("password_reset_confirm", e)
     _password_changed_cache_set(uid, state)   # every older JWT of this user → 401
     _ws_revoke_user(uid, "password_reset")
-    _login_email_reset(user["email"])
+    _login_email_reset(user["email"], every_ip=True)   # the owner proved the inbox → every IP's pair lock
     background_tasks.add_task(email_service.send_email, user["email"], "password_changed",
                               {"name": user["full_name"]})
     print(f"[password-reset] password reset user={uid} — all sessions invalidated")

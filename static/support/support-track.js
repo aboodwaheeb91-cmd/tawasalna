@@ -3,8 +3,10 @@
 //     sessionStorage (one key, with the session) → sent in the POST body only (never a query string)
 //   - the link only NAMES the ticket (7.4): POST /support/track/view {token} → H number + masked address →
 //     «أرسل الرمز» (/code — disabled until the reply, then the cooldown counts down) → code → /verify → {session}
-//   - the session (sessionStorage — a reload keeps it) → /view {session} → messages · reply · «تم الحل»
-//     (twConfirm first) — every call {session} only; 401 → back to the code screen
+//   - the session (sessionStorage — a reload keeps it) → /view {session, token} → messages · reply · «تم الحل»
+//     (twConfirm first) — reply / resolve {session} only; 401 → the session dropped → back to the code screen
+//   - a new link with a session (7.5b): both kept, /view {session, token} — the server opens the conversation
+//     only when the session is of the link's ticket, else 401 (never a session on another ticket)
 //   - no link and no session → «افتح الرابط من الإيميل» · 404 (wrong · expired · revoked link) → general text
 //     + «إعادة إرسال الرابط»
 //   - twApi {auth:false} only · every text through textContent (never innerHTML)
@@ -26,7 +28,9 @@
 
   var st = readStore();
   var m = /^#t=([A-Za-z0-9_-]+)$/.exec(location.hash || '');
-  if (m && m[1] !== st.t) { st = { t: m[1] }; writeStore(); }   // another link → the old session is not its
+  // a new link keeps the session (7.5b): /view sends both and the SERVER decides — same ticket → the
+  // conversation, anything else → 401 → the session is dropped and the link alone names its ticket
+  if (m && m[1] !== st.t) { st.t = m[1]; writeStore(); }
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 
   document.title = twT('page.title', { page: twT('support.track.title') });
@@ -156,7 +160,7 @@
 
   function load() {
     if (st.s) {
-      post('view', { session: st.s }).then(function (res) {
+      post('view', st.t ? { session: st.s, token: st.t } : { session: st.s }).then(function (res) {
         if (res.status === 401) { expired(); return; }
         if (!res.ok || !res.data) { failed(res); return; }
         show(F.thread(res.data, {

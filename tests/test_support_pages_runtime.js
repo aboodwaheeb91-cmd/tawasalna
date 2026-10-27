@@ -8,7 +8,7 @@
  *      the optional fields of the category come from meta (list → <select>)
  *   C  guest: «لم تُحلّ» on «الدخول والحساب» only (other categories → login link) · no category list ·
  *      code first, then POST /support/guest/tickets (auth:false, faq_id, no category) · done = text + H number
- *   D  /support/track (7.4): the token from the hash → replaceState clears it → sessionStorage · the link alone →
+ *   D  /support/track (7.4 · 7.5b new link keeps the session, 401 → dropped): the token from the hash → replaceState clears it → sessionStorage · the link alone →
  *      code screen (masked address, «أرسل الرمز» disabled until the reply + cooldown) → verify → {session} →
  *      the thread · reply / resolve carry {session} only · 401 → code screen · a reload keeps the session ·
  *      no link and no session → «افتح الرابط من الإيميل» · 404 → general text + «إعادة إرسال الرابط»
@@ -278,6 +278,33 @@ const button = (root, text) => all(root).find(e => e.tagName === 'button' && e._
     await settle();
     check('D10 401 → code screen, session dropped', !!button(exp.ids.stRoot, 'support.track.send_code')
       && !('s' in JSON.parse(p.store.tw_support_track)));
+
+    // 7.5b — a new link with a session kept: /view {session, token}; the server decides (fake: tok_SAME = the
+    // session's ticket → thread · anything else → 401) · 401 → session dropped → /view {token} → code screen
+    const linkApi = (path, o) => {
+      const b = o.body || {};
+      if (path === '/support/track/view' && b.session) return b.session === 'sess_1' && b.token === 'tok_SAME'
+        ? { ok: true, status: 200, data: thread } : { ok: false, status: 401, error: { message: 'support.error.track_session' } };
+      if (path === '/support/track/view') return { ok: true, status: 200, data: { ticket: 'HOTHERTICKT', email: 'b***@gmail.com', verified: false } };
+      return { ok: false, status: 500 };
+    };
+    const kept = { tw_support_track: JSON.stringify({ t: 'tok_EN-123', s: 'sess_1' }) };
+    const same = boot(TRACK, { hash: '#t=tok_SAME', path: '/support/track', ids: ['stRoot'], api: linkApi, store: kept });
+    await settle();
+    const sv = same.rec.calls[0];
+    check('D13 new link, same ticket → session kept · /view {session, token} → thread',
+      JSON.parse(kept.tw_support_track).s === 'sess_1' && JSON.parse(kept.tw_support_track).t === 'tok_SAME'
+      && sv[1].body.session === 'sess_1' && sv[1].body.token === 'tok_SAME' && same.rec.calls.length === 1
+      && all(same.ids.stRoot).some(e => e._text === '<b>x</b>'));
+    const other = boot(TRACK, { hash: '#t=tok_OTHER', path: '/support/track', ids: ['stRoot'], api: linkApi, store: kept });
+    await settle();
+    const ov = other.rec.calls;
+    check('D14 new link, server 401 → session dropped → /view {token} only → code screen of the link (no thread)',
+      ov.length === 2 && ov[0][1].body.session === 'sess_1' && ov[0][1].body.token === 'tok_OTHER'
+      && !('session' in ov[1][1].body) && ov[1][1].body.token === 'tok_OTHER'
+      && !('s' in JSON.parse(kept.tw_support_track))
+      && all(other.ids.stRoot).some(e => e._text === 'support.track.code_intro:HOTHERTICKT:b***@gmail.com')
+      && !all(other.ids.stRoot).some(e => e._text === '<b>x</b>'));
 
     const n = boot(TRACK, { hash: '#t=bad', path: '/support/track', ids: ['stRoot'],
                             api: () => ({ ok: false, status: 404, error: { message: 'support.error.track_not_found' } }) });

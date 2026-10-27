@@ -50,6 +50,12 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 - Test: `python -m pytest tests/test_security_50f.py -q` (PostgreSQL — deleted account · no-`sv` cutoff).
 - Test: `python -m pytest tests/test_session_version_tokens.py -q` (PostgreSQL) · type change: `python -m pytest tests/test_admin_user_actions.py -q`.
 
+### Login Lock after Password Reset (task 7.5b — SYSTEMS_INDEX §54n)
+1. **A successful `POST /auth/password-reset/confirm`** (after `set_user_password` changed the password) calls `_login_email_reset(email, every_ip=True)`: clears `login_email:{email}` **and every `login_ip_email:{ip}|{email}` key of that email from any IP** (`_rate_store` section `login_ip_email`, under `_rate_lock`). The owner proved the inbox, so the locks on that address end.
+2. `login_ip` (per IP, any email) and every general rate stay as they are. A failed / invalid reset clears nothing. A successful login still clears only its own email + its own IP pair.
+- ❌ clearing `login_ip` on a reset · ❌ unlocking before the password is really changed.
+- Test: `python -m pytest tests/test_password_reset_email.py -q` (old password refused, new works · pair lock from another IP cleared · IP lock kept).
+
 ### Organisation Account Gate (task 5.0f — SYSTEMS_INDEX §54l)
 1. **Every company action checks the account type as it is NOW** — `server._require_org_account(token, allowed=("co","edu"), message)` reads `users.user_type` through `auth.get_current_user_type(uid)` (no user → 401 · other type → 403). The JWT `user_type` claim and job / post ownership alone are never enough.
 2. Callers: `GET /jobs/{id}/applicants` · `PUT /jobs/applications/{id}/status` · `POST /jobs/applications/{id}/promote` · `POST/PATCH/DELETE /company/posts…` (co / edu) · Talent Bank `/company/saved-candidates*` + `/company/candidate-suggestions` via `_require_company_owner` (co) · appointments `POST /api/appointments` · `/api/schedule/jobs|open|people` · `/api/appointments/{id}/send|reschedule|complete|close` (co).

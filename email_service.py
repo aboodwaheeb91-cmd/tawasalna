@@ -35,6 +35,8 @@ Inbound (task 7.3 · docs/rules/support.md → البريد الوارد): Resen
   fetch_received()   GET /emails/receiving/{id} (the event carries metadata only, never the body).
   switch             types.support_inbound — not a template; OFF by default (OFF_BY_DEFAULT).
   reply_to           send_email(..., reply_to=) — only for REPLY_TO_TEMPLATES (support emails).
+                     With a Reply-To the footer is email.support.footer (reply directly · else the link) —
+                     every other email keeps email.common.footer (task 7.5b).
 """
 import base64
 import hashlib
@@ -322,8 +324,10 @@ def _no_newlines(s: str) -> str:
     return re.sub(r"[\r\n\x00-\x1f\x7f]+", " ", s).strip()
 
 
-def render(template_key: str, values: dict) -> dict:
-    """→ {"subject", "html", "text"}. values are plain text; escaped here."""
+def render(template_key: str, values: dict, reply_footer: bool = False) -> dict:
+    """→ {"subject", "html", "text"}. values are plain text; escaped here.
+    reply_footer (task 7.5b) — the email carries a support+<token>@ Reply-To → email.support.footer
+    («reply directly») instead of email.common.footer («do not reply»)."""
     spec = TEMPLATES[template_key]
     texts = strings()
     vals = {k: str(values.get(k, "") if values.get(k) is not None else "") for k in spec["vars"]}
@@ -351,7 +355,8 @@ def render(template_key: str, values: dict) -> dict:
     if spec["category"] == NOTIFICATION:
         prefs_url = (_settings.get("site_url") or DEFAULTS["site_url"]) + PREFS_PATH
         lines_txt += ["", "—", s("email.common.prefs_hint"), prefs_url]
-    lines_txt += ["", "—", s("email.common.footer")]
+    footer = s("email.support.footer" if reply_footer else "email.common.footer")
+    lines_txt += ["", "—", footer]
     text = "\n".join(lines_txt)
 
     button = ""
@@ -387,7 +392,7 @@ def render(template_key: str, values: dict) -> dict:
         f'<p style="margin:0;">{_fill(esc(part("body")), vals, esc)}</p>'
         f'{button}{note}</td></tr>'
         '<tr><td style="padding:16px 24px;border-top:1px solid #e6e9ee;font-size:12px;color:#777;">'
-        f'{prefs}{esc(s("email.common.footer"))}</td></tr>'
+        f'{prefs}{esc(footer)}</td></tr>'
         '</table></td></tr></table></body></html>'
     )
     return {"subject": subject, "html": body_html, "text": text, "prefs_url": prefs_url}
@@ -459,7 +464,7 @@ def send_email(to, template_key: str, vars: dict = None, user_id: int = None, re
             print(f"[email] not sent template={template_key}: {status_}")
             return {"ok": False, "code": status_}
     try:
-        msg = render(template_key, vars or {})
+        msg = render(template_key, vars or {}, reply_footer=bool(reply_to))   # reply_to → REPLY_TO_TEMPLATES only
         sender = f'{_settings.get("from_name") or DEFAULTS["from_name"]} ' \
                  f'<{_settings.get("from_address") or DEFAULTS["from_address"]}>'
         payload = {"from": sender, "to": [to], "subject": msg["subject"],
