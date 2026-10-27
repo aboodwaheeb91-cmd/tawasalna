@@ -2806,10 +2806,12 @@ def _job_columns_from_input(conn, data: dict):
 
 
 def add_job(company_id: int, data: dict) -> dict:
+    """Company publish (task 8.0): the jobs row + every job_profession_targets row = ONE transaction —
+    a failed target INSERT rolls the job back. Validation runs before BEGIN (ValueError → nothing written);
+    the expiry reminder is scheduled only after COMMIT."""
     _cache_del('jobs:')
-    conn = get_conn()
     result = None
-    try:
+    with db_conn() as conn:
         # Validate BEFORE any mutation — fail fast (the one rule set — _job_columns_from_input)
         cols_in, accepted_pids = _job_columns_from_input(conn, data)
 
@@ -2822,51 +2824,55 @@ def add_job(company_id: int, data: dict) -> dict:
             if dur not in _ALLOWED_DURATIONS:
                 raise ValueError("مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
 
-        rows = conn.run(
-            "INSERT INTO jobs (company_id, title, description, location, job_type, "
-            "salary_min, salary_max, currency, experience_years, skills, status, "
-            "category, work_mode, salary_hidden, profession_id, accepts_all_professions, "
-            f"expires_at, duration_days) "
-            "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            f":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
-            f"NOW() + INTERVAL '{dur} days', :dur) "
-            "RETURNING id, company_id, title, description, location, job_type, "
-            "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
-            "expires_at, duration_days, "
-            "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
-            cid=company_id, title=cols_in["title"],
-            desc=cols_in["description"], loc=cols_in["location"],
-            jtype=cols_in["job_type"],
-            smin=cols_in["salary_min"],
-            smax=cols_in["salary_max"],
-            cur=cols_in["currency"],
-            exp=cols_in["experience_years"],
-            skills=cols_in["skills"],
-            cat=cols_in["category"],
-            wmode=cols_in["work_mode"],
-            shide=cols_in["salary_hidden"],
-            profid=cols_in["profession_id"],
-            accall=cols_in["accepts_all_professions"],
-            dur=dur,
-        )
-        cols = [c["name"] for c in conn.columns]
-        result = _serialize(_row_to_dict(cols, rows[0]))
+        conn.run("BEGIN")
+        try:
+            rows = conn.run(
+                "INSERT INTO jobs (company_id, title, description, location, job_type, "
+                "salary_min, salary_max, currency, experience_years, skills, status, "
+                "category, work_mode, salary_hidden, profession_id, accepts_all_professions, "
+                f"expires_at, duration_days) "
+                "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
+                f":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
+                f"NOW() + INTERVAL '{dur} days', :dur) "
+                "RETURNING id, company_id, title, description, location, job_type, "
+                "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
+                "expires_at, duration_days, "
+                "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
+                cid=company_id, title=cols_in["title"],
+                desc=cols_in["description"], loc=cols_in["location"],
+                jtype=cols_in["job_type"],
+                smin=cols_in["salary_min"],
+                smax=cols_in["salary_max"],
+                cur=cols_in["currency"],
+                exp=cols_in["experience_years"],
+                skills=cols_in["skills"],
+                cat=cols_in["category"],
+                wmode=cols_in["work_mode"],
+                shide=cols_in["salary_hidden"],
+                profid=cols_in["profession_id"],
+                accall=cols_in["accepts_all_professions"],
+                dur=dur,
+            )
+            cols = [c["name"] for c in conn.columns]
+            result = _serialize(_row_to_dict(cols, rows[0]))
 
-        # Save accepted professions — skipped when accepts_all_professions=True
-        if accepted_pids:
-            job_id = result["id"]
-            for i, pid in enumerate(accepted_pids):
-                conn.run(
-                    "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
-                    "VALUES (:jid, :pid, :ord)",
-                    jid=job_id, pid=pid, ord=i
-                )
-            result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
-        else:
-            result["accepted_professions"] = []
-    finally:
-        release_conn(conn)
-    # S4: schedule job_expiring_soon 48h before expiry — non-fatal
+            # Save accepted professions — skipped when accepts_all_professions=True
+            if accepted_pids:
+                job_id = result["id"]
+                for i, pid in enumerate(accepted_pids):
+                    conn.run(
+                        "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                        "VALUES (:jid, :pid, :ord)",
+                        jid=job_id, pid=pid, ord=i
+                    )
+                result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
+            else:
+                result["accepted_professions"] = []
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    # S4: schedule job_expiring_soon 48h before expiry — non-fatal, after COMMIT only
     if result:
         schedule_job_expiry_reminder(result["id"], result.get("expires_at"))
     return result

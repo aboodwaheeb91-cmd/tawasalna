@@ -60,6 +60,7 @@ PY_PYTEST=(
   test_upload_security.py
   test_startup_lifecycle.py   # task 5.0f — startup hook still runs after the FastAPI / Starlette upgrade
   test_migration_classification_doc.py   # task 7.6 — §54f Classification line = _startup_migrations() (ast, no fastapi)
+  test_add_job_transaction.py   # task 8.0 — add_job = one transaction (fake conn, no DB)
 )
 
 # ── Python — run as a script (own checks + exit code) ──────────────────────

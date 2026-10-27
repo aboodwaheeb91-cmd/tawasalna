@@ -198,6 +198,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Applicant count (task 5.0e):** `applicant_count` on `GET /jobs` + `GET /company/jobs` comes from `auth._fetch_applicant_counts_batch` (one batch query) via `_applicant_count(cnt_map, job_id)`. Read failure → logged `[applicant_counts] read FAILED`, the list still answers 200, every `applicant_count` = `null` (unknown); the owner job card shows `twT('common.count_unknown')` («—»), never «0».
 **Do not recreate:** `effective_status` is computed by `_eff_status()` — never store `'expired'` as a DB status. ❌ `applicant_count` = 0 when the count could not be read. No cron job for auto-close — it is computed at request time. `jobs.profession_id` is the canonical specialization field.
 **Job Card (owner):** Design contract is frozen in `docs/company-jobs-and-applicants.md §2`. Owner card has logo + status badge + profession sub-title + structured location. Action buttons (`.joc-btn`) are rounded rectangle (border-radius:6px) and must stay inside the card — never below it at full width.
+**Publish = one transaction (task 8.0):** `auth.add_job` writes the `jobs` row + every `job_profession_targets` row (+ `_fetch_accepted_professions_batch`) inside one `BEGIN` / `COMMIT` on `with db_conn()` — a failed target INSERT → `ROLLBACK` (no job without its professions). Validation (`_job_columns_from_input` + duration) runs before `BEGIN` (ValueError → nothing written); `schedule_job_expiry_reminder` only after `COMMIT`. ❌ a job write and its targets on separate commits. Test `python -m pytest tests/test_add_job_transaction.py -q`.
 **Job Location:** `jobs.location` stores `"البلد - المحافظة"` (country + city). Always use `TW.fillCountries()` / `TW.fillCities()` in the job modal — no free-text input. `_shortLoc()` is fallback for old data only.
 
 ---
@@ -1472,4 +1473,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-10-27 — task 7.6 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
+*Last updated: 2026-10-27 — task 8.0 · التاريخ الكامل: [`docs/CHANGELOG.md`](CHANGELOG.md)*
