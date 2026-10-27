@@ -5,8 +5,9 @@ ARCHITECTURE.md §81 → guest link security).
 Behaviour over HTTP (real PostgreSQL, in-process client):
   1  guest ticket → a support_guest_link email (H number + /support/track#t=<token>) · the reply carries the H
      number only · the DB holds the sha256 hex only (no raw token in the DB or in the server output)
-  2  view / reply / resolve with the token · wrong / expired / revoked → the same 404 · last_used_at ·
-     a reply extends the used link (+90 days) · reopen window 14 days · no internal data (author_id, priority)
+  2  view / reply / resolve with a session (code → verify — task 7.4; the link alone = H number + masked
+     address) · wrong / expired / revoked link → the same 404 · last_used_at · a reply no longer extends the
+     link (7.4) · reopen window 14 days · no internal data (author_id, priority)
   3  a link never reaches an account's ticket or another guest's ticket
   4  issue_guest_link keep=3 · resend revokes every link + a new one, same reply for a known / unknown email,
      only unresolved / resolved < 14 days, newest 5
@@ -104,8 +105,24 @@ def _view(token, ip="8.8.4.4"):
     return client.post("/support/track/view", json={"token": token}, headers={"X-Real-IP": ip})
 
 
-def _reply(token, body="لسا ما زبط", ip="8.8.4.4"):
-    return client.post("/support/track/reply", json={"token": token, "body": body}, headers={"X-Real-IP": ip})
+def _session(token):
+    """7.4: the link + the emailed code → a session (the conversation needs it)."""
+    for k in [k for k in list(srv._rate_store) if k.startswith(("support_track_code", "support_track_ip"))]:
+        del srv._rate_store[k]
+    assert client.post("/support/track/code", json={"token": token}, headers=_IP).status_code == 200
+    to, key, v = SENT[-1]
+    assert key == "support_guest_otp"
+    r = client.post("/support/track/verify", json={"token": token, "code": v["code"]}, headers=_IP)
+    assert r.status_code == 200, r.text
+    return r.json()["data"]["session"]
+
+
+def _sview(session, ip="8.8.4.4"):
+    return client.post("/support/track/view", json={"session": session}, headers={"X-Real-IP": ip})
+
+
+def _reply(session, body="لسا ما زبط", ip="8.8.4.4"):
+    return client.post("/support/track/reply", json={"session": session, "body": body}, headers={"X-Real-IP": ip})
 
 
 def _resend(email, ip="8.8.4.4"):
@@ -132,7 +149,8 @@ def test_ticket_sends_link_hash_only(capsys):
 # ── 2 view / reply / resolve ──
 def test_view_reply_resolve_and_404s():
     email, pid, token = _guest_ticket()
-    r = _view(token)
+    sess = _session(token)
+    r = _sview(sess)
     assert r.status_code == 200
     d = r.json()["data"]
     assert d["public_id"] == pid and d["status"] == "new" and d["details"] == {"issue": "no_code"}
@@ -140,18 +158,18 @@ def test_view_reply_resolve_and_404s():
     assert _sql("SELECT last_used_at IS NOT NULL FROM support_guest_access WHERE token_hash = :h", h=_h(token))[0][0]
     client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "جرّب", "next_status": "awaiting_user"},
                 headers={"X-Admin-Token": srv._admin_jwt_issue(sub="staff:7")})
-    msgs = _view(token).json()["data"]["messages"]
+    msgs = _sview(sess).json()["data"]["messages"]
     assert [m["author_type"] for m in msgs] == ["guest", "admin"] and all("author_id" not in m for m in msgs)
     _sql("UPDATE support_guest_access SET expires_at = NOW() + INTERVAL '1 day' WHERE token_hash = :h", h=_h(token))
-    r = _reply(token)
+    r = _reply(sess)
     assert r.status_code == 200 and r.json()["data"]["status"] == "in_review"
-    assert _sql("SELECT expires_at > NOW() + INTERVAL '89 days' FROM support_guest_access WHERE token_hash = :h",
-                h=_h(token))[0][0] is True                                       # extended +90 days
-    assert client.post("/support/track/resolve", json={"token": token}, headers=_IP).json()["data"]["status"] == "resolved"
+    assert _sql("SELECT expires_at < NOW() + INTERVAL '2 days' FROM support_guest_access WHERE token_hash = :h",
+                h=_h(token))[0][0] is True                                       # 7.4: no longer extended
+    assert client.post("/support/track/resolve", json={"session": sess}, headers=_IP).json()["data"]["status"] == "resolved"
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '15 days' WHERE public_id = :p", p=pid)
-    assert _reply(token).status_code == 409
+    assert _reply(sess).status_code == 409
     _sql("UPDATE support_tickets SET closed_at = NOW() - INTERVAL '13 days' WHERE public_id = :p", p=pid)
-    assert _reply(token).json()["data"]["reopened"] is True
+    assert _reply(sess).json()["data"]["reopened"] is True
     # wrong / expired / revoked / malformed → the same 404
     wrong = _view("A" * 43).json()
     _sql("UPDATE support_guest_access SET expires_at = NOW() - INTERVAL '1 second' WHERE token_hash = :h", h=_h(token))
@@ -159,8 +177,8 @@ def test_view_reply_resolve_and_404s():
     _, _, t2 = _guest_ticket()
     _sql("UPDATE support_guest_access SET revoked_at = NOW() WHERE token_hash = :h", h=_h(t2))
     revoked = _view(t2).json()
-    for res in (wrong, expired, revoked, _view("").json(), _view(None).json(), _reply(t2).json(),
-                client.post("/support/track/resolve", json={"token": token}, headers=_IP).json()):
+    for res in (wrong, expired, revoked, _view("").json(), _view(None).json(),
+                client.post("/support/track/verify", json={"token": token, "code": "123456"}, headers=_IP).json()):
         assert res == wrong and res["error"]["code"] == "not_found"
 
 
@@ -168,7 +186,7 @@ def test_view_reply_resolve_and_404s():
 def test_link_reaches_its_own_guest_ticket_only():
     _, pid_a, token_a = _guest_ticket()
     _, pid_b, _ = _guest_ticket()
-    assert _view(token_a).json()["data"]["public_id"] == pid_a
+    assert _view(token_a).json()["data"]["ticket"] == pid_a
     # a link row pointing at an account's ticket never opens it
     uid, tw = _sql("INSERT INTO users (tw_id, full_name, email, password_hash, user_type) VALUES "
                    "(:t, 'U', :e, 'x', 'emp') RETURNING id, tw_id", t="U" + uuid.uuid4().hex[:10],
@@ -177,7 +195,7 @@ def test_link_reaches_its_own_guest_ticket_only():
     upid = client.post("/support/tickets", json={"category": "jobs", "subject": "s", "body": "b"}, headers=h).json()["data"]["public_id"]
     tid = _sql("SELECT id FROM support_tickets WHERE public_id = :p", p=upid)[0][0]
     tok = support.issue_guest_link(tid)
-    assert _view(tok).status_code == 404 and _reply(tok).status_code == 404
+    assert _view(tok).status_code == 404 and _reply(tok).status_code == 401
     assert _sql("SELECT COUNT(*) FROM support_messages WHERE ticket_id = :t", t=tid)[0][0] == 1
     assert pid_b not in str(_view(token_a).json())
 
@@ -204,7 +222,7 @@ def test_keep_three_and_resend_revokes_all():
     for t in toks:
         assert _view(t).status_code == 404
     new = {v["ticket"]: v["link"].split("#t=")[1] for _, _, v in SENT}
-    assert _view(new[pid]).json()["data"]["public_id"] == pid
+    assert _view(new[pid]).json()["data"]["ticket"] == pid
     assert _sql("SELECT COUNT(*) FROM support_guest_access WHERE ticket_id = :t AND revoked_at IS NULL", t=tid)[0][0] == 1
 
 
@@ -233,6 +251,7 @@ def test_limits():
         assert _resend(email, ip="1.1.1.1").status_code == 200
     assert len(SENT) == 3
     token = SENT[-1][2]["link"].split("#t=")[1]                                  # the resend revoked the old one
+    sess = _session(token)
     tw_settings._set_overrides({"support_link_resend_ip_hits": 2})
     srv._rate_store.clear()
     assert _resend("a@x.test", ip="2.2.2.2").status_code == 200
@@ -240,10 +259,10 @@ def test_limits():
     assert _resend("c@x.test", ip="2.2.2.2").status_code == 429
     srv._rate_store.clear()
     tw_settings._set_overrides({"support_guest_reply_ticket_hits": 2})
-    assert _reply(token, ip="3.3.3.1").status_code == 200
-    assert _reply(token, ip="3.3.3.2").status_code == 200
+    assert _reply(sess, ip="3.3.3.1").status_code == 200
+    assert _reply(sess, ip="3.3.3.2").status_code == 200
     n = _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id WHERE t.public_id = :p", p=pid)[0][0]
-    r = _reply(token, ip="3.3.3.3")                                              # per ticket — any IP
+    r = _reply(sess, ip="3.3.3.3")                                              # per ticket — any IP
     assert r.status_code == 429
     assert _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id WHERE t.public_id = :p", p=pid)[0][0] == n
     srv._rate_store.clear()
@@ -258,6 +277,8 @@ def test_limits():
 def test_track_headers():
     _, _, token = _guest_ticket()
     res = [client.get("/support/track"), _view(token), _view("C" * 43), _reply(token, body=""),
+           client.post("/support/track/code", json={"token": token}, headers=_IP),
+           client.post("/support/track/verify", json={"token": token, "code": "1"}, headers=_IP),
            client.post("/support/track/resolve", json={"token": "x"}, headers=_IP), _resend("q@x.test")]
     assert res[0].status_code == 200 and "text/html" in res[0].headers["content-type"]
     for r in res:
