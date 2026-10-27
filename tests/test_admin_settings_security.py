@@ -73,7 +73,7 @@ SEC = sorted(tw_settings.SECURITY_KEYS)
 def test_security_list_and_ranges():
     assert len(SEC) == 22 + 6 + 2 + 6 + 8 + 4 + 7   # 4.2 list + 4.3 otp_send_user / otp_send_target / otp_send_ip + 6 public_ip (hits + window)
                                             # + 7.1 support_guest_email / _ip / _global (hits + window)
-                                            # + 7.2a support_link_resend_email / _ip · support_guest_reply_ticket · support_track_ip
+                                            # + 7.2a support_link_resend_email / _ip · support_reply_ticket (7.5a) · support_track_ip
                                             # + 7.3 support_inbound_sender / _global (hits + window)
                                             # + 7.4 support_track_code_gap / _ticket / _ip (hits + window) + support_track_session_hours
     assert "password_max_bytes" not in tw_settings.REGISTRY

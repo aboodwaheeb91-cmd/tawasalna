@@ -74,7 +74,7 @@ RATES = {
     "support_guest_global": (60, 3600),  # … every guest ticket together (holds even when the IP is forged)
     "support_link_resend_email": (3, 3600),   # guest follow-up link resend — per email (over it: same reply, no email — 7.2a)
     "support_link_resend_ip": (10, 3600),     # … per client IP
-    "support_guest_reply_ticket": (20, 3600), # guest reply through the link — per ticket
+    "support_reply_ticket": (20, 3600),       # requester replies per ticket — link + account + email together (7.5a)
     "support_track_ip": (60, 60),             # every /support/track API call — per client IP
     "support_track_code_gap": (1, 60),        # follow-up code send — cooldown per ticket (the page counts it down — 7.4)
     "support_track_code_ticket": (5, 3600),   # … per ticket per hour (over it: same reply, no email)
