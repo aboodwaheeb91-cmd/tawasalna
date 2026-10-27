@@ -43,6 +43,7 @@ LIMITS = {
     "support_open_max": 5,        # open tickets (open + awaiting_user) per account at once
     "support_inbound_request_max": 262144,  # POST /webhooks/resend/inbound body (bytes — the event is metadata only, task 7.3)
     "support_inbound_fetch_max": 2097152,   # the received email fetched from Resend (bytes) — larger = ignored
+    "support_track_session_hours": 24,      # guest follow-up session after the code (task 7.4) — fixed, never extended
 }
 
 RATES = {
@@ -75,6 +76,9 @@ RATES = {
     "support_link_resend_ip": (10, 3600),     # … per client IP
     "support_guest_reply_ticket": (20, 3600), # guest reply through the link — per ticket
     "support_track_ip": (60, 60),             # every /support/track API call — per client IP
+    "support_track_code_gap": (1, 60),        # follow-up code send — cooldown per ticket (the page counts it down — 7.4)
+    "support_track_code_ticket": (5, 3600),   # … per ticket per hour (over it: same reply, no email)
+    "support_track_code_ip": (10, 3600),      # … per client IP → 429
     "support_inbound_sender": (3, 3600),      # new ticket from an inbound email — per sender address (over it: ignored, 7.3)
     "support_inbound_global": (100, 3600),    # … every inbound ticket together
 }

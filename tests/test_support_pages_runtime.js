@@ -8,8 +8,10 @@
  *      the optional fields of the category come from meta (list → <select>)
  *   C  guest: «لم تُحلّ» on «الدخول والحساب» only (other categories → login link) · no category list ·
  *      code first, then POST /support/guest/tickets (auth:false, faq_id, no category) · done = text + H number
- *   D  /support/track: the token from the hash → replaceState clears it → POST body only · 404 → general text +
- *      «إعادة إرسال الرابط» → POST /support/track/resend
+ *   D  /support/track (7.4): the token from the hash → replaceState clears it → sessionStorage · the link alone →
+ *      code screen (masked address, «أرسل الرمز» disabled until the reply + cooldown) → verify → {session} →
+ *      the thread · reply / resolve carry {session} only · 401 → code screen · a reload keeps the session ·
+ *      no link and no session → «افتح الرابط من الإيميل» · 404 → general text + «إعادة إرسال الرابط»
  *   E  no innerHTML anywhere on these pages
  *
  * Run: node tests/test_support_pages_runtime.js
@@ -63,15 +65,20 @@ const META = {
 function boot(src, opts) {
   const ids = {};
   (opts.ids || []).forEach(id => { ids[id] = fakeEl('div'); ids[id].id = id; });
-  const rec = { calls: [], replaced: [], toasts: [], modals: [] };
+  const rec = { calls: [], replaced: [], toasts: [], modals: [], timers: [] };
+  const store = opts.store || {};
   const ctx = {
+    sessionStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); },
+                      removeItem: k => { delete store[k]; } },
+    setTimeout: (fn, ms) => { rec.timers.push(fn); return rec.timers.length; },
     console, Promise, String, Object, Array, JSON,
     document: { createElement: fakeEl, createTextNode: t => { const n = fakeEl('#text'); n._text = String(t); return n; },
                 getElementById: id => ids[id] || null, addEventListener() {}, body: fakeEl('body') },
     location: { hash: opts.hash || '', pathname: opts.path || '/support', search: '' },
     history: { replaceState: (s, t, u) => { rec.replaced.push(u); ctx.location.hash = ''; } },
     TwAuthSync: { getSessionSnapshot: () => ({ isAuthenticated: !!opts.signedIn }) },
-    twT: (k, v) => k + (v && v.minutes ? ':' + v.minutes : ''), twTApply() {},
+    twT: (k, v) => k + (v && v.minutes ? ':' + v.minutes : '') + (v && v.seconds ? ':' + v.seconds : '')
+                     + (v && v.email ? ':' + v.ticket + ':' + v.email : ''), twTApply() {},
     twLimit: n => ({ support_subject_max: 150, support_body_max: 4000 })[n],
     twFormatDateTime: v => String(v), twLoginHref: n => '/login?next=' + encodeURIComponent(n),
     twApiMessage: (res, fb) => (res && res.error && res.error.message) || fb,
@@ -84,7 +91,7 @@ function boot(src, opts) {
   vm.createContext(ctx);
   vm.runInContext(FORM, ctx, { filename: 'support-form.js' });
   vm.runInContext(src, ctx, { filename: 'page.js' });
-  return { ctx, ids, rec };
+  return { ctx, ids, rec, store };
 }
 
 const PAGE_IDS = ['spFaq', 'spSearch', 'spNoHits', 'spFormSec', 'spNew', 'spResendSec', 'spResendBtn', 'spResend',
@@ -209,32 +216,84 @@ const button = (root, text) => all(root).find(e => e.tagName === 'button' && e._
   {
     const thread = { public_id: 'HABCDEFGHIJ', category: 'account', status: 'awaiting_user', subject: 's', can_reopen: true,
                      messages: [{ author_type: 'admin', body: '<b>x</b>', created_at: 't' }] };
-    const p = boot(TRACK, { hash: '#t=tok_EN-123', path: '/support/track', ids: ['stRoot'],
-                            api: path => (path === '/support/track/view' ? { ok: true, status: 200, data: thread } : { ok: true, status: 200, data: {} }) });
-    check('D1 hash cleared at once (replaceState without the fragment)', p.rec.replaced[0] === '/support/track' && p.ctx.location.hash === '');
+    let sessionOk = true, codeRes = null;
+    const trackApi = (path, o) => {
+      const b = o.body || {};
+      if (path === '/support/track/view' && b.session) return sessionOk && b.session === 'sess_1'
+        ? { ok: true, status: 200, data: thread } : { ok: false, status: 401, error: { message: 'support.error.track_session' } };
+      if (path === '/support/track/view') return { ok: true, status: 200, data: { ticket: 'HABCDEFGHIJ', email: 'a***@gmail.com', verified: false } };
+      if (path === '/support/track/code') return new Promise(r => { codeRes = r; });
+      if (path === '/support/track/verify') return b.code === '123456' ? { ok: true, status: 200, data: { session: 'sess_1' } }
+        : { ok: false, status: 422, error: { message: 'support.error.code_invalid', field: 'code' } };
+      return { ok: true, status: 200, data: { status: 'resolved' } };
+    };
+    const p = boot(TRACK, { hash: '#t=tok_EN-123', path: '/support/track', ids: ['stRoot'], api: trackApi });
+    check('D1 hash cleared at once (replaceState without the fragment) · link in sessionStorage',
+      p.rec.replaced[0] === '/support/track' && p.ctx.location.hash === ''
+      && JSON.parse(p.store.tw_support_track).t === 'tok_EN-123');
     await settle();
     const v = p.rec.calls[0];
-    check('D2 POST /support/track/view {token} — token in the body only', v[0] === '/support/track/view' && v[1].method === 'POST'
-      && v[1].auth === false && v[1].body.token === 'tok_EN-123' && !v[0].includes('tok'));
-    check('D3 status label for the requester + message as text', all(p.ids.stRoot).some(e => e._text === 'support.status_user.awaiting_user')
-      && all(p.ids.stRoot).some(e => e._text === '<b>x</b>'));
-    button(p.ids.stRoot, 'support.thread.resolve').fire('click');
+    check('D2 POST /support/track/view {token} — token in the body only, no session yet', v[0] === '/support/track/view'
+      && v[1].method === 'POST' && v[1].auth === false && v[1].body.token === 'tok_EN-123' && !('session' in v[1].body)
+      && !v[0].includes('tok'));
+    const R = p.ids.stRoot;
+    check('D3 the link alone → code screen with the masked address, no thread',
+      all(R).some(e => e._text === 'support.track.code_intro:HABCDEFGHIJ:a***@gmail.com')
+      && !all(R).some(e => e._text === '<b>x</b>'));
+    const send = button(R, 'support.track.send_code');
+    send.fire('click');
     await settle();
-    check('D4 «تم الحل» → POST /support/track/resolve with the token', p.rec.calls.some(c => c[0] === '/support/track/resolve'
-      && c[1].body.token === 'tok_EN-123'));
+    check('D4 «أرسل الرمز» → POST /support/track/code {token} · disabled until the reply',
+      send.disabled === true && p.rec.calls.some(c => c[0] === '/support/track/code' && c[1].body.token === 'tok_EN-123'
+        && !('email' in c[1].body)));
+    codeRes({ ok: true, status: 200, data: { sent: true, cooldown_s: 2, minutes: 10 } });
+    await settle();
+    check('D5 cooldown counts down, then the button is back', send.disabled === true && send._text === 'support.track.code_wait:2'
+      && (p.rec.timers.shift()(), send._text === 'support.track.code_wait:1')
+      && (p.rec.timers.shift()(), send.disabled === false && send._text === 'support.track.send_code'));
+    fieldInput(R, 'support.guest.code').value = '000000';
+    button(R, 'support.track.verify').fire('click');
+    await settle();
+    check('D6 wrong code → error on the field, still the code screen', !!button(R, 'support.track.verify')
+      && !p.store.tw_support_track.includes('sess_1'));
+    fieldInput(R, 'support.guest.code').value = '123456';
+    button(R, 'support.track.verify').fire('click');
+    await settle();
+    check('D7 right code → session in sessionStorage → the thread (message as text)',
+      JSON.parse(p.store.tw_support_track).s === 'sess_1'
+      && all(R).some(e => e._text === 'support.status_user.awaiting_user') && all(R).some(e => e._text === '<b>x</b>'));
+    button(R, 'support.thread.resolve').fire('click');
+    await settle();
+    const rs = p.rec.calls.find(c => c[0] === '/support/track/resolve');
+    check('D8 «تم الحل» → POST /support/track/resolve {session} only', !!rs && rs[1].body.session === 'sess_1' && !('token' in rs[1].body));
+
+    // reload: the same tab (sessionStorage kept), no hash → straight to the thread
+    const again = boot(TRACK, { hash: '', path: '/support/track', ids: ['stRoot'], api: trackApi, store: p.store });
+    await settle();
+    check('D9 reload keeps the session → view {session} → thread', again.rec.calls[0][1].body.session === 'sess_1'
+      && all(again.ids.stRoot).some(e => e._text === '<b>x</b>'));
+    // 401 (expired / revoked) → the session forgotten → code screen of the stored link
+    sessionOk = false;
+    const exp = boot(TRACK, { hash: '', path: '/support/track', ids: ['stRoot'], api: trackApi, store: p.store });
+    await settle();
+    check('D10 401 → code screen, session dropped', !!button(exp.ids.stRoot, 'support.track.send_code')
+      && !('s' in JSON.parse(p.store.tw_support_track)));
+
     const n = boot(TRACK, { hash: '#t=bad', path: '/support/track', ids: ['stRoot'],
                             api: () => ({ ok: false, status: 404, error: { message: 'support.error.track_not_found' } }) });
     await settle();
-    check('D5 404 → general text + «إعادة إرسال الرابط»', all(n.ids.stRoot).some(e => e._text === 'support.error.track_not_found')
+    check('D11 404 → general text + «إعادة إرسال الرابط»', all(n.ids.stRoot).some(e => e._text === 'support.error.track_not_found')
       && !!all(n.ids.stRoot).find(e => e.tagName === 'button' && e._text === 'support.track.resend'));
     const none = boot(TRACK, { hash: '', path: '/support/track', ids: ['stRoot'], api: () => ({ ok: true, status: 200, data: {} }) });
     await settle();
-    check('D6 no token → no request, same general text', none.rec.calls.length === 0
-      && all(none.ids.stRoot).some(e => e._text === 'support.error.track_not_found'));
+    check('D12 no link and no session → no request, «افتح الرابط من الإيميل» (not «الرابط غير صالح»)',
+      none.rec.calls.length === 0 && all(none.ids.stRoot).some(e => e._text === 'support.track.open_from_email')
+      && !all(none.ids.stRoot).some(e => e._text === 'support.error.track_not_found'));
   }
 
   console.log('\nE — text only');
   check('E1 no innerHTML on the support pages', innerHtml.length === 0, JSON.stringify(innerHtml.slice(0, 3)));
+  check('E2 support-track.js never touches innerHTML (any path, not only the ones run here)', !/innerHTML/.test(TRACK.replace(/\/\/[^\n]*/g, '')));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

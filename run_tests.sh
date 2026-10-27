@@ -131,6 +131,7 @@ PY_DB=(
   pytest:test_public_rate_limit.py   # task 6 — public routes per-IP limit (429 + Retry-After · HTML vs JSON · exempt · structure · settings)
   pytest:test_support_tickets.py     # task 7.1 — support tickets: ownership · priority admin-only · account / guest / global limits · reopen 14 days · support.manage · audit
   pytest:test_support_guest_link.py  # task 7.2a — guest follow-up link: hash only · same 404 · +90 days · keep=3 · resend · four limits · headers
+  pytest:test_support_track_session.py  # task 7.4 — link names the ticket only · code to the stored guest_email · session (hash · 24 h · revoked by resend) · codes never cross · one session per code
   pytest:test_support_reply_notice.py  # task 7.2b — admin reply notice: guest new link keep=3 + email · account bell per message + one SECURITY email · failure keeps 200 · no raw token
   pytest:test_support_inbound.py     # task 7.3 — inbound mail: Svix signature · dedupe · recipients · guest ticket + account hint · Reply-To token + owner From · Auto-Submitted · HTML → text · switch off
   pytest:test_rate_store_54d.py       # task 5.4d — _rate_store: one capped section per kind · login locks never evict other counters · no sort per request

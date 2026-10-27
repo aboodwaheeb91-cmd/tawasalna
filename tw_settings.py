@@ -9,7 +9,7 @@ The ONE way the code reads an admin-editable limit / rate and the ONE writer of 
   rate(name)    → RATES (hits, window seconds) — same rule
   value(key)    → one registry setting's current value (admin value or the default)
   is_security(key) → a security setting (4.2: login locks · OTP / password reset · OTP send 4.3 · rate store · IP cache ·
-                  page sizes · dedup windows · public routes per IP 6 · guest support tickets 7.1) — own page section + typed-word confirm + audit "<route>_security"
+                  page sizes · dedup windows · public routes per IP 6 · guest support tickets 7.1 · follow-up code / session 7.4) — own page section + typed-word confirm + audit "<route>_security"
   set_value / reset_value → write path (PUT / POST /admin/settings/{key}); cache updated at once
   reload()      → DB → in-memory cache (startup + every CACHE_TTL_S by server.py's refresh loop).
                   DB failure → defaults + the error logged (the site keeps running, F9).
@@ -139,6 +139,14 @@ _DEFS = (
     _sec_rate("support_guest_reply_ticket", 1, 600, 86400, "sec_support"),
     _sec_rate("support_track_ip", 0,         10,   600, "sec_support"),
     _sec_rate("support_track_ip", 1,         10,   600, "sec_support"),
+    # Guest follow-up code + session (task 7.4): cooldown per ticket · codes per ticket · per IP · session length.
+    _sec_rate("support_track_code_gap", 0,    1,      3, "sec_support"),
+    _sec_rate("support_track_code_gap", 1,   30,    600, "sec_support"),
+    _sec_rate("support_track_code_ticket", 0, 1,     20, "sec_support"),
+    _sec_rate("support_track_code_ticket", 1, 600, 86400, "sec_support"),
+    _sec_rate("support_track_code_ip", 0,     1,     50, "sec_support"),
+    _sec_rate("support_track_code_ip", 1,   600,  86400, "sec_support"),
+    _sec_limit("support_track_session_hours", 1, 24, "sec_support", "hours"),
     # Inbound support mail (task 7.3): new tickets per sender address + every inbound ticket together.
     _sec_rate("support_inbound_sender", 0,   1,    20, "sec_support"),
     _sec_rate("support_inbound_sender", 1, 600, 86400, "sec_support"),
