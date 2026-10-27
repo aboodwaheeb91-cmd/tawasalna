@@ -1051,7 +1051,7 @@ def _startup_migrations():
         ("init_db",                           init_db,                             True),
         ("profiles_user_unique",              _migrate_profiles_user_unique,       True),
         ("user_unique_indexes",               _migrate_user_unique_indexes,        False),
-        ("news_posts",                        _migrate_news_posts,                 False),
+        ("news_posts",                        _migrate_news_posts,                 True),    # 7.6 — read by /home/feed (filter=all)
         ("feed_indexes",                      _migrate_feed_indexes,               False),
         ("company_branches",                  _migrate_company_branches,           False),
         ("company_saved_candidates",          _migrate_company_saved_candidates,   True),
@@ -1066,7 +1066,7 @@ def _startup_migrations():
         ("jobs_v2",                           _migrate_jobs_v2,                    True),
         ("job_lifecycle",                     _migrate_job_lifecycle,              True),
         ("taxonomy_foundation",               _migrate_taxonomy_foundation,        True),
-        ("job_profession_targets",            _migrate_job_profession_targets,     False),
+        ("job_profession_targets",            _migrate_job_profession_targets,     True),    # 7.6 — written by add_job after the job row
         ("notifications_schema_v2",           _migrate_notifications_schema_v2,    True),
         ("notifications_schema_v2_1",         _migrate_notifications_schema_v2_1,  True),
         ("appointments",                      _migrate_appointments,               True),
