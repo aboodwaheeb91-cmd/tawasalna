@@ -2582,12 +2582,7 @@ def _migrate_job_profession_targets():
                 UNIQUE(job_id, profession_id)
             )
         """)
-        try:
-            conn.run("CREATE INDEX IF NOT EXISTS idx_jpt_job_id ON job_profession_targets(job_id)")
-        except Exception:
-            pass
-    except Exception:
-        pass
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpt_job_id ON job_profession_targets(job_id)")
     finally:
         release_conn(conn)
 

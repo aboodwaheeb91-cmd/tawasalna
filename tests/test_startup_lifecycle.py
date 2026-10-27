@@ -62,3 +62,20 @@ def test_optional_migration_failure_keeps_starting(quiet_startup, monkeypatch):
         pass
     assert server._MIGRATION_STATUS == {"feature": "failed", "after": "ok"}
     assert "strings" in quiet_startup
+
+
+def test_job_profession_targets_migration_raises(monkeypatch):
+    """task 7.6 — critical migration must not swallow its error (§54f) and still releases the connection."""
+    import auth
+    released = []
+
+    class _Conn:
+        def run(self, *a, **k):
+            raise RuntimeError("db down")
+
+    conn = _Conn()
+    monkeypatch.setattr(auth, "get_conn", lambda: conn)
+    monkeypatch.setattr(auth, "release_conn", lambda c: released.append(c))
+    with pytest.raises(RuntimeError):
+        auth._migrate_job_profession_targets()
+    assert released == [conn]

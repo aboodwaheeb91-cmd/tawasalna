@@ -12,7 +12,7 @@ test_terms_acceptance.py — task terms: /privacy + /terms pages + required cons
 Real PostgreSQL — needs TW_TEST_DB_URL (run_tests.sh sets it). Without it: DB tests skipped.
 Run: python -m pytest tests/test_terms_acceptance.py -q
 """
-import os, sys, uuid
+import json, os, sys, uuid
 from html.parser import HTMLParser
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -130,11 +130,16 @@ def test_legal_pages_open_and_link(path, other):
     assert "X-Robots-Tag" not in r.headers   # public page — indexable (§54m)
     page = _parse(r.text)
     assert other in page.hrefs
-    assert {"legal.draft_title", "legal.draft_body", "legal.contact_email"} <= page.keys
+    assert {"legal.draft_title", "legal.draft_body"} <= page.keys
     assert page.ids["lgVersion"] and tw_terms.TERMS_VERSION in r.text and "{{" not in r.text
     strings = srv.tw_strings.merged({})
     assert all(k in strings for k in page.keys), [k for k in page.keys if k not in strings]
-    assert strings["legal.contact_email"] == "CONTACT_EMAIL_TBD"
+    # contact email comes from code (tw_terms.CONTACT_EMAIL), not an admin-editable string (task 7.6)
+    assert "support@tawasolna.com" in r.text
+    assert "{{contact_email}}" not in r.text and "CONTACT_EMAIL_TBD" not in r.text
+    assert "legal.contact_email" not in page.keys
+    with open("tw_strings.json", encoding="utf-8") as f:
+        assert "legal.contact_email" not in json.load(f)
     assert other in client.get("/sitemap.xml").text and path in client.get("/sitemap.xml").text
 
 
