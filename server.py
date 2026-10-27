@@ -2138,7 +2138,9 @@ def reset_password_page(): return read_html("reset-password.html")
 # Privacy policy + terms of use (task terms — SYSTEMS_INDEX §1d) — public, the version shown on
 # the page is the one POST /auth/register stores (tw_terms.TERMS_VERSION).
 def _legal_page(name: str) -> str:
-    return read_html(name).replace("{{terms_version}}", tw_terms.TERMS_VERSION)
+    return (read_html(name)
+            .replace("{{terms_version}}", tw_terms.TERMS_VERSION)
+            .replace("{{contact_email}}", tw_terms.CONTACT_EMAIL))
 
 @app.get("/privacy", response_class=HTMLResponse)
 def privacy_page(): return _legal_page("privacy.html")

@@ -8,7 +8,8 @@
 <title></title>
 </head>
 <!-- شروط الاستخدام (task terms · SYSTEMS_INDEX §1d) — public; every text = twT key legal.terms.* / legal.*;
-     {{terms_version}} = tw_terms.TERMS_VERSION (filled by server.py _legal_page). -->
+     {{terms_version}} = tw_terms.TERMS_VERSION · {{contact_email}} = tw_terms.CONTACT_EMAIL
+     (both filled by server.py _legal_page). -->
 <body data-tw-legal-title="legal.terms.title">
 <a href="#main-content" class="skip-link" data-tw-t="common.skip_to_content"></a>
 
@@ -84,7 +85,7 @@
   <section class="lg-sec">
     <h2 data-tw-t="legal.terms.contact"></h2>
     <p data-tw-t="legal.terms.contact_p"></p>
-    <p class="lg-email" dir="ltr" data-tw-t="legal.contact_email"></p>
+    <p class="lg-email" dir="ltr">{{contact_email}}</p>
   </section>
   <p class="lg-related"><span data-tw-t="legal.related"></span> <a href="/privacy" data-tw-t="legal.see_privacy"></a></p>
 </article>
