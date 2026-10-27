@@ -923,6 +923,41 @@ app.add_middleware(
     allow_credentials=False,  # Must be False with allow_origins=["*"]
 )
 
+
+# ── Canonical host (task 7.7 · ARCHITECTURE §34) — www.tawasolna.com → tawasolna.com ──
+# Added last = outermost: runs before every other middleware and rate limit. HTTP only (WebSocket
+# untouched — _WS_PROD_ORIGINS keeps www). Location is built from a constant + the request path,
+# never from Host / X-Forwarded-Host. GET / HEAD → 301 · anything else → 308 (method + body kept).
+_CANONICAL_ORIGIN = "https://tawasolna.com"
+_WWW_HOST = "www.tawasolna.com"
+
+
+class CanonicalHostMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            host = ""
+            for k, v in scope.get("headers") or ():
+                if k == b"host":
+                    host = v.decode("latin-1")
+                    break
+            if host.strip().lower().rsplit(":", 1)[0] == _WWW_HOST:
+                raw = scope.get("raw_path") or scope.get("path", "/").encode("utf-8")
+                path = raw.decode("latin-1")
+                if not path.startswith("/"):
+                    path = "/" + path
+                qs = (scope.get("query_string") or b"").decode("latin-1")
+                url = _CANONICAL_ORIGIN + path + ("?" + qs if qs else "")
+                code = 301 if scope.get("method") in ("GET", "HEAD") else 308
+                await RedirectResponse(url, status_code=code)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(CanonicalHostMiddleware)
+
 # ── asyncpg pool — single-RTT INSERT pipeline ──────────────────────────────
 _asyncpg_pool = None  # None until startup; fallback to pg8000 if unavailable
 

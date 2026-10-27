@@ -1589,6 +1589,8 @@ https://tawasolna.com                                          ← الصحيح
 ❌ https://tawasalna.com                                       ← خاطئ — لا تستخدم
 ```
 
+**Canonical host (task 7.7):** `CanonicalHostMiddleware` in `server.py` (added last = outermost — before every other middleware and rate limit) redirects any HTTP request with `Host` (lowercased, `:port` removed) == `www.tawasolna.com` → `https://tawasolna.com` + same path + query: GET / HEAD → 301 · other methods → 308. Location is built from the constant `_CANONICAL_ORIGIN`, never from `Host` / `X-Forwarded-Host`. WebSocket is not redirected (`_WS_PROD_ORIGINS` keeps www). Any other Host is untouched. ❌ a second host redirect. Test: `python -m pytest tests/test_www_redirect_77.py -q`.
+
 ### روابط حية مرجعية
 ```
 Profile (Smart Router): https://tawasolna.com/u/U0000db005c71b0
