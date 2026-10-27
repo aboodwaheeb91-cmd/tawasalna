@@ -675,9 +675,18 @@ def _revoke_guest_access(conn, ticket_id: int) -> None:
     conn.run("DELETE FROM support_track_otp WHERE ticket_id = :t", t=ticket_id)
 
 
-def guest_view(session) -> dict:
+def guest_view(session, token=None) -> dict:
+    """token (7.5b — a new link opened with a session kept): the session must belong to the link's ticket —
+    another ticket / a wrong · expired · revoked link → GuestSessionError (one 401), never the link alone."""
     def fn(conn):
         t = _guest_session(conn, session)
+        if token is not None:
+            try:
+                _, linked = _guest_access(conn, token)
+            except LookupError:
+                raise GuestSessionError("link")
+            if int(linked["id"]) != int(t["id"]):
+                raise GuestSessionError("ticket")
         out = _requester_view(t)
         out["messages"] = _messages(conn, t["id"], admin=False)
         out["verified"] = True

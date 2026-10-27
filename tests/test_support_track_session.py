@@ -7,8 +7,10 @@ Behaviour over HTTP (real PostgreSQL, in-process client, fake Resend):
      token (as token or as session) → 401
   2  /support/track/code → the STORED guest_email only (an email in the body is ignored) · same reply for a
      wrong link · cooldown + per-ticket hourly cap (same reply, no email) · per-IP → 429
-  3  verify → a session that opens its own ticket only · both keys → the session only (bad session → 401,
-     no fallback to the link) · a session row on an account ticket → 401
+  3  verify → a session that opens its own ticket only · bad session + link → 401 (no fallback to the link)
+     · a session row on an account ticket → 401
+  3b (7.5b) session + a new link: same ticket → the conversation · another ticket's / wrong link → 401 ·
+     expired session + its own link → 401
   4  code of ticket A never verifies on B · the «open a ticket» code never opens a session (and the other
      way round) · a used code fails · the last wrong attempt kills the code · two concurrent verifies with
      one code → one session
@@ -162,8 +164,6 @@ def test_session_opens_its_own_ticket_only():
     r = _post("view", {"session": sa})
     assert r.status_code == 200 and r.json()["data"]["public_id"] == pid_a
     assert r.json()["data"]["messages"][0]["body"] == "نص المحادثة"
-    both = _post("view", {"session": sa, "token": tok_b})                        # session wins
-    assert both.json()["data"]["public_id"] == pid_a
     assert _post("view", {"session": "B" * 43, "token": tok_a}).status_code == 401   # no fallback to the link
     assert _post("reply", {"session": sa, "body": "رد"}).json()["data"]["status"] == "in_review"
     assert _sql("SELECT COUNT(*) FROM support_messages WHERE ticket_id = :t", t=_tid(pid_b))[0][0] == 1
@@ -178,6 +178,28 @@ def test_session_opens_its_own_ticket_only():
          "WHERE ticket_id = :t", p=pid_b, t=_tid(pid_a))
     _sql("UPDATE support_tickets SET user_id = :u WHERE public_id = :p", u=uid, p=pid_b)
     assert _post("view", {"session": sa}).status_code == 401
+
+
+# ── 3b a new link with the session kept (7.5b) — the server decides ──
+def test_session_with_new_link_same_ticket_only():
+    _, pid_a, tok_a = _guest_ticket()
+    _, pid_b, tok_b = _guest_ticket()
+    sa = _session(tok_a)
+    r = client.post(f"/admin/support/tickets/{pid_a}/messages", json={"body": "رد", "next_status": "awaiting_user"},
+                    headers={"X-Admin-Token": srv._admin_jwt_issue(sub="staff:7")})
+    assert r.status_code == 200
+    newest = SENT[-1][2]["link"].split("#t=")[1]                                 # admin reply → another link, same ticket
+    same = _post("view", {"session": sa, "token": newest})
+    assert same.status_code == 200 and same.json()["data"]["public_id"] == pid_a
+    assert same.json()["data"]["messages"][0]["body"] == "نص المحادثة"
+    other = _post("view", {"session": sa, "token": tok_b})                       # another ticket's link → 401
+    assert other.status_code == 401 and other.json()["error"]["code"] == "session_required"
+    assert pid_b not in other.text and "نص المحادثة" not in other.text
+    assert _post("view", {"session": sa, "token": "Z" * 43}).status_code == 401  # wrong link → 401, not 404
+    assert _post("view", {"token": tok_b}).json()["data"]["ticket"] == pid_b       # the link alone still names B
+    _sql("UPDATE support_guest_sessions SET expires_at = NOW() - INTERVAL '1 second' WHERE ticket_id = :t", t=_tid(pid_a))
+    expired = _post("view", {"session": sa, "token": newest})                    # expired session + its own link
+    assert expired.status_code == 401 and "نص المحادثة" not in expired.text
 
 
 # ── 4 codes never cross ──
