@@ -130,6 +130,7 @@ PY_DB=(
   pytest:test_input_limits_50h2.py    # task 5.0h-2 — message rate · view dedupe · password bytes · login lock IP + email · bounded stores · scheduler unlock
   pytest:test_otp_send_limits_43.py   # task 4.3 — KYC OTP send limits (account · target · IP) + single-instance warning
   pytest:test_public_rate_limit.py   # task 6 — public routes per-IP limit (429 + Retry-After · HTML vs JSON · exempt · structure · settings)
+  pytest:test_www_redirect_77.py     # task 7.7 — www.tawasolna.com → tawasolna.com (301 / 308 · Location from a constant · before rate limits · WS untouched)
   pytest:test_support_tickets.py     # task 7.1 — support tickets: ownership · priority admin-only · account / guest / global limits · reopen 14 days · support.manage · audit
   pytest:test_support_guest_link.py  # task 7.2a — guest follow-up link: hash only · same 404 · +90 days · keep=3 · resend · four limits · headers
   pytest:test_support_track_session.py  # task 7.4 — link names the ticket only · code to the stored guest_email · session (hash · 24 h · revoked by resend) · codes never cross · one session per code
