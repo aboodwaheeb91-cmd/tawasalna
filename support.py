@@ -457,13 +457,16 @@ def _set_status(conn, t: dict, new: str, message: bool) -> None:
              + " WHERE id = :t", s=new, t=t["id"])
 
 
-def _requester_reply(conn, t: dict, author_type: str, author_id, body: str, open_max=None) -> dict:
+def _requester_reply(conn, t: dict, author_type: str, author_id, body: str, open_max=None, allow=None) -> dict:
     """Account / guest reply → in_review; on a resolved ticket within REOPEN_DAYS it reopens (open_max for
-    an account), later → 409."""
+    an account), later → 409. allow(public_id) = the shared per-ticket reply rate (7.5a — support_reply_ticket),
+    asked last, right before the write: a refused reply never spends it · False → 429 (nothing written)."""
     reopened = t["status"] == "resolved"
     new = transition(t["status"], "requester_reply", reopen_ok=bool(t["within_reopen"]))
     if reopened and t["user_id"] and open_max is not None:
         _lock_user_open(conn, t["user_id"], open_max, exclude_id=t["id"])
+    if allow is not None and not allow(t["public_id"]):
+        raise SupportError(429, "rate_limited", "limits.rate_limited")
     _insert_message(conn, t["id"], author_type, author_id, body)
     _set_status(conn, t, new, message=True)
     return {"public_id": t["public_id"], "status": new, "reopened": reopened}
@@ -513,9 +516,9 @@ def _locked_user_ticket(conn, public_id: str, user_id: int) -> dict:
     return _ticket(rows[0])
 
 
-def user_reply(public_id: str, user_id: int, body: str, open_max: int) -> dict:
+def user_reply(public_id: str, user_id: int, body: str, open_max: int, allow=None) -> dict:
     return _tx(lambda conn: _requester_reply(conn, _locked_user_ticket(conn, public_id, user_id),
-                                             "user", user_id, body, open_max))
+                                             "user", user_id, body, open_max, allow))
 
 
 def user_resolve(public_id: str, user_id: int) -> dict:
@@ -696,12 +699,7 @@ def guest_view(session, token=None) -> dict:
 
 def guest_reply(session, body: str, allow=None) -> dict:
     """allow(public_id) → False = the per-ticket rate is full → 429 (nothing written)."""
-    def fn(conn):
-        t = _guest_session(conn, session)
-        if allow is not None and not allow(t["public_id"]):
-            raise SupportError(429, "rate_limited", "limits.rate_limited")
-        return _requester_reply(conn, t, "guest", None, body)
-    return _tx(fn)
+    return _tx(lambda conn: _requester_reply(conn, _guest_session(conn, session), "guest", None, body, allow=allow))
 
 
 def guest_resolve(session) -> dict:
@@ -968,11 +966,12 @@ def inbound_new_ticket(svix_id: str, email_id: str, sender: str, subject: str, b
     return _tx(fn)
 
 
-def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: str, open_max: int) -> str:
+def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: str, open_max: int,
+                  allow=None) -> str:
     """Email to support+<token>@ → a message on that ticket when sender = its owner (account email or
-    guest_email); same rules as a web reply (_requester_reply: reopen within REOPEN_DAYS, open_max).
-    → 'message' · 'duplicate' · 'ignored_token' · 'ignored_owner' · 'ignored_suspended' (account suspended) ·
-    'ignored_<SupportError code>'."""
+    guest_email); same rules as a web reply (_requester_reply: reopen within REOPEN_DAYS, open_max, the shared
+    per-ticket rate allow — 7.5a). → 'message' · 'duplicate' · 'ignored_token' · 'ignored_owner' ·
+    'ignored_suspended' (account suspended) · 'ignored_rate' · 'ignored_<SupportError code>'."""
     def fn(conn):
         eid = _inbound_claim(conn, svix_id, email_id, "processing")
         if eid is None:
@@ -991,10 +990,11 @@ def inbound_reply(svix_id: str, email_id: str, token: str, sender: str, body: st
             return _inbound_done(conn, eid, "ignored_suspended", t["id"])
         try:
             if t["user_id"]:
-                _requester_reply(conn, t, "user", t["user_id"], body, open_max)
+                _requester_reply(conn, t, "user", t["user_id"], body, open_max, allow)
             else:
-                _requester_reply(conn, t, "guest", None, body)
-        except SupportError as e:   # reopen_expired / too_many_open — nothing written, the email is dropped
-            return _inbound_done(conn, eid, "ignored_" + e.code[:24], t["id"])
+                _requester_reply(conn, t, "guest", None, body, allow=allow)
+        except SupportError as e:   # reopen_expired / too_many_open / rate — nothing written, the email is dropped
+            code = "rate" if e.code == "rate_limited" else e.code[:24]
+            return _inbound_done(conn, eid, "ignored_" + code, t["id"])
         return _inbound_done(conn, eid, "message", t["id"])
     return _tx(fn)

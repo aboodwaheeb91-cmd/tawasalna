@@ -11,7 +11,7 @@ Behaviour over HTTP (real PostgreSQL, in-process client):
   3  a link never reaches an account's ticket or another guest's ticket
   4  issue_guest_link keep=3 · resend revokes every link + a new one, same reply for a known / unknown email,
      only unresolved / resolved < 14 days, newest 5
-  5  limits — support_link_resend_email (silent) · support_link_resend_ip · support_guest_reply_ticket ·
+  5  limits — support_link_resend_email (silent) · support_link_resend_ip · support_reply_ticket ·
      support_track_ip (tw_settings, sec_support)
   6  headers on every /support/track path (page + API): no-store · no-referrer · noindex
   7  support_guest_link switched off → code / tickets 503 (no code issued, no ticket) · resend same reply, no new link
@@ -237,12 +237,12 @@ def test_resend_newest_five():
 
 # ── 5 limits ──
 def test_limits():
-    for key in ("support_link_resend_email_hits", "support_link_resend_ip_hits", "support_guest_reply_ticket_hits",
+    for key in ("support_link_resend_email_hits", "support_link_resend_ip_hits", "support_reply_ticket_hits",
                 "support_track_ip_hits"):
         assert tw_settings.is_security(key) and tw_settings.REGISTRY[key]["group"] == "sec_support", key
     assert tw_settings.rate("support_link_resend_email") == (3, 3600)
     assert tw_settings.rate("support_link_resend_ip") == (10, 3600)
-    assert tw_settings.rate("support_guest_reply_ticket") == (20, 3600)
+    assert tw_settings.rate("support_reply_ticket") == (20, 3600)
     assert tw_settings.rate("support_track_ip") == (60, 60)
     email, pid, token = _guest_ticket()
     srv._rate_store.clear()
@@ -258,7 +258,7 @@ def test_limits():
     assert _resend("b@x.test", ip="2.2.2.2").status_code == 200
     assert _resend("c@x.test", ip="2.2.2.2").status_code == 429
     srv._rate_store.clear()
-    tw_settings._set_overrides({"support_guest_reply_ticket_hits": 2})
+    tw_settings._set_overrides({"support_reply_ticket_hits": 2})
     assert _reply(sess, ip="3.3.3.1").status_code == 200
     assert _reply(sess, ip="3.3.3.2").status_code == 200
     n = _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id WHERE t.public_id = :p", p=pid)[0][0]

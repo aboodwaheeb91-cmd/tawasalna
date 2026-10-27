@@ -16,6 +16,12 @@ monkeypatched email_service.fetch_received, outgoing emails are recorded — no 
   8  switch types.support_inbound off (default) → 200, nothing written
   9  send_email: reply_to outside the support templates → invalid (nothing sent)
  10  suspended account + right token + its own From → ignored, no new message (blocks-suspension)
+ 11  7.5a DMARC: a reply is written only with authentication.dmarc = pass · fail / gray / unknown / null / missing /
+     processing_failed → its outcome, no message
+ 12  7.5a shared per-ticket reply limit: link + email (guest) · account + email → stop at support_reply_ticket;
+     admin replies never count · a refused email (wrong From / DMARC) never spends it
+ 13  7.5a reply text: follow-up link + support+<token>@ redacted · quote cut at the first separator · quote only →
+     the whole text kept
 
 TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_support_inbound.py -q
@@ -93,12 +99,18 @@ def _sign(raw: bytes, msg_id: str, ts: int, secret: str = SECRET) -> str:
     return "v1," + base64.b64encode(hmac.new(key, f"{msg_id}.{ts}.".encode() + raw, hashlib.sha256).digest()).decode()
 
 
+_PASS = {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+_NO_AUTH = object()
+
+
 def _post(to, sender="Sami <sami@example.org>", subject="مشكلة", text="نص الرسالة", html=None, headers=None,
-          svix_id=None, email_id=None, ts=None, sig=None):
+          svix_id=None, email_id=None, ts=None, sig=None, authentication=_PASS):
     email_id = email_id or str(uuid.uuid4())
     svix_id = svix_id or "msg_" + uuid.uuid4().hex
     MAILS[email_id] = {"id": email_id, "from": sender, "to": to, "subject": subject, "text": text, "html": html,
                        "headers": headers or {}}
+    if authentication is not _NO_AUTH:
+        MAILS[email_id]["authentication"] = authentication
     raw = json.dumps({"type": "email.received", "created_at": "2026-10-24T00:00:00Z",
                       "data": {"email_id": email_id, "from": sender, "to": to, "subject": subject}}).encode()
     ts = int(time.time()) if ts is None else ts
@@ -282,3 +294,137 @@ def test_suspended_account_reply_ignored():
     bs.set_suspension(int(uid), False, None, "owner")
     r, _, _ = _post([reply_to], sender=email, text="رد بعد فك التعليق")
     assert count() == n0 + 1
+
+
+# ── 11–13 (task 7.5a) ──
+def _outcome(email_id):
+    return _sql("SELECT outcome FROM support_inbound_events WHERE email_id = :e", e=email_id)[0][0]
+
+
+def _msgs(tid):
+    return _sql("SELECT COUNT(*) FROM support_messages WHERE ticket_id = :t", t=tid)[0][0]
+
+
+def _guest_with_reply_to(a):
+    """An email ticket from a + an admin reply → (ticket id, public id, Reply-To, follow-up link token)."""
+    _post(["support@tawasolna.com"], sender=a)
+    tid, pid = _tickets(a)[0][:2]
+    SENT.clear()
+    r = client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "رد", "next_status": "awaiting_user"},
+                    headers=_admin())
+    assert r.status_code == 200, r.text
+    [(_, _, v, reply_to)] = SENT
+    return tid, pid, reply_to, v["link"].split("#t=")[1]
+
+
+def test_dmarc_pass_only():
+    a = _addr()
+    tid, _, reply_to, _ = _guest_with_reply_to(a)
+    n0 = _msgs(tid)
+    for auth, want in ((dict(_PASS, dmarc="fail"), "ignored_auth_fail"),
+                       (dict(_PASS, dmarc="gray"), "ignored_auth_none"),
+                       (dict(_PASS, dmarc="unknown"), "ignored_auth_none"),
+                       (dict(_PASS, dmarc=None), "ignored_auth_none"),
+                       ({"spf": "pass", "dkim": "pass"}, "ignored_auth_none"),
+                       (_NO_AUTH, "ignored_auth_none"),
+                       ("pass", "ignored_auth_none"),                                    # wrong shape
+                       (dict(_PASS, dmarc="processing_failed"), "ignored_auth_error")):
+        r, _, email_id = _post([reply_to], sender=a, text="رد", authentication=auth)
+        assert r.status_code == 200 and r.json()["data"]["handled"] is False
+        assert _outcome(email_id) == want, auth
+        assert _msgs(tid) == n0
+    r, _, email_id = _post([reply_to], sender=a, text="رد صحيح")
+    assert _outcome(email_id) == "message" and _msgs(tid) == n0 + 1
+    b = _addr()                                                                    # a new ticket is not checked
+    r, _, email_id = _post(["support@tawasolna.com"], sender=b, authentication=dict(_PASS, dmarc="fail"))
+    assert _outcome(email_id) == "ticket" and len(_tickets(b)) == 1
+
+
+def _track_session(token):
+    ip = {"X-Real-IP": "9.9.9.9"}
+    for k in [k for k in list(srv._rate_store) if k.startswith(("support_track_", "public_ip"))]:
+        del srv._rate_store[k]
+    assert client.post("/support/track/code", json={"token": token}, headers=ip).status_code == 200
+    code = [v for _, key, v, _ in SENT if key == "support_guest_otp"][-1]["code"]
+    r = client.post("/support/track/verify", json={"token": token, "code": code}, headers=ip)
+    assert r.status_code == 200, r.text
+    return r.json()["data"]["session"]
+
+
+def _link_reply(session):
+    return client.post("/support/track/reply", json={"session": session, "body": "رد من الرابط"},
+                       headers={"X-Real-IP": "9.9.9.9"})
+
+
+def test_shared_reply_limit_guest_link_and_email():
+    a = _addr()
+    tid, _, reply_to, link_token = _guest_with_reply_to(a)
+    session = _track_session(link_token)
+    tw_settings._set_overrides({"support_reply_ticket_hits": 3})
+    n0 = _msgs(tid)
+    r, _, e1 = _post([reply_to], sender="intruder@example.org", text="x")               # refused → not counted
+    r, _, e2 = _post([reply_to], sender=a, text="x", authentication=dict(_PASS, dmarc="fail"))
+    assert (_outcome(e1), _outcome(e2)) == ("ignored_owner", "ignored_auth_fail")
+    assert _link_reply(session).status_code == 200                                     # 1
+    r, _, e3 = _post([reply_to], sender=a, text="رد بالبريد")                            # 2
+    assert _outcome(e3) == "message"
+    r = client.post(f"/admin/support/tickets/{_tickets(a)[0][1]}/messages",           # admin — not counted
+                    json={"body": "رد الفريق", "next_status": "awaiting_user"}, headers=_admin())
+    assert r.status_code == 200
+    assert _link_reply(session).status_code == 200                                     # 3
+    n = _msgs(tid)
+    assert n == n0 + 4
+    r, _, e4 = _post([reply_to], sender=a, text="رابع")
+    assert _outcome(e4) == "ignored_rate"
+    r = _link_reply(session)
+    assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
+    assert _msgs(tid) == n
+
+
+def test_shared_reply_limit_account_and_email():
+    n = uuid.uuid4().hex[:10]
+    email = n + "@acc.test"
+    uid, tw = _sql("INSERT INTO users (tw_id, full_name, email, password_hash, user_type) "
+                   "VALUES (:t, :n, :e, 'x', 'emp') RETURNING id, tw_id", t="U" + n, n="User" + n, e=email)[0]
+    h = {"Authorization": "Bearer " + srv._jwt_encode({"sv": 0, "user_id": int(uid), "user_type": "emp", "tw_id": tw})}
+    pid = client.post("/support/tickets", json={"category": "general", "subject": "سؤال", "body": "نص"},
+                      headers=h).json()["data"]["public_id"]
+    tid = _sql("SELECT id FROM support_tickets WHERE public_id = :p", p=pid)[0][0]
+    SENT.clear()
+    client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "رد", "next_status": "awaiting_user"},
+                headers=_admin())
+    reply_to = [rt for _, key, _, rt in SENT if key == "support_reply"][0]
+    tw_settings._set_overrides({"support_reply_ticket_hits": 2})
+    path = f"/support/tickets/{pid}/messages"
+    assert client.post(path, json={"body": "رد من الحساب"}, headers=h).status_code == 200      # 1
+    r, _, e1 = _post([reply_to], sender=email, text="رد بالبريد")                              # 2
+    assert _outcome(e1) == "message"
+    m = _msgs(tid)
+    r = client.post(path, json={"body": "تالت"}, headers=h)
+    assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
+    r, _, e2 = _post([reply_to], sender=email, text="رابع")
+    assert _outcome(e2) == "ignored_rate"
+    assert _msgs(tid) == m
+
+
+def _last_body(tid):
+    return _sql("SELECT body FROM support_messages WHERE ticket_id = :t ORDER BY id DESC LIMIT 1", t=tid)[0][0]
+
+
+def test_reply_text_redacted_and_quote_cut():
+    a = _addr()
+    tid, _, reply_to, link_token = _guest_with_reply_to(a)
+    mark = srv._tw_text("support.inbound.redacted")
+    link = "https://tawasolna.com/support/track#t=" + link_token
+    _post([reply_to], sender=a, text=f"شوف {link} وراسلوني على <{reply_to}>\n\n"
+          f"On Mon, Oct 27, 2026 at 10:00 AM Support <{reply_to}> wrote:\n> رد قديم\n> {link}")
+    body = _last_body(tid)
+    assert body == f"شوف {mark} وراسلوني على <{mark}>"
+    assert link_token not in body and "support+" not in body
+    _post([reply_to], sender=a, text="شكراً\n-----Original Message-----\nFrom: support")
+    assert _last_body(tid) == "شكراً"
+    _post([reply_to], sender=a, text="لسا ما زبط\n\u200fفي الثلاثاء، 27 أكتوبر 2026 في 10:00 ص كتب Support "
+          "<support@tawasolna.com>:\u200f\n> قديم")
+    assert _last_body(tid) == "لسا ما زبط"
+    _post([reply_to], sender=a, text=f"> كل شي مقتبس\n> {link}")                         # quote only → kept
+    assert _last_body(tid) == f"> كل شي مقتبس\n> {mark}"

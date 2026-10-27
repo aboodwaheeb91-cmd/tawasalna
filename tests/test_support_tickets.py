@@ -14,6 +14,8 @@ Behaviour over HTTP (real PostgreSQL, in-process client):
   8  legacy values (7.2a transition) — open → new / in_review · closed → resolved · other → general on read
   9  details / faq_id (7.2a) — unknown key · external link · future date · too big · bad faq → 422 · /support/meta
   10 admin inbox (7.2a) — filters · q (H id / email) · sort · counts · category change + legacy_category
+  11 shared reply limit (7.5a) — account replies stop at support_reply_ticket (429, nothing written) · another
+     account's 404 / an empty body never spend it · admin replies never count
 
 TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_support_tickets.py -q
@@ -423,3 +425,27 @@ def test_admin_filters_search_sort_counts_category():
     client.put(f"/admin/support/tickets/{a}", json={"category": "general"}, headers=_admin())
     assert _sql("SELECT category, legacy_category FROM support_tickets WHERE public_id = :p", p=a)[0] == ["general", "technical"]
     assert client.put(f"/admin/support/tickets/{a}", json={"category": "other"}, headers=_admin()).status_code == 422
+
+
+# ── 11 shared per-ticket reply limit (7.5a) ──
+def test_account_reply_limit_shared_bucket():
+    a, b = _user(), _user()
+    pid = _open(a)
+    path = f"/support/tickets/{pid}/messages"
+    tw_settings._set_overrides({"support_reply_ticket_hits": 2})
+    srv._rate_store.clear()
+    assert client.post(path, json={"body": "رد"}, headers=_h(b)).status_code == 404          # refused → not spent
+    assert client.post(path, json={"body": ""}, headers=_h(a)).status_code == 422
+    assert client.post(path, json={"body": "أول"}, headers=_h(a)).status_code == 200
+    assert client.post(f"/admin/support/tickets/{pid}/messages", json={"body": "رد الفريق", "next_status": "awaiting_user"},
+                       headers=_admin()).status_code == 200                                  # admin — not counted
+    assert client.post(path, json={"body": "تاني"}, headers=_h(a)).status_code == 200
+    n = _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id "
+             "WHERE t.public_id = :p", p=pid)[0][0]
+    r = client.post(path, json={"body": "تالت"}, headers=_h(a))
+    assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
+    assert r.json()["error"]["message"] == srv._tw_text("limits.rate_limited")
+    assert _sql("SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id "
+                "WHERE t.public_id = :p", p=pid)[0][0] == n
+    assert "support_guest_reply_ticket_hits" not in tw_settings.REGISTRY                      # 7.5a: replaced
+    assert tw_settings.REGISTRY["support_reply_ticket_hits"]["group"] == "sec_support"

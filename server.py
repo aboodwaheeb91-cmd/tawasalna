@@ -4422,6 +4422,13 @@ def admin_settings_reset(request: Request, key: str):
 SUPPORT_PERM = "support.manage"
 
 
+def _support_reply_allow(public_id: str) -> bool:
+    """The ONE per-ticket requester reply rate (7.5a): guest link + account + inbound email share the bucket
+    support_reply_ticket:{public_id}. support._requester_reply asks it last, right before the write — a reply
+    refused earlier (session / owner / reopen / open_max) never spends it. Admin replies never count."""
+    return _rate_ok("support_reply_ticket", public_id)
+
+
 def _support_err(e: "support.SupportError") -> JSONResponse:
     return api_error(e.status, e.code, _tw_text(e.text_key), e.field)
 
@@ -4525,7 +4532,8 @@ def support_reply(public_id: str, data: dict = Body(...), token=Depends(verify_t
     if bad:
         return bad
     try:
-        return api_ok(support.user_reply(public_id, uid, body, tw_settings.limit("support_open_max")))
+        return api_ok(support.user_reply(public_id, uid, body, tw_settings.limit("support_open_max"),
+                                         allow=_support_reply_allow))
     except LookupError:
         return _support_not_found()
     except support.SupportError as e:
@@ -4624,7 +4632,7 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
 
 # ── guest follow-up link (task 7.2a · 7.4 — ARCHITECTURE §81 → guest link security) ──
 # Token in the body only (POST, never a query string) · wrong / expired / revoked / not a guest ticket →
-# one 404 · support_track_ip on every call + _public_rate · reply: support_guest_reply_ticket per ticket.
+# one 404 · support_track_ip on every call + _public_rate · reply: support_reply_ticket per ticket (shared — 7.5a).
 # 7.4: the link names the ticket only — view / reply / resolve need the session from /support/track/verify.
 # Headers (no-store · no-referrer · noindex) = security_headers on every /support/track path.
 def _support_reply_to(ticket_id=None, public_id=None):
@@ -4741,7 +4749,7 @@ def support_track_reply(request: Request, data: dict = Body(...)):
         return bad
     try:
         return _support_track(request, lambda: support.guest_reply(
-            data.get("session"), body, allow=lambda pid: _rate_ok("support_guest_reply_ticket", pid)))
+            data.get("session"), body, allow=_support_reply_allow))
     except Exception as e:
         raise _server_error("support_track_reply", e)
 
@@ -4776,6 +4784,50 @@ def support_track_resend(request: Request, background_tasks: BackgroundTasks, da
 # except a failed fetch of the email from Resend → 503 so Resend retries (no event row written).
 # Never logs an address, a subject, a body or a token — the outcome code only. Never replies to an email.
 _INBOUND_AUTO_FROM = ("mailer-daemon", "postmaster")
+# 7.5a — a reply (support+<token>@) is accepted only when Resend's own check says authentication.dmarc == pass
+# (computed by the receiving server — never a header). Anything else → its outcome, no message written.
+_INBOUND_DMARC = {"fail": "ignored_auth_fail", "processing_failed": "ignored_auth_error"}   # else → ignored_auth_none
+# 7.5a — reply text: a follow-up link (/support/track … t=) and a support+<token>@ address are always redacted;
+# the quoted original is cut at the FIRST known separator only (nothing else is ever removed).
+_INBOUND_LINK_RE = re.compile(r"""[^\s<>"'()\[\]]*/support/track[^\s<>"'()\[\]]*""", re.I)
+_INBOUND_ADDR_RE = re.compile(r"""support\+[^\s@<>"'()\[\]]+@[A-Za-z0-9.-]+""", re.I)
+_INBOUND_BIDI_RE = re.compile("[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+_INBOUND_SEP_RES = (
+    re.compile(r"^On\s.+\swrote:$", re.I),                                   # Gmail / Apple Mail (English)
+    re.compile(r"^في\s.+\s(كتب|تمت كتابة ما يلي بواسطة)\s.*<[^<>\s]+@[^<>\s]+>.*:$"),   # Gmail (Arabic) — with <address>
+    re.compile(r"^-{2,}\s*Original Message\s*-{2,}$", re.I),                    # Outlook
+)
+
+
+def _inbound_dmarc(msg: dict):
+    """None = pass · else the outcome code (fail / processing_failed / anything else incl. missing)."""
+    a = msg.get("authentication")
+    d = a.get("dmarc") if isinstance(a, dict) else None
+    if d == "pass":
+        return None
+    return _INBOUND_DMARC.get(d, "ignored_auth_none") if isinstance(d, str) else "ignored_auth_none"
+
+
+def _inbound_reply_text(text: str) -> str:
+    """Reply body: redact the follow-up link + support+<token>@ (support.inbound.redacted), then cut the quote at
+    the first «On … wrote:» / Arabic Gmail line / «-----Original Message-----» / a «>» block that runs to the
+    end. Nothing left above the cut → the whole (redacted) text."""
+    mark = _tw_text("support.inbound.redacted")
+    text = _INBOUND_LINK_RE.sub(lambda m: mark if "t=" in m.group(0).lower() else m.group(0), text or "")
+    text = _INBOUND_ADDR_RE.sub(mark, text)
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    cut = None
+    for i, line in enumerate(lines):
+        s = _INBOUND_BIDI_RE.sub("", line).strip()
+        two = (s + " " + _INBOUND_BIDI_RE.sub("", lines[i + 1]).strip()) if i + 1 < len(lines) else s
+        if any(r.match(s) or r.match(two) for r in _INBOUND_SEP_RES) \
+                or (s.startswith(">") and all(not x.strip() or x.lstrip().startswith(">") for x in lines[i:])):
+            cut = i
+            break
+    if cut is None:
+        return text
+    head = "\n".join(lines[:cut])
+    return head if head.strip() else text
 
 
 def _inbound_text(msg: dict) -> str:
@@ -4846,11 +4898,18 @@ def _inbound_handle(raw: bytes, svix_id: str) -> JSONResponse:
         return ignore("ignored_sender")
     if _inbound_auto(msg.get("headers")):
         return ignore("ignored_auto")
-    body = _inbound_clean(_inbound_text(msg), "support_body_max")
+    if kind == "reply":
+        auth_fail = _inbound_dmarc(msg)
+        if auth_fail:
+            return ignore(auth_fail)
+        body = _inbound_clean(_inbound_reply_text(_inbound_text(msg)), "support_body_max")
+    else:
+        body = _inbound_clean(_inbound_text(msg), "support_body_max")
     if not body:
         return ignore("ignored_empty")
     if kind == "reply":
-        out = support.inbound_reply(svix_id, email_id, token, sender, body, tw_settings.limit("support_open_max"))
+        out = support.inbound_reply(svix_id, email_id, token, sender, body, tw_settings.limit("support_open_max"),
+                                    allow=_support_reply_allow)
     else:
         if not _rate_ok_all([("support_inbound_sender", sender), ("support_inbound_global", "all")]):
             return ignore("ignored_rate")
