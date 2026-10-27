@@ -7484,6 +7484,8 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
         return JSONResponse(status_code=409, content={"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"})
     except ReapplyLimitError as e:   # task 8.2a — re-applies per (applicant + job) in 7 days
         return _limit_error(429, "reapply_limit", "jobs.reapply.limit", max=_fmt_number(e.limit))
+    except ApplicationStateError as e:   # task 8.2a — re-apply refused: a result (hired / rejected) exists
+        return api_error(409, e.code, _tw_text(f"jobs.app_state.{e.code}"))
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"status": "success", **result}

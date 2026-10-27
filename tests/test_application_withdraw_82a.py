@@ -26,14 +26,16 @@ APPLICANT, OTHER, COMPANY, JOB, APP = 11, 12, 50, 7, 300
 class _FakeDB:
     """In-memory job / application / pipeline / appointment state behind conn.run(sql, **params)."""
 
-    def __init__(self, app_status="interview", job_status="active", with_app=True):
+    def __init__(self, app_status="interview", job_status="active", with_app=True,
+                 stage="interview", ref_status=None):
         self.job = {"status": job_status, "closed_at": None, "expires_at": None, "company_id": COMPANY,
                     "title": "مطور", "archived_at": None, "admin_hidden_at": None}
         self.apps = {}
         if with_app:
             self.apps[APP] = {"job_id": JOB, "user_id": APPLICANT, "status": app_status, "cover_letter": ""}
-        self.entry = ({"id": 900, "application_id": APP, "source": "application", "stage": "interview"}
+        self.entry = ({"id": 900, "application_id": APP, "source": "application", "stage": stage}
                       if with_app else None)
+        self.ref_status = ref_status    # company_candidate_job_refs.candidate_status (None = no row)
         self.stage_events = []      # {from, to, by, reason, at}
         future = datetime.now(timezone.utc) + timedelta(days=2)
         self.appointments = [
@@ -69,6 +71,10 @@ class _FakeDB:
         if q.startswith("SELECT id, stage FROM job_pipeline_entries"):
             e = self.entry
             return [[e["id"], e["stage"]]] if e else []
+        if q.startswith("SELECT candidate_status FROM company_candidate_job_refs"):
+            return [[self.ref_status]] if self.ref_status else []
+        if q.startswith("SELECT stage FROM job_pipeline_entries"):
+            return [[self.entry["stage"]]] if self.entry else []
         if q.startswith("SELECT id FROM job_pipeline_entries"):
             return [[self.entry["id"]]] if self.entry else []
         if q.startswith("UPDATE job_pipeline_entries SET stage"):
@@ -199,6 +205,18 @@ def test_final_or_closed_job_is_409(db, kw, code):
     assert d.stage_events == [] and d.appt_events == []
 
 
+@pytest.mark.parametrize("kw", [
+    {"app_status": "pending", "stage": "rejected"},                    # result set on the pipeline only
+    {"app_status": "interview", "stage": "interview", "ref_status": "hired"},   # … on the job ref only
+])
+def test_result_in_any_source_blocks_withdraw(db, kw):
+    d = db(**kw)
+    r = _withdraw()
+    assert r.status_code == 409 and r.json()["error"]["code"] == "application_final"
+    assert d.apps[APP]["status"] == kw["app_status"] and d.entry["stage"] == kw["stage"]
+    assert d.stage_events == [] and d.appt_events == [] and d.tx[-1] == "ROLLBACK"
+
+
 def test_company_cannot_reclassify_withdrawn(db):
     d = db(app_status="withdrawn")
 
@@ -236,6 +254,18 @@ def test_reapply_updates_same_row_without_notification(db):
                               else [[d.entry["stage"]]] if "SELECT stage FROM job_pipeline_entries" in sql
                               else d.run_orig(sql, **p))
     assert auth._final_status_on_job(d, COMPANY, APPLICANT, JOB, d.apps[APP]["status"]) is None
+
+
+def test_rejected_after_withdrawal_cannot_reapply(db):
+    d = db(app_status="contacted", stage="contacted")
+    assert _withdraw().status_code == 200
+    d.ref_status = "rejected"            # the company rejects through the job ref → stage rejected,
+    d.entry["stage"] = "rejected"        # job_applications.status untouched (still withdrawn)
+    r = _apply()
+    assert r.status_code == 409 and r.json()["error"]["code"] == "application_final"
+    assert d.apps[APP]["status"] == "withdrawn" and d.entry["stage"] == "rejected"
+    assert not any(e["to"] == "new" for e in d.stage_events) and d.tx[-1] == "ROLLBACK"
+    assert d.notifications == []
 
 
 def test_fourth_reapply_in_a_week_is_429(db):

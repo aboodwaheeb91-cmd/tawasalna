@@ -3052,8 +3052,10 @@ WITHDRAW_APPT_CANCEL_REASON = "المتقدم انسحب"    # fixed appointment
 def _reapply_in_tx(conn, job_id: int, user_id: int, company_id: int, job_title: str,
                    cover_letter: str):
     """Re-apply inside apply_job's open transaction (the job row is already locked + open).
-    Only an application the applicant withdrew themselves → same row back to pending + pipeline
-    'new' (event withdrawn → new). Limit: tw_settings job_reapply_week_max re-applies per
+    Only an application the applicant withdrew themselves (current pipeline stage 'withdrawn', last
+    move to it by the applicant) → same row back to pending + pipeline 'new' (event withdrawn → new).
+    hired / rejected in any source (application · job ref · pipeline) → ApplicationStateError
+    application_final (409). Limit: tw_settings job_reapply_week_max re-applies per
     (applicant + job) in 7 days, counted from pipeline_stage_events → ReapplyLimitError.
     Returns the application dict (reapplied=True), or None = already applied (any other state)."""
     rows = conn.run(
@@ -3062,12 +3064,14 @@ def _reapply_in_tx(conn, job_id: int, user_id: int, company_id: int, job_title: 
     if not rows or rows[0][1] != "withdrawn":
         return None
     app_id = int(rows[0][0])
+    if _result_status_on_job(conn, company_id, user_id, job_id, "withdrawn"):
+        raise ApplicationStateError("application_final")   # a result set after the withdrawal (job ref / pipeline)
     pe = conn.run(
-        "SELECT id FROM job_pipeline_entries "
+        "SELECT id, stage FROM job_pipeline_entries "
         "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid FOR UPDATE",
         cid=company_id, uid=user_id, jid=job_id)
-    if not pe:
-        return None   # every withdrawal writes the pipeline entry — none = not withdrawn by the applicant
+    if not pe or pe[0][1] != "withdrawn":
+        return None   # every withdrawal writes stage withdrawn — anything else = not the applicant's withdrawal
     entry_id = int(pe[0][0])
     last = conn.run(
         "SELECT changed_by FROM pipeline_stage_events "
@@ -3103,7 +3107,8 @@ def withdraw_application(app_id: int, user_id: int) -> dict:
     (appointment_events 'appointment_cancelled', fixed reason). The row is kept (no delete).
     No notification to anyone.
     Not found / not the applicant's → KeyError (404 — no leak) ·
-    hired / rejected / withdrawn / job not open → ApplicationStateError (409)."""
+    hired / rejected in any source (application · job ref · pipeline — _result_status_on_job) /
+    withdrawn / job not open → ApplicationStateError (409)."""
     conn = get_conn()
     committed = False
     try:
@@ -3119,8 +3124,9 @@ def withdraw_application(app_id: int, user_id: int) -> dict:
         job_id, app_status, company_id, job_title = int(r[1]), r[2], int(r[3]), r[4] or ""
         if app_status == "withdrawn":
             raise ApplicationStateError("already_withdrawn")
-        if app_status not in _APP_WITHDRAWABLE:
-            raise ApplicationStateError("application_final")
+        if (app_status not in _APP_WITHDRAWABLE
+                or _result_status_on_job(conn, company_id, user_id, job_id, app_status)):
+            raise ApplicationStateError("application_final")   # hired / rejected in any source
         if (r[8] is not None or r[9] is not None
                 or _eff_status(r[5], r[6], r[7]) != "active"):
             raise ApplicationStateError("job_not_active")
@@ -8641,6 +8647,28 @@ def _final_status_on_job(conn, company_id: int, candidate_id: int, job_id: int,
         return "rejected"
     if "withdrawn" in vals:
         return "withdrawn"
+    return None
+
+
+def _result_status_on_job(conn, company_id: int, candidate_id: int, job_id: int,
+                          app_status=None):
+    """'hired' | 'rejected' | None — the final RESULT of this person on this job from any of the
+    three sources (application status, job ref candidate_status, pipeline stage), rows FOR UPDATE.
+    Same pattern as _final_status_on_job; used by withdraw / re-apply (task 8.2a) — the company can
+    set a result through the job ref / pipeline without touching job_applications.status."""
+    ref = conn.run(
+        "SELECT candidate_status FROM company_candidate_job_refs "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid FOR UPDATE",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    pe = conn.run(
+        "SELECT stage FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid FOR UPDATE",
+        cid=company_id, uid=candidate_id, jid=job_id)
+    vals = (app_status, ref[0][0] if ref else None, pe[0][0] if pe else None)
+    if "hired" in vals:
+        return "hired"
+    if "rejected" in vals:
+        return "rejected"
     return None
 
 

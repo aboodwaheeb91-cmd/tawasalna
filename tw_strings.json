@@ -2242,7 +2242,7 @@
     "settings.item.job_reapply_week_max": "إعادة التقديم بالأسبوع",
     "settings.item.job_reapply_week_max.desc": "كم مرة بيقدر المتقدم يرجع يقدّم على نفس الوظيفة بعد ما سحب طلبه خلال 7 أيام.",
     "jobs.withdraw.not_found": "الطلب غير موجود",
-    "jobs.app_state.application_final": "لا يمكن سحب الطلب بعد صدور النتيجة",
+    "jobs.app_state.application_final": "صدرت نتيجة هذا الطلب — لا يمكن سحبه أو إعادة التقديم عليه",
     "jobs.app_state.already_withdrawn": "تم سحب هذا الطلب مسبقاً",
     "jobs.app_state.job_not_active": "الوظيفة لم تعد مفتوحة — لا يمكن تغيير الطلب",
     "jobs.app_state.application_withdrawn": "المتقدم سحب هذا الطلب — لا يمكن تغيير تصنيفه",
