@@ -10056,7 +10056,8 @@ All data is fetched at runtime — zero hardcoded content.
 - `LEFT JOIN profession_categories pc ON j.profession_id = pc.id` → `profession_name_ar`, `profession_name_en`, `profession_icon`, `profession_category_group`
 
 No auth required for `GET /jobs/{job_id}` — public endpoint.  
-`POST /jobs/{job_id}/apply` requires `Authorization: Bearer {jwt}`.
+`POST /jobs/{job_id}/apply` requires `Authorization: Bearer {jwt}`.  
+`POST /jobs/applications/{app_id}/withdraw` (task 8.2a) — JWT, the applicant only (404 otherwise) · 409 `application_final` / `already_withdrawn` / `job_not_active` · re-apply via `/apply` on a withdrawn row (same row, 429 `reapply_limit`) — spec SYSTEMS_INDEX §15.
 
 ### Session (public page — Phase C)
 

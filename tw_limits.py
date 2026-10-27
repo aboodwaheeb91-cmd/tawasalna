@@ -44,6 +44,7 @@ LIMITS = {
     "support_inbound_request_max": 262144,  # POST /webhooks/resend/inbound body (bytes — the event is metadata only, task 7.3)
     "support_inbound_fetch_max": 2097152,   # the received email fetched from Resend (bytes) — larger = ignored
     "support_track_session_hours": 24,      # guest follow-up session after the code (task 7.4) — fixed, never extended
+    "job_reapply_week_max": 3,    # re-applies after a withdrawal per (applicant + job) in 7 days — counted from pipeline_stage_events (task 8.2a)
 }
 
 RATES = {

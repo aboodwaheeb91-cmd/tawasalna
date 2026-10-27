@@ -79,6 +79,7 @@ _DEFS = (
     _rate("block_set", 0,          1,   100, "reports"),
     _rate("block_set", 1,         60, 86400, "reports"),
     _limit("suspend_reason_max", 100,  2000, "admin"),
+    _limit("job_reapply_week_max",   1,    20, "jobs", "count"),   # task 8.2a — counted from the DB, not _rate_store
     # ── security = True (task 4.2 — the PR table) — own section on the page, a warning + an explicit
     # confirm before saving, audit action *_security. Minimum: never opens guessing / flooding, never
     # locks normal users out · maximum: memory stays bounded. ❌ password_max_bytes (bcrypt cuts at 72 —
@@ -154,7 +155,7 @@ _DEFS = (
     _sec_rate("support_inbound_global", 1, 600, 86400, "sec_support"),
 )
 
-GROUPS = ("messages", "posts", "comments", "reports", "admin", "support",
+GROUPS = ("messages", "posts", "comments", "reports", "admin", "jobs", "support",
           "sec_login", "sec_otp", "sec_capacity", "sec_pages", "sec_dedup", "sec_public", "sec_support")
 
 

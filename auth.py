@@ -66,6 +66,22 @@ class JobArchivedError(Exception):
     pass
 
 
+class ApplicationStateError(Exception):
+    """Withdraw / reclassify refused by the application or job state (task 8.2a) → HTTP 409.
+    code: application_final (hired / rejected) · already_withdrawn · job_not_active ·
+    application_withdrawn (the company reclassifying a withdrawn application)."""
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+class ReapplyLimitError(Exception):
+    """Re-apply after a withdrawal past job_reapply_week_max in 7 days (task 8.2a) → HTTP 429."""
+    def __init__(self, limit: int):
+        super().__init__(f"reapply_limit: {limit}")
+        self.limit = limit
+
+
 def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
     """Raise EmojiError if value contains emoji. Reusable across all text fields."""
     if value and _EMOJI_RE.search(str(value)):
@@ -2621,6 +2637,12 @@ def _fetch_accepted_professions_batch(conn, job_ids):
         return {}
 
 
+# task 8.2a — a withdrawn application is history, not an active applicant: excluded from the
+# applicant counter and the paginated applicants / candidates views (the legacy full list keeps it).
+def _app_active_sql(alias: str = "") -> str:
+    return f"COALESCE({alias}status, 'pending') <> 'withdrawn'"
+
+
 def _fetch_applicant_counts_batch(conn, job_ids):
     """Batch-fetch job_applications counts for a list of job IDs.
     Returns {job_id: int} (a job with no applications is absent → 0). A read error is logged and
@@ -2634,7 +2656,7 @@ def _fetch_applicant_counts_batch(conn, job_ids):
         params = {f'j{i}': jid for i, jid in enumerate(job_ids)}
         rows = conn.run(
             f"SELECT job_id, COUNT(*) AS cnt FROM job_applications "
-            f"WHERE job_id IN ({placeholders}) GROUP BY job_id",
+            f"WHERE job_id IN ({placeholders}) AND {_app_active_sql()} GROUP BY job_id",
             **params
         )
         return {r[0]: int(r[1]) for r in (rows or [])}
@@ -3020,6 +3042,131 @@ def get_job(job_id: int) -> dict:
     finally:
         release_conn(conn)
 
+# task 8.2a — withdraw + re-apply. Withdrawable = every stage before the final result.
+_APP_WITHDRAWABLE = frozenset({"pending", "viewed", "accepted", "contacted", "interview"})
+WITHDRAW_REASON = "applicant_withdrew"          # pipeline_stage_events.reason + appointment_events cause
+REAPPLY_REASON = "application_resubmitted"      # pipeline_stage_events.reason (withdrawn → new)
+WITHDRAW_APPT_CANCEL_REASON = "المتقدم انسحب"    # fixed appointment_events payload.reason
+
+
+def _reapply_in_tx(conn, job_id: int, user_id: int, company_id: int, job_title: str,
+                   cover_letter: str):
+    """Re-apply inside apply_job's open transaction (the job row is already locked + open).
+    Only an application the applicant withdrew themselves → same row back to pending + pipeline
+    'new' (event withdrawn → new). Limit: tw_settings job_reapply_week_max re-applies per
+    (applicant + job) in 7 days, counted from pipeline_stage_events → ReapplyLimitError.
+    Returns the application dict (reapplied=True), or None = already applied (any other state)."""
+    rows = conn.run(
+        "SELECT id, status FROM job_applications WHERE job_id = :jid AND user_id = :uid FOR UPDATE",
+        jid=job_id, uid=user_id)
+    if not rows or rows[0][1] != "withdrawn":
+        return None
+    app_id = int(rows[0][0])
+    pe = conn.run(
+        "SELECT id FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid FOR UPDATE",
+        cid=company_id, uid=user_id, jid=job_id)
+    if not pe:
+        return None   # every withdrawal writes the pipeline entry — none = not withdrawn by the applicant
+    entry_id = int(pe[0][0])
+    last = conn.run(
+        "SELECT changed_by FROM pipeline_stage_events "
+        "WHERE pipeline_entry_id = :eid AND to_stage = 'withdrawn' "
+        "ORDER BY created_at DESC, id DESC LIMIT 1", eid=entry_id)
+    if not last or last[0][0] is None or int(last[0][0]) != int(user_id):
+        return None
+    import tw_settings   # lazy: tw_settings imports db_conn from this module
+    limit = int(tw_settings.limit("job_reapply_week_max"))
+    used = conn.run(
+        "SELECT COUNT(*) FROM pipeline_stage_events "
+        "WHERE pipeline_entry_id = :eid AND from_stage = 'withdrawn' AND to_stage = 'new' "
+        "AND created_at > NOW() - INTERVAL '7 days'", eid=entry_id)
+    if int((used or [[0]])[0][0] or 0) >= limit:
+        raise ReapplyLimitError(limit)
+    upd = conn.run(
+        "UPDATE job_applications SET status = 'pending', "
+        "cover_letter = COALESCE(NULLIF(:cl, ''), cover_letter) "
+        "WHERE id = :id RETURNING id, job_id, user_id, status, applied_at",
+        cl=cover_letter or "", id=app_id)
+    cols = [c["name"] for c in conn.columns]
+    _pipeline_update_stage(conn, company_id=company_id, candidate_id=user_id, job_id=job_id,
+                           new_stage="new", changed_by=user_id, reason=REAPPLY_REASON)
+    result = _serialize(_row_to_dict(cols, upd[0]))
+    result["reapplied"] = True
+    return result
+
+
+def withdraw_application(app_id: int, user_id: int) -> dict:
+    """The applicant withdraws their own application (task 8.2a). One transaction, application
+    row FOR UPDATE: status 'withdrawn' + pipeline stage 'withdrawn' (event reason
+    applicant_withdrew) + every upcoming appointment of this applicant on this job → cancelled
+    (appointment_events 'appointment_cancelled', fixed reason). The row is kept (no delete).
+    No notification to anyone.
+    Not found / not the applicant's → KeyError (404 — no leak) ·
+    hired / rejected / withdrawn / job not open → ApplicationStateError (409)."""
+    conn = get_conn()
+    committed = False
+    try:
+        conn.run("BEGIN")
+        rows = conn.run(
+            "SELECT ja.user_id, ja.job_id, ja.status, j.company_id, j.title, j.status, "
+            "j.closed_at, j.expires_at, j.archived_at, j.admin_hidden_at "
+            "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
+            "WHERE ja.id = :id FOR UPDATE OF ja", id=app_id)
+        if not rows or int(rows[0][0]) != int(user_id):
+            raise KeyError("application_not_found")
+        r = rows[0]
+        job_id, app_status, company_id, job_title = int(r[1]), r[2], int(r[3]), r[4] or ""
+        if app_status == "withdrawn":
+            raise ApplicationStateError("already_withdrawn")
+        if app_status not in _APP_WITHDRAWABLE:
+            raise ApplicationStateError("application_final")
+        if (r[8] is not None or r[9] is not None
+                or _eff_status(r[5], r[6], r[7]) != "active"):
+            raise ApplicationStateError("job_not_active")
+
+        conn.run("UPDATE job_applications SET status = 'withdrawn' WHERE id = :id", id=app_id)
+        _pipeline_upsert_entry(
+            conn, company_id=company_id, candidate_id=user_id, job_id=job_id,
+            application_id=app_id, stage="withdrawn", source="application",
+            created_by=user_id, job_title_snapshot=job_title,
+            initial_event_reason=WITHDRAW_REASON)
+        _pipeline_update_stage(
+            conn, company_id=company_id, candidate_id=user_id, job_id=job_id,
+            new_stage="withdrawn", changed_by=user_id, reason=WITHDRAW_REASON)
+
+        # Upcoming appointments — the same write as cancel_appointment, without its notifications.
+        appts = conn.run(
+            "SELECT id, status FROM appointments "
+            "WHERE applicant_id = :uid AND job_id = :jid AND company_id = :cid "
+            "AND status IN (" + ",".join(f"'{st}'" for st in _APPT_CANCEL_FROM) + ") "
+            "AND (scheduled_at IS NULL OR scheduled_at > NOW()) FOR UPDATE",
+            uid=user_id, jid=job_id, cid=company_id) or []
+        cancelled = []
+        for appt_id, old_status in appts:
+            conn.run("UPDATE appointments SET status='cancelled', updated_at=NOW() WHERE id=:id",
+                     id=appt_id)
+            _insert_appointment_event(
+                conn, appt_id, user_id, 'appointment_cancelled',
+                old_status=old_status, new_status='cancelled',
+                payload={"reason": WITHDRAW_APPT_CANCEL_REASON, "cause": WITHDRAW_REASON})
+            cancelled.append(int(appt_id))
+
+        conn.run("COMMIT")
+        committed = True
+        return {"application_id": int(app_id), "job_id": job_id, "status": "withdrawn",
+                "cancelled_appointments": cancelled}
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception as _rb:
+                print(f"[withdraw_application] rollback failed: {_rb}")
+        raise
+    finally:
+        release_conn(conn)
+
+
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     # The SELECT + INSERT are wrapped in a single transaction with FOR UPDATE on the
     # jobs row so that a concurrent archive_job cannot land between the archive check
@@ -3053,9 +3200,11 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
             jid=job_id, uid=user_id, cl=cover_letter
         )
         if not rows:
+            # task 8.2a — an application the applicant withdrew comes back (same row, no notification)
+            result = _reapply_in_tx(conn, job_id, user_id, job_company_id, job_title, cover_letter)
             conn.run("COMMIT")
             committed = True
-            return {"already_applied": True}
+            return result or {"already_applied": True}
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
         # Pipeline dual-write (inside the same transaction — fails atomically)
@@ -3181,6 +3330,8 @@ def get_job_applicants(
         view_filter = " AND (jpe.promoted_at IS NULL)"
     elif view == "candidates":
         view_filter = " AND (jpe.promoted_at IS NOT NULL)"
+    if view:   # task 8.2a — the active views never list a withdrawn application
+        view_filter += " AND " + _app_active_sql("ja.")
 
     # Build extra filter WHERE clauses (all parameterized — no SQL injection risk)
     extra_parts: list  = []
@@ -3248,7 +3399,7 @@ def get_job_applicants(
                 "COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL) AS total_candidates "
                 "FROM job_applications ja "
                 "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
-                "WHERE ja.job_id=:jid",
+                "WHERE ja.job_id=:jid AND " + _app_active_sql("ja."),
                 jid=job_id
             )
             if agg_rows:
@@ -3381,11 +3532,12 @@ _APPLICANT_VISIBLE_STATUS = {
     "pending": "in_review", "viewed": "in_review", "accepted": "in_review",
     "contacted": "in_review", "interview": "in_review",
     "hired": "hired", "rejected": "rejected",
+    "withdrawn": "withdrawn",   # task 8.2a — the applicant sees their own withdrawal
 }
 
 
 def applicant_visible_status(status) -> str:
-    """Internal job_applications.status → in_review / hired / rejected (unknown → in_review)."""
+    """Internal job_applications.status → in_review / hired / rejected / withdrawn (unknown → in_review)."""
     return _APPLICANT_VISIBLE_STATUS.get(status, "in_review")
 
 
@@ -3447,7 +3599,7 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         try:
             # Lock application row + fetch ownership in one query
             rows = conn.run(
-                "SELECT ja.user_id, ja.job_id, j.company_id, j.title "
+                "SELECT ja.user_id, ja.job_id, j.company_id, j.title, ja.status "
                 "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
                 "WHERE ja.id = :id FOR UPDATE OF ja",
                 id=app_id
@@ -3462,6 +3614,10 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
 
             if actor_id and company_id != int(actor_id):
                 raise PermissionError("غير مصرح — هذا الطلب ليس لوظيفة شركتك")
+            # task 8.2a — a withdrawn application is the applicant's decision: the company
+            # cannot reclassify it (only the applicant's re-apply brings it back to pending).
+            if rows[0][4] == "withdrawn":
+                raise ApplicationStateError("application_withdrawn")
 
             # 1. Update job_applications.status
             conn.run(
@@ -3514,7 +3670,7 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
             conn.run("COMMIT")
             committed = True
 
-        except (KeyError, PermissionError):
+        except (KeyError, PermissionError, ApplicationStateError):
             if not committed:
                 try:
                     conn.run("ROLLBACK")
@@ -9134,6 +9290,9 @@ def reschedule_appointment(appointment_id: int, user_id: int,
     return appt_result
 
 
+_APPT_CANCEL_FROM = ('draft', 'pending_response', 'confirmed', 'reschedule_requested')
+
+
 def cancel_appointment(appointment_id: int, user_id: int, reason: str = "") -> dict:
     """Any participant cancels: pending_response|confirmed|reschedule_requested|draft → cancelled."""
     if reason:
@@ -9147,7 +9306,7 @@ def cancel_appointment(appointment_id: int, user_id: int, reason: str = "") -> d
             raise ValueError("الموعد غير موجود")
         _check_appt_participant(conn, appointment_id, user_id)
 
-        if appt['status'] not in ('draft', 'pending_response', 'confirmed', 'reschedule_requested'):
+        if appt['status'] not in _APPT_CANCEL_FROM:
             raise ValueError(f"لا يمكن إلغاء موعد بحالة '{appt['status']}'")
 
         conn.run(
@@ -9928,6 +10087,7 @@ LEGACY_APP_STATUS_TO_PIPELINE_STAGE: dict = {
     "interview": "interview",
     "hired":     "hired",
     "rejected":  "rejected",
+    "withdrawn": "withdrawn",   # task 8.2a — set by the applicant only (withdraw_application)
 }
 
 LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE: dict = {
@@ -10099,7 +10259,7 @@ def _pipeline_build_conflict_report(conn) -> dict:
         null_ccjr_without_application, stage_source_disagreement,
       }
     """
-    known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected')"
+    known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected','withdrawn')"
     known_ccjr = "('saved','shortlisted','contacted','interview','hired','rejected')"
 
     def _cnt(sql):
@@ -10252,6 +10412,7 @@ def _pipeline_build_conflict_report(conn) -> dict:
         "    WHEN 'interview' THEN 'interview' "
         "    WHEN 'hired'     THEN 'hired' "
         "    WHEN 'rejected'  THEN 'rejected' "
+        "    WHEN 'withdrawn' THEN 'withdrawn' "
         "    ELSE ja.status "
         "  END"
         ")"
@@ -10308,7 +10469,7 @@ def pipeline_backfill_dry_run() -> dict:
     """
     conn = get_conn()
     try:
-        known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected')"
+        known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected','withdrawn')"
         known_ccjr = "('saved','shortlisted','contacted','interview','hired','rejected')"
 
         # ── Conflict detection (all types via unified helper) ─────────────────
