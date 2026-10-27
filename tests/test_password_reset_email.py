@@ -4,6 +4,9 @@ Resend is faked at the HTTP layer (urllib.request.urlopen inside email_service) 
 the site would send is captured and checked; nothing leaves the machine. Tokens use a real
 PostgreSQL (tables created here):
   TW_TEST_DB_URL=postgresql://user:pass@127.0.0.1:5432/db  (run_tests.sh sets it)
+Task 7.5b: a successful reset clears the email lock + the IP+email lock of that email from EVERY IP
+(the IP-only lock stays) · old password refused, new one works · a support email with a Reply-To carries
+email.support.footer, every other email keeps email.common.footer.
 Run: python -m pytest tests/test_password_reset_email.py -q
 """
 import io
@@ -243,3 +246,59 @@ def test_reset_revokes_sessions_and_notifies(fake, db, monkeypatch):
     last = fake.calls[-1]["body"]
     assert last["to"] == [EMAIL]
     assert last["subject"] == server.tw_strings.merged({})["email.password_changed.subject"]
+
+
+# ── 7. task 7.5b — reset unlocks the IP+email pair from every IP; the IP lock stays ──
+def _login(pw, ip, email=EMAIL):
+    return client.post("/auth/login", json={"email": email, "password": pw}, headers={"X-Real-IP": ip})
+
+
+def test_reset_unlocks_pair_lock_from_any_ip(fake, db):
+    for col in ("tw_id TEXT", "user_type TEXT", "country_code TEXT", "created_at TIMESTAMPTZ DEFAULT NOW()"):
+        _sql(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col}")
+    _sql("UPDATE users SET tw_id = 'U75BTEST01', user_type = 'emp', password_hash = :h, suspended_at = NULL "
+         "WHERE email = :e", h=auth.hash_password(OLD_PW), e=EMAIL)
+    server._pwd_changed_cache.clear()
+    assert _login(OLD_PW, "6.6.6.9").status_code == 200                  # login works before
+    pair_fails = server.tw_settings.rate("login_ip_email")[0]
+    for _ in range(pair_fails):                                          # IP A: the pair lock for EMAIL
+        assert _login("wrong-pw-x", "6.6.6.1").status_code == 401
+    assert _login(OLD_PW, "6.6.6.1").status_code == 429
+    for i in range(server.tw_settings.rate("login_ip")[0]):             # IP B: the IP lock (other emails)
+        _login("wrong-pw-x", "6.6.6.2", email=f"other{i}@example.com")
+    assert _login(OLD_PW, "6.6.6.2").status_code == 429
+    _request(ip="6.6.6.3")                                               # reset from a third IP
+    tok = _token_from(fake.calls[-1])
+    assert client.post("/auth/password-reset/confirm",
+                       json={"token": tok, "new_password": "after-reset-75b"}).status_code == 200
+    assert _login(OLD_PW, "6.6.6.1").status_code == 401                  # unlocked · old password refused
+    assert _login("after-reset-75b", "6.6.6.1").status_code == 200       # new password works
+    assert _login("after-reset-75b", "6.6.6.2").status_code == 429       # IP-only lock stays
+
+
+def test_failed_reset_does_not_unlock(fake, db):
+    for _ in range(server.tw_settings.rate("login_ip_email")[0]):
+        _login("wrong-pw-x", "6.6.7.1")
+    bad = client.post("/auth/password-reset/confirm", json={"token": "Q" * 43, "new_password": "after-reset-75c"})
+    assert bad.status_code == 400
+    assert _login("after-reset-75b", "6.6.7.1").status_code == 429
+
+
+# ── 8. task 7.5b — the support footer only on emails with a support Reply-To ──
+def test_support_footer_only_with_reply_to(fake):
+    texts = server.tw_strings.merged({})
+    support_ft, common_ft = texts["email.support.footer"], texts["email.common.footer"]
+    assert support_ft and support_ft != common_ft
+    res = email_service.send_email("guest@example.com", "support_guest_reply",
+                                   {"ticket": "HABCDEFGHIJ", "link": "https://tawasolna.com/support/track#t=abc"},
+                                   reply_to="support+tok_abc@tawasolna.com")
+    assert res["ok"] is True
+    body = fake.calls[-1]["body"]
+    assert body["reply_to"] == "support+tok_abc@tawasolna.com"
+    assert support_ft in body["text"] and common_ft not in body["text"]
+    assert support_ft in body["html"] and common_ft not in body["html"]
+    email_service.send_email("member@example.com", "password_reset",
+                             {"name": "x", "link": "https://tawasolna.com/reset-password#token=abc", "minutes": 30})
+    body = fake.calls[-1]["body"]
+    assert "reply_to" not in body
+    assert common_ft in body["text"] and support_ft not in body["text"] and common_ft in body["html"]
