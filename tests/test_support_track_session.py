@@ -254,3 +254,19 @@ def test_session_expiry_and_revocation():
     assert _sql("SELECT COUNT(*) FROM support_track_otp WHERE ticket_id = :t", t=tid)[0][0] == 0
     new = SENT[-1][2]["link"].split("#t=")[1]
     assert _post("view", {"session": _session(new)}).json()["data"]["public_id"] == pid
+
+
+# ── 6 admin-editable (task 7.4 — tw_settings security settings) ──
+def test_limits_are_admin_settings():
+    for key in ("support_track_code_gap_hits", "support_track_code_gap_window_s", "support_track_code_ticket_hits",
+                "support_track_code_ticket_window_s", "support_track_code_ip_hits", "support_track_code_ip_window_s",
+                "support_track_session_hours"):
+        assert tw_settings.is_security(key) and tw_settings.REGISTRY[key]["group"] == "sec_support", key
+    assert tw_settings.REGISTRY["support_track_session_hours"]["max"] == 24
+    _, pid, token = _guest_ticket()
+    tw_settings._set_overrides({"support_track_code_gap_window_s": 120, "support_track_session_hours": 1})
+    assert _post("code", {"token": token}).json()["data"]["cooldown_s"] == 120     # the page counts this down
+    code = SENT[-1][2]["code"]
+    assert _post("verify", {"token": token, "code": code}).status_code == 200
+    assert _sql("SELECT expires_at <= NOW() + INTERVAL '1 hour' FROM support_guest_sessions WHERE ticket_id = :t",
+                t=_tid(pid))[0][0] is True                                          # admin value, not 24 h
