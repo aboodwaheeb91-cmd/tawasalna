@@ -167,7 +167,7 @@ from auth import (
     _fetch_accepted_professions_batch,
     rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, set_company_post_appreciation, set_company_post_save,
+    get_company_posts, get_company_post_stats, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, set_company_post_appreciation, set_company_post_save,
     get_company_post_comments, create_company_post_comment, update_company_post_comment, delete_company_post_comment,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list, get_follow_state,
@@ -1748,6 +1748,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
             post_lim = lim if filter == "posts" else max(1, lim // 3)
             rows = conn.run(
                 """SELECT cp.id, cp.body, cp.tags, cp.created_at,
+                          cp.theme_color, cp.comments_enabled,
                           u.full_name AS author_name,
                           u.tw_id    AS author_tw_id,
                           u.id       AS author_id,
@@ -1760,14 +1761,19 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    LIMIT :lim""",
                 lim=post_lim, bs_viewer=user_id
             )
-            cols = ["id","body","tags","created_at","author_name","author_tw_id","author_id","author_avatar"]
-            for r in (rows or []):
-                d = dict(zip(cols, r))
+            cols = ["id","body","tags","created_at","theme_color","comments_enabled",
+                    "author_name","author_tw_id","author_id","author_avatar"]
+            post_items = [dict(zip(cols, r)) for r in (rows or [])]
+            # Card fields for TwPostCard (task 8.6b-2) — one batched query, same source as /company/posts
+            stats = get_company_post_stats(conn, [d["id"] for d in post_items], user_id)
+            for d in post_items:
                 d["type"] = "post"
+                d["author_type"] = "co"   # company_posts are company posts only (avatar shape)
                 if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
                     d["created_at"] = d["created_at"].isoformat()
                 if isinstance(d.get("tags"), list):
                     d["tags"] = [str(t) for t in d["tags"]]
+                d.update(stats[int(d["id"])])
                 items.append(d)
 
         # ── News (admin-published content from news_posts table) ──

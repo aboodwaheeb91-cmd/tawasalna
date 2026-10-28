@@ -5,8 +5,9 @@
  *
  * Load order (enforced by <script> tags in home-v2.html):
  *   home.utils.js → home.state.js → home.api.js → home.cards.js →
- *   home.render.js → home.filters.js → home.nav.js →
+ *   home.posts.js → home.render.js → home.filters.js → home.nav.js →
  *   home.main.js
+ * (after the shared tw-options-data.js → tw-post-card.js → tw-post-comments.js)
  */
 (function () {
   'use strict';
@@ -30,6 +31,7 @@
   /* Init modules */
   window.Home.filters.init();
   window.Home.nav.init(window.Home.state.user);
+  window.Home.posts.bind(document.getElementById('hwFeed'));   // post card buttons + comments, once
 
   /* Static icons already in the DOM (header + bottom nav come from the unified app chrome) */
   window.Home.utils.icons(document.body);

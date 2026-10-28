@@ -13,6 +13,8 @@
  *   H  landing — unified guest header placeholder · no GLOSSARY-forbidden word
  *   I  task 8.6a — hidden salary → no salary chip · ?f= opens its filter (allowlist, else all) ·
  *      sidebar links → the filter / the post-job deep link
+ *   J  task 8.6b-2 — post item → TwPostCard.html (stub here — the real card + comments in the feed:
+ *      tests/test_post_card_runtime.js M) · controller bound once · page loads the shared card files
  *
  * Run: node tests/test_home_landing_runtime.js
  */
@@ -66,6 +68,12 @@ class El {
   get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
   set textContent(v) { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._text = String(v); }
   set innerHTML(v) { this.textContent = ''; this.rawHtml = String(v); }
+  // TwPostCard.html string → one element (the stub card below; real markup = test_post_card_runtime.js M)
+  get firstElementChild() {
+    if (this.children[0]) return this.children[0];
+    if (!this.rawHtml) return null;
+    const e = new El('div'); e.className = 'post-card'; e.rawHtml = this.rawHtml; return e;
+  }
   addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); }
   click() { (this.listeners.click || []).forEach(fn => fn({ target: this })); if (this.onclick) this.onclick(); }
   _all() { const out = []; this.children.forEach(c => { out.push(c); out.push(...c._all()); }); return out; }
@@ -113,7 +121,7 @@ async function makePage(opts) {
     createTextNode: t => { const e = new El('#text'); e._text = String(t); return e; },
     createDocumentFragment: () => { const e = new El('#fragment'); e.isFragment = true; return e; },
   };
-  const rec = { api: [], missingKeys: new Set(), avatars: [], hydrated: 0 };
+  const rec = { api: [], missingKeys: new Set(), avatars: [], hydrated: 0, postCards: [], binds: [], after: 0 };
   const api = opts.api || {};
   const ctx = {
     document, console: { log() {}, warn() {}, error: console.error }, Promise, Date, Math, Number, String,
@@ -136,6 +144,13 @@ async function makePage(opts) {
     twIcon: { hydrate: () => { rec.hydrated++; } },
     twAvatarEl: (entity, size) => { rec.avatars.push({ entity, size }); const e = new El('span'); e.className = 'tw-ava'; return e; },
     twSafeLinkUrl: u => (/^https?:\/\/\w/.test(u) ? u : ''),
+    requestAnimationFrame: fn => fn(),
+    TwPostCard: {
+      html: (post, o) => { rec.postCards.push({ post, o }); return '<div class="post-card" data-post-id="' + post.id + '"></div>'; },
+      create: () => ({ bind: el => rec.binds.push(el), trackViews: () => { rec.after++; } }),
+      initClamps: () => {},
+    },
+    TwPostComments: { create: () => ({ build() {}, load() {} }) },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
@@ -152,7 +167,7 @@ const FEED_OK = { ok: true, status: 200, data: { items: [] } };
 (async () => {
   console.log('\nA — guard');
   check('A page loads every home module in order (home.main.js last)',
-    SCRIPTS.length === 8 && SCRIPTS[SCRIPTS.length - 1] === 'static/home/home.main.js', SCRIPTS);
+    SCRIPTS.length === 9 && SCRIPTS[SCRIPTS.length - 1] === 'static/home/home.main.js', SCRIPTS);
   let p = await makePage({ guest: true });
   check('A guest → no API request at all (twRequireAuth returned null)', p.rec.api.length === 0, p.rec.api);
   check('A page declares <meta name="tw-page" content="auth"> + no Lucide', /<meta name="tw-page" content="auth">/.test(HTML)
@@ -213,9 +228,9 @@ const FEED_OK = { ok: true, status: 200, data: { items: [] } };
   check('F API text via textContent (no HTML parsed)', feed.textContent.includes('<b>x</b>') && !feed.rawHtml);
   check('F job type + news category labels via twT', feed.textContent.includes(STRINGS['home.job_type.remote'])
     && feed.textContent.includes(STRINGS['home.news_cat.opportunity']));
-  check('F logo + author avatar via twAvatarEl (company = co)', p.rec.avatars.length === 2
+  check('F job logo via twAvatarEl (company = co) · post author via TwPostCard', p.rec.avatars.length === 1
     && p.rec.avatars[0].entity.user_type === 'co' && p.rec.avatars[0].entity.avatar_url === 'javascript:alert(1)'
-    && p.rec.avatars[1].entity.full_name === 'Sara', p.rec.avatars);
+    && p.rec.postCards.length === 1 && p.rec.postCards[0].o.authorName === 'Sara', p.rec.avatars);
   check('F job link → /job-detail?id=5', feed.querySelectorAll('a').some(a => a.href === '/job-detail?id=5'));
   check('F unsafe news source → no link', !feed.querySelectorAll('a').some(a => /javascript/.test(a.href || '')));
   p = await makePage({ api: { '/home/feed': FEED_OK } });
@@ -279,6 +294,26 @@ const FEED_OK = { ok: true, status: 200, data: { items: [] } };
     && linkHrefs(p).indexOf('/home?f=news') !== -1, linkHrefs(p));
   p = await makePage({ type: 'co', twId: 'C55', api: { '/home/feed': FEED_OK } });
   check('I co «post job» → /u/{tw_id}?post_job=1', linkHrefs(p).indexOf('/u/C55?post_job=1') !== -1, linkHrefs(p));
+
+  console.log('\nJ — task 8.6b-2: posts = TwPostCard');
+  p = await makePage({ api: { '/home/feed': { ok: true, status: 200, data: { items } } } });
+  const pcard = p.rec.postCards[0];
+  check('J post item → TwPostCard.html with the feed author (co · /u/{tw_id} · no edit)', p.rec.postCards.length === 1
+    && pcard.post.id === 1 && pcard.o.authorName === 'Sara' && pcard.o.avatarUrl === '' && pcard.o.authorType === 'co'
+    && pcard.o.authorHref === '/u/U2' && pcard.o.canEdit === false, pcard && pcard.o);
+  const pel = $(p, 'hwFeed').children[1];
+  check('J the feed holds the card element (no old hw-card post markup)', pel && pel.classList.contains('post-card')
+    && !$(p, 'hwFeed').querySelectorAll('.hw-phead').length);
+  check('J controller bound once to #hwFeed · clamp / views after the render', p.rec.binds.length === 1
+    && p.rec.binds[0] === $(p, 'hwFeed') && p.rec.after === 1, [p.rec.binds.length, p.rec.after]);
+  p.body.querySelectorAll('.hw-ft')[2].click(); await flush();
+  p.body.querySelectorAll('.hw-ft')[0].click(); await flush();
+  check('J filter switches re-render, the controller is not bound again', p.rec.binds.length === 1 && p.rec.after === 3, [p.rec.binds.length, p.rec.after]);
+  const sharedOrder = ['tw-options-data.js', 'tw-post-card.js', 'tw-post-comments.js', 'home/home.utils.js']
+    .map(f => HTML.indexOf('/static/' + (f.indexOf('/') < 0 ? 'shared/' : '') + f));
+  const cssOrder = ['shared/tw-card.css', 'shared/tw-post-comments.css', 'home-v2.css'].map(f => HTML.indexOf('/static/' + f));
+  check('J load order: tw-card.css → tw-post-comments.css → home-v2.css · options → card → comments → home', sharedOrder.every((x, i) => x > 0 && (i === 0 || x > sharedOrder[i - 1]))
+    && cssOrder.every((x, i) => x > 0 && (i === 0 || x > cssOrder[i - 1])), [sharedOrder, cssOrder]);
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

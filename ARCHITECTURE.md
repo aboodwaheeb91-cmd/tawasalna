@@ -6796,7 +6796,10 @@ body              padding-top: var(--flt, 46px) only — sc-header is sticky (in
      "location":"...", "job_type":"full_time", "salary_min":null, "salary_max":null,
      "currency":"", "skills":[], "created_at":"2025-...", "company_tw_id":"C...", "company_logo":""},
     {"type":"post", "id":2, "body":"...", "tags":[], "created_at":"2025-...",
-     "author_name":"...", "author_tw_id":"C...", "author_avatar":""},
+     "theme_color":"teal", "comments_enabled":true, "author_type":"co",
+     "author_name":"...", "author_tw_id":"C...", "author_id":5, "author_avatar":"",
+     "views_count":0, "appreciations_count":0, "viewer_appreciated":false,
+     "viewer_saved":false, "comments_count":0},
     {"type":"news", "id":3, "title":"...", "summary":"...", "body":"...",
      "category":"labor_law", "country":"JO", "source_url":"https://...", "created_at":"2025-..."}
   ],
@@ -6811,7 +6814,9 @@ body              padding-top: var(--flt, 46px) only — sc-header is sticky (in
 |--------|-------------|--------------|--------|
 | `all` | opportunities (⅓) + posts (⅓) + news (⅓) → sorted by created_at DESC | مُختلط | مرتب زمنياً |
 | `opportunities` | `jobs` table JOIN `users` + `profiles` WHERE `status='open'` | `jobs` | `opp_type="job"` حالياً |
-| `posts` | `company_posts` table JOIN `users` + `profiles` | `company_posts` | |
+| `posts` | `company_posts` table JOIN `users` + `profiles` WHERE `bs.visible_sql` + `auth.get_company_post_stats` (task 8.6b-2) | `company_posts` | card fields = TwPostCard (same source as `/company/posts`) |
+
+**Post card fields (task 8.6b-2):** `auth.get_company_post_stats(conn, post_ids, viewer)` is the one source of `views_count` · `appreciations_count` · `viewer_appreciated` · `viewer_saved` · `comments_count` for `/company/posts` and `/home/feed` — one query, every aggregate limited to `post_id = ANY(:ids)` (no N+1, no whole-table `GROUP BY`); `comments_count` = `_visible_comment_counts_sql()` with `:bs_viewer` (a hidden / blocked commenter is not counted); guest → `false`. Every requested id gets an entry. The page: `home.cards.js → renderPostCard` = `TwPostCard.html` + `home.posts.js` controller (comments open inside the feed — `docs/rules/home-v2.md` rule 13).
 | `news` | `news_posts` WHERE `status='published'` | `news_posts` | admin-only نشر |
 
 > **ملاحظة هامة:** فلتر `news` قد يرجع قائمة فارغة إذا لم يكن الأدمن قد نشر أخباراً بعد. هذا **مقبول ومتوقع** — الجدول والـ API موجودان. الفرق: فلتر فارغ بسبب **غياب البيانات** ≠ فلتر وهمي بدون API/DB (الثاني ممنوع).

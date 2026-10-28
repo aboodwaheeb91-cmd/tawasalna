@@ -1,7 +1,8 @@
 /**
  * post_card_dom.js — tiny DOM for the TwPostCard behaviour tests (task U.2b).
  * Parses the real TwPostCard.html markup (tags / attributes / text) into elements that
- * support what tw-post-card.js uses: querySelector(All) / closest with compound selectors
+ * support what tw-post-card.js / tw-post-comments.js / the home feed modules use (8.6b-2: fragments ·
+ * firstElementChild · classList.toggle(c, force)): querySelector(All) / closest with compound selectors
  * (tag · .class · #id · [attr] · [attr="v"]), classList, dataset, style, innerHTML,
  * outerHTML, textContent, getAttribute, addEventListener + click dispatch with bubbling.
  *
@@ -40,7 +41,11 @@ function makeDocument() {
         contains: c => self._classes().includes(c),
         add: c => { const l = self._classes(); if (!l.includes(c)) { l.push(c); self.attrs.class = l.join(' '); } },
         remove: c => { self.attrs.class = self._classes().filter(x => x !== c).join(' '); },
-        toggle: c => (self.classList.contains(c) ? (self.classList.remove(c), false) : (self.classList.add(c), true)),
+        toggle: (c, force) => {   // task 8.6b-2 — force (home.filters.js)
+          const on = force === undefined ? !self.classList.contains(c) : !!force;
+          if (on) self.classList.add(c); else self.classList.remove(c);
+          return on;
+        },
       };
       this.dataset = new Proxy({}, {
         get: (_, k) => (typeof k === 'string' ? self.attrs[camelToData(k)] : undefined),
@@ -64,7 +69,13 @@ function makeDocument() {
         this.style[k] = p.slice(i + 1).trim();
       });
     }
-    appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
+    appendChild(c) {
+      if (c.isFragment) { c.children.slice().forEach(x => this.appendChild(x)); c.children = []; return c; }   // task 8.6b-2
+      if (c.parentNode && c.parentNode !== this) c.parentNode.removeChild(c);
+      c.parentNode = this; this.children.push(c); return c;
+    }
+    get firstElementChild() { return this.children.find(c => c instanceof El) || null; }   // task 8.6b-2
+    get firstChild() { return this.children[0] || null; }   // task 8.6b-2 — comment count update
     removeChild(c) { this.children = this.children.filter(x => x !== c); c.parentNode = null; return c; }
     insertBefore(c, ref) {   // task 8.6b-1 — comments
       if (!ref) return this.appendChild(c);
@@ -128,6 +139,7 @@ function makeDocument() {
   const document = {
     body,
     createElement: t => new El(t),
+    createDocumentFragment: () => { const f = new El('div'); f.isFragment = true; return f; },   // task 8.6b-2
     createTextNode: t => ({ text: String(t) }),
     getElementById: id => body.querySelector('#' + id),
     querySelector: s => body.querySelector(s),

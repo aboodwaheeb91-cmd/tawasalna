@@ -387,3 +387,10 @@ article.tw-card[.tw-card--{type}][.tw-card--{variant}]   ← aria-labelledby = i
 
 **Test:** `node tests/test_post_card_runtime.js` (A–D + K لـ U.3 · E–J سلوك U.2b) · `python tests/test_post_save.py` (10 أيقونة DS-ICON · 14 الضيف → الدخول). النسختين المجمّدتين (`tests/fixtures/legacy_company_post_card.js` · `legacy_post_cards.css`) انحذفوا — U.3 بيغيّر المخرجات عن قصد، والفحص صار سلوكي.
 
+### 8.6b-2 ✅ — منشورات الرئيسية بـ `TwPostCard` (2026-10-28)
+
+- **المستهلك التاني:** `/home` (`home-v2.html`) — منشورات الشركات بالفيد = نفس بطاقة صفحة الشركة (أقدّر · حفظ · مشاهدة · وسوم · مشاركة · تعليقات بتنفتح جوّا الفيد بـ `TwPostComments`). البطاقة القديمة `hw-p*` + الـ CSS تبعها انحذفوا. يجاوب Q5 للرئيسية: البطاقة ما بتنقل لأي مكان — الاسم واللوغو بس رابط `/u/{tw_id}`؛ وصف `feed` بـ CARD-03 (التعليق → رابط المنشور) لسا مفتوح لـ U.6 / U.7.
+- **خيار جديد اختياري `opts.authorHref`** بـ `TwPostCard.html`: موجود → `.post-nm` و `.post-ava` بيصيروا `<a href>` (الصورة `tabindex="-1"` + `aria-hidden` — الاسم هو الرابط؛ CARD-R08) · مش موجود → نفس المخرجات القديمة حرفياً (صفحة الشركة ما تغيّرت). الشكل من `tw-card.css` (`a.post-nm` / `a.post-ava` — نفس النص، بدون لون جديد).
+- **الـ controller:** `static/home/home.posts.js` — `TwPostComments.create({signedIn: TwAuthSync snapshot, postOwner: صاحب المنشور من عناصر الفيد})` + `TwPostCard.create({signedIn, paths: /company/posts/{id}/(appreciation|save|view), visitorKeyName: 'cp_vk', shareInfo: اسم الشركة + /u/{author_tw_id}, comments})` بدون `onEdit` / `onDelete` · `bind(#hwFeed)` مرة وحدة · `initClamps` + `trackViews` بعد كل رسم.
+- **`TwPostComments`:** لوحة جديدة لمنشور انرسم قبل (إعادة رسم الفيد) بتبلّش من الصفر — حالة الرد / المنشن المختار / القوائم المفتوحة لهالمنشور بتنمسح وقت البناء.
+- **Test:** `node tests/test_post_card_runtime.js` القسم M (ملفات `static/home/*.js` الحقيقية على `tests/fixtures/post_card_dom.js`).
