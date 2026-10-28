@@ -45,7 +45,7 @@
       }
       if (item.location)   meta.appendChild(U.txt('span', 'hw-chip',   item.location));
       if (item.job_type)   meta.appendChild(U.txt('span', 'hw-chip',   U.jobType(item.job_type)));
-      if (item.salary_min) {
+      if (!item.salary_hidden && item.salary_min) {   // hidden salary → no chip (the API sends no numbers)
         meta.appendChild(U.txt('span', 'hw-chip g',
           item.salary_min + (item.salary_max ? '–' + item.salary_max : '+') + ' ' + (item.currency || '')));
       }

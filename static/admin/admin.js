@@ -63,7 +63,8 @@
   };
   // job writes live in the shared TwAdminJobs (static/shared/admin-jobs.js — also the job page, task 5.3j phase 4)
   Object.keys(TwAdminJobs.ACTIONS).forEach(function (k) { ACTIONS[k] = TwAdminJobs.ACTIONS[k]; });
-  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: TwAdminJobs.actions, pageList: pageList };
+  window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: TwAdminJobs.actions, pageList: pageList,
+                        openKYCDocs: openKYCDocs };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -796,6 +797,9 @@
       },
     });
   }
+  // approve / reject only for a submission in review — the server refuses anything else (409 · task 5.0c).
+  // One condition for the list row and the documents window (task 8.6a).
+  function kycReviewable(k) { return !!k && k.step === 'review'; }
   function renderKYC() {
     var box = BODY.kyc;
     if (!box) return;
@@ -804,9 +808,8 @@
     S.kyc.forEach(function (k) {
       var st = kycStatus(k.step), uid = Number(k.user_id);
       var r = row(k.full_name, [k.email], pill(st[0], st[1]));
-      r.acts.appendChild(btn('secondary', 'id-card', 'admin.kyc.docs', function () { openKYCDocs(Number(k.id), uid); }));
-      // approve / reject only for a submission in review — the server refuses anything else (409 · task 5.0c)
-      if (k.step === 'review') {
+      r.acts.appendChild(btn('secondary', 'id-card', 'admin.kyc.docs', function () { openKYCDocs(Number(k.id), uid, kycReviewable(k)); }));
+      if (kycReviewable(k)) {
         r.acts.appendChild(btn('primary', 'check', 'admin.kyc.approve', function () { kycAct('kyc.approve', uid); }));
         r.acts.appendChild(btn('danger', 'close', 'admin.kyc.reject', function () { kycAct('kyc.reject', uid); }));
       }
@@ -836,17 +839,18 @@
     }
     return c;
   }
-  function openKYCDocs(subId, uid) {
+  function openKYCDocs(subId, uid, reviewable) {
     var grid = el('div', 'adm-docs');
     grid.appendChild(el('p', 'tw-adm-msg', twT('common.loading')));
     var later = function (name) { return function () { setTimeout(function () { kycAct(name, uid); }, 0); }; };
+    var actions = reviewable ? [
+      { text: twT('admin.kyc.approve'), variant: 'primary', onClick: later('kyc.approve') },
+      { text: twT('admin.kyc.reject'), variant: 'danger', onClick: later('kyc.reject') },
+    ] : [];
+    actions.push({ text: twT('common.close'), variant: 'secondary' });
     twModal({
       title: twT('admin.kyc.docs_title'), content: grid,
-      actions: [
-        { text: twT('admin.kyc.approve'), variant: 'primary', onClick: later('kyc.approve') },
-        { text: twT('admin.kyc.reject'), variant: 'danger', onClick: later('kyc.reject') },
-        { text: twT('common.close'), variant: 'secondary' },
-      ],
+      actions: actions,
       onClose: function () { grid.textContent = ''; },
     });
     getJson('/admin/kyc/' + Number(subId) + '/docs').then(function (d) {

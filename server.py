@@ -1684,6 +1684,8 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                           j.salary_min, j.salary_max, j.currency,
                           j.skills, j.created_at,
                           j.profession_id, j.category,
+                          COALESCE(j.salary_hidden, false)           AS salary_hidden,
+                          COALESCE(j.accepts_all_professions, false) AS accepts_all_professions,
                           u.full_name AS company_name,
                           u.tw_id    AS company_tw_id,
                           u.id       AS company_id,
@@ -1704,6 +1706,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
             cols = [
                 "id","title","location","job_type","salary_min","salary_max","currency",
                 "skills","created_at","profession_id","category",
+                "salary_hidden","accepts_all_professions",
                 "company_name","company_tw_id","company_id","company_logo",
                 "profession_name_ar","profession_name_en","profession_icon",
                 "profession_category_group",
@@ -1717,6 +1720,8 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                     d["created_at"] = d["created_at"].isoformat()
                 if isinstance(d.get("skills"), list):
                     d["skills"] = [str(s) for s in d["skills"]]
+                if d["salary_hidden"]:   # hidden salary never leaves the server (old rows may still hold numbers)
+                    d["salary_min"] = d["salary_max"] = d["currency"] = None
                 job_items.append(d)
 
             # Batch-fetch accepted profession IDs — single query, no N+1
@@ -5181,12 +5186,6 @@ def admin_test_email(request: Request, data: dict = Body(...)):
     if res["code"] == "unavailable":
         return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
     return api_error(502, "email_failed", "تعذّر إرسال الرسالة، راجع سجل الخادم")
-
-
-@app.post("/admin/logo-sizes")
-async def save_logo_sizes(data: dict, request: Request):
-    check_admin(request)
-    return {"status": "ok"}
 
 
 # ══ Static Files (CSS/JS/Assets) ══
