@@ -57,6 +57,7 @@
     renderFeed: function (items, filter) {
       feedEl.innerHTML = '';
       if (!items || !items.length) { this.showEmpty(filter); return; }
+      window.Home.posts.remember(items);   // post authors for mentions / share (home.posts.js)
       var frag = document.createDocumentFragment();
       items.forEach(function (item) {
         var card = window.Home.cards.renderCard(item);
@@ -66,6 +67,7 @@
       feedEl.classList.remove('hidden');
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
+      window.Home.posts.afterRender(feedEl);   // clamp + view tracking of the post cards
     }
   };
 }());

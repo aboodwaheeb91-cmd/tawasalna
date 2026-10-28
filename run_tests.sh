@@ -129,6 +129,7 @@ PY_DB=(
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
   pytest:test_home_feed_86a.py        # task 8.6a — /home/feed hidden salary + accepts_all_professions · /admin/logo-sizes removed
+  pytest:test_home_feed_posts_86b2.py # task 8.6b-2 — /home/feed posts carry the TwPostCard fields (viewer flags · blocked comments · blocked company) · /company/posts unchanged
   pytest:test_security_50f.py         # task 5.0f — RLS lockdown · deleted account · org gate · no-sv cutoff · badge once
   pytest:test_audit_fixes_50e.py      # task 5.0e — /log/error · swallowed errors · Google off · soon badges · noindex · DB guard
   pytest:test_input_limits_50h.py     # task 5.0h — input / flood limits: messages · posts · reports · mention search · comment pages

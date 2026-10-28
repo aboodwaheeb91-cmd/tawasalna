@@ -11,13 +11,15 @@
 // twActionState decides who sees each; guest on an auth action → twLoginHref).
 //
 // Usage:
-//   TwPostCard.html(post, { authorName, avatarUrl, authorType, canEdit }) → HTML string (one .post-card)
+//   TwPostCard.html(post, { authorName, avatarUrl, authorType, authorHref, canEdit }) → HTML string (one .post-card)
 //     post       — a /company/posts item: id · body · tags[] · theme_color · created_at ·
 //                  views_count · appreciations_count · viewer_appreciated · comments_enabled ·
 //                  comments_count · viewer_saved
 //     authorName — name in the head (escaped here) · first char = avatar fallback
 //     avatarUrl  — raw URL; twAvatarHtml checks it (unsafe / missing → initial letter)
 //     authorType — emp / co / edu → avatar shape (DS-IMAGE)
+//     authorHref — optional (task 8.6b-2): the author's page (/u/{tw_id}) → name + avatar are links
+//                  (a card outside its author's page — CARD-R08) · missing → plain text, as before
 //     canEdit    — true → owner mode for the registry (⋯ edit / delete) · false → none
 //   TwPostCard.apprButtonInner(active, count) → inner HTML of .pc-btn--appr (icon + label)
 //   TwPostCard.saveButtonInner(active)        → inner HTML of .pc-btn--save (icon + label)
@@ -80,6 +82,14 @@
 
     // Avatar / logo: DS-IMAGE (URL check + fallback letter + shape by account type)
     var avaHtml = window.twAvatarHtml({ full_name: name, avatar_url: opts.avatarUrl, user_type: opts.authorType }, 'lg');
+    // Author link (CARD-R08) — the name is the link; the avatar repeats it outside the tab order
+    var href = opts.authorHref ? escAttr(opts.authorHref) : '';
+    var avaBox = href
+      ? '<a class="post-ava" href="' + href + '" tabindex="-1" aria-hidden="true">' + avaHtml + '</a>'
+      : '<div class="post-ava">' + avaHtml + '</div>';
+    var nameBox = href
+      ? '<a class="post-nm" href="' + href + '">' + esc(name) + '</a>'
+      : '<div class="post-nm">' + esc(name) + '</div>';
 
     // Tags — themed class so they inherit --pa from the card
     var tagsHtml = '';
@@ -113,9 +123,9 @@
 
     return '<div class="post-card" data-post-id="' + pid + '" style="' + cardStyle + '">'
       + '<div class="post-head">'
-        + '<div class="post-ava">' + avaHtml + '</div>'
+        + avaBox
         + '<div class="post-head-info">'
-          + '<div class="post-nm">' + esc(name) + '</div>'
+          + nameBox
           + '<div class="post-meta-row">'
             + '<span class="post-date">' + ico('clock', 'xs') + esc(relativeTime(post.created_at)) + '</span>'
             + '<span class="post-views" data-views-count="' + (Number(post.views_count) || 0) + '">' + ico('eye', 'xs') + esc(formatViews(post.views_count)) + '</span>'

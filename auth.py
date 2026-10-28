@@ -5704,54 +5704,68 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
 def _visible_comment_counts_sql() -> str:
     """Per-post count of the comments :bs_viewer sees in get_company_post_comments (task 5.4e):
     active, author visible, and a reply's root author visible — same bs.visible_sql filter as the
-    list. One grouped subquery for all posts of :cid (no query per post)."""
+    list. One grouped subquery limited to the posts in :ids (task 8.6b-2 — no query per post,
+    no GROUP BY over the whole table)."""
     return ("SELECT c.post_id, COUNT(*) AS cnt FROM company_post_comments c "
             "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
             "WHERE c.status = 'active' "
-            "AND c.post_id IN (SELECT id FROM company_posts WHERE company_id = :cid) "
+            "AND c.post_id = ANY(:ids) "
             "AND " + bs.visible_sql("c.user_id") + " AND (rc.id IS NULL OR " + bs.visible_sql("rc.user_id") + ") "
             "GROUP BY c.post_id")
 
 
+def get_company_post_stats(conn, post_ids, viewer_user_id=None) -> dict:
+    """{post_id: {views_count, appreciations_count, viewer_appreciated, viewer_saved, comments_count}}
+    for the posts in post_ids, as seen by viewer_user_id (None / 0 = guest → false / false).
+    The one source of these fields (task 8.6b-2) — /company/posts and /home/feed.
+    One query, every aggregate limited to post_id = ANY(:ids) (no N+1, no whole-table GROUP BY).
+    comments_count = _visible_comment_counts_sql (block / suspension filter for the viewer)."""
+    ids = sorted({int(i) for i in (post_ids or [])})
+    if not ids:
+        return {}
+    vid = bs._viewer(viewer_user_id)
+    rows = conn.run(
+        "SELECT cp.id, "
+        "COALESCE(v.cnt, 0) AS views_count, "
+        "COALESCE(a.cnt, 0) AS appreciations_count, "
+        "(upa.user_id IS NOT NULL) AS viewer_appreciated, "
+        "(ups.user_id IS NOT NULL) AS viewer_saved, "
+        "COALESCE(cmt.cnt, 0) AS comments_count "
+        "FROM company_posts cp "
+        "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views "
+        "WHERE post_id = ANY(:ids) GROUP BY post_id) v ON cp.id = v.post_id "
+        "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations "
+        "WHERE post_id = ANY(:ids) GROUP BY post_id) a ON cp.id = a.post_id "
+        "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
+        "LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid "
+        "LEFT JOIN (" + _visible_comment_counts_sql() + ") cmt ON cp.id = cmt.post_id "
+        "WHERE cp.id = ANY(:ids)",
+        ids=ids, viewer_uid=vid, bs_viewer=vid)
+    out = {i: {"views_count": 0, "appreciations_count": 0, "viewer_appreciated": False,
+               "viewer_saved": False, "comments_count": 0} for i in ids}   # every id has an entry
+    for r in (rows or []):
+        out[int(r[0])] = {"views_count": int(r[1]), "appreciations_count": int(r[2]),
+                          "viewer_appreciated": bool(r[3]), "viewer_saved": bool(r[4]),
+                          "comments_count": int(r[5])}
+    return out
+
+
 def get_company_posts(company_id: int, viewer_user_id=None) -> list:
     """Return all posts for a company, newest first.
-    Includes views_count, appreciations_count, viewer_appreciated, and viewer_saved (if viewer_user_id provided)."""
+    Includes views_count, appreciations_count, viewer_appreciated, viewer_saved and comments_count
+    (get_company_post_stats — the viewer's flags are false for a guest)."""
     conn = get_conn()
     try:
-        if viewer_user_id:
-            rows = conn.run(
-                "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
-                "COALESCE(v.cnt, 0) AS views_count, "
-                "COALESCE(a.cnt, 0) AS appreciations_count, "
-                "(upa.user_id IS NOT NULL) AS viewer_appreciated, "
-                "(ups.user_id IS NOT NULL) AS viewer_saved, "
-                "COALESCE(cmt.cnt, 0) AS comments_count "
-                "FROM company_posts cp "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
-                "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
-                "LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid "
-                "LEFT JOIN (" + _visible_comment_counts_sql() + ") cmt ON cp.id = cmt.post_id "
-                "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
-                cid=company_id, viewer_uid=int(viewer_user_id), bs_viewer=bs._viewer(viewer_user_id))
-        else:
-            rows = conn.run(
-                "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
-                "COALESCE(v.cnt, 0) AS views_count, "
-                "COALESCE(a.cnt, 0) AS appreciations_count, "
-                "FALSE AS viewer_appreciated, "
-                "FALSE AS viewer_saved, "
-                "COALESCE(cmt.cnt, 0) AS comments_count "
-                "FROM company_posts cp "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
-                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
-                "LEFT JOIN (" + _visible_comment_counts_sql() + ") cmt ON cp.id = cmt.post_id "
-                "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
-                cid=company_id, bs_viewer=0)
-        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at",
-                "views_count", "appreciations_count", "viewer_appreciated", "viewer_saved",
-                "comments_count"]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        rows = conn.run(
+            "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at "
+            "FROM company_posts cp WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
+            cid=company_id)
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at"]
+        posts = [_row_to_dict(cols, r) for r in (rows or [])]
+        stats = get_company_post_stats(conn, [p["id"] for p in posts], viewer_user_id)
+        for p in posts:
+            p.update(stats[int(p["id"])])
+        return [_serialize(p) for p in posts]
     finally:
         release_conn(conn)
 

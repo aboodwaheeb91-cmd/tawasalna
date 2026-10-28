@@ -13,7 +13,8 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - Shared state (portal ⋮ menu · mention menu · reply / mention / in-flight state) and the document / body listeners exist **once per page**, whatever the number of controllers. Each panel keeps its controller (`panel._twCmtOpts`) and gets one click listener for its comment items when built (the ⋮ `stopPropagation` keeps the post ⋯ menu as it was).
    - Load order: `tw-card.css` → `tw-post-comments.css` → page CSS · `tw-post-card.js` → `tw-post-comments.js` → page JS (both versioned via `PAGE_ASSETS`).
    - ❌ `companyState` / `TwCompanyPage` / any page name inside the component · ❌ a second copy of the comments code in a page · ❌ comment rules (`.pc-cmt*`) in a page stylesheet.
-   - Test: `node tests/test_post_card_runtime.js` (section L).
+   - Consumers: company page (`company.posts.js`) · home feed (`static/home/home.posts.js` — task 8.6b-2; `postOwner` = the post's company from the feed item). A panel built for a post that was drawn before (feed re-render) starts from scratch — that post's reply target / picked mentions / open menus are cleared when it is built.
+   - Test: `node tests/test_post_card_runtime.js` (section L · M = the home feed).
 
 1. **`company_post_comments` is the only table for post comments.** Do not create a second table for the same purpose.
 

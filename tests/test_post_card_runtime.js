@@ -23,6 +23,10 @@
  *      panel · opts.postOwner joins the mention names · page-wide listeners once for two
  *      controllers · company.posts.js only wires it · CSS = the old section, not in company.css ·
  *      load order
+ *   — task 8.6b-2: company posts in the home feed (real static/home/*.js on the fixture DOM) —
+ *   M  feed post = .post-card from TwPostCard with the API fields · author link · comments panel opens
+ *      inside the feed (no navigation) · post owner in the mention names · re-render: one feed
+ *      listener, one panel, built from scratch · no old hw-p card · load order
  *
  * Run: node tests/test_post_card_runtime.js
  */
@@ -559,6 +563,103 @@ function bootCards(o) {
     check('L9b JS order: tw-post-card.js → tw-post-comments.js (versioned) → company.posts.js',
       at('/static/shared/tw-post-card.js') > 0 && at('/static/shared/tw-post-comments.js?v={{v:tw-post-comments.js}}') > at('/static/shared/tw-post-card.js')
       && at('/static/company/company.posts.js') > at('/static/shared/tw-post-comments.js'));
+  }
+
+  console.log('\nM — company posts in the home feed (task 8.6b-2)');
+  {
+    const HOME = read('home-v2.html');
+    const HOME_JS = (HOME.match(/<script src="\/static\/home\/[^"]+"/g) || []).map(x => x.slice(14, -1));
+    function bootFeed(items) {
+      const ctx = makeCtx({ snap: REGISTERED });
+      vm.runInContext(fnText(SHARED, 'twAccountHref'), ctx);
+      const doc = makeDocument();
+      const calls = { api: [], nav: [], feedClick: 0, observed: 0 };
+      const mk = (tag, attrs, parent) => { const e = doc.createElement(tag); Object.assign(e.attrs, attrs); (parent || doc.body).appendChild(e); return e; };
+      ['all', 'opportunities', 'posts', 'news'].forEach(f => mk('button', { class: 'hw-ft', 'data-filter': f }));
+      const feed = mk('div', { id: 'hwFeed' });
+      const addFeed = feed.addEventListener;
+      feed.addEventListener = function (t, fn) { if (t === 'click') calls.feedClick++; addFeed.call(this, t, fn); };
+      const empty = mk('div', { id: 'hwEmpty', class: 'hidden' }); mk('h3', {}, empty); mk('p', {}, empty);
+      const err = mk('div', { id: 'hwError', class: 'hidden' }); mk('button', { class: 'hw-retry' }, err);
+      const loc = { pathname: '/home', search: '?f=posts', origin: 'https://x.test' };
+      let href = '/home?f=posts';
+      Object.defineProperty(loc, 'href', { get: () => href, set: v => { calls.nav.push(v); href = v; } });
+      Object.assign(ctx, {
+        document: doc, location: loc, URLSearchParams, AbortController, setTimeout: () => 0, clearTimeout() {},
+        requestAnimationFrame: fn => fn(), Event: function (t) { this.type = t; },
+        getComputedStyle: () => ({ lineHeight: '22px' }),
+        localStorage: { getItem: () => null, setItem() {} }, showToast() {}, twApiMessage: (r, fb) => fb,
+        IntersectionObserver: function () { this.observe = () => { calls.observed++; }; this.disconnect = () => {}; },
+        twRequireAuth: () => REGISTERED, getTwUser: () => ({ tw_id: 'U55' }),
+        twApi: (path, op) => {
+          const m = (op && op.method) || 'GET';
+          calls.api.push({ path, method: m, body: op && op.body });
+          if (path.indexOf('/home/feed') === 0) return Promise.resolve(ok200({ items: items() }));
+          if (/\/comments$/.test(path) && m === 'GET') return Promise.resolve(ok200({ comments: [] }));
+          if (/\/comments$/.test(path)) return Promise.resolve(ok200({ status: 'success', comment: { id: 9, body: op.body.body,
+            author_name: 'سارة', author_tw_id: 'U55', created_at: ago(1) } }));
+          return Promise.resolve(ok200({ status: 'success', appreciated: op.body.appreciated, appreciations_count: 2 }));
+        },
+      });
+      ctx.twIcon.hydrate = () => 0;
+      ctx.Home = { nav: { init() {} } };   // sidebar = test_home_landing_runtime.js
+      HOME_JS.filter(f => f !== 'static/home/home.nav.js').forEach(f => vm.runInContext(read(f), ctx, { filename: f }));
+      return { ctx, doc, feed, calls, q: x => doc.body.querySelector(x), qa: x => doc.body.querySelectorAll(x) };
+    }
+    const POST = { type: 'post', id: 41, body: 'منشور بالفيد', tags: ['توظيف'], theme_color: 'purple', comments_enabled: true,
+      created_at: ago(300), author_name: 'شركة النور', author_tw_id: 'C9', author_id: 3, author_avatar: '', author_type: 'co',
+      views_count: 5, appreciations_count: 3, viewer_appreciated: true, viewer_saved: true, comments_count: 2 };
+    const f = bootFeed(() => [POST]);
+    await tick(); await tick();
+    const c = f.q('.post-card[data-post-id="41"]');
+    check('M1 feed requests filter=posts and draws one .post-card from TwPostCard', f.calls.api[0].path === '/home/feed?filter=posts&limit=30'
+      && f.qa('.post-card').length === 1 && !!c && c.parentNode === f.feed);
+    check('M2 card fields from the API (appreciated 3 · saved · comments 2 · views 5 · purple · tag · no ⋯)',
+      c.querySelector('.pc-btn--appr').classList.contains('appr-active') && c.querySelector('.pc-btn--appr').getAttribute('data-appr-count') === '3'
+      && c.querySelector('.pc-btn--save').getAttribute('data-saved') === '1' && c.querySelector('.pc-btn--cmt').getAttribute('data-cmt-count') === '2'
+      && c.querySelector('.post-views').getAttribute('data-views-count') === '5' && c.attrs.style.indexOf('--pa:' + f.ctx.TW.POST_THEME_COLORS.purple.accent + ';') === 0
+      && c.querySelector('.jtag').textContent === 'توظيف' && !c.querySelector('.pc-dots'), c.attrs.style);
+    check('M3 author name + logo link to /u/{tw_id} (org avatar)', c.querySelector('a.post-nm').getAttribute('href') === '/u/C9'
+      && c.querySelector('a.post-nm').textContent === 'شركة النور' && c.querySelector('a.post-ava').getAttribute('href') === '/u/C9'
+      && !!c.querySelector('.tw-ava--org'));
+    check('M4 controller bound once to #hwFeed · views tracked after the render', f.calls.feedClick === 1 && f.calls.observed === 1);
+
+    f.doc.click(c.querySelector('.post-body'));
+    f.doc.click(c.querySelector('.pc-btn--cmt'));
+    const panel = f.q('#pc-cmt-panel-41');
+    check('M5 comment button opens the panel inside the feed card (no navigation)', panel.style.display === ''
+      && panel.closest('#hwFeed') === f.feed && !!panel.querySelector('textarea') && f.calls.nav.length === 0, f.calls.nav);
+    check('M5b comments loaded from the post', f.calls.api.some(a => a.path === '/company/posts/41/comments' && a.method === 'GET'));
+    await tick();
+    f.doc.click(c.querySelector('.pc-btn--appr'));
+    check('M5c appreciate → PUT on the post path, still no navigation', f.calls.api.some(a => a.path === '/company/posts/41/appreciation'
+      && a.method === 'PUT' && a.body.appreciated === false) && f.calls.nav.length === 0);
+    panel.querySelector('textarea').value = '@شركة النور مرحبا';
+    f.doc.click(panel.querySelector('.pc-cmts-send'));
+    await tick(); await tick();
+    const sentItem = f.q('.pc-cmt-item[data-cmt-id="9"]'), sent = sentItem && sentItem.querySelector('.pc-cmt-mention');
+    check('M6 the post company is in the mention names («@شركة النور» = one mention)', !!sent && sent.textContent === '@شركة النور', sent && sent.textContent);
+
+    f.doc.click(f.qa('.hw-ft')[0]); await tick(); await tick();
+    f.doc.click(f.qa('.hw-ft')[2]); await tick(); await tick();
+    const c2 = f.q('.post-card[data-post-id="41"]');
+    check('M7 re-render: same post drawn again, one feed listener, one card / panel id', c2 && c2 !== c
+      && f.calls.feedClick === 1 && f.qa('.post-card').length === 1 && f.qa('#pc-cmt-panel-41').length === 1);
+    f.doc.click(c2.querySelector('.pc-btn--cmt'));
+    const p2 = f.q('#pc-cmt-panel-41');
+    check('M7b reopened panel built from scratch (one input row, no old comment, reply strip hidden)', p2.style.display === ''
+      && p2.querySelectorAll('.pc-cmts-input-row').length === 1 && !p2.querySelector('.pc-cmt-item[data-cmt-id="9"]')
+      && p2.querySelector('.pc-cmt-reply-strip').style.display === 'none' && f.calls.nav.length === 0);
+
+    const cards = read('static/home/home.cards.js'), css = read('static/home-v2.css');
+    check('M8 old hw-p post card gone (JS + CSS)', !/hw-p(head|name|sub|body|foot|act)\b/.test(cards + css)
+      && !/addEventListener\('click'/.test(cards.slice(cards.indexOf('renderPostCard'), cards.indexOf('renderNewsCard'))));
+    const at = x => HOME.indexOf(x);
+    check('M9 CSS order: tw-card.css → tw-post-comments.css → home-v2.css (versioned)', at('tw-card.css?v={{v:tw-card.css}}') > 0
+      && at('tw-post-comments.css?v={{v:tw-post-comments.css}}') > at('tw-card.css') && at('/static/home-v2.css') > at('tw-post-comments.css'));
+    check('M9b JS order: tw-post-card.js → tw-post-comments.js (versioned) → home modules → home.posts.js before render',
+      at('tw-post-card.js?v={{v:tw-post-card.js}}') > at('tw-options-data.js') && at('tw-post-comments.js?v={{v:tw-post-comments.js}}') > at('tw-post-card.js')
+      && at('/static/home/home.utils.js') > at('tw-post-comments.js') && at('home.posts.js') > at('home.cards.js') && at('home.render.js') > at('home.posts.js'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

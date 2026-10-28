@@ -18,7 +18,8 @@ These rules are permanent and apply to all future AI sessions:
    - `static/home/home.utils.js` — constants + DOM helpers
    - `static/home/home.state.js` — shared state (`window.Home.state`)
    - `static/home/home.api.js` — feed fetch (`Home.api.loadFeed`)
-   - `static/home/home.cards.js` — card renderers (opportunity / post / news)
+   - `static/home/home.cards.js` — card renderers (opportunity / post / news) — post = `TwPostCard.html` (task 8.6b-2)
+   - `static/home/home.posts.js` — company posts controller (task 8.6b-2): `TwPostCard.create` + `TwPostComments.create`, bound once to `#hwFeed`
    - `static/home/home.render.js` — feed UI states (skeleton / empty / error / feed)
    - `static/home/home.filters.js` — filter tab wiring + orchestration
    - ~~`static/home/home.header.js`~~ — deleted PR 3.2: header + bottom nav = unified app chrome (`<header data-tw-header>` / `<nav data-tw-bottom-nav>` — `docs/design-system/HEADER-NAV.md`)
@@ -31,7 +32,7 @@ These rules are permanent and apply to all future AI sessions:
 
 5. **`GET /home/feed` is the feed API.** Auth: `Depends(verify_token)` — `user_id` من JWT فقط، ليس من query param. `filter` مُقيَّد server-side بـ allowlist: `{"all","opportunities","posts","news"}`.
 
-6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت فقط (لا يحتوي بيانات API).
+6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت، ولـ HTML بطاقة المنشور من `TwPostCard.html` بس (DS-CARD — كل حقل بيتعمله escape جوّا المكوّن، §54 — task 8.6b-2).
 
 7. **Home feed filters are final: `all / opportunities / posts / news`.**
    - `opportunities` — يعرض `jobs` حالياً (مع `opp_type="job"`). مستقبلاً يدعم training/scholarship/overseas.
@@ -55,3 +56,10 @@ These rules are permanent and apply to all future AI sessions:
     - **ممنوع** table scan بدون index على columns مستخدمة في WHERE/ORDER — راجع `_migrate_feed_indexes()`
     - **مطلوب** اتباع `window.Home` namespace لأي module جديد
     - **مطلوب** تحديد module المناسب قبل إضافة أي سلوك جديد على Home
+
+13. **منشورات الشركات بالفيد = `TwPostCard` + `TwPostComments` (task 8.6b-2 — SYSTEMS_INDEX §12 / §61).** نفس بطاقة صفحة الشركة: أقدّر · حفظ · مشاهدة · وسوم · مشاركة · تعليقات بتنفتح **جوّا الفيد**.
+    - الحقول من `GET /home/feed` (`theme_color` · `comments_enabled` · `author_type` + `auth.get_company_post_stats`) — نفس مصدر `/company/posts`.
+    - controller واحد `home.posts.js` بيتربط بـ `#hwFeed` مرة وحدة (`home.main.js`) · `Home.render.renderFeed` → `Home.posts.remember(items)` قبل الرسم + `afterRender` (clamp + المشاهدة) بعده · إعادة الرسم بتبني لوحة جديدة من الصفر.
+    - البطاقة ما بتنقل لأي مكان: الاسم واللوغو بس رابط `/u/{tw_id}` (`authorHref` = `twAccountHref`) · ما في تعديل / حذف من الفيد.
+    - ❌ بطاقة منشور خاصة بالرئيسية (`hw-p*`) · ❌ click على البطاقة كلها · ❌ controller تاني أو `bind` بكل رسم · ❌ نسخة محلية من التعليقات أو حساب العدّادات.
+    - Test: `node tests/test_post_card_runtime.js` (M) · `node tests/test_home_landing_runtime.js` (J) · `python -m pytest tests/test_home_feed_posts_86b2.py -q`.

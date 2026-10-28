@@ -1,9 +1,10 @@
 /* home.cards.js — feed card renderers for Home V2
  *
- * ALL rendering uses createElement + textContent · texts = twT keys (home.*) ·
+ * Job / news cards: createElement + textContent · texts = twT keys (home.*) ·
  * icons = DS-ICON (twIconEl) · logo / avatar = DS-IMAGE (twAvatarEl — URL via twSafeImageUrl).
- * innerHTML is FORBIDDEN for any API-supplied field.
- * The only innerHTML usage is in home.render.js for static skeleton markup.
+ * Post card = DS-CARD TwPostCard.html (task 8.6b-2 — the company page card; every field is
+ * escaped there, §54) turned into one element; its behaviour = home.posts.js.
+ * innerHTML is FORBIDDEN for any other API-supplied field (skeleton markup = home.render.js).
  */
 (function () {
   'use strict';
@@ -66,33 +67,15 @@
     },
 
     renderPostCard: function (item) {
-      var art  = U.el('article', 'hw-card');
-      var head = U.el('div', 'hw-phead');
-      head.appendChild(twAvatarEl({ full_name: item.author_name, avatar_url: item.author_avatar }, 'md'));
-      var meta = U.el('div');
-      meta.appendChild(U.txt('div', 'hw-pname', item.author_name || ''));
-      meta.appendChild(U.txt('div', 'hw-psub',  U.timeAgo(item.created_at)));
-      head.appendChild(meta);
-      art.appendChild(head);
-
-      art.appendChild(U.txt('div', 'hw-pbody', item.body || ''));
-
-      var foot     = U.el('div', 'hw-pfoot');
-      var shareAct = U.el('span', 'hw-pact');
-      shareAct.appendChild(U.icon('share', 'xs'));
-      shareAct.appendChild(document.createTextNode(' ' + twT('home.card.share')));
-      foot.appendChild(shareAct);
-      art.appendChild(foot);
-
-      if (item.author_tw_id) {
-        art.style.cursor = 'pointer';
-        art.addEventListener('click', function (ev) {
-          if (ev.target.closest('a,button')) return;
-          location.href = twAccountHref({ tw_id: item.author_tw_id });
-        });
-      }
-
-      return art;
+      var box = document.createElement('div');
+      box.innerHTML = TwPostCard.html(item, {
+        authorName: item.author_name || '',
+        avatarUrl:  item.author_avatar || '',
+        authorType: item.author_type || 'co',
+        authorHref: item.author_tw_id ? twAccountHref({ tw_id: item.author_tw_id }) : '',
+        canEdit:    false   // no edit / delete from the feed
+      });
+      return box.firstElementChild;
     },
 
     renderNewsCard: function (item) {

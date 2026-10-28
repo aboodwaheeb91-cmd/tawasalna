@@ -110,17 +110,8 @@ img{display:block;max-width:100%}
 .hw-chip--open{display:inline-flex;align-items:center;gap:4px;background:rgba(var(--color-brand-primary-rgb),.12);color:var(--color-brand-primary)}
 .hw-jfoot{display:flex;align-items:center;justify-content:space-between}
 
-/* --- Post Card --- */
-.hw-phead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.hw-pname{font-size:14px;font-weight:700}
-.hw-psub{font-size:11px;color:var(--muted)}
-.hw-pbody{
-  font-size:13px;line-height:1.7;color:var(--color-text-soft);
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-}
-.hw-pfoot{display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--brd)}
-.hw-pact{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;transition:color .15s}
-.hw-pact:hover{color:var(--g)}
+/* --- Post Card = TwPostCard (static/shared/tw-card.css — task 8.6b-2); the feed gap spaces the cards --- */
+.hw-feed .post-card{margin-bottom:0}
 
 /* --- News Card --- */
 .hw-nhead{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}

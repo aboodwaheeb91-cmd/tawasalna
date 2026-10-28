@@ -964,6 +964,14 @@
     if (!panel || panel._cmtInitialized) return;
     panel._cmtInitialized = true;
     panel._twCmtOpts = opts;   // the controller that owns this panel (signedIn · postOwner)
+    // A new panel for a post that was drawn before (feed re-render — task 8.6b-2) starts from
+    // scratch: no reply target / picked mentions / open menus left from the old panel.
+    var pid = String(postId);
+    delete _cmtReplyTarget[pid];
+    delete _cmtReplyTargetId[pid];
+    delete _cmtMentionedCandidates[pid];
+    if (_cmtMentionState.postId === pid) _cmtCloseMentionMenu();
+    if (_cmtPortalFor && String(_cmtPortalFor.postId) === pid) _cmtHidePortalMenu();
     panel.addEventListener('click', _cmtOnPanelClick);   // comment items — one listener per panel
 
     var list = document.createElement('div');
