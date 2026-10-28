@@ -54,7 +54,7 @@ Includes all Tier 1 fields plus:
 Returned by `GET /kyc/status/{user_id}` when caller owns the KYC record.
 Allowlist: `_KYC_OWNER_FIELDS` in `auth.py`.
 
-Fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at`
+Fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at` — + `reject_reason` only while `status = rejected` (task 8.1); never `admin_note`
 
 **Never returned:** `email_code`, `phone_code`, any raw OTP value, document URLs, admin notes.
 

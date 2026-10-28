@@ -158,7 +158,7 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
-    _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security,
+    _migrate_jobs_v2, _migrate_job_lifecycle, _migrate_kyc_otp_security, _migrate_kyc_reject_reason,
     job_active_sql, admin_hard_delete_job,
     admin_set_job_hidden, admin_reactivate_job, admin_extend_job, JobActionError, admin_unarchive_job, JOB_HIDE_REASON_MAX,
     admin_update_job, notify_job_applicants_updated, admin_job_delete_preview,
@@ -1099,6 +1099,7 @@ def _startup_migrations():
         ("email_notify",                      _migrate_email_notify,               True),
         ("company_settings",                  _migrate_company_settings,           False),
         ("kyc_otp_security",                  _migrate_kyc_otp_security,           True),
+        ("kyc_reject_reason",                 _migrate_kyc_reject_reason,          True),   # 8.1 — read by every KYC status / review / docs upload
         ("jobs_v2",                           _migrate_jobs_v2,                    True),
         ("job_lifecycle",                     _migrate_job_lifecycle,              True),
         ("taxonomy_foundation",               _migrate_taxonomy_foundation,        True),
@@ -7145,10 +7146,23 @@ def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
         raise _server_error("admin_kyc_approve", e)
 
 @app.put("/admin/kyc/{user_id}/reject")
-def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
+def admin_kyc_reject(user_id: int, request: Request, data: dict = Body(...)):
+    """Reject — body {reason: text for the user (required, trimmed, ≤ kyc_reject_reason_max),
+    note?: internal admin note} (task 8.1). The user sees the reason on /settings only."""
     check_admin(request)
+    reason, note = data.get("reason"), data.get("note")
+    if reason is not None and not isinstance(reason, str):
+        return api_error(422, "invalid_value", _tw_text("admin.kyc.reject.err.reason"), "reason")
+    if note is not None and not isinstance(note, str):
+        return api_error(422, "invalid_value", _tw_text("admin.kyc.reject.err.note"), "note")
+    reason = (reason or "").strip()
+    if not reason:
+        return api_error(422, "required", _tw_text("admin.kyc.reject.err.reason"), "reason")
+    too_long = _too_long(reason, "kyc_reject_reason_max", "reason")
+    if too_long:
+        return too_long
     try:
-        result = admin_reject_kyc(user_id, data.note)
+        result = admin_reject_kyc(user_id, reason, (note or "").strip())
         return {"status": "success", **result}
     except KycStateError as e:
         return api_error(409, "kyc_not_in_review", str(e))

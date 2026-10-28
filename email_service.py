@@ -91,6 +91,11 @@ TEMPLATES = {
                                        "parts": ("subject", "body", "button")},
     "notify_application_rejected":    {"category": NOTIFICATION, "vars": ("name", "job", "company", "link"),
                                        "parts": ("subject", "body", "button")},
+    # KYC review result (task 8.1) — no reason in the email (it is shown only on /settings).
+    "notify_kyc_approved":            {"category": NOTIFICATION, "vars": ("name", "link"),
+                                       "parts": ("subject", "body", "button")},
+    "notify_kyc_rejected":            {"category": NOTIFICATION, "vars": ("name", "link"),
+                                       "parts": ("subject", "body", "button")},
     # Message from the admin (5.3b2) — {title} = subject, {details} = the admin's text (escaped by render).
     "admin_message":                  {"category": NOTIFICATION, "vars": ("name", "title", "details", "link"),
                                        "parts": ("subject", "body", "button")},
@@ -99,7 +104,9 @@ NOTIFY_TYPES = tuple(k for k, v in TEMPLATES.items() if v["category"] == NOTIFIC
 # User preference switch of a notification type — one switch may cover several types (5.1d:
 # «نتيجة طلبات التوظيف» = hired + rejected). Missing = the type is its own switch.
 PREF_GROUPS = {"notify_application_hired": "notify_application_result",
-               "notify_application_rejected": "notify_application_result"}
+               "notify_application_rejected": "notify_application_result",
+               "notify_kyc_approved": "notify_kyc_result",          # 8.1 — one switch for both results
+               "notify_kyc_rejected": "notify_kyc_result"}
 PREF_TYPES = tuple(dict.fromkeys(PREF_GROUPS.get(k, k) for k in NOTIFY_TYPES))
 # Inbound support mail (task 7.3) — a switch in types, not a template; starts OFF.
 INBOUND_SWITCH = "support_inbound"
