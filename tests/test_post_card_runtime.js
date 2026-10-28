@@ -18,6 +18,11 @@
  *   J  company.posts.js wires the page parts into TwPostCard.create (paths · session · share · callbacks)
  *   K  tw-card.css: sizes from tokens · no hex · active save = --color-action-save (not warning,
  *      AA contrast) · card rules not in company.css · load order
+ *   — task 8.6b-1: comments = TwPostComments (static/shared/tw-post-comments.js) —
+ *   L  create() → build / load · nothing page-specific inside · build / load / send on the real
+ *      panel · opts.postOwner joins the mention names · page-wide listeners once for two
+ *      controllers · company.posts.js only wires it · CSS = the old section, not in company.css ·
+ *      load order
  *
  * Run: node tests/test_post_card_runtime.js
  */
@@ -65,6 +70,7 @@ function makeCtx(o) {
   vm.runInContext(read('static/shared/tw-icons.js'), ctx, { filename: 'tw-icons.js' });
   vm.runInContext(read('static/shared/tw-options-data.js'), ctx, { filename: 'tw-options-data.js' });
   vm.runInContext(read('static/shared/tw-post-card.js'), ctx, { filename: 'tw-post-card.js' });
+  vm.runInContext(read('static/shared/tw-post-comments.js'), ctx, { filename: 'tw-post-comments.js' });
   return ctx;
 }
 
@@ -373,7 +379,9 @@ function bootCards(o) {
     };
     const dcl = [];
     doc.addEventListener = (t, fn) => { if (t === 'DOMContentLoaded') dcl.push(fn); };
-    let snapIn = false;
+    let snapIn = false, cmtOpts = null, cmtCtl = null;
+    const origCmt = ctx.TwPostComments.create;
+    ctx.TwPostComments.create = function (o) { cmtOpts = o; cmtCtl = origCmt(o); return cmtCtl; };
     Object.assign(ctx, { document: doc, setTimeout() {}, clearTimeout() {},
       TwCompanyPage: { signedIn: () => snapIn },
       location: { origin: 'https://tawasolna.com', pathname: '/u/C9', search: '', href: 'https://tawasolna.com/u/C9?x=1' } });
@@ -391,6 +399,12 @@ function bootCards(o) {
     check('J6 share info fallback = «شركة» + location.href', si2.name === 'شركة' && si2.url === 'https://tawasolna.com/u/C9?x=1');
     check('J7 delete → the page deletePost', opts.onDelete === ctx.deletePost && typeof opts.onEdit === 'function');
     check('J8 comments build / load from the comments system', typeof opts.comments.build === 'function' && typeof opts.comments.load === 'function');
+    check('J8b … = the TwPostComments controller of the page', !!cmtOpts && opts.comments.build === cmtCtl.build && opts.comments.load === cmtCtl.load);
+    check('J8c TwPostComments session check = TwCompanyPage.signedIn', (snapIn = false, cmtOpts.signedIn() === false) && (snapIn = true, cmtOpts.signedIn() === true));
+    ctx.companyState = { profile: { full_name: 'شركة س', tw_id: 'C9', avatar_url: null } };
+    check('J8d TwPostComments postOwner = companyState.profile', cmtOpts.postOwner('7') === ctx.companyState.profile);
+    delete ctx.companyState;
+    check('J8e postOwner without companyState → null', cmtOpts.postOwner('7') === null);
     ctx.initPostViewTracking(list);
     check('J9 initPostViewTracking → TwPostCard trackViews', tracked === list);
     dcl.forEach(fn => fn());
@@ -436,8 +450,115 @@ function bootCards(o) {
     check('K9 avatar = DS-IMAGE (old .post-ava img / --init rules gone)', !card.has('.post-ava img') && !card.has('.post-ava--init'));
     const html = read('company-profile.html');
     const iCard = html.indexOf('/static/shared/tw-card.css?v={{v:tw-card.css}}'), iPage = html.indexOf('/static/company/company.css');
-    check('K10 company page loads tw-card.css (versioned) right before company.css', iCard > 0 && iPage > iCard
-      && !/<link[^>]*>/.test(html.slice(html.indexOf('>', iCard) + 1, iPage)));
+    const between = (html.slice(html.indexOf('>', iCard) + 1, iPage).match(/<link[^>]*>/g) || []);
+    check('K10 company page loads tw-card.css (versioned) right before company.css (only the shared comments CSS between — 8.6b-1)',
+      iCard > 0 && iPage > iCard && between.every(l => l.indexOf('/static/shared/tw-post-comments.css') !== -1));
+  }
+
+  console.log('\nL — comments = TwPostComments (task 8.6b-1)');
+  {
+    const SRC = read('static/shared/tw-post-comments.js');
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    check('L1 tw-post-comments.js: nothing page-specific (companyState · TwCompanyPage · #postsList)',
+      !/companyState|TwCompanyPage|postsList/.test(code));
+    function bootCmt(o) {
+      o = o || {};
+      const ctx = makeCtx();
+      const doc = makeDocument();
+      const calls = { api: [], toast: [], docClick: 0 };
+      const pending = [];
+      const addDoc = doc.addEventListener;
+      doc.addEventListener = (t, fn, op) => { if (t === 'click') calls.docClick++; addDoc(t, fn, op); };
+      Object.assign(ctx, {
+        document: doc, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: fn => fn(),
+        showToast: (m, t) => calls.toast.push([m, t]),
+        twApiMessage: (res, fb) => fb,
+        twApi: (path, op) => new Promise(res => { calls.api.push({ path, method: (op && op.method) || 'GET', body: op && op.body }); pending.push(res); }),
+        Event: function (t) { this.type = t; },
+      });
+      const panel = doc.createElement('div');
+      panel.innerHTML = '<div class="pc-cmts-panel" id="pc-cmt-panel-7" data-post-id="7" style="display:none"></div>';
+      doc.body.appendChild(panel);
+      const ctl = ctx.TwPostComments.create({ signedIn: () => o.signedIn !== false, postOwner: o.postOwner || (() => null) });
+      return { ctx, doc, ctl, calls, q: s => doc.body.querySelector(s), respond: r => pending.shift()(r) };
+    }
+    const b = bootCmt({ postOwner: id => (id === '7' ? { full_name: 'شركة النور', tw_id: 'C1', avatar_url: null } : null) });
+    check('L2 create() → { build, load }', typeof b.ctl.build === 'function' && typeof b.ctl.load === 'function');
+    b.ctl.build('7');
+    const ta = b.q('textarea.pc-cmts-ta'), send = b.q('.pc-cmts-send[data-post-id="7"]');   // (the fixture DOM: simple selectors only)
+    check('L3 build: list + reply strip + input row (textarea + send) for a signed-in viewer',
+      !!b.q('.pc-cmts-list') && !!b.q('.pc-cmt-reply-strip') && !!ta && !!send && !b.q('.pc-cmts-guest'));
+    b.ctl.build('7');
+    check('L3b build twice = one input row', b.doc.body.querySelectorAll('.pc-cmts-input-row').length === 1);
+    const g = bootCmt({ signedIn: false });
+    g.ctl.build('7');
+    check('L3c guest → sign-in note, no textarea', !!g.q('.pc-cmts-guest') && !g.q('textarea'));
+
+    b.ctl.load('7');
+    check('L4 load → GET the comments of the post', b.calls.api.length === 1 && b.calls.api[0].path === '/company/posts/7/comments' && b.calls.api[0].method === 'GET');
+    b.respond(ok200({ comments: [{ id: 3, body: 'أول تعليق', author_name: 'سارة', author_tw_id: 'U5', created_at: ago(60), viewer_can_edit: true, viewer_can_delete: true }], next_cursor: 3 }));
+    await tick();
+    const item = b.q('.pc-cmt-item[data-cmt-id="3"]');
+    check('L4b comment rendered (author link /u/{tw_id} · ⋮ · «more» button for next_cursor)', !!item
+      && item.querySelector('a.pc-cmt-author').getAttribute('href') === '/u/U5' && !!item.querySelector('.pc-cmt-menu-btn')
+      && !!b.q('.pc-cmts-more'));
+    b.ctl.load('7', 3);
+    check('L4c load(id, cursor) → ?cursor=', b.calls.api[1].path === '/company/posts/7/comments?cursor=3');
+    b.respond(ok200({ comments: [], next_cursor: null }));
+    await tick();
+
+    // opts.postOwner joins the mention names: the owner's two-word name is one mention after send
+    async function sendWith(bb) {
+      bb.ctl.build('7');
+      bb.ctl.load('7');
+      bb.respond(ok200({ comments: [] }));
+      await tick();
+      bb.q('textarea.pc-cmts-ta').value = '@شركة النور مرحبا';
+      bb.doc.click(bb.q('.pc-cmts-send[data-post-id="7"]'));
+      const post = bb.calls.api[bb.calls.api.length - 1];
+      bb.respond(ok200({ status: 'success', comment: { id: 9, body: '@شركة النور مرحبا', author_name: 'سارة', author_tw_id: 'U5', created_at: ago(1) } }));
+      await tick();
+      const it = bb.q('.pc-cmt-item[data-cmt-id="9"]'), m = it && it.querySelector('.pc-cmt-mention');
+      return { post, mention: m ? m.textContent : null };
+    }
+    const withOwner = await sendWith(bootCmt({ postOwner: () => ({ full_name: 'شركة النور', tw_id: 'C1', avatar_url: null }) }));
+    const noOwner   = await sendWith(bootCmt());
+    check('L5 send → POST body to the post (panel click listener)', withOwner.post.method === 'POST'
+      && withOwner.post.path === '/company/posts/7/comments' && withOwner.post.body.body === '@شركة النور مرحبا');
+    check('L5b postOwner in the mention names → «@شركة النور» is one mention', withOwner.mention === '@شركة النور');
+    check('L5c without postOwner → only «@شركة» (the fallback)', noOwner.mention === '@شركة');
+
+    const two = bootCmt();
+    const before = two.calls.docClick;
+    two.ctx.TwPostComments.create({ signedIn: () => true, postOwner: () => null });
+    check('L6 page-wide click listeners bound once (second controller adds none)', before > 0 && two.calls.docClick === before);
+
+    const posts = read('static/company/company.posts.js');
+    check('L7 company.posts.js: no comments code left (no _cmt* / _renderCommentBody)', !/_cmt\w*\s*\(|function _cmt|_renderCommentBody/.test(posts));
+
+    const rules = css => {
+      const m = new Map();
+      css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g, (all, inner) =>
+        { inner.replace(/([^{}]+)\{([^{}]*)\}/g, (_, sel, body) => m.set('@media ' + all.slice(0, all.indexOf('{')).trim() + ' ' + sel.trim(), body.trim())); return ''; })
+        .replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*\s*\}/g, k => { m.set(k.slice(0, k.indexOf('{')).trim(), k.replace(/\s+/g, '')); return ''; })
+        .replace(/([^{}]+)\{([^{}]*)\}/g, (_, sel, body) => { m.set(sel.trim().replace(/\s+/g, ' '), body.replace(/\s+/g, ' ').trim()); });
+      return m;
+    };
+    const cmtCss = read('static/shared/tw-post-comments.css');
+    const now = rules(cmtCss), old = rules(read('tests/fixtures/legacy_post_comments.css'));
+    const diff = [...old.keys()].filter(k => now.get(k) !== old.get(k)).concat([...now.keys()].filter(k => !old.has(k)));
+    check('L8 tw-post-comments.css = the old company.css section (same selectors / values)', old.size > 50 && diff.length === 0, diff.join(' | '));
+    check('L8b no hex color', !/#[0-9a-f]{3,8}\b/i.test(cmtCss.replace(/\/\*[\s\S]*?\*\//g, '')));
+    const page = read('static/company/company.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    check('L8c no comment rule left in company.css', !/\.pc-cmts?-/.test(page));
+    const html = read('company-profile.html');
+    const at = s => html.indexOf(s);
+    check('L9 CSS order: tw-card.css → tw-post-comments.css (versioned) → company.css',
+      at('/static/shared/tw-card.css') > 0 && at('/static/shared/tw-post-comments.css?v={{v:tw-post-comments.css}}') > at('/static/shared/tw-card.css')
+      && at('/static/company/company.css') > at('/static/shared/tw-post-comments.css'));
+    check('L9b JS order: tw-post-card.js → tw-post-comments.js (versioned) → company.posts.js',
+      at('/static/shared/tw-post-card.js') > 0 && at('/static/shared/tw-post-comments.js?v={{v:tw-post-comments.js}}') > at('/static/shared/tw-post-card.js')
+      && at('/static/company/company.posts.js') > at('/static/shared/tw-post-comments.js'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

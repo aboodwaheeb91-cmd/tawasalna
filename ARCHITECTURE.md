@@ -10563,7 +10563,7 @@ LEFT JOIN (
 
 ### Frontend Architecture
 
-**Files:** `static/company/company.posts.js` (comments section) · `static/company/company.render.js` (panel shell + count) · `static/company/company.css` (`.pc-cmts-*`)
+**Files:** `static/shared/tw-post-comments.js` (`TwPostComments.create(opts)` → `{build, load}` — task 8.6b-1, moved from the `company.posts.js` comments section as-is) · `static/shared/tw-post-comments.css` (`.pc-cmts-*` / `.pc-cmt-*` — moved from `company.css`) · `static/shared/tw-post-card.js` (panel shell + count) · `static/company/company.posts.js` (wiring only: `signedIn` = `TwCompanyPage.signedIn` · `postOwner` = `companyState.profile`)
 
 **Panel shell:** A `<div class="pc-cmts-panel" id="pc-cmt-panel-{pid}">` is embedded inside each post card in the initial HTML render (inside `#postsList`). It is hidden (`display:none`) until the user clicks "تعليق".
 
@@ -10858,7 +10858,7 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 - **Closes on:** outside click, list scroll, page scroll, successful insertion.
 - **XSS-safe:** all candidate names rendered via `btn.textContent` — never `innerHTML` for API data.
 
-**Module variables added to `company.posts.js`:**
+**Module variables (now in `static/shared/tw-post-comments.js` — task 8.6b-1, were in `company.posts.js`):**
 - `_cmtMentionMenu` — cached portal div (null until first use)
 - `_cmtMentionState` — `{ open, ta, postId, start, filtered, activeIdx }`
 
@@ -10875,7 +10875,7 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 - `_cmtHandleMentionInput(ta, postId)` — wired to textarea `input` listener
 - `_cmtHandleMentionKeydown(e, ta)` — wired to textarea `keydown` listener
 
-**CSS classes (in `static/company/company.css`):**
+**CSS classes (in `static/company/company.css` — now `static/shared/tw-post-comments.css`, task 8.6b-1):**
 - `.pc-cmt-mention-menu` — portal container (position:fixed, display:none, max-height:160px, width:220px)
 - `.pc-cmt-mention-item` — button item (textContent, RTL text-align:right)
 - `.pc-cmt-mention-item.pc-cmt-mention-active` — keyboard-active highlight

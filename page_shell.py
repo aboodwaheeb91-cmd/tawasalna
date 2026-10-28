@@ -42,6 +42,8 @@ PAGE_ASSETS = {
     "tw-schedule.js": os.path.join("static", "shared", "tw-schedule.js"),
     "tw-post-card.js": os.path.join("static", "shared", "tw-post-card.js"),   # task U.2 — DS-CARD post card
     "tw-card.css": os.path.join("static", "shared", "tw-card.css"),           # task U.2b — DS-CARD styles
+    "tw-post-comments.js": os.path.join("static", "shared", "tw-post-comments.js"),    # task 8.6b-1 — post comments
+    "tw-post-comments.css": os.path.join("static", "shared", "tw-post-comments.css"),  # task 8.6b-1 — post comments styles
     # Admin Shell (task 5.3a · docs/rules/admin-shell.md)
     "admin-sections.js": os.path.join("static", "shared", "admin-sections.js"),
     "admin-shell.js": os.path.join("static", "shared", "admin-shell.js"),
