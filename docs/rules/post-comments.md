@@ -8,6 +8,13 @@
 These rules are permanent and apply to all future AI sessions.
 Full technical specification: `ARCHITECTURE.md §65`.
 
+0. **The comments UI is one shared component — `TwPostComments` (task 8.6b-1).** Code: `static/shared/tw-post-comments.js` · CSS: `static/shared/tw-post-comments.css` (moved from `company.posts.js` / `company.css` as-is — same DOM, classes, `data-*`, text, API paths, escaping). Every `_cmt*` / `_renderCommentBody` function named below lives there.
+   - API: `TwPostComments.create(opts)` → `{ build(postId), load(postId, cursor) }`, passed to `TwPostCard.create({ comments })`. Page parts come only in `opts`: `opts.signedIn()` → bool · `opts.postOwner(postId)` → `{ full_name, tw_id, avatar_url } | null` (joins the @mention suggestions).
+   - Shared state (portal ⋮ menu · mention menu · reply / mention / in-flight state) and the document / body listeners exist **once per page**, whatever the number of controllers. Each panel keeps its controller (`panel._twCmtOpts`) and gets one click listener for its comment items when built (the ⋮ `stopPropagation` keeps the post ⋯ menu as it was).
+   - Load order: `tw-card.css` → `tw-post-comments.css` → page CSS · `tw-post-card.js` → `tw-post-comments.js` → page JS (both versioned via `PAGE_ASSETS`).
+   - ❌ `companyState` / `TwCompanyPage` / any page name inside the component · ❌ a second copy of the comments code in a page · ❌ comment rules (`.pc-cmt*`) in a page stylesheet.
+   - Test: `node tests/test_post_card_runtime.js` (section L).
+
 1. **`company_post_comments` is the only table for post comments.** Do not create a second table for the same purpose.
 
 2. **V1 supports 1-level reply threading via `reply_to_comment_id`.** Max depth is 1 — the server auto-resolves deeper replies to the root. Do not implement deeper nesting without a dedicated PR. `reply_to_comment_id` is a nullable FK to `company_post_comments(id) ON DELETE SET NULL`.
@@ -91,7 +98,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Keyboard nav:** ArrowDown/Up cycles `activeIdx`, Enter inserts only when `activeIdx >= 0`, Escape closes.
    - **Closes on:** outside click, page scroll, list scroll, successful insertion.
    - **`_cmtMentionState` is the only store for active mention session.** Do NOT persist to localStorage/sessionStorage.
-   - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active`, `.pc-cmt-mention-ava`, `.pc-cmt-mention-name` in `static/company/company.css` only.
+   - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active`, `.pc-cmt-mention-ava`, `.pc-cmt-mention-name` in `static/shared/tw-post-comments.css` only (moved from `company.css` — task 8.6b-1).
    - **`_cmtPositionMentionMenu(ta)` uses actual `menu.offsetHeight` — NOT hardcoded 160.** Call sequence in `_cmtOpenMentionMenu`: set `visibility:hidden; display:block` → call `_cmtPositionMentionMenu(ta)` (reads accurate `offsetHeight`) → clear `visibility`. Do NOT call `_cmtPositionMentionMenu` while menu is `display:none` (offsetHeight would be 0).
    - **`_cmtKnownNames(postId)` is the helper** that extracts all candidate names sorted longest-first for free-mention compound matching. Returns string array. Do NOT inline this logic inside `_renderCommentBody`.
 
@@ -105,7 +112,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `mentions` source: `c.mentions` (API array) / `JSON.parse(item.dataset.mentionsJson)` (edit flow).
    - **Forbidden link targets:** Never use `/profile?id=`, `/company-profile`, or numeric `id` in author/mention links. Only `/u/{tw_id}`.
    - **If `author_tw_id` is absent, no `href` is created.** Do NOT construct a link from author_name alone.
-   - **CSS:** `a.pc-cmt-author { text-decoration:none; color:inherit; }` · `a.pc-cmt-ava { display:flex; text-decoration:none; }` · `a.pc-cmt-mention { text-decoration:none; }` — all in `static/company/company.css`.
+   - **CSS:** `a.pc-cmt-author { text-decoration:none; color:inherit; }` · `a.pc-cmt-ava { display:flex; text-decoration:none; }` · `a.pc-cmt-mention { text-decoration:none; }` — all in `static/shared/tw-post-comments.css` (moved from `company.css` — task 8.6b-1).
 
 20. **Comment UX V2 contracts (feat/comment-ux-v2) — permanent:**
 

@@ -50,6 +50,10 @@ function makeDocument() {
     _classes() { return (this.attrs.class || '').split(/\s+/).filter(Boolean); }
     get id() { return this.attrs.id || ''; }
     get className() { return this.attrs.class || ''; }
+    set className(v) { this.attrs.class = String(v); }   // task 8.6b-1 — comments build with the DOM API
+    set id(v) { this.attrs.id = String(v); }
+    get href() { return this.attrs.href || ''; }
+    set href(v) { this.attrs.href = String(v); }
     getAttribute(n) { return n in this.attrs ? this.attrs[n] : null; }
     setAttribute(n, v) { this.attrs[n] = String(v); if (n === 'style') this._parseStyle(); }
     _parseStyle() {
@@ -62,6 +66,11 @@ function makeDocument() {
     }
     appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
     removeChild(c) { this.children = this.children.filter(x => x !== c); c.parentNode = null; return c; }
+    insertBefore(c, ref) {   // task 8.6b-1 — comments
+      if (!ref) return this.appendChild(c);
+      c.parentNode = this; this.children.splice(this.children.indexOf(ref), 0, c); return c;
+    }
+    remove() { if (this.parentNode) this.parentNode.removeChild(this); }
     contains(o) { for (let e = o; e; e = e.parentNode) if (e === this) return true; return false; }
     matches(sel) {
       return sel.split(',').some(s => {
@@ -119,6 +128,7 @@ function makeDocument() {
   const document = {
     body,
     createElement: t => new El(t),
+    createTextNode: t => ({ text: String(t) }),
     getElementById: id => body.querySelector('#' + id),
     querySelector: s => body.querySelector(s),
     querySelectorAll: s => body.querySelectorAll(s),

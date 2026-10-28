@@ -20,6 +20,17 @@ def _in_startup_registry(src, fn, critical=None):
     m = re.search(r'\(\s*"[a-z0-9_]+",\s*' + re.escape(fn) + r',\s*(True|False)\s*\)', src)
     return bool(m) and (critical is None or m.group(1) == str(critical))
 
+# Task 8.6b-1: the comments system (§22c) moved from company.posts.js / company.css to
+# static/shared/tw-post-comments.js / .css (TwPostComments). The source checks below read the
+# page file + the shared file, so they look at wherever the comments code lives now.
+def _cmt_js():
+    return (open("static/company/company.posts.js", encoding="utf-8").read() + "\n"
+            + open("static/shared/tw-post-comments.js", encoding="utf-8").read())
+
+def _cmt_css():
+    return (open("static/company/company.css", encoding="utf-8").read() + "\n"
+            + open("static/shared/tw-post-comments.css", encoding="utf-8").read())
+
 def check(name, cond, detail=""):
     status = PASS if cond else FAIL
     results.append((name, status, detail))
@@ -137,7 +148,7 @@ check(
 )
 
 # ── 15. XSS: body not rendered as innerHTML ───────────────────────────────
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 # textContent is the XSS-safe mechanism
 check(
     "15. comment body rendered via textContent (XSS-safe)",
@@ -192,7 +203,7 @@ check(
 )
 
 # ── 21. Edit UX: _cmtEditInFlight guard ──────────────────────────────────
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 check(
     "21. _cmtEditInFlight guard variable defined",
     "_cmtEditInFlight" in posts_js
@@ -238,8 +249,8 @@ check(
 )
 
 # ── UX Improvements (feat/comment-ui-polish) ─────────────────────────────
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
-company_css = open("static/company/company.css", encoding="utf-8").read()
+posts_js = _cmt_js()
+company_css = _cmt_css()
 
 # ── 27. Auto-resize helper ────────────────────────────────────────
 check(
@@ -337,7 +348,7 @@ check(
 )
 
 # ── Portal ⋮ menu (feat/comment-ux-polish-2) ─────────────────────────────
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 
 # ── 41. Portal menu variable ──────────────────────────────────────
 check(
@@ -410,8 +421,8 @@ check(
 )
 
 # ── UX Polish 3 (feat/comment-ux-polish-3) ───────────────────────────────
-posts_js    = open("static/company/company.posts.js", encoding="utf-8").read()
-company_css = open("static/company/company.css", encoding="utf-8").read()
+posts_js    = _cmt_js()
+company_css = _cmt_css()
 build_fn4   = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
 
 # ── 51. Vertical line fix — scrollbar hidden on .pc-cmts-list ─────
@@ -475,7 +486,7 @@ check(
 )
 
 # ── Reply Threading V1 (feat/reply-threading-v1) ─────────────────────────
-posts_js    = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js    = _cmt_js()
 auth_src    = open("auth.py", encoding="utf-8").read()
 srv_src     = open("server.py", encoding="utf-8").read()
 
@@ -608,7 +619,7 @@ check(
 )
 
 # ── Scroll UX fix (reply stays in place, top-level scrolls to bottom) ────
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 auth_src = open("auth.py", encoding="utf-8").read()
 
 # ── 72. _cmtInsertReply returns newEl ──────────────────────────────────────
@@ -710,8 +721,7 @@ check(
 )
 
 # CSS
-with open("static/company/company.css") as _f:
-    company_css = _f.read()
+company_css = _cmt_css()
 
 check(
     "85e. CSS .pc-cmt-mention-menu is position:fixed z-index:9999",
@@ -1873,7 +1883,7 @@ check(
 
 # ── 123. @mention API Search (feat/mention-api-search) ───────────────────
 
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 srv_src  = open("server.py", encoding="utf-8").read()
 
 # Module-level debounce timer
@@ -1963,9 +1973,9 @@ check(
 
 # ── 124. Speed Up Mention Suggestions (feat/mention-search-perf) ─────────
 
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 srv_src  = open("server.py", encoding="utf-8").read()
-company_css = open("static/company/company.css", encoding="utf-8").read()
+company_css = _cmt_css()
 
 # Backend: single UNION ALL query (1 roundtrip)
 check(
@@ -2036,7 +2046,7 @@ check(
 # ── 125. Fix Mention Search Relationship Sources (feat/fix-mention-search-relationship-sources) ──
 
 srv_src  = open("server.py",  encoding="utf-8").read()
-posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+posts_js = _cmt_js()
 
 _ms125 = srv_src[srv_src.find("def mention_search("):srv_src.find("def _require_company_owner(")]
 check(
@@ -2134,8 +2144,8 @@ check(
 
 # ── 127. Mobile Posts/Comments/Mentions QA (feat/mobile-posts-comments-mentions-qa) ──
 
-posts_js_127 = open("static/company/company.posts.js", encoding="utf-8").read()
-co_css_127   = open("static/company/company.css",      encoding="utf-8").read()
+posts_js_127 = _cmt_js()
+co_css_127   = _cmt_css()
 
 # @mention fetch still uses /mention/search
 check(
@@ -2235,7 +2245,7 @@ import os as _os
 # ── 129 — Architecture Foundation F14–F28 (PR #420 commit 2) ─────────────
 
 # ── 130 — Fix Mobile Mention Dropdown Position And Filtering (PR #421) ───
-_posts130 = open("static/company/company.posts.js", encoding="utf-8").read()
+_posts130 = _cmt_js()
 
 check(
     "130a. _cmtFilterMentionCandidates uses toLowerCase() for case-insensitive matching",
@@ -2280,7 +2290,7 @@ check(
 )
 
 # ── 131 — Fix Mention Query Extraction And Anchor Position (PR #422) ─────
-_posts131 = open("static/company/company.posts.js", encoding="utf-8").read()
+_posts131 = _cmt_js()
 _srv131   = open("server.py", encoding="utf-8").read()
 
 check(
