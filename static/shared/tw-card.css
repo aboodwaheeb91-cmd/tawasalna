@@ -110,14 +110,14 @@ a.post-ava { text-decoration:none; }
   display:none; padding:var(--space-2) 0; z-index:30;
 }
 .pc-dots-menu.open { display:block; }
-.pc-dots-edit {
+.pc-dots-edit, .pc-dots-report, .pc-dots-block {
   display:flex; align-items:center; gap:var(--space-3); width:100%;
   padding:var(--space-4) var(--space-7); background:none; border:none; cursor:pointer;
   color:var(--color-text-meta); font-size:var(--size-font-sm); font-family:inherit;
   text-align:right; direction:rtl; transition:background .15s;
 }
-.pc-dots-edit:hover { background:rgba(var(--color-ink-rgb), .06); color:var(--color-text-primary); }
-.pc-dots-edit svg { width:var(--size-icon-sm); height:var(--size-icon-sm); stroke:currentColor; fill:none; stroke-width:1.8; flex-shrink:0; }
+.pc-dots-edit:hover, .pc-dots-report:hover, .pc-dots-block:hover { background:rgba(var(--color-ink-rgb), .06); color:var(--color-text-primary); }
+.pc-dots-edit svg, .pc-dots-report svg, .pc-dots-block svg { width:var(--size-icon-sm); height:var(--size-icon-sm); stroke:currentColor; fill:none; stroke-width:1.8; flex-shrink:0; }
 .pc-dots-delete {
   display:flex; align-items:center; gap:var(--space-3); width:100%;
   padding:var(--space-4) var(--space-7); background:none; border:none; cursor:pointer;

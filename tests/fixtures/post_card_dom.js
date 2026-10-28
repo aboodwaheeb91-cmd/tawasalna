@@ -109,6 +109,7 @@ function makeDocument() {
       (listeners.get(this)[type] = listeners.get(this)[type] || []).push(fn);
     }
     select() {}
+    click() { document.click(this); }   // task 8.6c — el.click() (twAction's own button)
   }
 
   function decode(s) {

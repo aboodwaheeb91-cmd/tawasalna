@@ -29,6 +29,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - Never gate permissions on frontend state alone
 
 5. **`comments_count` is the only source of truth for the count.** It comes from `get_company_posts()` LEFT JOIN. Do not count comments client-side or cache a count in localStorage.
+   - **Comment button after send / delete (task 8.6c):** `_cmtUpdateCount` redraws `.pc-btn--cmt` with `TwPostCard.commentButtonInner(count)` — the same inner the card renders (DS-ICON `comment` sm + `<span class="tw-act-lbl">` from twT `post.card.comment` / `post.card.comment_n`). ❌ a second button markup / fixed Arabic text / hand-written SVG in `tw-post-comments.js`. Test `node tests/test_post_card_runtime.js` (M6b · N9).
 
 6. **Soft delete is mandatory.** `delete_company_post_comment()` sets `status='deleted'` and `deleted_at=NOW()`. Hard delete is forbidden. `get_company_post_comments()` filters `status='active'` only.
 

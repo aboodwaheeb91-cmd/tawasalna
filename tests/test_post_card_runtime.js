@@ -27,6 +27,11 @@
  *   M  feed post = .post-card from TwPostCard with the API fields · author link · comments panel opens
  *      inside the feed (no navigation) · post owner in the mention names · re-render: one feed
  *      listener, one panel, built from scratch · no old hw-p card · load order
+ *   — task 8.6c: ⋯ report / block + the comment button after send / delete —
+ *   N  ⋯ items by the server numbers (owner · non-owner · guest · company on its own post) ·
+ *      report → twReportDialog (company · author · /u/{tw_id}) · block → registry confirm →
+ *      twBlockUser · guest report → login · twReportDialog targetUrl (default location.href) ·
+ *      commentButtonInner(0 / 3) · the comments system redraws the button with it (M6b)
  *
  * Run: node tests/test_post_card_runtime.js
  */
@@ -53,7 +58,7 @@ function fnText(src, name) {
 const varLine = (src, name) => src.match(new RegExp('^var ' + name + ' = .*$', 'm'))[0];
 const SHARED = read('tw_shared.js');
 const FNS = ['twEscAttr', 'twSafeImageUrl', 'twT', 'twFormatDate', 'twRelativeTime', '_twAvatarSpec', 'twAvatarHtml',
-  '_twActDef', '_twActAudience', 'twActionState'];
+  '_twActDef', '_twActAudience', 'twActionState', 'twAction'];
 const HELPERS = ['_twTWarned', '_TW_AVA_PX', '_twActWarned', '_TW_ACT_VISIBLE_WHEN'].map(n => varLine(SHARED, n)).join('\n')
   + '\n' + FNS.map(n => fnText(SHARED, n)).join('\n') + '\nvar twEscHtml = twEscAttr;\n'
   + FNS.concat('twEscHtml').map(n => 'window.' + n + '=' + n + ';').join('');
@@ -187,13 +192,15 @@ console.log('\nD2 — company.render.js renders through TwPostCard');
   ctx.TwPostCard.html = function (p, o) { calls++; lastOpts = o; return orig.apply(this, arguments); };
   vm.runInContext(read('static/company/company.render.js'), ctx, { filename: 'company.render.js' });
   check('D2.1 _postCardHtml not exposed', ctx._postCardHtml === undefined);
-  ctx.companyState = { profile: { full_name: 'شركة', avatar_url: '' }, permissions: { can_edit: true } };
+  ctx.companyState = { profile: { id: 3, tw_id: 'C3', full_name: 'شركة', avatar_url: '' }, permissions: { can_edit: true } };
   ctx.renderPosts([BASE, Object.assign({}, BASE, { id: 8 })]);
   check('D2.2 TwPostCard.html called per post (author type co)', calls === 2 && lastOpts.authorType === 'co');
   check('D2.3 owner list has ⋯', (list.innerHTML.match(/pc-dots-btn/g) || []).length === 2);
   ctx.companyState.permissions = { can_edit: false };
   ctx.renderPosts([BASE]);
-  check('D2.4 visitor list has no ⋯', !list.innerHTML.includes('pc-dots-btn') && list.innerHTML.includes('pc-btn--appr'));
+  check('D2.4 guest list: ⋯ = report only (author = the company id 3 → its /u/C3), no edit / delete / block (task 8.6c)',
+    list.innerHTML.includes('class="pc-dots-report" data-tw-action="report" data-post-id="7" data-author-id="3" data-author-tw="C3"')
+    && !/pc-dots-(edit|delete|block)/.test(list.innerHTML) && list.innerHTML.includes('pc-btn--appr'));
 }
 
 // ── U.2b — behaviour on the real markup ─────────────────────────────────────
@@ -221,7 +228,7 @@ function bootCards(o) {
   });
   const list = doc.createElement('div');
   list.setAttribute('id', 'postsList');
-  list.innerHTML = (o.posts || [BASE]).map(p => ctx.TwPostCard.html(p, { authorName: 'شركة', avatarUrl: '', canEdit: !!o.owner })).join('');
+  list.innerHTML = (o.posts || [BASE]).map(p => ctx.TwPostCard.html(p, Object.assign({ authorName: 'شركة', avatarUrl: '', canEdit: !!o.owner }, o.cardOpts))).join('');
   doc.body.appendChild(list);
   const card = ctx.TwPostCard.create({
     signedIn: () => o.signedIn !== false,
@@ -614,11 +621,12 @@ function bootCards(o) {
     const c = f.q('.post-card[data-post-id="41"]');
     check('M1 feed requests filter=posts and draws one .post-card from TwPostCard', f.calls.api[0].path === '/home/feed?filter=posts&limit=30'
       && f.qa('.post-card').length === 1 && !!c && c.parentNode === f.feed);
-    check('M2 card fields from the API (appreciated 3 · saved · comments 2 · views 5 · purple · tag · no ⋯)',
+    check('M2 card fields from the API (appreciated 3 · saved · comments 2 · views 5 · purple · tag · ⋯ = report + block of author 3)',
       c.querySelector('.pc-btn--appr').classList.contains('appr-active') && c.querySelector('.pc-btn--appr').getAttribute('data-appr-count') === '3'
       && c.querySelector('.pc-btn--save').getAttribute('data-saved') === '1' && c.querySelector('.pc-btn--cmt').getAttribute('data-cmt-count') === '2'
       && c.querySelector('.post-views').getAttribute('data-views-count') === '5' && c.attrs.style.indexOf('--pa:' + f.ctx.TW.POST_THEME_COLORS.purple.accent + ';') === 0
-      && c.querySelector('.jtag').textContent === 'توظيف' && !c.querySelector('.pc-dots'), c.attrs.style);
+      && c.querySelector('.jtag').textContent === 'توظيف' && c.querySelector('.pc-dots-report').getAttribute('data-author-id') === '3'
+      && c.querySelector('.pc-dots-block').getAttribute('data-author-tw') === 'C9' && !c.querySelector('.pc-dots-edit'), c.attrs.style);
     check('M3 author name + logo link to /u/{tw_id} (org avatar)', c.querySelector('a.post-nm').getAttribute('href') === '/u/C9'
       && c.querySelector('a.post-nm').textContent === 'شركة النور' && c.querySelector('a.post-ava').getAttribute('href') === '/u/C9'
       && !!c.querySelector('.tw-ava--org'));
@@ -639,6 +647,11 @@ function bootCards(o) {
     await tick(); await tick();
     const sentItem = f.q('.pc-cmt-item[data-cmt-id="9"]'), sent = sentItem && sentItem.querySelector('.pc-cmt-mention');
     check('M6 the post company is in the mention names («@شركة النور» = one mention)', !!sent && sent.textContent === '@شركة النور', sent && sent.textContent);
+    const nb = f.doc.createElement('div'); nb.innerHTML = f.ctx.TwPostCard.commentButtonInner(3);
+    const cb = c.querySelector('.pc-btn--cmt');
+    check('M6b after send: comment button = the card\'s own inner (icon + .tw-act-lbl) with count 3 (task 8.6c)',
+      cb.getAttribute('data-cmt-count') === '3' && cb.innerHTML === nb.innerHTML && !!cb.querySelector('.tw-act-lbl')
+      && cb.querySelector('.tw-act-lbl').textContent === DICT['post.card.comment_n'].replace('{count}', '3'), cb.innerHTML);
 
     f.doc.click(f.qa('.hw-ft')[0]); await tick(); await tick();
     f.doc.click(f.qa('.hw-ft')[2]); await tick(); await tick();
@@ -660,6 +673,85 @@ function bootCards(o) {
     check('M9b JS order: tw-post-card.js → tw-post-comments.js (versioned) → home modules → home.posts.js before render',
       at('tw-post-card.js?v={{v:tw-post-card.js}}') > at('tw-options-data.js') && at('tw-post-comments.js?v={{v:tw-post-comments.js}}') > at('tw-post-card.js')
       && at('/static/home/home.utils.js') > at('tw-post-comments.js') && at('home.posts.js') > at('home.cards.js') && at('home.render.js') > at('home.posts.js'));
+  }
+
+  console.log('\nN — ⋯ report / block + comment button (task 8.6c)');
+  {
+    const CO = { isAuthenticated: true, userId: 5, userType: 'co' };
+    const items = h => ['edit', 'delete', 'report', 'block'].filter(k => h.includes('class="pc-dots-' + k + '"'));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const own = card(makeCtx({ snap: CO }), {}, { canEdit: true, authorId: 5, viewerId: 5 });
+    check('N1 owner (canEdit) → ⋯ edit + delete only', same(items(own), ['edit', 'delete']), items(own));
+    const reg = card(makeCtx({ snap: REGISTERED }), {}, { authorId: 5, viewerId: 55, authorTwId: 'C5' });
+    check('N2 signed-in non-owner → ⋯ report + block (data-author-id / tw)', same(items(reg), ['report', 'block'])
+      && reg.includes('data-author-id="5" data-author-tw="C5"'), items(reg));
+    const gst = card(makeCtx(), {}, { authorId: 5, viewerId: null });
+    check('N3 guest → ⋯ report only', same(items(gst), ['report']) && gst.includes('pc-dots-btn'), items(gst));
+    const self = card(makeCtx({ snap: CO }), {}, { authorId: 5, viewerId: 5, canEdit: false });
+    check('N4 company on its own post (viewerId = authorId, no canEdit) → no ⋯ at all', !self.includes('pc-dots'));
+    check('N4b ownership from numbers: "5" (string) = 5 · no authorId → no report / block',
+      !card(makeCtx({ snap: CO }), {}, { authorId: '5', viewerId: 5 }).includes('pc-dots')
+      && !card(makeCtx({ snap: REGISTERED }), {}, { viewerId: 55 }).includes('pc-dots'));
+    const xs = card(makeCtx({ snap: REGISTERED }), {}, { authorId: 5, viewerId: 55, authorTwId: '"><b>' });
+    check('N4c author tw_id escaped in the attribute', !xs.includes('"><b>') && xs.includes('data-author-tw="&quot;&gt;&lt;b&gt;"'));
+
+    function bootN(o) {
+      const b = bootCards({ signedIn: o.signedIn, cardOpts: { authorId: 5, viewerId: o.signedIn === false ? null : 55, authorTwId: 'C5' } });
+      const seen = { report: [], block: [], confirm: [] };
+      Object.assign(b.ctx, {
+        twAccountHref: u => '/u/' + u.tw_id,
+        twIconEl: () => b.doc.createElement('span'),   // (the fixture DOM has no <template>)
+        twReportDialog: op => seen.report.push(op),
+        twBlockUser: id => seen.block.push(id),
+        twConfirm: op => { seen.confirm.push(op); return { then: fn => fn(o.confirm !== false) }; },
+      });
+      return Object.assign(b, { seen });
+    }
+    const r = bootN({});
+    r.click(r.q('.pc-dots-btn')); r.click(r.q('.pc-dots-report'));
+    check('N5 report → twReportDialog {reportedId: author, reportedType: company, targetUrl: /u/{tw_id}} · menu closed',
+      r.seen.report.length === 1 && r.seen.report[0].reportedId === 5 && r.seen.report[0].reportedType === 'company'
+      && r.seen.report[0].targetUrl === '/u/C5' && !r.doc.getElementById('pc-dm-7').classList.contains('open') && r.seen.confirm.length === 0);
+    r.click(r.q('.pc-dots-block'));
+    const bc = ACTIONS.block.confirm;
+    check('N6 block → the registry confirm (twAction path) → twBlockUser(author)', r.seen.confirm.length === 1
+      && r.seen.confirm[0].title === DICT[bc.titleKey] && r.seen.confirm[0].danger === true && r.seen.block.length === 1 && r.seen.block[0] === 5);
+    const nc = bootN({ confirm: false });
+    nc.click(nc.q('.pc-dots-block'));
+    check('N6b block cancelled → no twBlockUser', nc.seen.confirm.length === 1 && nc.seen.block.length === 0);
+    const g = bootN({ signedIn: false });
+    g.click(g.q('.pc-dots-report'));
+    check('N7 guest report → login with return path, no dialog, no request', g.seen.report.length === 0
+      && g.ctx.location.href === '/login?next=%2Fu%2FC1%3Ftab%3Dposts' && g.calls.api.length === 0 && !g.q('.pc-dots-block'));
+
+    // twReportDialog: targetUrl → target_url · default location.href (real function, stubbed modal / api)
+    const rd = vm.createContext({ window: null, String, Number, location: { href: 'https://x.test/u/C5?tab=posts' } });
+    rd.window = rd;
+    vm.runInContext(fnText(SHARED, 'twReportDialog'), rd);
+    const bodies = [];
+    Object.assign(rd, {
+      twT: k => k, twLimit: () => 0, twReportTypes: () => ['spam'], showToast() {},
+      twApi: (p, op) => { bodies.push(op.body); return Promise.resolve({ ok: true }); },
+      document: makeDocument(),
+      twModal: op => { op.content.querySelector('textarea').value = 'سبب'; op.actions[0].onClick(); return {}; },
+    });
+    rd.twReportDialog({ reportedId: 5, reportedType: 'company', targetUrl: '/u/C5' });
+    rd.twReportDialog({ reportedId: 9, reportedType: 'user' });
+    check('N8 twReportDialog: targetUrl sent as target_url · without it = location.href', bodies.length === 2
+      && bodies[0].target_url === '/u/C5' && bodies[0].reported_type === 'company' && bodies[0].reported_id === 5
+      && bodies[1].target_url === 'https://x.test/u/C5?tab=posts', JSON.stringify(bodies));
+
+    const ctx = makeCtx();
+    const inner = n => ctx.TwPostCard.commentButtonInner(n);
+    const icon = ctx.twIcon('comment', { size: 'sm' });
+    const HOMEH = read('home-v2.html');
+    check('N7b /home loads DS-OVL (twConfirm / twModal for block / report) before the card', HOMEH.indexOf('tw-overlay.js?v={{v:tw-overlay.js}}') > 0
+      && HOMEH.indexOf('tw-overlay.js') < HOMEH.indexOf('tw-post-card.js'));
+    check('N9 commentButtonInner(0) = comment icon + label «post.card.comment»',
+      inner(0) === icon + '<span class="tw-act-lbl">' + DICT['post.card.comment'] + '</span>');
+    check('N9b commentButtonInner(3) = icon + «post.card.comment_n» with 3 · the card uses it',
+      inner(3) === icon + '<span class="tw-act-lbl">' + DICT['post.card.comment_n'].replace('{count}', '3') + '</span>'
+      && card(ctx, { comments_count: 3 }).includes('data-cmt-count="3">' + inner(3) + '</button>'));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

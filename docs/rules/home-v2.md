@@ -61,5 +61,6 @@ These rules are permanent and apply to all future AI sessions:
     - الحقول من `GET /home/feed` (`theme_color` · `comments_enabled` · `author_type` + `auth.get_company_post_stats`) — نفس مصدر `/company/posts`.
     - controller واحد `home.posts.js` بيتربط بـ `#hwFeed` مرة وحدة (`home.main.js`) · `Home.render.renderFeed` → `Home.posts.remember(items)` قبل الرسم + `afterRender` (clamp + المشاهدة) بعده · إعادة الرسم بتبني لوحة جديدة من الصفر.
     - البطاقة ما بتنقل لأي مكان: الاسم واللوغو بس رابط `/u/{tw_id}` (`authorHref` = `twAccountHref`) · ما في تعديل / حذف من الفيد.
+    - ⋯ = إبلاغ + حظر لغير الكاتب (task 8.6c — `authorId` = `author_id` · `viewerId` من snapshot الجلسة · SYSTEMS_INDEX §61) · الشركة على منشورها ما بتشوف ⋯ · الصفحة بتحمّل `tw-overlay.js` (DS-OVL — تأكيد الحظر + نافذة الإبلاغ).
     - ❌ بطاقة منشور خاصة بالرئيسية (`hw-p*`) · ❌ click على البطاقة كلها · ❌ controller تاني أو `bind` بكل رسم · ❌ نسخة محلية من التعليقات أو حساب العدّادات.
     - Test: `node tests/test_post_card_runtime.js` (M) · `node tests/test_home_landing_runtime.js` (J) · `python -m pytest tests/test_home_feed_posts_86b2.py -q`.

@@ -11,7 +11,8 @@
 // twActionState decides who sees each; guest on an auth action → twLoginHref).
 //
 // Usage:
-//   TwPostCard.html(post, { authorName, avatarUrl, authorType, authorHref, canEdit }) → HTML string (one .post-card)
+//   TwPostCard.html(post, { authorName, avatarUrl, authorType, authorHref, canEdit, authorId, viewerId, authorTwId })
+//     → HTML string (one .post-card)
 //     post       — a /company/posts item: id · body · tags[] · theme_color · created_at ·
 //                  views_count · appreciations_count · viewer_appreciated · comments_enabled ·
 //                  comments_count · viewer_saved
@@ -21,8 +22,16 @@
 //     authorHref — optional (task 8.6b-2): the author's page (/u/{tw_id}) → name + avatar are links
 //                  (a card outside its author's page — CARD-R08) · missing → plain text, as before
 //     canEdit    — true → owner mode for the registry (⋯ edit / delete) · false → none
+//     authorId   — task 8.6c: the author's numeric id from the API (author_id / the company id) ·
+//     viewerId   — the session's numeric id (TwAuthSync snapshot) or null for a guest. Ownership =
+//                  these two server numbers: canEdit → edit / delete · viewerId === authorId (no
+//                  canEdit) → nothing · anyone else → ⋯ report + block (registry: guest = report →
+//                  login). No authorId → no report / block. Nothing left → no ⋯ at all.
+//     authorTwId — optional: the author's tw_id → the report's target_url (twAccountHref)
 //   TwPostCard.apprButtonInner(active, count) → inner HTML of .pc-btn--appr (icon + label)
 //   TwPostCard.saveButtonInner(active)        → inner HTML of .pc-btn--save (icon + label)
+//   TwPostCard.commentButtonInner(count)      → inner HTML of .pc-btn--cmt (icon + label) — the card
+//                                               and TwPostComments (count after send / delete) — task 8.6c
 //   TwPostCard.initClamps(container)          → 3-line clamp + «المزيد» for every .post-body-wrap
 //   TwPostCard.relativeTime(iso) · TwPostCard.formatViews(n) — the card's meta formatters
 //   TwPostCard.create(opts) → { bind(root), trackViews(container), toggleComments(id) }
@@ -54,6 +63,11 @@
 
   function apprButtonInner(active, count) {
     return ico('heart', 'sm', active) + (count > 0 ? lbl('post.card.appreciate_n', { count: count }) : lbl('post.card.appreciate'));
+  }
+
+  function commentButtonInner(count) {
+    count = Number(count) || 0;
+    return ico('comment', 'sm') + (count > 0 ? lbl('post.card.comment_n', { count: count }) : lbl('post.card.comment'));
   }
 
   function saveButtonInner(active) {
@@ -102,11 +116,21 @@
     // Registry context: canEdit (server permission) = the owner signal (VM mode) · comments flag
     var ctx = { mode: opts.canEdit ? 'owner' : undefined, commentsEnabled: post.comments_enabled !== false };
 
-    // ⋯ owner menu — shown only when the registry gives at least one item
+    // ⋯ menu — shown only when the registry gives at least one item
     var pid = escAttr(String(post.id));
     var dataPid = ' data-post-id="' + pid + '"';
     var menuItems = actBtn('post_edit', ctx, 'pc-dots-edit', dataPid, ico('edit', 'sm') + lbl('post.card.edit'))
       + actBtn('post_delete', ctx, 'pc-dots-delete', dataPid, ico('delete', 'sm') + lbl('post.card.delete'));
+    // task 8.6c — report / block the author (not the owner): mode from the server numbers, not from text
+    var authorId = parseInt(opts.authorId, 10);
+    if (authorId > 0) {
+      var viewerId = opts.viewerId == null || opts.viewerId === '' ? null : Number(opts.viewerId);
+      var rctx = { mode: (opts.canEdit || viewerId === authorId) ? 'owner' : (viewerId == null ? 'guest' : 'registered') };
+      var dataAuthor = dataPid + ' data-author-id="' + authorId + '"'
+        + (opts.authorTwId ? ' data-author-tw="' + escAttr(String(opts.authorTwId)) + '"' : '');
+      menuItems += actBtn('report', rctx, 'pc-dots-report', dataAuthor, ico('report', 'sm') + lbl('action.report'))
+        + actBtn('block', rctx, 'pc-dots-block', dataAuthor, ico('user-minus', 'sm') + lbl('action.block'));
+    }
     var dotsHtml = menuItems
       ? '<div class="pc-dots">'
           + '<button type="button" class="pc-dots-btn"' + dataPid + ' aria-label="' + t('post.card.options') + '">' + ico('more', 'lg') + '</button>'
@@ -119,7 +143,7 @@
     var cmtCount   = Number(post.comments_count) || 0;
     var saveActive = _truthy(post.viewer_saved);
     var cmtBtn = actBtn('post_comment', ctx, 'pc-btn pc-btn--cmt', dataPid + ' data-cmt-count="' + cmtCount + '"',
-      ico('comment', 'sm') + (cmtCount > 0 ? lbl('post.card.comment_n', { count: cmtCount }) : lbl('post.card.comment')));
+      commentButtonInner(cmtCount));
 
     return '<div class="post-card" data-post-id="' + pid + '" style="' + cardStyle + '">'
       + '<div class="post-head">'
@@ -569,6 +593,24 @@
         if (opts.onDelete) opts.onDelete(dpid);
         return;
       }
+      // 3-dot report / block (task 8.6c) — through twAction itself: the same login (guest) /
+      // registry confirm (block) path as every other report / block button
+      var repDots = e.target.closest('.pc-dots-report[data-author-id]') || e.target.closest('.pc-dots-block[data-author-id]');
+      if (repDots) {
+        var rdm = document.getElementById('pc-dm-' + repDots.getAttribute('data-post-id'));
+        if (rdm) rdm.classList.remove('open');
+        var aid = parseInt(repDots.getAttribute('data-author-id'), 10);
+        var atw = repDots.getAttribute('data-author-tw');
+        var isReport = repDots.classList.contains('pc-dots-report');
+        var act = window.twAction(isReport ? 'report' : 'block', { ownerId: aid, onClick: isReport
+          ? function () {
+              window.twReportDialog({ reportedId: aid, reportedType: 'company',
+                targetUrl: atw ? window.twAccountHref({ tw_id: atw }) : undefined });
+            }
+          : function () { window.twBlockUser(aid); } });
+        if (act) act.click();
+        return;
+      }
       // Share
       var shareBtn = e.target.closest('.pc-btn--share[data-post-id]');
       if (shareBtn) { share(shareBtn.getAttribute('data-post-id')); return; }
@@ -605,6 +647,7 @@
     html: html,
     apprButtonInner: apprButtonInner,
     saveButtonInner: saveButtonInner,
+    commentButtonInner: commentButtonInner,
     initClamps: initClamps,
     relativeTime: relativeTime,
     formatViews: formatViews,

@@ -915,7 +915,8 @@ window.twBlockUser = twBlockUser;
 
 // ══ Report dialog — twReportDialog (Reports System SYSTEMS_INDEX §24 · PR 4.2a) ══
 // The ONE report form for every page: twAction('report', { onClick: function () {
-//   twReportDialog({ reportedId: id, reportedType: 'user' | 'job' | 'company' }); } }).
+//   twReportDialog({ reportedId: id, reportedType: 'user' | 'job' | 'company', targetUrl }); } }).
+// targetUrl (task 8.6c) — optional: the reported page (e.g. /u/{tw_id} from a post card) · default location.href.
 // DS-OVL twModal (tw-overlay.js must be on the page — fail closed without it) + the single
 // endpoint POST /reports/submit through twApi. Reason types = twReportTypes() (server list —
 // tw_limits.REPORT_TYPES, task 5.0h) → twT 'report.type.*'. Reason maxlength = twLimit('report_reason_max').
@@ -964,7 +965,7 @@ function twReportDialog(opts) {
         err.textContent = '';
         return twApi('/reports/submit', { method: 'POST', body: {
           reported_id: Number(opts.reportedId), reported_type: String(opts.reportedType || 'user'),
-          report_type: picked ? picked.value : 'other', reason: reason, target_url: location.href
+          report_type: picked ? picked.value : 'other', reason: reason, target_url: opts.targetUrl || location.href
         } }).then(function (res) {
           if (!res.ok) { err.textContent = twApiMessage(res, twT('report.failed')); return false; }
           if (typeof showToast === 'function') showToast(twT('report.sent'), 'success');
