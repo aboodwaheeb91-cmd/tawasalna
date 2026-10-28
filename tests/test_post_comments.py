@@ -7482,12 +7482,8 @@ check("185-11. _renderApplicants renders savedCtx for other_job_titles",
       and 'other_job_titles' in _rappl185
       and 'co-app-saved-ctx' in _rappl185)
 
-# 185-12: savedCtx is inserted between card-head and card-foot in the html string building
-check("185-12. savedCtx placed between card-head and card-foot",
-      'card-head' in _rappl185
-      and '+ savedCtx' in _rappl185
-      and _rappl185.index('+ savedCtx') > _rappl185.index('card-head')
-      and _rappl185.index('+ savedCtx') < _rappl185.index('card-foot'))
+# 185-12: savedCtx between card-head and card-foot — now a render check (real code, vm):
+# node tests/test_withdraw_ui_82b_runtime.js → C6 (task 8.2b — Testing & CI rule 6)
 
 # 185-13: _applyCardUpdate no longer creates raw .co-cand-job-ref element
 _acu185 = (_main185.split('function _applyCardUpdate')[1].split('// Sync custom status')[0]

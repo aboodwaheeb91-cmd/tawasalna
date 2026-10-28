@@ -3,6 +3,8 @@
  *   session  → TwAuthSync.getSessionSnapshot() (public page; guest actions → twLoginHref(this job))
  *   API      → twApi (tw_shared.js — never fetch; JWT added by twApi itself)
  *   actions  → twAction('apply_job' | 'share' | 'report') — Actions Registry decides who sees what
+ *              + task 8.2b: 'withdraw_application' (in_review — registry twConfirm) · 'reapply_job'
+ *              (withdrawn + open job → the same apply modal / POST /jobs/{id}/apply)
  *   overlays → twModal (DS-OVL) for «تقديم» · «إبلاغ» = twReportDialog (shared report form, §24)
  *   text     → twT (tw_strings.json) · dates → twFormatDate (Gregorian, one format site-wide)
  *   icons    → twIcon.hydrate (static) / twIconEl (dynamic) — DS-ICON · logos → twAvatarHtml — DS-IMAGE
@@ -37,6 +39,7 @@
   var _jobId       = null;
   var _job         = null;
   var _applyState  = null;   // null = open · 'applied' · 'paused' · 'closed'
+  var _myApp       = null;   // this viewer's application on this job ({id, status}) — GET /my/applications
 
   // ── Utility ─────────────────────────────────────────────────
   function _el(id) { return document.getElementById(id); }
@@ -194,15 +197,17 @@
     return job.status === 'paused' ? 'paused' : 'closed';
   }
 
-  // Has the signed-in personal account already applied? → disabled «تم التقديم».
+  // Has the signed-in personal account already applied? → disabled «تم التقديم» (+ «سحب الطلب»
+  // while in_review). Withdrawn (task 8.2a) → «إعادة التقديم». Status = the applicant's view from the server.
   function _checkAlreadyApplied() {
     if (!_authed || _snap.userType !== 'emp' || _applyState) return;
     twApi('/my/applications').then(function (res) {
       var apps = res.ok && res.data ? res.data.applications : null;
       if (!Array.isArray(apps)) return;
-      var already = apps.some(function (a) { return String(a.job_id) === String(_jobId); });
-      if (!already) return;
-      _applyState = 'applied';
+      var mine = apps.filter(function (a) { return String(a.job_id) === String(_jobId); })[0];
+      if (!mine) return;
+      _myApp = { id: parseInt(mine.id, 10) || null, status: mine.status || 'in_review' };
+      _applyState = _myApp.status === 'withdrawn' ? null : 'applied';
       _renderApply();
     });
   }
@@ -212,17 +217,27 @@
   var _APPLY_LABEL = { applied: 'job.applied', paused: 'job.status.paused', closed: 'job.status.closed' };
 
   function _renderApply() {
+    var reapply = !_applyState && !!_myApp && _myApp.status === 'withdrawn';
     document.querySelectorAll('[data-jd-apply-slot]').forEach(function (slot) {
       slot.textContent = '';
       var sticky = slot.getAttribute('data-jd-apply-slot') === 'sticky';
-      var btn = twAction('apply_job', {
+      var btn = twAction(reapply ? 'reapply_job' : 'apply_job', {
         ownerId: _job ? _job.company_id : null,
-        labelKey: _applyState ? _APPLY_LABEL[_applyState] : 'job.apply_now',
+        labelKey: reapply ? null : (_applyState ? _APPLY_LABEL[_applyState] : 'job.apply_now'),
         disabled: !!_applyState,
         className: (sticky ? 'jd-sticky-apply' : 'jd-apply-btn') + (_applyState ? ' applied' : ''),
         onClick: openApply,
       });
       if (btn) slot.appendChild(btn);
+      // «سحب الطلب» — card slot only, application in_review (the server re-checks every rule)
+      var wd = (!sticky && _applyState === 'applied' && _myApp && _myApp.id && _myApp.status === 'in_review')
+        ? twAction('withdraw_application', {
+            ownerId: _job ? _job.company_id : null,
+            className: 'jd-withdraw-btn',
+            onClick: withdrawApplication,
+          })
+        : null;
+      if (wd) slot.appendChild(wd);
       slot.hidden = !btn;
     });
   }
@@ -609,9 +624,32 @@
           return false;
         }
         var dup = !!(res.data && res.data.already_applied);
+        var again = !!(res.data && res.data.reapplied);
         _applyState = 'applied';
+        if (res.data && res.data.id) {   // the application row (first apply or re-apply — same row)
+          _myApp = { id: parseInt(res.data.id, 10) || null, status: 'in_review' };
+        } else if (_myApp) {
+          _myApp.status = 'in_review';
+        }
         _renderApply();
-        showToast(twT(dup ? 'job.apply.duplicate' : 'job.apply.ok'), dup ? 'info' : 'success');
+        showToast(twT(dup ? 'job.apply.duplicate' : again ? 'job.reapply.ok' : 'job.apply.ok'), dup ? 'info' : 'success');
+        return true;
+      });
+  }
+
+  // ── Withdraw (task 8.2b — confirmed by twConfirm from the registry entry) ──
+  function withdrawApplication() {
+    if (!_myApp || !_myApp.id) return Promise.resolve(false);
+    return twApi('/jobs/applications/' + _myApp.id + '/withdraw', { method: 'POST' })
+      .then(function (res) {
+        if (!res.ok) {
+          if (res.status !== 401) showToast(twApiMessage(res, twT('apps.withdraw.err')), 'error');
+          return false;
+        }
+        _myApp.status = 'withdrawn';
+        _applyState = _statusApplyState(_job);
+        _renderApply();
+        showToast(twT('apps.withdraw.ok'), 'success');
         return true;
       });
   }

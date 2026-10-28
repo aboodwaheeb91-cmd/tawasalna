@@ -663,7 +663,8 @@
     contacted: twT('company.stage.contacted'),
     interview: twT('company.stage.interview'),
     hired:     twT('company.stage.hired'),
-    rejected:  twT('company.stage.rejected')
+    rejected:  twT('company.stage.rejected'),
+    withdrawn: twT('company.stage.withdrawn')
   };
 
 
@@ -731,13 +732,49 @@
 
   // @vm-extract-end: co-applicants-load
 
+  // @vm-extract-begin: co-applicants-render
+  // task 8.2b — the legacy full list (no view) keeps withdrawn applications as the record
+  // (status 'withdrawn' from the server). They leave the active list and sit in a collapsed
+  // «منسحبون» section: badge + profile link only — no classify / bank / notes / schedule.
   function _renderApplicants(apps) {
     var list = document.getElementById('coAppList');
     if (!list) return;
-    if (!apps.length) {
-      list.innerHTML = '<div class="co-app-empty">' + twEscHtml(twT('company.app.empty')) + '</div>';
-      return;
-    }
+    var active    = apps.filter(function (a) { return a.status !== 'withdrawn'; });
+    var withdrawn = apps.filter(function (a) { return a.status === 'withdrawn'; });
+    var html = active.length ? _activeApplicantsHTML(active)
+      : '<div class="co-app-empty">' + twEscHtml(twT('company.app.empty')) + '</div>';
+    if (withdrawn.length) html += _withdrawnApplicantsHTML(withdrawn);
+    list.innerHTML = html;
+    _wireApplicantCards(list);
+    if (window.twScheduleMount) twScheduleMount(list);
+  }
+
+  function _withdrawnApplicantsHTML(apps) {
+    var html = '<details class="co-app-withdrawn">'
+      + '<summary class="co-app-withdrawn-sum">'
+      + twEscHtml(twT('company.app.withdrawn_section', { count: twFormatNumber(apps.length) }))
+      + '</summary>';
+    apps.forEach(function (a) {
+      var twId    = a.tw_id || '';
+      var dateStr = twFormatDate(a.applied_at);
+      html += '<div class="co-app-card co-app-card--withdrawn" data-app-id="' + parseInt(a.id, 10) + '"'
+        + ' data-uid="' + parseInt(a.user_id, 10) + '">'
+        + '<div class="co-app-card-head">'
+        +   twAvatarHtml({ full_name: a.full_name, avatar_url: a.avatar_url, user_type: 'emp' }, 'md')
+        +   '<div class="co-app-info">'
+        +     '<div class="co-app-name">' + twEscHtml(a.full_name || '—') + '</div>'
+        +     (dateStr ? '<div class="co-app-meta-line">' + twEscHtml(twT('company.app.applied_on', { date: dateStr })) + '</div>' : '')
+        +   '</div>'
+        +   '<span class="co-app-status co-app-status--withdrawn">' + twEscHtml(_APP_STATUS_LABEL.withdrawn) + '</span>'
+        + '</div>'
+        + (twId ? '<div class="co-app-card-foot"><a class="co-app-view-btn co-app-act" href="/u/' + twEscHtml(twId)
+            + '" target="_blank" rel="noopener">' + twEscHtml(twT('company.app.view_profile')) + '</a></div>' : '')
+        + '</div>';
+    });
+    return html + '</details>';
+  }
+
+  function _activeApplicantsHTML(apps) {
     var html = '';
     apps.forEach(function (a) {
       var statusKey      = a.status || 'pending';
@@ -841,10 +878,9 @@
         + '</div>'
         + '</div>';
     });
-    list.innerHTML = html;
-    _wireApplicantCards(list);
-    if (window.twScheduleMount) twScheduleMount(list);
+    return html;
   }
+  // @vm-extract-end: co-applicants-render
 
   // Shared schedule button slot for an applicant of the open job (tw-schedule.js mounts it)
   function _schedSlotHTML(uid, name) {

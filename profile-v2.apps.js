@@ -1,6 +1,8 @@
 /* profile-v2.apps.js — "My Applications" tab (owner-only)
  * Re-fetches on every tab activation so company status changes appear immediately.
  * Auth: twApi (JWT from the session — no X-User-Id, no direct tw_jwt read · PR 4.2a).
+ * Withdraw (task 8.2b): twAction('withdraw_application') on in_review cards only — the registry
+ * carries the DS-OVL twConfirm; POST /jobs/applications/{id}/withdraw; 4xx → the server's text.
  * Load order: after profile-v2.utils.js (scTab must be defined).
  */
 (function () {
@@ -9,8 +11,9 @@
   var _loading = false;
 
   // The server sends the applicant's 3 states only (auth.applicant_visible_status — task 5.0c):
-  // in_review / hired / rejected. Internal company stages never reach this page.
-  var _STATUS_KEY = { in_review: 'apps.status.in_review', hired: 'apps.status.hired', rejected: 'apps.status.rejected' };
+  // in_review / hired / rejected / withdrawn (task 8.2a). Internal company stages never reach this page.
+  var _STATUS_KEY = { in_review: 'apps.status.in_review', hired: 'apps.status.hired',
+                      rejected: 'apps.status.rejected', withdrawn: 'apps.status.withdrawn' };
 
   // Re-fetch on every 'apps' tab activation — no _loaded gate — so that
   // status changes made by companies (via PR 322) are always reflected.
@@ -44,6 +47,39 @@
         return;
       }
       pane.innerHTML = _buildList(apps);
+      _mountWithdraw(pane);
+    });
+  }
+
+  // «سحب الطلب» — only in_review cards carry a slot (_buildList); the button itself = twAction.
+  function _mountWithdraw(pane) {
+    if (typeof window.twAction !== 'function') return;
+    pane.querySelectorAll('[data-sc-withdraw-slot]').forEach(function (slot) {
+      var appId = parseInt(slot.getAttribute('data-app-id'), 10);
+      var btn = appId ? twAction('withdraw_application', {
+        className: 'sc-app-btn sc-app-btn-danger',
+        onClick: function (ctx, el) { _withdraw(appId, el, slot); },
+      }) : null;
+      if (btn) slot.appendChild(btn);
+    });
+  }
+
+  function _withdraw(appId, btn, slot) {
+    if (btn) btn.disabled = true;
+    twApi('/jobs/applications/' + appId + '/withdraw', { method: 'POST' }).then(function (r) {
+      if (!r.ok) {
+        if (btn) btn.disabled = false;
+        if (r.status !== 401) showToast(twApiMessage(r, twT('apps.withdraw.err')), 'error');
+        return;
+      }
+      var card = slot.closest('.sc-app-card');
+      var badge = card && card.querySelector('.sc-app-status');
+      if (badge) {
+        badge.className = 'sc-app-status sc-app-status--withdrawn';
+        badge.textContent = twT('apps.status.withdrawn');
+      }
+      slot.remove();
+      showToast(twT('apps.withdraw.ok'), 'success');
     });
   }
 
@@ -68,6 +104,7 @@
         + '<div class="sc-app-actions">'
         +   '<a class="sc-app-btn" href="/job-detail?id=' + parseInt(app.job_id || 0, 10) + '">' + twEscHtml(twT('apps.view_job')) + '</a>'
         +   (app.company_tw_id ? '<a class="sc-app-btn" href="/u/' + twEscHtml(app.company_tw_id) + '" target="_blank" rel="noopener">' + twEscHtml(twT('apps.company_profile')) + '</a>' : '')
+        +   (statusKey === 'in_review' ? '<span class="sc-app-withdraw-slot" data-sc-withdraw-slot data-app-id="' + parseInt(app.id || 0, 10) + '"></span>' : '')
         + '</div>'
         + '</div>';
     });
