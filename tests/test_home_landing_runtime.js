@@ -15,6 +15,12 @@
  *      sidebar links → the filter / the post-job deep link
  *   J  task 8.6b-2 — post item → TwPostCard.html (stub here — the real card + comments in the feed:
  *      tests/test_post_card_runtime.js M) · controller bound once · page loads the shared card files
+ *   K  task 8.6d-2 — «عرض المزيد»: cursor request · append (no clear) · one card per (type, id) · loading
+ *      state + no double click · end → button gone · every filter to the end · filter change mid-flight ·
+ *      409 feed_reset / 422 invalid_cursor → top of the same filter + toast · other error → retry, cards stay ·
+ *      remember merges · clamp on the new cards only · controller not bound again
+ *   L  task 8.6d-2 — the REAL TwPostCard.trackViews called after every append: one live observer,
+ *      each post viewed once
  *
  * Run: node tests/test_home_landing_runtime.js
  */
@@ -107,6 +113,8 @@ async function makePage(opts) {
   mk('div', { id: 'hwBIco' }, banner); mk('h3', { id: 'hwBTitle' }, banner); mk('p', { id: 'hwBSub' }, banner);
   mk('div', { id: 'hwBStats', class: 'hw-banner-stats hidden' }, banner);
   mk('div', { id: 'hwFeed' });
+  const more = mk('div', { id: 'hwMore', class: 'hw-more hidden' });
+  mk('button', { id: 'hwMoreBtn', class: 'hw-retry' }, more); mk('p', { id: 'hwMoreErr', class: 'hw-more-err hidden' }, more);
   const empty = mk('div', { id: 'hwEmpty', class: 'hw-empty hidden' }); mk('h3', {}, empty); mk('p', {}, empty);
   const err = mk('div', { id: 'hwError', class: 'hw-error hidden' }); mk('button', { class: 'hw-retry' }, err);
   const compl = mk('div', { id: 'sbComplBox', class: 'hw-sb-box hidden' });
@@ -121,7 +129,8 @@ async function makePage(opts) {
     createTextNode: t => { const e = new El('#text'); e._text = String(t); return e; },
     createDocumentFragment: () => { const e = new El('#fragment'); e.isFragment = true; return e; },
   };
-  const rec = { api: [], missingKeys: new Set(), avatars: [], hydrated: 0, postCards: [], binds: [], after: 0 };
+  const rec = { api: [], missingKeys: new Set(), avatars: [], hydrated: 0, postCards: [], binds: [], after: 0,
+    clamps: [], toasts: [], commentsOpts: null };
   const api = opts.api || {};
   const ctx = {
     document, console: { log() {}, warn() {}, error: console.error }, Promise, Date, Math, Number, String,
@@ -144,13 +153,14 @@ async function makePage(opts) {
     twIcon: { hydrate: () => { rec.hydrated++; } },
     twAvatarEl: (entity, size) => { rec.avatars.push({ entity, size }); const e = new El('span'); e.className = 'tw-ava'; return e; },
     twSafeLinkUrl: u => (/^https?:\/\/\w/.test(u) ? u : ''),
+    showToast: (msg, type) => rec.toasts.push({ msg, type }),
     requestAnimationFrame: fn => fn(),
     TwPostCard: {
       html: (post, o) => { rec.postCards.push({ post, o }); return '<div class="post-card" data-post-id="' + post.id + '"></div>'; },
       create: () => ({ bind: el => rec.binds.push(el), trackViews: () => { rec.after++; } }),
-      initClamps: () => {},
+      initClamps: el => rec.clamps.push(el),
     },
-    TwPostComments: { create: () => ({ build() {}, load() {} }) },
+    TwPostComments: { create: o => { rec.commentsOpts = o; return { build() {}, load() {} }; } },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
@@ -314,6 +324,131 @@ const FEED_OK = { ok: true, status: 200, data: { items: [] } };
   const cssOrder = ['shared/tw-card.css', 'shared/tw-post-comments.css', 'home-v2.css'].map(f => HTML.indexOf('/static/' + f));
   check('J load order: tw-card.css → tw-post-comments.css → home-v2.css · options → card → comments → home', sharedOrder.every((x, i) => x > 0 && (i === 0 || x > sharedOrder[i - 1]))
     && cssOrder.every((x, i) => x > 0 && (i === 0 || x > cssOrder[i - 1])), [sharedOrder, cssOrder]);
+
+  console.log('\nK — task 8.6d-2: «عرض المزيد»');
+  const qp = path => new URLSearchParams(path.split('?')[1] || '');
+  const post = id => ({ type: 'post', id, body: 'b' + id, author_name: 'Co' + id, author_tw_id: 'C' + id });
+  const job = id => jobItem({ id, title: 'J' + id });
+  const news = id => ({ type: 'news', id, title: 'N' + id, category: 'general', body: 'x' });
+  const ok = (items, next) => ({ ok: true, status: 200, data: { items, next_cursor: next } });
+  const fail = (status, code) => ({ ok: false, status, data: null, error: { fieldErrors: [], generalError: { code, message: 'x' } } });
+  // pages[filter][cursor||''] → response (function = deferred / dynamic)
+  const pagedApi = pages => ({ '/home/feed': path => { const q = qp(path); const r = pages[q.get('filter')][q.get('cursor') || '']; return typeof r === 'function' ? r() : r; } });
+  const feedReqs = pp => pp.rec.api.filter(a => a.indexOf('/home/feed') === 0);
+  const moreBtn = pp => $(pp, 'hwMoreBtn');
+  const moreShown = pp => !hidden($(pp, 'hwMore'));
+
+  let release;
+  const PAGES = { all: {
+    '':   ok([job(1), post(1), news(1)], 'c1'),
+    'c1': () => new Promise(r => { release = () => r(ok([post(2), job(1), job(2)], 'c2')); }),
+    'c2': ok([news(2)], null),
+  } };
+  p = await makePage({ api: pagedApi(PAGES) });
+  const feedK = $(p, 'hwFeed');
+  check('K first page: 3 cards + button (next_cursor) with its twT text', feedK.children.length === 3 && moreShown(p)
+    && moreBtn(p).textContent === STRINGS['home.more.load'] && !moreBtn(p).disabled && hidden($(p, 'hwMoreErr')));
+  moreBtn(p).click(); moreBtn(p).click(); await flush();
+  check('K loading: button disabled + loading text · a second click sends nothing',
+    moreBtn(p).disabled && moreBtn(p).textContent === STRINGS['common.loading'] && feedReqs(p).length === 2, feedReqs(p));
+  check('K request = same filter + limit + cursor=next_cursor (twApi)', feedReqs(p)[1] === '/home/feed?filter=all&limit=30&cursor=c1', feedReqs(p));
+  const firstCards = feedK.children.slice();
+  release(); await flush();
+  check('K page 2 appended under the old cards (not cleared) · the repeated job skipped',
+    feedK.children.length === 5 && firstCards.every((c, i) => feedK.children[i] === c), feedK.children.length);
+  check('K remember merges: page-1 and page-2 posts both known to comments (mentions / share)',
+    !!p.rec.commentsOpts.postOwner(1) && p.rec.commentsOpts.postOwner(2).full_name === 'Co2');
+  const postEls = feedK.children.filter(c => c.classList.contains('post-card'));
+  check('K clamp ran once per post card, on the new card only (never the whole feed again)', p.rec.clamps.length === 2
+    && p.rec.clamps[0] === postEls[0] && p.rec.clamps[1] === postEls[1] && p.rec.clamps.indexOf(feedK) < 0, p.rec.clamps.length);
+  check('K one trackViews per render · controller still bound once to #hwFeed (comments / report / block / appreciate / save delegate there)',
+    p.rec.after === 2 && p.rec.binds.length === 1 && p.rec.binds[0] === feedK && postEls.every(c => c.parentNode === feedK), [p.rec.after, p.rec.binds.length]);
+  check('K button back to idle with a next cursor', moreShown(p) && !moreBtn(p).disabled && moreBtn(p).textContent === STRINGS['home.more.load']);
+  moreBtn(p).click(); await flush();
+  check('K last page (next_cursor null) → button gone, no new message, feed kept', feedK.children.length === 6 && !moreShown(p)
+    && hidden($(p, 'hwEmpty')) && hidden($(p, 'hwError')) && hidden($(p, 'hwMoreErr')) && feedReqs(p)[2] === '/home/feed?filter=all&limit=30&cursor=c2');
+  moreBtn(p).click(); await flush();
+  check('K no cursor → click sends nothing', feedReqs(p).length === 3);
+
+  // every filter to the end: each item exactly once, then no button
+  const mkFor = { all: i => (i % 2 ? post(i) : job(i)), opportunities: job, posts: post, news };
+  for (const f of ['all', 'opportunities', 'posts', 'news']) {
+    const pg = {}; pg[f] = { '': ok([mkFor[f](1), mkFor[f](2)], f + '1'), [f + '1']: ok([mkFor[f](2), mkFor[f](3), mkFor[f](4)], f + '2'), [f + '2']: ok([mkFor[f](5)], null) };
+    const pp = await makePage({ search: '?f=' + f, api: pagedApi(pg) });
+    let clicks = 0;
+    while (moreShown(pp) && clicks < 5) { moreBtn(pp).click(); await flush(); clicks++; }
+    const fc = $(pp, 'hwFeed').children;
+    const keys = fc.map(c => c.textContent + '|' + (c.rawHtml || ''));
+    check(`K ${f}: clicked to the end → 5 items, each once, button gone`, clicks === 2 && fc.length === 5
+      && new Set(keys).size === 5 && !moreShown(pp) && feedReqs(pp).every(r => qp(r).get('filter') === f), [clicks, fc.length]);
+  }
+
+  // filter change while a page is loading → no mixing
+  let releaseAll;
+  p = await makePage({ api: pagedApi({
+    all:   { '': ok([job(1)], 'a1'), a1: () => new Promise(r => { releaseAll = () => r(ok([job(50), job(51)], 'a2')); }) },
+    posts: { '': ok([post(7)], null) },
+  }) });
+  moreBtn(p).click(); await flush();
+  p.body.querySelectorAll('.hw-ft')[2].click(); await flush();
+  releaseAll(); await flush();
+  const fx = $(p, 'hwFeed').children;
+  check('K filter change mid-load: the old page is dropped, only the new filter\'s items, its own button state',
+    fx.length === 1 && fx[0].classList.contains('post-card') && !moreShown(p) && p.ctx.Home.state.nextCursor === null
+    && !p.ctx.Home.state.loadingMore, [fx.length, p.ctx.Home.state.nextCursor]);
+
+  // 409 feed_reset / 422 invalid_cursor → the same filter from the top + toast
+  for (const [st, code] of [[409, 'feed_reset'], [422, 'invalid_cursor']]) {
+    let firsts = 0;
+    p = await makePage({ search: '?f=news', api: pagedApi({ news: { '': () => ok([news(++firsts)], 'n1'), n1: fail(st, code) } }) });
+    moreBtn(p).click(); await flush();
+    const fr = feedReqs(p);
+    check(`K ${st} ${code} → toast (twT) + reload of the same filter from the top`, p.rec.toasts.length === 1
+      && p.rec.toasts[0].msg === STRINGS['home.more.reset'] && p.rec.toasts[0].type === 'info'
+      && fr.length === 3 && fr[2] === '/home/feed?filter=news&limit=30' && firsts === 2
+      && $(p, 'hwFeed').children.length === 1 && $(p, 'hwFeed').textContent.includes('N2') && moreShown(p), [p.rec.toasts, fr]);
+  }
+
+  // any other error → message by the button + retry, the cards stay
+  let tries = 0;
+  p = await makePage({ api: pagedApi({ all: { '': ok([job(1), job(2)], 'x1'),
+    x1: () => (++tries === 1 ? fail(500, 'server_error') : (tries === 2 ? fail(422, 'validation_error') : ok([job(3)], null))) } }) });
+  moreBtn(p).click(); await flush();
+  check('K other error → small message + retry button, cards stay, no reload / toast', !hidden($(p, 'hwMoreErr'))
+    && moreBtn(p).textContent === STRINGS['home.retry'] && !moreBtn(p).disabled && $(p, 'hwFeed').children.length === 2
+    && p.rec.toasts.length === 0 && feedReqs(p).length === 2);
+  moreBtn(p).click(); await flush();
+  check('K 422 with another code is not a reset (still the retry state)', !hidden($(p, 'hwMoreErr')) && p.rec.toasts.length === 0
+    && feedReqs(p).length === 3);
+  moreBtn(p).click(); await flush();
+  check('K retry with the same cursor → page appended, message gone, end → no button', $(p, 'hwFeed').children.length === 3
+    && hidden($(p, 'hwMoreErr')) && !moreShown(p) && feedReqs(p).slice(1).every(r => qp(r).get('cursor') === 'x1'));
+  check('K new strings: no GLOSSARY-forbidden word', ['home.more.load', 'home.more.error', 'home.more.reset'].every(k => k in STRINGS && !/فرص/.test(STRINGS[k])));
+
+  console.log('\nL — task 8.6d-2: real TwPostCard.trackViews after appends');
+  {
+    const observers = [], timers = [], views = [];
+    class FakeIO { constructor(cb) { this.cb = cb; this.targets = []; this.live = true; observers.push(this); }
+      observe(t) { this.targets.push(t); } disconnect() { this.live = false; this.targets = []; } }
+    const lctx = { window: null, IntersectionObserver: FakeIO, console,
+      setTimeout: fn => { timers.push(fn); return timers.length; }, clearTimeout: () => {},
+      twApi: (path, o) => { views.push(path); return Promise.resolve({ ok: true, data: { status: 'success', recorded: false } }); },
+      document: { querySelector: () => null } };
+    lctx.window = lctx; vm.createContext(lctx);
+    vm.runInContext(read('static/shared/tw-post-card.js'), lctx);
+    const ctl = lctx.TwPostCard.create({ signedIn: () => true, paths: { view: id => '/v/' + id } });
+    const cards = [1, 2].map(i => ({ dataset: { postId: String(i) } }));
+    const box = { querySelectorAll: () => cards.slice() };
+    const live = () => observers.filter(o => o.live);
+    const see = () => { const o = live()[0]; o.cb(o.targets.map(t => ({ target: t, isIntersecting: true }))); };
+    ctl.trackViews(box); see();                         // page 1 visible, dwell timers running
+    cards.push({ dataset: { postId: '3' } });
+    ctl.trackViews(box); see();                         // append → trackViews again before the timers fire
+    timers.splice(0).forEach(fn => fn()); await flush();
+    ctl.trackViews(box); see(); timers.splice(0).forEach(fn => fn()); await flush();   // another append round
+    check('L one live observer after every append (the previous one disconnected)', live().length === 1 && observers.length === 3);
+    check('L each post viewed exactly once across appends', JSON.stringify(views.slice().sort()) === '["/v/1","/v/2","/v/3"]', views);
+  }
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

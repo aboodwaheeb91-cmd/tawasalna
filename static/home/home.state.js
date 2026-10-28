@@ -4,10 +4,10 @@
  * directly in any module — the session comes from twRequireAuth (home.main.js)
  * and every request goes through twApi (auth headers added there).
  *
- * Cursor pagination contract (not yet active):
- *   API will return { items: [...], next_cursor: "<opaque string>" | null }
- *   On load-more, client sends ?cursor=<next_cursor>.
- *   Current API uses ?limit only; nextCursor is reserved and always null today.
+ * Cursor pagination (task 8.6d-1 server · 8.6d-2 page):
+ *   GET /home/feed → { items: [...], next_cursor: "<opaque signed string>" | null }
+ *   «عرض المزيد» sends ?cursor=<next_cursor> (Home.api.loadMore); null = end of the feed.
+ *   seen = "type:id" of every card on screen — duplicate guard for appended pages.
  */
 (function () {
   'use strict';
@@ -17,7 +17,9 @@
     user:          null,   // { id, user_type, tw_id } — set by home.main.js
     currentFilter: 'all',
     loading:       false,
+    loadingMore:   false,
     abortCtrl:     null,
-    nextCursor:    null
+    nextCursor:    null,
+    seen:          {}
   };
 }());
