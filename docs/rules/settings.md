@@ -24,6 +24,7 @@
    - **`password_max_bytes` ممنوع ينضاف أبداً** — حد bcrypt (72 بايت) ثابت. ❌ أي مفتاح سر أو حد ثابت تقنياً.
    - `OTP` و `pwreset` صاروا بـ `tw_limits` (`LIMITS otp_ttl_min` / `otp_max_attempts` · `RATES pwreset_ip` / `pwreset_email`) — الافتراضي ما تغيّر (10 دق · 5 محاولات · 10 / ساعة لكل IP · 3 / ساعة لكل إيميل).
    - **4.3:** حدود إرسال OTP (`otp_send_user` · `otp_send_target` · `otp_send_ip` — عدد + نافذة) بمجموعة `sec_otp` بنفس `_sec_rate` تبع 4.2. النطاقات: المرات 1–10 / 1–10 / 1–30، المدة 3 600–86 400 ث. أسوأ حالة لنفس الوجهة: 10 رموز بالساعة × `otp_max_attempts` بأعلى قيمة (10) = حوالي 2 400 تخمين باليوم من مليون (≈ 0.24%).
+   - **8.2a:** إعادة التقديم — مجموعة `jobs` (عادية): `job_reapply_week_max` 1–20 (3) — كم مرة المتقدم بيرجع يقدّم على نفس الوظيفة بعد السحب خلال 7 أيام، العدّ من `pipeline_stage_events` (مش `_rate_store`) — SYSTEMS_INDEX §15.
    - **7.1:** تذاكر الدعم — مجموعة `support` (عادية): `support_open_max` 1–20 (5) · `support_create` 1–50 / 600–86 400 (10 / 3 600) · مجموعة `sec_support` (أمنية): `support_guest_email` 1–10 · `support_guest_ip` 1–20 · `support_guest_global` 10–1 000 (2 · 2 · 60 بالساعة)، المدة 600–86 400 — `docs/rules/support.md`.
    - **6:** حد الصفحات العامة لكل IP (`public_ip_hits` 60–2 000 · `public_ip_window_s` 10–600، الافتراضي 240 / 60) بمجموعة `sec_public` — يُقرأ بكل طلب عبر `_public_rate` (SYSTEMS_INDEX §54o · ARCHITECTURE §80).
 

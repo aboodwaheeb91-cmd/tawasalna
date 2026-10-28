@@ -208,6 +208,7 @@ from auth import (
     _APPLICANT_SORT_MAP,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
+from auth import withdraw_application, ApplicationStateError, ReapplyLimitError   # task 8.2a
 from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
 from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
 from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
@@ -7481,9 +7482,31 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
         result = apply_job(job_id, int(token_uid), data.cover_letter or "")
     except JobArchivedError:
         return JSONResponse(status_code=409, content={"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"})
+    except ReapplyLimitError as e:   # task 8.2a — re-applies per (applicant + job) in 7 days
+        return _limit_error(429, "reapply_limit", "jobs.reapply.limit", max=_fmt_number(e.limit))
+    except ApplicationStateError as e:   # task 8.2a — re-apply refused: a result (hired / rejected) exists
+        return api_error(409, e.code, _tw_text(f"jobs.app_state.{e.code}"))
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"status": "success", **result}
+
+
+@app.post("/jobs/applications/{app_id}/withdraw")
+def withdraw_job_application(app_id: int, token=Depends(verify_token)):
+    """task 8.2a — the applicant withdraws their own application (identity from the JWT only).
+    Not theirs / missing → 404 · hired / rejected / already withdrawn / job not open → 409.
+    Cancels their upcoming appointments on this job; no notification to the company."""
+    token_uid = token.get("user_id")
+    if not token_uid:
+        raise HTTPException(401, "رمز غير صالح")
+    try:
+        return api_ok(withdraw_application(app_id, int(token_uid)))
+    except KeyError:
+        return api_error(404, "not_found", _tw_text("jobs.withdraw.not_found"))
+    except ApplicationStateError as e:
+        return api_error(409, e.code, _tw_text(f"jobs.app_state.{e.code}"))
+    except Exception as e:
+        raise _server_error("withdraw_job_application", e)
 
 @app.get("/jobs/{job_id}/applicants")
 def job_applicants(
@@ -7607,6 +7630,8 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
     try:
         result = update_application_status(app_id, data.status, actor_id=int(user_id))
         return result
+    except ApplicationStateError as e:   # task 8.2a — withdrawn by the applicant
+        return api_error(409, e.code, _tw_text(f"jobs.app_state.{e.code}"))
     except KeyError as e:
         raise HTTPException(404, str(e))
     except PermissionError as e:

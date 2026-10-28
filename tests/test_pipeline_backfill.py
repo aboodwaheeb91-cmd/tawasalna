@@ -296,7 +296,7 @@ check("G-06. initial_event_reason='application_submitted' (Bnd-6)",
 # ═══════════════════════════════════════════════════════════════════════════════
 # §H  update_application_status dual-write
 # ═══════════════════════════════════════════════════════════════════════════════
-_uas = _fn(_auth, "update_application_status", window=4000)
+_uas = _fn_strict(_auth, "update_application_status")   # whole body (8.2a: a fixed window broke on growth)
 
 check("H-01. update_application_status calls _pipeline_update_stage",
       "_pipeline_update_stage(" in _uas)
