@@ -17,6 +17,7 @@ var FBK_DURATION = { success: 2800, info: 3200, warning: 4000, error: 4500 };
 
 function showToast(msg, type, _legacyDur) {
   if (msg == null) return;
+  if (_twSessionEndedActive) return;   // «انتهت الجلسة» notice is the only message (task 8.3b)
   if (type !== 'success' && type !== 'error' && type !== 'warning' && type !== 'info') type = 'success';
   var dur = FBK_DURATION[type];   // centralized duration — _legacyDur ignored (FBK-07)
 
@@ -161,7 +162,8 @@ window.normalizeErrorResponse = normalizeErrorResponse;
 //   status HTTP status · 0 = no response (network / timeout / aborted)
 // Never rejects: network failure / timeout → ok:false + Arabic generalError (code network / timeout).
 // 401 on a request that carried the current user's JWT → TwAuthSync.invalidateSession('api_401')
-// once (the JWT is cleared, so parallel 401s don't repeat it); twRequireAuth finishes the redirect.
+// once (the JWT is cleared, so parallel 401s don't repeat it) → the one «انتهت الجلسة» notice
+// (twSessionEndedNotice) sends the user to login on «موافق» — task 8.3b.
 var TW_API_TIMEOUT_MS = 20000;
 var _twApi401Jwt = '';
 
@@ -1012,6 +1014,8 @@ function twRequireAuth(opts) {
     var boundUserId = Number(snap.userId);
     sync.onSessionChange(function (info) {
       var s = (info && info.snapshot) || sync.getSessionSnapshot();
+      // Session ended by the server / expiry (task 8.3b) → the notice leaves on «موافق», not here.
+      if (!s.isAuthenticated && (_twSessionEndedActive || (info && info.sessionEnded && twSessionEndedNotice()))) return;
       var d = _twGuardDestination(s, types);
       if (d) { _twGuardLeave(d); return; }
       if (Number(s.userId) !== boundUserId) _twGuardLeave(null);
@@ -1020,6 +1024,57 @@ function twRequireAuth(opts) {
   return snap;
 }
 window.twRequireAuth = twRequireAuth;
+
+// ══ Session Ended Notice — twSessionEndedNotice (task 8.3b · SYSTEMS_INDEX §11a) ══
+// The ONE message when the session ends outside the user's hands: TwAuthSync handlers get
+// sessionEnded:true for api_401 / jwt_expired / ws_revoked on a tab that had a JWT (or from
+// another tab via the tw_session_ended mark). The session is already wiped (guest at once);
+// this shows one DS-OVL twModal per page — «انتهت الجلسة، يرجى تسجيل الدخول مجدداً» + «موافق»
+// — and any close (موافق / Escape / backdrop / X) → location.replace(twLoginHref(path + query)).
+// Never: logout · login · token_renewed · admin_email_change (no sessionEnded) · /login itself ·
+// admin pages (no auth-sync.js — TwAdminSession). Toasts stay silent while it is up.
+// tw-overlay.js missing on the page → loaded once on demand; fails to load → straight to login.
+var _twSessionEndedActive = false;
+var _twSessionEndedBound  = false;
+
+function twSessionEndedNotice() {
+  if (_twSessionEndedActive) return false;
+  var path = location.pathname;
+  if (path === '/login' || path === '/index.html') return false;
+  _twSessionEndedActive = true;
+  var dest = twLoginHref(path + location.search);
+  function go() { location.replace(dest); }
+  function show() {
+    if (typeof window.twModal !== 'function') { go(); return; }
+    window.twModal({
+      title: twT('session.ended.title'),
+      message: twT('session.ended.message'),
+      actions: [{ text: twT('common.ok'), variant: 'primary' }],
+      onClose: go
+    });
+  }
+  if (typeof window.twModal === 'function' || typeof document.createElement !== 'function') { show(); return true; }
+  var sc = document.createElement('script');
+  sc.src = '/static/shared/tw-overlay.js';
+  sc.onload = show;
+  sc.onerror = go;
+  (document.head || document.body).appendChild(sc);
+  return true;
+}
+window.twSessionEndedNotice = twSessionEndedNotice;
+
+function _twBindSessionEnded() {
+  if (_twSessionEndedBound || !window.TwAuthSync || typeof TwAuthSync.onSessionChange !== 'function') return;
+  _twSessionEndedBound = true;
+  TwAuthSync.onSessionChange(function (info) {
+    if (info && info.sessionEnded && !(info.snapshot && info.snapshot.isAuthenticated)) twSessionEndedNotice();
+  });
+}
+// auth-sync.js loads after this file (Page Shell) → bind at DOMContentLoaded (and now, if it is already there).
+_twBindSessionEnded();
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('DOMContentLoaded', _twBindSessionEnded);
+}
 
 function twLogout() {
   if (window.TwAuthSync && typeof TwAuthSync.invalidateSession === 'function') {
@@ -1547,14 +1602,17 @@ if (typeof document !== 'undefined' && typeof document.querySelector === 'functi
       if (capturedGen !== _gen) return;
       // 4008 Session Revoked (password change — PR 4.0): never reconnect with the revoked JWT.
       // New JWT already stored → reconnect now; else look once more after WS_REVOKED_WAIT_MS;
-      // still the old one → stay closed (TwAuthSync token_renewed reconnects via onSessionChange).
+      // still the same token (not renewed) → the session ended on the server →
+      // TwAuthSync.invalidateSession('ws_revoked') (guest + the «انتهت الجلسة» notice — task 8.3b).
       if (event.code === 4008) {
         var revokedJwt = jwt;
         var freshJwt = function () { try { return localStorage.getItem('tw_jwt') || ''; } catch (e) { return ''; } };
         if (freshJwt() && freshJwt() !== revokedJwt) { _initBadgeWS(); return; }
         _reconnectTimer = setTimeout(function () {
           _reconnectTimer = null;
-          if (freshJwt() && freshJwt() !== revokedJwt) _initBadgeWS();
+          if (freshJwt() && freshJwt() !== revokedJwt) { _initBadgeWS(); return; }
+          if (revokedJwt && freshJwt() === revokedJwt && typeof TwAuthSync !== 'undefined'
+              && typeof TwAuthSync.invalidateSession === 'function') TwAuthSync.invalidateSession('ws_revoked');
         }, WS_REVOKED_WAIT_MS);
         return;
       }

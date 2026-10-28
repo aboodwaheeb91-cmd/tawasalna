@@ -36,6 +36,8 @@ Full technical specification: `docs/design-system/VIEWER-MODES.md §VM-10`.
 
 8. **`invalidateSession(reason, opts)` allowlist (permanent):** Only removes `['tw_jwt', 'tw_user']`. `startsWith('tw_')` is permanently forbidden — it would destroy user preferences.
 
+8b. **Session ended outside the user's hands → one notice (task 8.3b — SYSTEMS_INDEX §11a).** `invalidateSession('api_401' | 'jwt_expired' | 'ws_revoked')` on a tab that had a JWT → handlers get `sessionEnded: true` (other tabs via the short `tw_session_ended` mark — not a session key, never wiped by the allowlist) → `twSessionEndedNotice()` in `tw_shared.js`: one `twModal` «انتهت الجلسة» + «موافق» → `twLoginHref(path + query)`. `logout` / `login` / `token_renewed` / `admin_email_change` → never. ❌ a page-local session-expired message for a 401 · ❌ a second notice / handler. Test `node tests/test_session_ended_notice_runtime.js`.
+
 9. **Pages adopted by VM-10:** `company-profile.html` + `profile-showcase.html` (own `.sc-header`, call `initGlobalHeaderMenu`) and every page on the unified app header (PR 3.2 — `docs/design-system/HEADER-NAV.md`: `home-v2` · `messages` · `notifications` · `edu-profile` · `settings` · `appointments` · `appointment-room` · `job-detail`) — there `twMountAppChrome()` calls `initGlobalHeaderMenu('twHdrMenuBtn','twHdrMenuDd')`; the page never calls it. A new page uses `<header data-tw-header>` — not a hand-written `.sc-header`.
 
 ### Forbidden (VM-10 — permanent)

@@ -922,7 +922,6 @@
         var msg;
         if (status === 403) msg = twT('company.app.promote_forbidden');
         else if (status === 404) msg = twT('company.app.not_found');
-        else if (status === 401) msg = twT('company.session_expired');
         else                     msg = twT('company.app.promote_failed');
         if (window.showToast) showToast(msg, 'error');
         return;

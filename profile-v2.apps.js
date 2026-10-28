@@ -36,7 +36,9 @@
     twApi('/my/applications').then(function (r) {
       _loading = false;
       if (!r.ok) {
-        var msg = twT((r.status === 401 || r.status === 403) ? 'apps.session_expired' : 'apps.load_error');
+        // 401 → the session is over; the shared «انتهت الجلسة» notice says it (task 8.3b)
+        if (r.status === 401) { pane.innerHTML = ''; return; }
+        var msg = twT(r.status === 403 ? 'apps.session_expired' : 'apps.load_error');
         pane.innerHTML = '<div class="sc-app-empty">' + twEscHtml(msg) + '</div>';
         return;
       }

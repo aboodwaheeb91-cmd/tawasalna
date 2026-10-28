@@ -4,9 +4,10 @@
  * Same device changes its password → server closes the socket with 4008 — the reply with the
  * new JWT may land before OR after that close:
  *   1  new JWT already stored when 4008 arrives → reconnect at once, auth frame = new JWT
- *   2  4008 first, no new JWT within 2s → no reconnect with the revoked JWT (no 4001)
- *      → then TwAuthSync.renewToken (token_renewed) → reconnect with the new JWT
- *   3  never a logout: TwAuthSync.invalidateSession is not called
+ *   2  4008 first, the new JWT lands within the 2s (TwAuthSync.renewToken) → reconnect with the
+ *      new JWT, never with the revoked one (no 4001) · no logout (no invalidateSession)
+ *   3  4008 and still the same JWT after 2s (session ended on the server — task 8.3b) →
+ *      TwAuthSync.invalidateSession('ws_revoked') once · no reconnect
  * Run: node tests/test_ws_session_revoke_client_runtime.js
  */
 'use strict';
@@ -55,12 +56,12 @@ const SNAP = { state: 'authenticated', isAuthenticated: true, userType: 'emp', u
 
 // Shared fake TwAuthSync: renewToken writes tw_jwt + fires token_renewed like auth-sync.js
 function mkAuth(store) {
-  const a = { handlers: [], invalidations: 0 };
+  const a = { handlers: [], invalidations: [] };
   a.api = {
     onSessionChange: f => a.handlers.push(f),
     getSessionSnapshot: () => SNAP,
     getToken: () => store.getItem('tw_jwt') || '',
-    invalidateSession: () => { a.invalidations++; },
+    invalidateSession: reason => { a.invalidations.push(reason); },
     renewToken: jwt => { store.setItem('tw_jwt', jwt); a.handlers.forEach(h => h({ jwt, reason: 'token_renewed', snapshot: SNAP })); return true; },
   };
   return a;
@@ -106,19 +107,26 @@ for (const [name, load] of [['badge WS (tw_shared.js)', loadBadge], ['conversati
   check('1b 4008 + new JWT stored → reconnect at once', t.sockets.length === 2, t.sockets.length);
   check('1c the new socket authenticates with the new JWT', openSocket(t.sockets[1], UID) === NEW);
 
-  // 2 — 4008 first, new JWT arrives late
+  // 2 — 4008 first, the new JWT lands inside the 2s window (same device changed its password)
   t = load();
   openSocket(t.sockets[0], UID);
   serverRevoke(t.sockets[0]);
   check('2a 4008 before the reply → no immediate reconnect', t.sockets.length === 1);
-  t.timers.runAll();   // the 2s second look: still the old JWT
-  check('2b after 2s still the old JWT → no reconnect with the revoked JWT', t.sockets.length === 1);
   t.auth.api.renewToken(NEW);   // settings.js: PUT /auth/password reply → TwAuthSync.renewToken
   t.timers.runAll();
-  const last = t.sockets[t.sockets.length - 1];
-  check('2c token_renewed → reconnect, auth frame = new JWT', t.sockets.length === 2 && openSocket(last, UID) === NEW,
-    t.sockets.map(s => s.sent.map(x => x.token)));
-  check('3  no logout (invalidateSession never called)', t.auth.invalidations === 0);
+  const tokens = t.sockets.slice(1).map(s => openSocket(s, UID));
+  check('2b token renewed → reconnect, every new auth frame = new JWT', tokens.length >= 1 && tokens.every(x => x === NEW), tokens);
+  check('2c no logout (invalidateSession never called)', t.auth.invalidations.length === 0, t.auth.invalidations);
+
+  // 3 — 4008 and no new JWT after 2s → the session ended on the server
+  t = load();
+  openSocket(t.sockets[0], UID);
+  serverRevoke(t.sockets[0]);
+  check('3a no invalidation before the 2s second look', t.auth.invalidations.length === 0);
+  t.timers.runAll();
+  check("3b still the same JWT after 2s → invalidateSession('ws_revoked') once",
+    t.auth.invalidations.length === 1 && t.auth.invalidations[0] === 'ws_revoked', t.auth.invalidations);
+  check('3c no reconnect with the revoked JWT', t.sockets.length === 1, t.sockets.length);
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

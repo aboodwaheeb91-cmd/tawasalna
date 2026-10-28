@@ -91,15 +91,17 @@ function loadAuthSync(store) {
   assert('bfcache pageshow still fires (forced)', t.calls.length === 3 && t.calls[2].reason === 'pageshow');
 }
 {
-  // Expired while hidden (same JWT string) → state change → visibilitychange fires
+  // Expired while hidden (same JWT string) → state change → visibilitychange fires.
+  // Task 8.3b: the expiry ends the session (wiped → guest, reason jwt_expired, sessionEnded).
   const jwtShort = jwtFor(42, 'co', NOW + 5);
   const store = mkStorage({ tw_jwt: jwtShort, tw_user: JSON.stringify({ id: 42, user_type: 'co' }) });
   const t = loadAuthSync(store);
   const realNow = Date.now;
   Date.now = () => realNow() + 60 * 1000;
   try { t.doc.fire('visibilitychange'); } finally { Date.now = realNow; }
-  assert('expiry while hidden: visibilitychange fires expired snapshot',
-    t.calls.length === 1 && t.calls[0].snapshot.state === 'expired');
+  assert('expiry while hidden: visibilitychange ends the session (jwt_expired → guest + sessionEnded)',
+    t.calls.length === 1 && t.calls[0].reason === 'jwt_expired' && t.calls[0].snapshot.state === 'guest'
+    && t.calls[0].sessionEnded === true && store.getItem('tw_jwt') === null);
 }
 
 // ════════════════════════════════════════════════════════════════════════
