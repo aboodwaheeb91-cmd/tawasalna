@@ -88,7 +88,9 @@ def _js_fn(src, name):
     return after.split(_JS_FUNC_SEP, 1)[0] if _JS_FUNC_SEP in after else after
 
 _tb_btn_fn   = _js_fn(_main_src, '_onSaveToTalentBank')
-_render_fn   = _js_fn(_main_src, '_renderApplicants')
+# task 8.2b: the applicant card markup is split — list (_renderApplicants) · active cards · withdrawn section
+_render_fn   = ''.join(_js_fn(_main_src, n) for n in
+                       ('_renderApplicants', '_activeApplicantsHTML', '_withdrawnApplicantsHTML'))
 _classify_fn = _js_fn(_main_src, '_execClassify')
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,8 +203,8 @@ check("3-04. 'القائمة المختصرة' NOT used as a talent bank label i
 check("3-05. 'بنك المرشحين' NOT used as talent bank name in _renderApplicants",
       'بنك المرشحين' not in _render_fn)
 
-check("3-06. co-talentbank-btn class present in _renderApplicants",
-      'co-talentbank-btn' in _render_fn)
+# 3-06: talent bank button on an active applicant card — now a render check (real code, vm):
+# node tests/test_withdraw_ui_82b_runtime.js → C7 (task 8.2b — Testing & CI rule 6)
 
 check("3-07. _onSaveToTalentBank function exists",
       'function _onSaveToTalentBank' in _main_src)

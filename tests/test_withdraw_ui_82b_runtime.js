@@ -272,6 +272,10 @@ async function jobPage(opts) {
     const h6 = list.innerHTML, sc = h6.indexOf('co-app-saved-ctx');
     check('C6 saved-elsewhere line rendered between card head and card foot (was 185-12 in test_post_comments.py)',
       sc > h6.indexOf('co-app-card-head') && sc < h6.indexOf('co-app-card-foot') && h6.includes('وظيفة أخرى'));
+    ctx._renderApplicants([A(7, 'pending')]);
+    const h7 = list.innerHTML;
+    check('C7 active card: classify + talent bank buttons (was 3-06 in test_talent_bank_quota.py)',
+      /class="co-classify-btn[^"]*" data-app-id="7"/.test(h7) && /class="co-talentbank-btn[^"]*" data-uid="107"/.test(h7));
   }
 
   console.log('\nD — registry + strings');
