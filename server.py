@@ -1089,6 +1089,7 @@ def _startup_migrations():
         ("user_unique_indexes",               _migrate_user_unique_indexes,        False),
         ("news_posts",                        _migrate_news_posts,                 True),    # 7.6 — read by /home/feed (filter=all)
         ("feed_indexes",                      _migrate_feed_indexes,               False),
+        ("feed_snapshots",                    _migrate_feed_snapshots,             False),  # 8.6d-1 — failure → feed first page only (next_cursor null)
         ("company_branches",                  _migrate_company_branches,           False),
         ("company_saved_candidates",          _migrate_company_saved_candidates,   True),
         ("company_candidate_job_refs",        _migrate_company_candidate_job_refs, True),
@@ -1504,6 +1505,9 @@ def _migrate_feed_indexes():
         conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_status_created     ON jobs(status, created_at DESC)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_cposts_created          ON company_posts(created_at DESC)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_news_status_created     ON news_posts(status, created_at DESC)")
+        # task 8.6d-1 — keyset paging (created_at, id) ↓
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cposts_created_id       ON company_posts(created_at DESC, id DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_news_created_id         ON news_posts(created_at DESC, id DESC)")
     finally:
         release_conn(conn)
 
@@ -1572,9 +1576,6 @@ def login_html(): return read_html("index.html")
 def home(): return read_html("home-v2.html")
 
 # ── Taxonomy-aware feed helpers ──────────────────────────────────────────────
-
-_FEED_JOB_POOL = 200  # jobs fetched for scoring; top N returned after sort
-
 
 def _feed_user_context(conn, user_id, user_type):
     """Return (profession_id, category_group, skills_set) for the current user.
@@ -1656,153 +1657,362 @@ def _taxonomy_score(job, user_pid, user_pgroup, user_skills, accepted_pids=None)
     return score
 
 
+# ── Feed pagination (task 8.6d-1 — SYSTEMS_INDEX §12 · docs/rules/home-v2.md) ─────────────────────────
+#   jobs  → match score ↓ · created_at ↓ · id ↓ over EVERY active job, ranked once on the first page and saved
+#           as a list (feed_snapshots.job_ids); later pages walk the list by offset and re-check each batch
+#           (job_active_sql + bs.active_sql) — removed jobs drop out, nothing repeats, nothing is skipped.
+#   posts / news → keyset (created_at, id) ↓ with created_at <= as_of (new content waits for a refresh).
+#   «all" → one fixed pattern per page (job, post, news, …); an exhausted type's slot goes to the others.
+#   cursor → base64url(JSON) + HMAC-SHA256 (key derived from JWT_SECRET, label feed_cursor) — 422 invalid_cursor ·
+#           a missing / expired list or a changed match profile (fp) → 409 feed_reset.
+_FEED_TYPES = {"all": ("opportunity", "post", "news"), "opportunities": ("opportunity",),
+               "posts": ("post",), "news": ("news",)}
+_FEED_JOB_COLS = [
+    "id","title","location","job_type","salary_min","salary_max","currency",
+    "skills","created_at","profession_id","category",
+    "salary_hidden","accepts_all_professions",
+    "company_name","company_tw_id","company_id","company_logo",
+    "profession_name_ar","profession_name_en","profession_icon",
+    "profession_category_group",
+]
+_FEED_JOB_WHERE = job_active_sql("j") + " AND " + bs.active_sql("j.company_id")
+
+
+class _FeedError(Exception):
+    """422 invalid_cursor · 409 feed_reset → api_error."""
+    def __init__(self, status: int, code: str):
+        super().__init__(code)
+        self.status, self.code = status, code
+
+
+def _migrate_feed_snapshots():
+    """Saved job order of a feed session (task 8.6d-1) — optional: failure → first page only (next_cursor null)."""
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS feed_snapshots (
+                id         TEXT PRIMARY KEY,
+                user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                filter     TEXT NOT NULL,
+                job_ids    BIGINT[] NOT NULL DEFAULT '{}',
+                fp         TEXT NOT NULL,
+                as_of      TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_feed_snapshots_user ON feed_snapshots(user_id, created_at DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_feed_snapshots_created ON feed_snapshots(created_at)")
+    finally:
+        release_conn(conn)
+
+
+def _feed_fp(u_pid, u_pgroup, u_skills) -> str:
+    """Fingerprint of the user data the match score reads (profession · category group · skills)."""
+    raw = json.dumps([u_pid, u_pgroup or None, sorted(u_skills or ())], ensure_ascii=False, separators=(",", ":"))
+    return hmac.new(b"tw:feed_fp", raw.encode(), "sha256").hexdigest()[:32]
+
+
+def _feed_b64e(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def _feed_cursor_sig(body: str) -> str:
+    key = hmac.new(JWT_SECRET.encode(), b"tw:feed_cursor", "sha256").digest()
+    return _feed_b64e(hmac.new(key, body.encode(), "sha256").digest())
+
+
+def _feed_cursor_encode(payload: dict) -> str:
+    body = _feed_b64e(json.dumps(payload, separators=(",", ":")).encode())
+    return body + "." + _feed_cursor_sig(body)
+
+
+def _feed_key_ok(k) -> bool:
+    return k is None or (isinstance(k, list) and len(k) == 2 and isinstance(k[0], str)
+                         and isinstance(k[1], int) and not isinstance(k[1], bool) and k[1] > 0)
+
+
+def _feed_cursor_decode(cursor: str, uid: int, filter: str) -> dict:
+    import binascii
+    """Signed, same account, same filter, not expired, right shape — else 422 invalid_cursor."""
+    try:
+        body, sig = cursor.split(".")
+        if len(cursor) > 4096 or not hmac.compare_digest(sig, _feed_cursor_sig(body)):
+            raise ValueError("signature")
+        c = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        needs_jobs = "opportunity" in _FEED_TYPES[filter]
+        ok = (isinstance(c, dict) and c.get("v") == 1 and c.get("uid") == uid and c.get("f") == filter
+              and isinstance(c.get("exp"), int) and c["exp"] > int(time.time())
+              and isinstance(c.get("jo"), int) and c["jo"] >= 0
+              and _feed_key_ok(c.get("pk")) and _feed_key_ok(c.get("nk"))
+              and isinstance(c.get("fp"), str) and isinstance(c.get("as_of"), str)
+              and (isinstance(c.get("sid"), str) if needs_jobs else c.get("sid") is None))
+        if not ok:
+            raise ValueError("shape")
+        datetime.fromisoformat(c["as_of"])
+        for k in (c["pk"], c["nk"]):
+            if k:
+                datetime.fromisoformat(k[0])
+        return c
+    except (ValueError, TypeError, KeyError, UnicodeDecodeError, binascii.Error):
+        raise _FeedError(422, "invalid_cursor")
+
+
+def _feed_rank_jobs(conn, u_pid, u_pgroup, u_skills) -> list:
+    """Every active job → ids by match ↓ · created_at ↓ · id ↓ (_taxonomy_score, unchanged)."""
+    rows = conn.run(
+        """SELECT j.id, j.created_at, j.profession_id, j.category, j.skills,
+                  COALESCE(j.accepts_all_professions, false),
+                  COALESCE(pc.category_group, ''),
+                  ARRAY(SELECT jpt.profession_id FROM job_profession_targets jpt WHERE jpt.job_id = j.id)
+           FROM jobs j
+           JOIN users u ON j.company_id = u.id
+           LEFT JOIN profession_categories pc ON j.profession_id = pc.id
+           WHERE """ + _FEED_JOB_WHERE)
+    ranked = []
+    for jid, created, pid, cat, skills, acc_all, pgroup, acc in (rows or []):
+        job = {"profession_id": pid, "category": cat, "skills": skills or [],
+               "accepts_all_professions": acc_all, "profession_category_group": pgroup}
+        score = _taxonomy_score(job, u_pid, u_pgroup, u_skills, set(acc or ()))
+        ranked.append((score, created or datetime.min, int(jid)))
+    ranked.sort(reverse=True)
+    return [r[2] for r in ranked]
+
+
+def _feed_save_snapshot(conn, user_id, filter, job_ids, fp, as_of):
+    """Insert the list (cleanup first: expired rows + this user's oldest past the cap). Failure → None + log."""
+    try:
+        ttl = tw_settings.limit("feed_snapshot_ttl_min")
+        keep = tw_settings.limit("feed_snapshots_per_user") - 1
+        conn.run("DELETE FROM feed_snapshots WHERE created_at < NOW() - make_interval(mins => :ttl)", ttl=ttl)
+        conn.run("DELETE FROM feed_snapshots WHERE id IN (SELECT id FROM feed_snapshots WHERE user_id = :u "
+                 "ORDER BY created_at DESC, id OFFSET :keep)", u=user_id, keep=keep)
+        sid = secrets.token_urlsafe(24)
+        conn.run("INSERT INTO feed_snapshots (id, user_id, filter, job_ids, fp, as_of) "
+                 "VALUES (:id, :u, :f, CAST(:ids AS BIGINT[]), :fp, CAST(:as_of AS TIMESTAMPTZ))",
+                 id=sid, u=user_id, f=filter, ids=job_ids, fp=fp, as_of=as_of)
+        return sid
+    except Exception as e:
+        print(f"[home_feed] snapshot insert failed (first page only, no cursor): {type(e).__name__}: {e}")
+        return None
+
+
+def _feed_load_snapshot(conn, sid, user_id, filter, fp) -> list:
+    rows = conn.run("SELECT user_id, filter, fp, job_ids, "
+                    "created_at >= NOW() - make_interval(mins => :ttl) FROM feed_snapshots WHERE id = :sid",
+                    sid=sid, ttl=tw_settings.limit("feed_snapshot_ttl_min"))
+    if not rows:
+        raise _FeedError(409, "feed_reset")
+    owner, f, saved_fp, job_ids, fresh = rows[0]
+    if int(owner) != user_id or f != filter:
+        raise _FeedError(422, "invalid_cursor")
+    if not fresh or saved_fp != fp:
+        raise _FeedError(409, "feed_reset")
+    return [int(j) for j in (job_ids or [])]
+
+
+def _feed_job_items(conn, ids) -> dict:
+    """Jobs by id that are still active (re-checked now) → {id: item}."""
+    rows = conn.run(
+        """SELECT j.id, j.title, j.location, j.job_type,
+                  j.salary_min, j.salary_max, j.currency,
+                  j.skills, j.created_at,
+                  j.profession_id, j.category,
+                  COALESCE(j.salary_hidden, false)           AS salary_hidden,
+                  COALESCE(j.accepts_all_professions, false) AS accepts_all_professions,
+                  u.full_name AS company_name,
+                  u.tw_id    AS company_tw_id,
+                  u.id       AS company_id,
+                  COALESCE(p.avatar_url,'')          AS company_logo,
+                  COALESCE(pc.name_ar,'')            AS profession_name_ar,
+                  COALESCE(pc.name_en,'')            AS profession_name_en,
+                  COALESCE(pc.icon,'')               AS profession_icon,
+                  COALESCE(pc.category_group,'')     AS profession_category_group
+           FROM jobs j
+           JOIN users u ON j.company_id = u.id
+           LEFT JOIN profiles p ON j.company_id = p.user_id
+           LEFT JOIN profession_categories pc ON j.profession_id = pc.id
+           WHERE j.id = ANY(CAST(:ids AS BIGINT[])) AND """ + _FEED_JOB_WHERE,
+        ids=ids,
+    )
+    out = {}
+    for r in (rows or []):
+        d = dict(zip(_FEED_JOB_COLS, r))
+        d["type"] = "opportunity"
+        d["opp_type"] = "job"
+        if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+            d["created_at"] = d["created_at"].isoformat()
+        if isinstance(d.get("skills"), list):
+            d["skills"] = [str(s) for s in d["skills"]]
+        if d["salary_hidden"]:   # hidden salary never leaves the server (old rows may still hold numbers)
+            d["salary_min"] = d["salary_max"] = d["currency"] = None
+        d.pop("category", None)    # internal field; profession_* is the public form
+        out[int(d["id"])] = d
+    return out
+
+
+def _feed_take_jobs(conn, ids, offset, n) -> list:
+    """Walk the saved list from offset: still-active jobs in list order until n found or the list ends →
+    [(list index, item)]. Batches re-checked against the DB; removed ones are skipped."""
+    out, pos = [], offset
+    while len(out) < n and pos < len(ids):
+        chunk = ids[pos:pos + max(n - len(out), 20)]
+        found = _feed_job_items(conn, chunk)
+        for i, jid in enumerate(chunk):
+            if jid in found and len(out) < n:
+                out.append((pos + i, found[jid]))
+        pos += len(chunk)
+    return out
+
+
+def _feed_posts(conn, user_id, as_of, key, n) -> list:
+    where, params = "", {}
+    if key:
+        where = " AND (cp.created_at, cp.id) < (CAST(:k_at AS TIMESTAMPTZ), :k_id)"
+        params = {"k_at": key[0], "k_id": key[1]}
+    rows = conn.run(
+        """SELECT cp.id, cp.body, cp.tags, cp.created_at,
+                  cp.theme_color, cp.comments_enabled,
+                  u.full_name AS author_name,
+                  u.tw_id    AS author_tw_id,
+                  u.id       AS author_id,
+                  COALESCE(p.avatar_url,'') AS author_avatar
+           FROM company_posts cp
+           JOIN users u ON cp.company_id = u.id
+           LEFT JOIN profiles p ON cp.company_id = p.user_id
+           WHERE """ + bs.visible_sql("cp.company_id") + """
+             AND cp.created_at <= CAST(:as_of AS TIMESTAMPTZ)""" + where + """
+           ORDER BY cp.created_at DESC, cp.id DESC
+           LIMIT :n""",
+        bs_viewer=user_id, as_of=as_of, n=n, **params)
+    cols = ["id","body","tags","created_at","theme_color","comments_enabled",
+            "author_name","author_tw_id","author_id","author_avatar"]
+    out = []
+    for r in (rows or []):
+        d = dict(zip(cols, r))
+        d["type"] = "post"
+        d["author_type"] = "co"   # company_posts are company posts only (avatar shape)
+        d["_key"] = [d["created_at"].isoformat(), int(d["id"])]
+        d["created_at"] = d["created_at"].isoformat()
+        if isinstance(d.get("tags"), list):
+            d["tags"] = [str(t) for t in d["tags"]]
+        out.append(d)
+    return out
+
+
+def _feed_news(conn, as_of, key, n) -> list:
+    # NEWS_ACTIVE_SQL + nothing that started after as_of (a scheduled item is «new" when it starts)
+    where, params = "", {}
+    if key:
+        where = " AND (created_at, id) < (CAST(:k_at AS TIMESTAMP), :k_id)"
+        params = {"k_at": key[0], "k_id": key[1]}
+    rows = conn.run(
+        """SELECT id, title, summary, body, category, country, source_url, created_at
+           FROM news_posts
+           WHERE """ + NEWS_ACTIVE_SQL + """
+             AND created_at <= CAST(:as_of AS TIMESTAMPTZ)
+             AND (starts_at IS NULL OR starts_at <= CAST(:as_of AS TIMESTAMPTZ))""" + where + """
+           ORDER BY created_at DESC, id DESC
+           LIMIT :n""",
+        as_of=as_of, n=n, **params)
+    cols = ["id","title","summary","body","category","country","source_url","created_at"]
+    out = []
+    for r in (rows or []):
+        d = dict(zip(cols, r))
+        d["type"] = "news"
+        d["_key"] = [d["created_at"].isoformat(), int(d["id"])]
+        d["created_at"] = d["created_at"].isoformat()
+        out.append(d)
+    return out
+
+
 @app.get("/home/feed")
-def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token)):
+def home_feed(filter: str = "all", limit: int = 20, cursor: Optional[str] = None, token=Depends(verify_token)):
     user_id   = int(token.get("user_id") or 0)
     user_type = token.get("user_type", "emp")
     if not user_id:
         raise HTTPException(401, "رمز غير صالح")
 
-    allowed_filters = {"all", "opportunities", "posts", "news"}
-    if filter not in allowed_filters:
+    if filter not in _FEED_TYPES:
         filter = "all"
-    lim = min(max(int(limit), 1), 50)
+    lim = min(max(int(limit), 1), tw_settings.limit("feed_page_max"))
+    types = _FEED_TYPES[filter]
+    try:
+        c = _feed_cursor_decode(cursor, user_id, filter) if cursor else None
+    except _FeedError as e:
+        return api_error(e.status, e.code, _tw_text("feed.err." + e.code))
 
-    items = []
     conn = get_conn()
     try:
         # ── User context for taxonomy-aware scoring ────────────────────────────
         u_pid, u_pgroup, u_skills = _feed_user_context(conn, user_id, user_type)
+        fp = _feed_fp(u_pid, u_pgroup, u_skills)
+        job_ids, sid = [], None
+        if c is None:
+            as_of = conn.run("SELECT NOW()")[0][0].isoformat()
+            exp = int(time.time()) + tw_settings.limit("feed_snapshot_ttl_min") * 60
+            c = {"jo": 0, "pk": None, "nk": None}
+            if "opportunity" in types:
+                job_ids = _feed_rank_jobs(conn, u_pid, u_pgroup, u_skills)
+                sid = _feed_save_snapshot(conn, user_id, filter, job_ids, fp, as_of)
+            pageable = sid is not None or "opportunity" not in types
+        else:
+            as_of, exp, sid = c["as_of"], c["exp"], c["sid"]
+            if sid is not None:
+                try:
+                    job_ids = _feed_load_snapshot(conn, sid, user_id, filter, fp)
+                except _FeedError as e:
+                    return api_error(e.status, e.code, _tw_text("feed.err." + e.code))
+            pageable = True
 
-        # ── Opportunities (jobs) — scored by taxonomy relevance ───────────────
-        if filter in ("all", "opportunities"):
-            opp_lim = lim if filter == "opportunities" else max(1, lim // 3)
-            # Fetch a larger pool so scoring can promote the most relevant jobs
-            pool = max(opp_lim, _FEED_JOB_POOL)
-            rows = conn.run(
-                """SELECT j.id, j.title, j.location, j.job_type,
-                          j.salary_min, j.salary_max, j.currency,
-                          j.skills, j.created_at,
-                          j.profession_id, j.category,
-                          COALESCE(j.salary_hidden, false)           AS salary_hidden,
-                          COALESCE(j.accepts_all_professions, false) AS accepts_all_professions,
-                          u.full_name AS company_name,
-                          u.tw_id    AS company_tw_id,
-                          u.id       AS company_id,
-                          COALESCE(p.avatar_url,'')          AS company_logo,
-                          COALESCE(pc.name_ar,'')            AS profession_name_ar,
-                          COALESCE(pc.name_en,'')            AS profession_name_en,
-                          COALESCE(pc.icon,'')               AS profession_icon,
-                          COALESCE(pc.category_group,'')     AS profession_category_group
-                   FROM jobs j
-                   JOIN users u ON j.company_id = u.id
-                   LEFT JOIN profiles p ON j.company_id = p.user_id
-                   LEFT JOIN profession_categories pc ON j.profession_id = pc.id
-                   WHERE """ + job_active_sql("j") + " AND " + bs.active_sql("j.company_id") + """
-                   ORDER BY j.created_at DESC
-                   LIMIT :pool""",
-                pool=pool,
-            )
-            cols = [
-                "id","title","location","job_type","salary_min","salary_max","currency",
-                "skills","created_at","profession_id","category",
-                "salary_hidden","accepts_all_professions",
-                "company_name","company_tw_id","company_id","company_logo",
-                "profession_name_ar","profession_name_en","profession_icon",
-                "profession_category_group",
-            ]
-            job_items = []
-            for r in (rows or []):
-                d = dict(zip(cols, r))
-                d["type"] = "opportunity"
-                d["opp_type"] = "job"
-                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
-                    d["created_at"] = d["created_at"].isoformat()
-                if isinstance(d.get("skills"), list):
-                    d["skills"] = [str(s) for s in d["skills"]]
-                if d["salary_hidden"]:   # hidden salary never leaves the server (old rows may still hold numbers)
-                    d["salary_min"] = d["salary_max"] = d["currency"] = None
-                job_items.append(d)
+        # n = lim + 1 per type: a leftover after the page = that type has more
+        n = lim + 1
+        buf = {}
+        if "opportunity" in types:
+            buf["opportunity"] = _feed_take_jobs(conn, job_ids, c["jo"], n)
+        if "post" in types:
+            buf["post"] = [(None, d) for d in _feed_posts(conn, user_id, as_of, c["pk"], n)]
+        if "news" in types:
+            buf["news"] = [(None, d) for d in _feed_news(conn, as_of, c["nk"], n)]
 
-            # Batch-fetch accepted profession IDs — single query, no N+1
-            feed_job_ids = [d["id"] for d in job_items if d.get("id")]
-            acc_map = _fetch_accepted_professions_batch(conn, feed_job_ids) if feed_job_ids else {}
+        # Fixed pattern (job, post, news, …) — an exhausted type's slot goes to the next type
+        page, nxt, i = [], {t: 0 for t in types}, 0
+        while len(page) < lim and any(nxt[t] < len(buf[t]) for t in types):
+            t = types[i % len(types)]
+            i += 1
+            if nxt[t] < len(buf[t]):
+                page.append(buf[t][nxt[t]])
+                nxt[t] += 1
 
-            for d in job_items:
-                acc_entries = acc_map.get(d["id"], [])
-                d["accepted_professions"] = acc_entries
-                acc_pids = {e["id"] for e in acc_entries}
-                d["_score"] = _taxonomy_score(d, u_pid, u_pgroup, u_skills, acc_pids)
-
-            # Sort: recency first (stable), then score (stable tiebreak = recency)
-            job_items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
-            job_items.sort(key=lambda x: x["_score"], reverse=True)
-
-            for item in job_items[:opp_lim]:
-                item.pop("_score", None)
-                item.pop("category", None)    # internal field; profession_* is the public form
-                items.append(item)
-
-        # ── Company posts ──
-        if filter in ("all", "posts"):
-            post_lim = lim if filter == "posts" else max(1, lim // 3)
-            rows = conn.run(
-                """SELECT cp.id, cp.body, cp.tags, cp.created_at,
-                          cp.theme_color, cp.comments_enabled,
-                          u.full_name AS author_name,
-                          u.tw_id    AS author_tw_id,
-                          u.id       AS author_id,
-                          COALESCE(p.avatar_url,'') AS author_avatar
-                   FROM company_posts cp
-                   JOIN users u ON cp.company_id = u.id
-                   LEFT JOIN profiles p ON cp.company_id = p.user_id
-                   WHERE """ + bs.visible_sql("cp.company_id") + """
-                   ORDER BY cp.created_at DESC
-                   LIMIT :lim""",
-                lim=post_lim, bs_viewer=user_id
-            )
-            cols = ["id","body","tags","created_at","theme_color","comments_enabled",
-                    "author_name","author_tw_id","author_id","author_avatar"]
-            post_items = [dict(zip(cols, r)) for r in (rows or [])]
-            # Card fields for TwPostCard (task 8.6b-2) — one batched query, same source as /company/posts
-            stats = get_company_post_stats(conn, [d["id"] for d in post_items], user_id)
-            for d in post_items:
-                d["type"] = "post"
-                d["author_type"] = "co"   # company_posts are company posts only (avatar shape)
-                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
-                    d["created_at"] = d["created_at"].isoformat()
-                if isinstance(d.get("tags"), list):
-                    d["tags"] = [str(t) for t in d["tags"]]
+        items = [d for _, d in page]
+        posts = [d for d in items if d["type"] == "post"]
+        if posts:   # card fields for TwPostCard (task 8.6b-2) — one batched query, same source as /company/posts
+            stats = get_company_post_stats(conn, [d["id"] for d in posts], user_id)
+            for d in posts:
                 d.update(stats[int(d["id"])])
-                items.append(d)
-
-        # ── News (admin-published content from news_posts table) ──
-        if filter in ("all", "news"):
-            news_lim = lim if filter == "news" else max(1, lim // 3)
-            rows = conn.run(
-                """SELECT id, title, summary, body, category, country, source_url, created_at
-                   FROM news_posts
-                   WHERE """ + NEWS_ACTIVE_SQL + """
-                   ORDER BY created_at DESC
-                   LIMIT :lim""",
-                lim=news_lim
-            )
-            cols = ["id","title","summary","body","category","country","source_url","created_at"]
-            for r in (rows or []):
-                d = dict(zip(cols, r))
-                d["type"] = "news"
-                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
-                    d["created_at"] = d["created_at"].isoformat()
-                items.append(d)
-
+        jobs = [d for d in items if d["type"] == "opportunity"]
+        if jobs:    # batch-fetch accepted professions — single query, no N+1
+            acc_map = _fetch_accepted_professions_batch(conn, [d["id"] for d in jobs])
+            for d in jobs:
+                d["accepted_professions"] = acc_map.get(d["id"], [])
     finally:
         release_conn(conn)
 
-    # For "all": interleave by created_at so recent content surfaces first
-    if filter == "all" and items:
-        items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
-
-    return {"items": items, "filter": filter, "total": len(items), "next_cursor": None}
+    more = any(nxt[t] < len(buf[t]) for t in types)
+    next_cursor = None
+    if more and pageable:
+        jo, pk, nk = c["jo"], c["pk"], c["nk"]
+        for idx, d in page:
+            if d["type"] == "opportunity":
+                jo = idx + 1
+            elif d["type"] == "post":
+                pk = d["_key"]
+            else:
+                nk = d["_key"]
+        next_cursor = _feed_cursor_encode({"v": 1, "uid": user_id, "f": filter, "sid": sid, "jo": jo,
+                                           "pk": pk, "nk": nk, "as_of": as_of, "fp": fp, "exp": exp})
+    for d in items:
+        d.pop("_key", None)
+    return {"items": items, "filter": filter, "total": len(items), "next_cursor": next_cursor}
 
 
 # ── Legacy redirect page (single source for every retired page URL) ─────────

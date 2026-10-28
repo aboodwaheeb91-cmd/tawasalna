@@ -64,3 +64,12 @@ These rules are permanent and apply to all future AI sessions:
     - ⋯ = إبلاغ + حظر لغير الكاتب (task 8.6c — `authorId` = `author_id` · `viewerId` من snapshot الجلسة · SYSTEMS_INDEX §61) · الشركة على منشورها ما بتشوف ⋯ · الصفحة بتحمّل `tw-overlay.js` (DS-OVL — تأكيد الحظر + نافذة الإبلاغ).
     - ❌ بطاقة منشور خاصة بالرئيسية (`hw-p*`) · ❌ click على البطاقة كلها · ❌ controller تاني أو `bind` بكل رسم · ❌ نسخة محلية من التعليقات أو حساب العدّادات.
     - Test: `node tests/test_post_card_runtime.js` (M) · `node tests/test_home_landing_runtime.js` (J) · `python -m pytest tests/test_home_feed_posts_86b2.py -q`.
+
+14. **تحميل المزيد بالفيد — السيرفر (task 8.6d-1 — SYSTEMS_INDEX §12).** `GET /home/feed?cursor=` بنفس شكل الرد `{items, filter, total, next_cursor}`؛ `next_cursor = null` لما تخلص كل الأنواع.
+    - الترتيب: الوظائف = التطابق ↓ (`_taxonomy_score` بدون تعديل) ثم `created_at` ↓ ثم `id` ↓ على **كل** الوظائف النشطة (`job_active_sql` + `bs.active_sql` — الحظر ما بيخفي وظيفة، §25f) · المنشورات والأخبار = `created_at` ↓ ثم `id` ↓.
+    - «الكل» = نمط ثابت بكل صفحة (وظيفة، منشور، خبر، …)، كل نوع بترتيبه؛ النوع اللي خلص مكانه بيروح للباقيين. ❌ ترتيب بالتاريخ بين الأنواع.
+    - الوظائف: أول صفحة بتحفظ الترتيب الكامل بـ `feed_snapshots`؛ الصفحات اللاحقة بتمشي عليه بالـ offset وبتعيد فحص كل دفعة — المخفي / المعلّق بينشال بس، والمعدّل بيضل بمكانه. المنشورات والأخبار keyset مع `created_at <= as_of`.
+    - الـ cursor موقّع HMAC-SHA256 (مفتاح مشتق من `JWT_SECRET` بـ label `feed_cursor`) · 422 `invalid_cursor` (توقيع / حساب / فلتر / انتهاء / شكل / قائمة حساب تاني) · 409 `feed_reset` (القائمة مش موجودة / منتهية / تغيّرت مهنة أو مهارات المستخدم).
+    - الحدود من `tw_settings` بس: `feed_page_max` · `feed_snapshot_ttl_min` · `feed_snapshots_per_user`؛ التنظيف وقت الإدخال (ممنوع thread). فشل حفظ القائمة → أول صفحة عادي و `next_cursor = null`.
+    - ❌ cursor بدون توقيع · ❌ قائمة بالذاكرة · ❌ رجوع حد الـ 200 وظيفة.
+    - Test: `python -m pytest tests/test_home_feed_cursor_86d.py -q -s`.

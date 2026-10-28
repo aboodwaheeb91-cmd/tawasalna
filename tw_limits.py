@@ -46,6 +46,9 @@ LIMITS = {
     "support_track_session_hours": 24,      # guest follow-up session after the code (task 7.4) — fixed, never extended
     "kyc_reject_reason_max": 500, # PUT /admin/kyc/{id}/reject reason shown to the user (chars — fixed, task 8.1)
     "job_reapply_week_max": 3,    # re-applies after a withdrawal per (applicant + job) in 7 days — counted from pipeline_stage_events (task 8.2a)
+    "feed_page_max": 50,          # GET /home/feed ?limit= ceiling (task 8.6d-1)
+    "feed_snapshot_ttl_min": 60,  # … saved job list (feed_snapshots) lifetime in minutes — older = 409 feed_reset
+    "feed_snapshots_per_user": 5, # … saved lists kept per account (oldest deleted on insert)
 }
 
 RATES = {
