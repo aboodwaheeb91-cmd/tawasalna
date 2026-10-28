@@ -115,7 +115,7 @@ def test_email_changes_only_after_the_link_and_old_address_is_notified(env):
     tok = _token(env)
     assert _sql("SELECT COUNT(*) FROM password_reset_tokens WHERE token_hash = :t", t=tok)[0][0] == 0  # hash only
     r = _confirm(tok)
-    assert r.status_code == 200 and r.json()["data"] == {"changed": True}
+    assert r.status_code == 200 and r.json()["data"] == {"changed": True, "signed_out": False}   # own change — sessions kept (8.3)
     assert _sql("SELECT email FROM users WHERE id = :u", u=uid)[0][0] == NEW
     strings = server.tw_strings.merged(server._STRINGS_OVERRIDES)
     (notice,) = env.to(OLD)

@@ -88,7 +88,10 @@ function shell(opts) {
         || (method === 'PUT' && /^\/admin\/jobs\/\d+$/.test(url));
       // GET …/delete-preview answers like the server (task 5.3j phase 4)
       const preview = /^\/admin\/jobs\/\d+\/delete-preview$/.test(url);
+      // PUT /admin/user/{id}/email answers {ok, data: {sent: true}} (task 8.3)
+      const emailAct = method === 'PUT' && /^\/admin\/user\/\d+\/email$/.test(url);
       const body = opts.json || (st < 300 && url === '/admin/message' ? { ok: true, data: { notification_id: 1 } }
+        : st < 300 && emailAct ? { ok: true, data: { sent: true } }
         : st < 300 && jobAct ? { ok: true, data: { id: 3 } }
         : st < 300 && preview ? { ok: true, data: { id: 3, title: 'T', applicants: 4, pipeline_entries: 4, appointments: 1 } } : {});
       return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(body),
@@ -248,7 +251,7 @@ const tick = () => new Promise(r => setImmediate(r));
     check('E6 401 → panel login with the expired flag', exp.rec.replaced[0] === PANEL + '?session=expired', JSON.stringify(exp.rec.replaced));
   }
   const VA = view({ panel: PANEL, token: LIVE }).ctx.TwAdminUserView.ACTIONS;
-  const VCTX = { id: 5, item: 7, type: 'co', password: 'secret77', field: 'headline', value: 'x', text: 'hi' };
+  const VCTX = { id: 5, item: 7, type: 'co', password: 'secret77', field: 'headline', value: 'x', text: 'hi', email: 'new@x.com' };
   {
     const keys = Object.keys(VA);
     check('E7 every write on the page has a confirm step', keys.length >= 10 && keys.every(k => VA[k].confirm),
@@ -672,6 +675,37 @@ const tick = () => new Promise(r => setImmediate(r));
     const req = s.rec.requests[s.rec.requests.length - 1];
     check('J4 kyc.reject sends {reason, note} after the confirm', !!r && req[0] === '/admin/kyc/3/reject' && req[1] === 'PUT'
       && JSON.stringify(JSON.parse(req[2])) === JSON.stringify({ reason: 'سبب', note: 'داخلي' }), req);
+  }
+
+  console.log('\nK — admin email change: a request, the link goes to the new address (task 8.3)');
+  {
+    const VK = view({ panel: PANEL, token: LIVE }).ctx.TwAdminUserView.ACTIONS['user.email'];
+    check('K1 user.email: danger confirm, texts exist', !!VK && VK.confirm.danger
+      && [VK.confirm.title, VK.confirm.message, VK.confirm.confirm, VK.done].every(k => k in STR));
+    const s = view({ panel: PANEL, token: LIVE, confirmAnswer: true });
+    const r = await s.ctx.TwAdminShell.run(s.ctx.TwAdminUserView.ACTIONS['user.email'], VCTX);
+    const w = writes(s);
+    check('K2 confirm → one PUT /admin/user/5/email {new_email} + «done»', r && r.ok && w.length === 1
+      && w[0][0] === '/admin/user/5/email' && w[0][1] === 'PUT' && JSON.parse(w[0][2]).new_email === 'new@x.com'
+      && s.rec.toasts.some(t => t[1] === 'success'), JSON.stringify(w));
+    const n = view({ panel: PANEL, token: LIVE, confirmAnswer: true, json: { ok: true, data: {} } });
+    const rn = await n.ctx.TwAdminShell.run(n.ctx.TwAdminUserView.ACTIONS['user.email'], VCTX);
+    check('K3 200 without sent → not ok, no «done»', rn && !rn.ok && n.rec.toasts.every(t => t[1] !== 'success'));
+    const c = view({ panel: PANEL, token: LIVE, confirmAnswer: false });
+    check('K4 cancel → no request', (await c.ctx.TwAdminShell.run(c.ctx.TwAdminUserView.ACTIONS['user.email'], VCTX)) === null
+      && writes(c).length === 0);
+    // formDialog fieldError: a server 422 message under the field, cleared on typing
+    const f = shell({ page: true, token: LIVE });
+    let setErr = null;
+    f.ctx.TwAdminShell.formDialog({ titleKey: 't', labelKey: 'a', kind: 'email', sendKey: 's',
+      onSend: (v, x, fe) => { setErr = fe; fe('مستخدم'); return false; } });
+    const m = f.rec.modals[0], label = m.opts.content, input = label.children[0], err = label.children[1];
+    check('K5 email field type', input.type === 'email');
+    m.opts.actions[1].onClick();
+    check('K6 fieldError(text) → message shown + aria-invalid', typeof setErr === 'function' && !err.hidden
+      && err.textContent === 'مستخدم' && input.attrs['aria-invalid'] === 'true');
+    input.fire('input');
+    check('K7 typing clears it', err.hidden && !('aria-invalid' in input.attrs));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

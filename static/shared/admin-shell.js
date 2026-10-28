@@ -406,7 +406,8 @@
   //    onSend(value); it usually runs an action whose confirm stacks on top. false / a falsy promise
   //    keeps the dialog open. kind: text | password | textarea | select (options = [[value, labelKey], …]).
   //    o.extra = {labelKey, kind?, hintKey?} — an optional second field (task 8.1 — KYC reject: reason
-  //    for the user + internal note) → onSend(value, extraValue) ──
+  //    for the user + internal note) → onSend(value, extraValue, fieldError) ·
+  //    fieldError(text) = a server 422 message under the main field ('' clears it — task 8.3) ──
   function formField(o) {
     var form = document.createElement('label'), input;
     form.className = 'tw-adm-form';
@@ -423,13 +424,24 @@
     }
     if (o.value != null) input.value = o.value;
     form.appendChild(input);
+    var err = document.createElement('span');
+    err.className = 'tw-adm-field-err';
+    err.setAttribute('role', 'alert');
+    err.hidden = true;
+    form.appendChild(err);
     if (o.hintKey) {
       var h = document.createElement('span');
       h.className = 'tw-adm-hint';
       h.textContent = twT(o.hintKey, o.vars);
       form.appendChild(h);
     }
-    return { form: form, input: input };
+    function setError(text) {
+      err.textContent = text || '';
+      err.hidden = !text;
+      if (text) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+    }
+    input.addEventListener('input', function () { setError(''); });
+    return { form: form, input: input, setError: setError };
   }
   function formDialog(o) {
     var main = formField(o), extra = o.extra ? formField(o.extra) : null, content = main.form;
@@ -444,7 +456,7 @@
       actions: [
         { text: twT('common.cancel'), variant: 'secondary' },
         { text: twT(o.sendKey), variant: o.danger ? 'danger' : 'primary',
-          onClick: function () { return o.onSend(main.input.value, extra ? extra.input.value : undefined); } },
+          onClick: function () { return o.onSend(main.input.value, extra ? extra.input.value : undefined, main.setError); } },
       ],
     });
   }

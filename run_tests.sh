@@ -115,6 +115,7 @@ PY_DB=(
   pytest:test_password_reset_email.py
   pytest:test_session_version_tokens.py
   pytest:test_admin_user_actions.py
+  pytest:test_admin_email_change_83.py
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation
   pytest:test_register_profiles_unique.py

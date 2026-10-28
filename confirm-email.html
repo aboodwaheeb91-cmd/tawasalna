@@ -50,7 +50,8 @@ body {
     <div class="ce-msg" id="ceMsg" role="status" aria-live="polite" hidden></div>
     <!-- An explicit click (not on load): mail scanners that open links must not consume the token -->
     <button type="button" class="tw-btn ce-submit" id="ceBtn" data-tw-t="confirm_email.submit" hidden></button>
-    <div class="ce-links"><a href="/settings" data-tw-t="confirm_email.go_settings"></a></div>
+    <div class="ce-links"><a href="/settings" id="ceSettings" data-tw-t="confirm_email.go_settings"></a></div>
+    <a href="/login" class="tw-btn ce-submit" id="ceLogin" data-tw-t="confirm_email.login" hidden></a>
   </div>
 </main>
 
