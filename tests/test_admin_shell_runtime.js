@@ -20,6 +20,8 @@
  *      whole override map, reset leaves the key out · colors: WCAG ratio · < 3:1 blocks the save, < 4.5 warns ·
  *      news: archive keeps every field (status archived) · delete needs the typed word · start / end sent as ISO UTC
  *
+ *   L  task 8.6a — admin-content tab retried after a failed load · KYC docs window: approve / reject only in review
+ *
  * Run: node tests/test_admin_shell_runtime.js
  */
 'use strict';
@@ -706,6 +708,38 @@ const tick = () => new Promise(r => setImmediate(r));
       && err.textContent === 'مستخدم' && input.attrs['aria-invalid'] === 'true');
     input.fire('input');
     check('K7 typing clears it', err.hidden && !('aria-invalid' in input.attrs));
+  }
+
+  console.log('\nL — task 8.6a: content tab retried after a failed load · KYC docs window buttons only in review');
+  {
+    const extra = { getComputedStyle: () => ({ getPropertyValue: () => '' }), twFormatDateTime: v => v,
+      twSafeLinkUrl: u => u, Option: function () {}, twDateTimeField: () => ({ dateRow: fakeEl('div'), timeRow: fakeEl('div'),
+        empty: () => true, value: () => null }) };
+    const p = shell({ page: 'static/admin-content/admin-content.js', path: PANEL + '/content', token: LIVE, root: fakeEl('div'),
+                      rootId: 'acRoot', extra, json: { ok: true, data: { defaults: {}, overrides: {} }, news: [] } });
+    for (let i = 0; i < 6; i++) await tick();
+    const realFetch = p.ctx.fetch;
+    let newsCalls = 0;
+    p.ctx.fetch = (url, init) => {
+      if (url === '/admin/news' && ++newsCalls === 1) return Promise.reject(new Error('net'));
+      return realFetch(url, init);
+    };
+    await p.ctx.TwAdminContent.show('news');
+    await p.ctx.TwAdminContent.show('strings');
+    await p.ctx.TwAdminContent.show('news');
+    await p.ctx.TwAdminContent.show('strings');
+    await p.ctx.TwAdminContent.show('news');
+    check('L1 failed tab load → requested again on return · after success → not again', newsCalls === 2, newsCalls);
+
+    const k = shell({ page: true, token: LIVE });
+    const labels = m => m.opts.actions.map(a => a.text);
+    k.ctx.TwAdminDash.openKYCDocs(1, 2, false);
+    k.ctx.TwAdminDash.openKYCDocs(1, 2, true);
+    const [closed, open] = k.rec.modals.slice(-2);
+    check('L2 docs window outside review → close only (no approve / reject)',
+      JSON.stringify(labels(closed)) === '["common.close"]', JSON.stringify(labels(closed)));
+    check('L3 docs window in review → approve + reject + close',
+      JSON.stringify(labels(open)) === '["admin.kyc.approve","admin.kyc.reject","common.close"]', JSON.stringify(labels(open)));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

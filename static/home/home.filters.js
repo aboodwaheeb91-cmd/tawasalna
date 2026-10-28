@@ -7,15 +7,29 @@
   'use strict';
   window.Home = window.Home || {};
 
+  var ALLOWED = ['all', 'opportunities', 'posts', 'news'];
+
   window.Home.filters = {
+    /* ?f= deep link (sidebar links) — read once at load; anything outside the allowlist → 'all' */
+    fromUrl: function () {
+      var f = new URLSearchParams(location.search).get('f');
+      return ALLOWED.indexOf(f) >= 0 ? f : 'all';
+    },
+
+    /* Marks the tab of `filter` active and loads it */
+    select: function (filter) {
+      document.querySelectorAll('.hw-ft').forEach(function (b) {
+        b.classList.toggle('active', (b.getAttribute('data-filter') || 'all') === filter);
+      });
+      window.Home.filters.load(filter);
+    },
+
     init: function () {
       document.querySelectorAll('.hw-ft').forEach(function (btn) {
         btn.addEventListener('click', function () {
           var filter = btn.getAttribute('data-filter') || 'all';
           if (filter === window.Home.state.currentFilter) return;
-          document.querySelectorAll('.hw-ft').forEach(function (b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          window.Home.filters.load(filter);
+          window.Home.filters.select(filter);
         });
       });
     },

@@ -21,7 +21,7 @@
   var TABS = ['strings', 'colors', 'news'];
   var STR_MAX_ROWS = 50;
   var FORBIDDEN = 'admin.content.forbidden';
-  var panels = {}, loaded = {}, tabBtns = {};
+  var panels = {}, loaded = {}, loading = {}, tabBtns = {};
 
   document.title = twT('page.title', { page: twT('admin.content.title') });
   TwAdminShell.mount();
@@ -57,9 +57,10 @@
   function loadInto(box, url, render) {
     message(box, 'common.loading');
     return getJson(url).then(function (j) {
-      if (j && j.forbidden) { message(box, FORBIDDEN); return; }
-      if (!j) { if (TwAdminSession.hasLiveToken()) message(box, 'admin.content.load_error'); return; }
+      if (j && j.forbidden) { message(box, FORBIDDEN); return false; }
+      if (!j) { if (TwAdminSession.hasLiveToken()) message(box, 'admin.content.load_error'); return false; }
       render(j);
+      return true;
     });
   }
 
@@ -479,8 +480,14 @@
       tabBtns[t].tabIndex = t === tab ? 0 : -1;
       panels[t].hidden = t !== tab;
     });
-    if (!loaded[tab]) { loaded[tab] = true; return LOADERS[tab](); }
-    return Promise.resolve();
+    // «loaded» only after a successful load — a failed one is retried when the tab is opened again;
+    // `loading` keeps one request in flight per tab
+    if (loaded[tab] || loading[tab]) return loading[tab] || Promise.resolve();
+    loading[tab] = LOADERS[tab]().then(function (done) {
+      loaded[tab] = done === true;
+      loading[tab] = null;
+    }, function () { loading[tab] = null; });
+    return loading[tab];
   }
   function build() {
     root.textContent = '';

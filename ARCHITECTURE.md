@@ -6438,7 +6438,6 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | DELETE | `/admin/news/{news_id}` | `admin_delete_news` | Delete news post |
 | POST | `/admin/logo` | `upload_logo` | Upload platform logo — `{filename: logo_wide\|logo_tall, data_url}`; JPEG/PNG/WebP only, no SVG (PR-7a → Image Upload Security Contract) |
 | GET | `/admin/logo` | `get_logos` | Get logos — **public**, no `check_admin` |
-| POST | `/admin/logo-sizes` | `save_logo_sizes` | Save logo sizes |
 | GET | `/admin/theme/colors` | `admin_theme_colors_get` | DS-COLOR admin override (PR 3.8 · COLOR-SYSTEM.md CLR-36) — `{ok, data:{overrides, tokens, defaults}}` (saved JSON + `theme_tokens.EDITABLE` + their `tw_shared.css` defaults — §79b) · `content.edit` (§79) |
 | PUT | `/admin/theme/colors` | `admin_theme_colors_put` | Phase 5a (§79): body `{overrides: {"--color-brand-primary" \| "--color-brand-accent": "#rrggbb"}}` — an EDITABLE token left out = default. Other token / not `#RRGGBB` → 400 `{ok:false, error:{code: token_not_editable \| invalid_color \| invalid_body, message, field}}`. Stored overrides of other tokens are kept (and still rendered by `/theme.css`). `-rgb` twin derived. Saved to `site_settings.theme_color_tokens`; audit target `tokens=<changed>` |
 | GET | `/theme.css` | `theme_css` | **Public** — the saved overrides as one `:root{}` block (empty body when none). Loaded by both shell head partials right after `tw_shared.css`. `no-cache` + `ETag`/304 · 60s per-process cache (`theme_tokens.py`) |
