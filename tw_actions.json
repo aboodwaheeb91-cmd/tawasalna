@@ -61,6 +61,16 @@
       "labelKey": "action.apply_job", "icon": "send", "type": "primary",
       "visibleTo": ["guest", "emp"], "auth": true
     },
+    "withdraw_application": {
+      "labelKey": "action.withdraw_application", "icon": "log-out", "type": "danger",
+      "visibleTo": ["emp"], "auth": true,
+      "confirm": { "titleKey": "apps.withdraw.confirm_title", "messageKey": "apps.withdraw.confirm_msg",
+                   "confirmKey": "action.withdraw_application", "danger": true }
+    },
+    "reapply_job": {
+      "labelKey": "action.reapply_job", "icon": "refresh", "type": "primary",
+      "visibleTo": ["emp"], "auth": true
+    },
     "post_appreciate": {
       "labelKey": "post.card.appreciate", "icon": "heart", "type": "ghost",
       "visibleTo": ["guest", "owner", "emp", "co", "edu"], "auth": true

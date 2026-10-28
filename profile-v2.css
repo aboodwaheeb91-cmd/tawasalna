@@ -1752,6 +1752,14 @@ body.view-owner #scTabApps { display:inline-flex; }
   background:var(--color-surface-raised); color:var(--t2); border-color:var(--color-border-default);
 }
 .sc-app-btn-ghost:hover { background:rgba(var(--color-ink-rgb), .1); }
+/* «سحب الطلب» (task 8.2b) — twAction button inside .sc-app-withdraw-slot */
+.sc-app-withdraw-slot { display:contents; }
+.sc-app-btn-danger {
+  gap:6px; cursor:pointer; font-family:inherit;
+  background:rgba(var(--color-status-danger-rgb), .08); color:var(--color-status-danger); border-color:rgba(var(--color-status-danger-rgb), .25);
+}
+.sc-app-btn-danger:hover { background:rgba(var(--color-status-danger-rgb), .15); }
+.sc-app-btn-danger:disabled { opacity:.6; cursor:default; }
 
 /* Status badge */
 .sc-app-status {
@@ -1761,6 +1769,7 @@ body.view-owner #scTabApps { display:inline-flex; }
 .sc-app-status--in_review { background:rgba(var(--color-brand-secondary-text-rgb), .12);  color:var(--color-brand-secondary-text); }
 .sc-app-status--hired    { background:rgba(var(--color-status-success-rgb), .12);  color:var(--color-status-success); }
 .sc-app-status--rejected { background:rgba(var(--color-status-danger-rgb), .12); color:var(--color-status-danger); }
+.sc-app-status--withdrawn { background:rgba(var(--color-ink-rgb), .08); color:var(--t2); }
 
 /* Empty / loading states */
 .sc-app-empty, .sc-app-loading {

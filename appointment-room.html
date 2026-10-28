@@ -190,6 +190,8 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     'appointment_reschedule_requested', 'appointment_rescheduled', 'appointment_confirmed',
     'appointment_cancelled', 'appointment_completed', 'appointment_closed',
     'appointment_expired', 'message_sent'];
+  // System causes in appointment_events.payload.cause with a label (appt.cause.<cause>) — task 8.2b
+  const EVT_CAUSES = ['applicant_withdrew'];
 
   // API calls via twApi (tw_shared.js — API Client Rule): auth headers, JSON, timeout, never
   // throws (network / timeout → ok:false + Arabic message); 401 → TwAuthSync.invalidateSession →
@@ -514,10 +516,15 @@ body{background:var(--color-surface-page);color:var(--ap-text);font-family:var(-
     safeText(metaEl, who + ' · ' + twFormatDateTime(ev.created_at));
     body.appendChild(typeEl);
     body.appendChild(metaEl);
-    if (ev.payload && ev.payload.reason) {
+    // Known system cause (task 8.2b — cancelled by the applicant's withdrawal) → its twT text;
+    // otherwise the reason the person typed.
+    const _cause = ev.payload && ev.payload.cause;
+    const _reason = _cause && EVT_CAUSES.indexOf(_cause) !== -1 ? twT('appt.cause.' + _cause)
+      : (ev.payload && ev.payload.reason);
+    if (_reason) {
       const rEl = document.createElement('div');
       rEl.className = 'evt-reason';
-      safeText(rEl, twT('appt.room.reason', { reason: ev.payload.reason }));
+      safeText(rEl, twT('appt.room.reason', { reason: _reason }));
       body.appendChild(rEl);
     }
     const _evtDate = ev.payload && (ev.payload.new_scheduled_at || ev.payload.scheduled_at);

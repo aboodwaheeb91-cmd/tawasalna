@@ -2382,6 +2382,15 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-app-status--interview { background: rgba(var(--color-brand-accent-rgb), .15);  color: var(--color-brand-accent-text); }
 .co-app-status--hired     { background: rgba(var(--color-status-success-strong-rgb), .18);  color: var(--color-status-success); }
 .co-app-status--rejected  { background: rgba(var(--color-status-danger-strong-rgb), .15);   color: var(--color-status-danger); }
+.co-app-status--withdrawn { background: rgba(var(--color-ink-rgb), .1); color: var(--color-text-meta); }
+
+/* Withdrawn applicants (task 8.2b) — collapsed section under the active list, record only */
+.co-app-withdrawn { margin-top: 12px; }
+.co-app-withdrawn-sum {
+  cursor: pointer; padding: 8px 4px; font-size: .8rem; font-weight: 700; color: var(--color-text-meta);
+}
+.co-app-withdrawn[open] .co-app-withdrawn-sum { margin-bottom: 8px; }
+.co-app-card--withdrawn { opacity: .7; }
 
 .co-app-card-foot {
   display: flex;

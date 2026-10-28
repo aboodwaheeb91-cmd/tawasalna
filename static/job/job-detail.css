@@ -258,6 +258,16 @@ img { display: block; max-width: 100%; }
 .jd-sticky-icon-slot { display: flex; }
 .jd-sticky-icon-slot .jd-sticky-share { height: 100%; }
 .jd-apply-btn:disabled, .jd-sticky-apply:disabled { cursor: default; }
+/* «سحب الطلب» (task 8.2b) — under the disabled «تم التقديم» in the card slot */
+.jd-apply-slot { flex-wrap: wrap; gap: var(--space-3); }
+.jd-withdraw-btn {
+  flex: 1 1 100%; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: var(--space-3); border-radius: var(--radius-md);
+  border: 1px solid rgba(var(--color-status-danger-strong-rgb), .2);
+  background: rgba(var(--color-status-danger-strong-rgb), .05); color: var(--color-status-danger);
+  font-size: var(--size-font-sm); font-weight: 700; cursor: pointer; transition: all .2s;
+}
+.jd-withdraw-btn:hover { background: rgba(var(--color-status-danger-strong-rgb), .1); }
 
 /* Company micro-card in sidebar */
 .jd-co-card {

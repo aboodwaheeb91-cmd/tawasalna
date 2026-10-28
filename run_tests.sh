@@ -176,6 +176,7 @@ NODE_TESTS=(
   test_tw_shared_runtime.js
   test_upload_client_runtime.js
   test_vm01_bfcache_runtime.js
+  test_withdraw_ui_82b_runtime.js   # task 8.2b — withdraw / re-apply UI: job-detail · «طلباتي» · company applicants modal (vm)
   test_ws_api.mjs
   test_ws_client.mjs
   test_ws_session_revoke_client_runtime.js
