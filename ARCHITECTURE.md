@@ -9822,7 +9822,7 @@ Each opportunity item now includes:
 
 | Function | Location | Purpose |
 |----------|----------|---------|
-| `_FEED_JOB_POOL` | `server.py` | Max jobs fetched for scoring (200) |
+| `_feed_rank_jobs(conn, …)` | `server.py` | (task 8.6d-1 — replaced the 200-job pool `_FEED_JOB_POOL`) every active job ranked by score ↓ · created_at ↓ · id ↓ → saved in `feed_snapshots` (SYSTEMS_INDEX §12) |
 | `_feed_user_context(conn, user_id, user_type)` | `server.py` | Returns (profession_id, category_group, skills_set) — always safe, returns (None, None, set()) on error |
 | `_taxonomy_score(job, user_pid, user_pgroup, user_skills)` | `server.py` | Returns integer score; 0 for non-emp users or missing context |
 
@@ -9834,7 +9834,7 @@ Each opportunity item now includes:
 ✅ Legacy jobs (profession_id = NULL) still appear — they score via category +10 or skill overlap only
 ✅ Jobs without skills still appear — skill overlap is additive and skipped if user_skills is empty
 ✅ Non-emp users get same behavior as before (no context fetched, all jobs score 0, sorted by date)
-✅ Pool of 200 jobs fetched → top opp_lim returned after scoring (best-match jobs win the slots)
+✅ Every active job is ranked (task 8.6d-1 — the 200-job pool is gone); pages walk the saved order (feed_snapshots)
 ❌ Never use ORDER BY RANDOM() in feed queries
 ❌ Never add DB migration in PR 4
 ❌ Never read user data from localStorage for matching — backend is authoritative
@@ -12910,6 +12910,7 @@ Test: `python -m pytest tests/test_account_security.py -q`.
 | `courses` | user_id FK, title, provider, completion_date, certificate_url, description |
 | `jobs` | company_id FK → users, title, description, location, job_type (default `'full_time'`), salary_min/max, currency, experience_years, skills[], status (default `'active'`), views, created_at, expires_at (+ later migrations: `profession_id`, archive fields — see Taxonomy / §66b) |
 | `job_applications` | job_id FK, user_id FK, status (default `'pending'`), cover_letter, applied_at — UNIQUE(job_id, user_id) |
+| `feed_snapshots` | (task 8.6d-1 — `_migrate_feed_snapshots()` in `server.py`, optional startup migration) id TEXT PK (`secrets.token_urlsafe(24)` — unguessable), user_id BIGINT FK → users ON DELETE CASCADE, filter TEXT, job_ids BIGINT[] (ranked job order of one `/home/feed` session), fp TEXT (match-profile hash), as_of TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW() — indexes (user_id, created_at DESC) · (created_at); expired / over-cap rows deleted on insert; RLS via `rls_lockdown` — spec SYSTEMS_INDEX §12 |
 | `kyc_submissions` | user_id FK, step, status (default `'pending'`), email_code (hash), email_code_target/_expires_at/_attempts, email_verified, phone, phone_code (hash), phone_code_target/_expires_at/_attempts, created_at (§52 → KYC OTP Security) |
 
 ---
@@ -13118,6 +13119,8 @@ A row exists only while the value differs from the default (a save of the defaul
 **Cache + workers:** reads never touch the DB. The saving worker updates its cache after the commit and rebuilds `window.TW_LIMITS` (`on_change` → `_strings_set_overrides`). Every worker reloads `app_settings` every `CACHE_TTL_S` (30 s) in `_settings_loop` (asyncio task, `asyncio.to_thread`) → a change reaches every worker within 30 s. Load failure → every setting on its default + `[settings] load failed` in the log. `requires_restart` = false for every 4.1 setting (all read per request); the page shows the warning before saving for any future one marked true.
 
 **4.2 — security settings (`security: true`, groups `sec_login` · `sec_otp` · `sec_capacity` · `sec_pages` · `sec_dedup`):** same registry / table / audit. Every reader goes through `tw_settings` per use → applies at once (`requires_restart` false): `_login_locked` · `auth.otp_ttl_minutes()` / `otp_max_attempts()` (`_otp_issue` expiry = `NOW() + :ttl * INTERVAL '1 minute'` · `_otp_verify` cap · the KYC email «minutes») · `_rate_ok("pwreset_ip" | "pwreset_email")` (store kinds renamed from `pwreset-ip` / `pwreset-email`; per-kind TTL now exact) · `_rate_sweep_locked` / `_rate_room_locked` · `_ip_country_cache_put` / `get_country_from_ip` · comments / mention / blocks clamps · `view_count` / `report_repeat` windows. New defaults in `tw_limits`: `LIMITS otp_ttl_min` 10 · `otp_max_attempts` 5 · `RATES pwreset_ip` (10, 3600) · `pwreset_email` (3, 3600) (values unchanged — the old `_OTP_*` / `_PWRESET_*` constants are gone). **Audit:** the middleware sets `action` = `admin_settings_update_security` / `admin_settings_reset_security` for a security key on every row of the request (200 / 403 / 422) — filterable via `GET /admin/audit?action=`; no schema change, no migration. **Page:** a separate section after the others (title + warning), «أمني» badge, save / reset = `danger` + `typeWord` confirm with the warning text; `permissionAware` fetch → 401 = login · 403 = «no permission» message on the page, session kept. `password_max_bytes` is never in the registry (bcrypt 72-byte cut).
+
+**8.6d-1 feed group (normal):** `feed_page_max` 10–100 (50) · `feed_snapshot_ttl_min` 5–1 440 (60) · `feed_snapshots_per_user` 1–20 (5).
 
 **4.2 list (approved in the PR):** login locks (hits / window s) `login_email` 3–20 / 300–3 600 · `login_ip` 10–100 / 300–3 600 · `login_ip_email` 3–10 / 300–3 600 · `otp_max_attempts` 3–10 · `otp_ttl_min` 5–30 · `pwreset_ip` 3–50 / 600–86 400 · `pwreset_email` 1–10 / 600–86 400 · `mem_store_max_keys` 5 000–100 000 · `mem_store_sweep_s` 10–600 · `ip_country_cache_max` 1 000–100 000 · `ip_country_cache_ttl_s` 3 600–604 800 · `comments_page` 5–50 · `comments_page_max` 10–100 · `mention_limit_max` 5–50 · `blocks_page_max` 10–200 · `view_count_window_s` · `report_repeat_window_s` 3 600–604 800 (hits stay 1).
 
