@@ -30,9 +30,10 @@ Test: `python -m pytest tests/test_password_reset_email.py -q` (Resend مزيّ�
 2b. **تغيير كلمة السر بيلغي كل الروابط المعلّقة (5.0b):** `set_user_password` بيحذف كل صفوف المستخدم بـ `password_reset_tokens` (كل الأغراض) بنفس الـ statement — رابط `email_change` صادر قبل تغيير / استعادة / تعيين أدمن لكلمة السر → confirm = 400 `invalid_token` والإيميل ما بيتغيّر. ❌ غرض توكن جديد بجدول تاني (بيفلت من الحذف). Test: `python -m pytest tests/test_session_version_tokens.py -q`.
 3. **الرابط** `{site_url}/confirm-email#token=…` للإيميل **الجديد** · الصفحة بتبعت التوكن بس بكبسة زر (مش عند التحميل — ماسحات الروابط).
 4. **التأكيد** `POST /auth/email-change/confirm {token}` → وقتها بس `users.email` بيتغيّر · مستعمل بالوقت (سباق) → 409 `email_taken` عبر `EmailTakenError` (UNIQUE) · بعدها إيميل «تغيّر بريدك الإلكتروني» (`email_changed`) للعنوان **القديم** — بدون رابط إلغاء بهالمرحلة.
-- ❌ تغيير `users.email` قبل الرابط · ❌ إرسال برّا `send_email`.
+5. **من الأدمن (task 8.3):** `PUT /admin/user/{user_id}/email {new_email}` — `check_admin(request, "users.email")` (owner `*` بيعدّي · staff بدونها 403 · بدون توكن أدمن 401) · بدون كلمة سر المستخدم · trim + lower → 422 `new_email/{required, invalid_email, same_email, email_taken}` (`email_taken` عبر `EmailTakenError`) · 404 `not_found` · 503 `email_unavailable` · 429 `rate_limited` (5 / ساعة لكل حساب، مفتاح `admin-email-change:{user_id}` على `_rate_store`) · 502 `email_failed`. التوكن من `auth.email_change_request` نفسها (الجديد بيلغي القديم) والرابط نفسه للإيميل **الجديد** بقالب `email_change` → `{ok:true, data:{sent:true}}`. الأدمن **بيطلب بس**: التأكيد (البند 4) هو اللي بيغيّر الإيميل وبيبعت التنبيه للقديم، والجلسات بتضل. السجل: `audit_target = user_id=N` — ❌ أي إيميل بالسجل أو الـ log (الـ log: المستخدم + `sub` الأدمن بس). الواجهة: زر «تغيير الإيميل» بـ `admin-view` → `TwAdminShell.formDialog` (kind `email`) → action `user.email` (تأكيد danger) → «تم» بس لما `data.sent`؛ خطأ 422 بيطلع تحت الحقل عبر `fieldError` (البند 20 بـ `docs/rules/admin-shell.md`).
+- ❌ تغيير `users.email` قبل الرابط (ولا من الأدمن) · ❌ إرسال برّا `send_email` · ❌ دالة / جدول توكن تاني للأدمن.
 
-Test: `python -m pytest tests/test_email_change_kyc_email.py -q`.
+Test: `python -m pytest tests/test_email_change_kyc_email.py -q` · `python -m pytest tests/test_admin_email_change_83.py -q`.
 
 ## Notification Emails Rules (mandatory for all AI sessions — task 5.1c)
 

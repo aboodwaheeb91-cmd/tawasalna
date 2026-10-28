@@ -143,3 +143,5 @@ body.tw-adm-body-page { background: var(--color-surface-page); color: var(--colo
 .tw-adm-form .tw-input { width: 100%; }
 .tw-adm-form textarea.tw-input { min-height: 96px; resize: vertical; }
 .tw-adm-form-group { display: flex; flex-direction: column; gap: var(--space-4); }   /* formDialog o.extra (task 8.1) */
+.tw-adm-field-err { color: var(--color-status-danger); font-weight: 700; }   /* formDialog fieldError (task 8.3) */
+.tw-adm-form .tw-input[aria-invalid="true"] { border-color: var(--color-status-danger); }

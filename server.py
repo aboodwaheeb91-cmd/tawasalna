@@ -8033,6 +8033,50 @@ def admin_reset_password(user_id: int, request: Request, data: dict = Body(...))
     except Exception as e:
         raise _server_error("admin_reset_password", e)
 
+# ── Admin email change (task 8.3 · SYSTEMS_INDEX §1c) — the same token / page / confirm as 5.1b:
+# the admin only REQUESTS; the link goes to the new address and users.email changes only when it
+# is opened (POST /auth/email-change/confirm → old address notified). No address in audit / log.
+_ADMIN_EMAILCHANGE_LIMIT, _ADMIN_EMAILCHANGE_WINDOW = 5, 3600.0
+
+@app.put("/admin/user/{user_id}/email")
+def admin_email_change(user_id: int, request: Request, data: dict = Body(...)):
+    claims = check_admin(request, "users.email")   # owner "*" passes; a staff token without it → 403
+    request.state.audit_target = f"user_id={user_id}"
+    raw = data.get("new_email")
+    if raw is not None and not isinstance(raw, str):
+        return api_error(422, "invalid_email", "صيغة البريد الإلكتروني غير صحيحة", "new_email")
+    new_email = (raw or "").strip().lower()
+    if not new_email:
+        return api_error(422, "required", "أدخل البريد الإلكتروني الجديد", "new_email")
+    if not email_service.valid_address(new_email):
+        return api_error(422, "invalid_email", "صيغة البريد الإلكتروني غير صحيحة", "new_email")
+    try:
+        user = get_user_by_id(user_id)
+    except Exception as e:
+        raise _server_error("admin_email_change", e)
+    if not user:
+        return api_error(404, "not_found", "الحساب غير موجود")
+    if (user.get("email") or "").strip().lower() == new_email:
+        return api_error(422, "same_email", "هذا هو البريد الإلكتروني الحالي للحساب", "new_email")
+    if not email_service.can_send("email_change"):
+        return api_error(503, "email_unavailable", _EMAIL_UNAVAILABLE_MSG)
+    if not _rate_hit(f"admin-email-change:{user_id}", _ADMIN_EMAILCHANGE_LIMIT, _ADMIN_EMAILCHANGE_WINDOW):
+        return api_error(429, "rate_limited", "طلبات كثيرة، حاول مرة أخرى لاحقاً")
+    try:
+        link_token = email_change_request(user_id, new_email)   # newest only — an older link dies
+    except EmailTakenError:
+        return api_error(422, "email_taken", _EMAILCHANGE_TAKEN_MSG, "new_email")
+    except Exception as e:
+        raise _server_error("admin_email_change", e)
+    link = email_service.get_settings()["site_url"] + "/confirm-email#token=" + link_token
+    res = email_service.send_email(new_email, "email_change",
+                                   {"name": user.get("full_name") or "", "link": link,
+                                    "minutes": EMAIL_TOKEN_TTL_MINUTES})
+    if not res.get("ok"):
+        return api_error(502, "email_failed", "تعذّر إرسال رابط التأكيد، حاول مرة أخرى لاحقاً")
+    print(f"[email-change] admin link sent user={user_id} admin={claims.get('sub') or 'admin'}")
+    return api_ok({"sent": True})
+
 @app.delete("/admin/experience/{exp_id}")
 def admin_delete_exp(exp_id: int, request: Request):
     check_admin(request)

@@ -22,6 +22,13 @@
                  confirm: 'admin.view.password.confirm', danger: true },
       request: function (c) { return { url: '/admin/user/' + uid(c) + '/password', method: 'PUT', body: { password: c.password } }; },
       done: 'admin.done.password' },
+    // task 8.3 — a request only: the link goes to the new address; users.email changes when it is opened
+    'user.email': {
+      confirm: { title: 'admin.view.email.title', message: 'admin.view.email.message',
+                 confirm: 'admin.view.email.confirm', danger: true },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/email', method: 'PUT', body: { new_email: c.email } }; },
+      ok: function (d) { return !!(d && d.ok && d.data && d.data.sent); },   // «تم» only when the link was sent
+      done: 'admin.done.email_sent' },
     'user.verify': {
       confirm: { title: 'admin.verify.title', message: 'admin.verify.message', confirm: 'admin.verify.confirm' },
       request: function (c) { return { url: '/admin/user/' + uid(c) + '/verify', method: 'PUT', body: { is_verified: true } }; },
@@ -151,6 +158,17 @@
       return run('user.password', { password: v }).then(function (res) { return !!(res && res.ok); });
     });
   }
+  function openEmail() {
+    formDialog('admin.view.email.title', 'admin.view.email.label', 'email', '', 'admin.view.email.next', function (v, _x, fieldError) {
+      var email = String(v || '').trim();
+      if (!email) { fieldError(twT('admin.view.email.required')); return false; }
+      return run('user.email', { email: email }).then(function (res) {
+        var e = res && !res.ok && res.status === 422 && res.data && res.data.error;
+        if (e && e.field === 'new_email') fieldError(e.message || twT('admin.action.error'));
+        return !!(res && res.ok);
+      });
+    });
+  }
   function openMessage() {
     formDialog('admin.msg.title', 'admin.msg.body', 'textarea', '', 'admin.msg.send', function (v) {
       v = String(v || '').trim();
@@ -196,6 +214,7 @@
       ? btn('secondary', 'shield-off', 'admin.view.unverify', function () { run('user.unverify').then(reloadIfOk); })
       : btn('primary', 'verified', 'admin.users.verify', function () { run('user.verify').then(reloadIfOk); }));
     b1.appendChild(btn('secondary', 'lock', 'admin.view.password', openPassword));
+    b1.appendChild(btn('secondary', 'at-sign', 'admin.view.email', openEmail));
     b1.appendChild(btn('secondary', 'mail', 'admin.users.message', openMessage));
     b1.appendChild(sus
       ? btn('primary', 'user-check', 'admin.view.unsuspend', function () { run('user.unsuspend').then(reloadIfOk); })

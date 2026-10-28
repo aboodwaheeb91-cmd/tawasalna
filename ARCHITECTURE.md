@@ -6402,6 +6402,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | POST | `/admin/support/tickets/{public_id}/messages` | `admin_support_reply` | Admin reply `{body ≤ 5000, next_status ∈ awaiting_user / resolved (required)}` · audit target `ticket=<id>` old → new status · `support.manage` |
 | PUT | `/admin/support/tickets/{public_id}` | `admin_support_update` | `{status?, priority?, category?}` — the only priority / category writer · 422 bad value · audit `category=…;priority=…;status=…` old → new · `support.manage` |
 | PUT | `/admin/user/{user_id}/password` | `admin_reset_password` | Reset password |
+| PUT | `/admin/user/{user_id}/email` | `admin_email_change` | Request an email change `{new_email}` (8.3) — same token + `email_change` link to the new address as 5.1b; `users.email` changes only on `POST /auth/email-change/confirm` · 422 `new_email/{required, invalid_email, same_email, email_taken}` · 404 · 503 · 429 (5 / h per account) · 502 · audit target `user_id=N` (no address) · `users.email` |
 | DELETE | `/admin/experience/{exp_id}` | `admin_delete_exp` | Delete experience entry |
 | DELETE | `/admin/education/{edu_id}` | `admin_delete_edu` | Delete education entry |
 | DELETE | `/admin/course/{course_id}` | `admin_delete_course` | Delete course entry |
