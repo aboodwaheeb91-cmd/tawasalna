@@ -3884,7 +3884,7 @@ Custom override:
 | 4005 | Policy Violation | Typing rate limit exceeded; `_WS_MAX_VIOLATIONS` unknown events |
 | 4006 | Origin Denied | Origin header rejected by fail-closed origin policy |
 | 4007 | Too Many Connections | User already has `_WS_MAX_CONN_PER_USER = 10` active connections |
-| 4008 | Session Revoked (PR 4.0) | User's sessions ended (password change · admin reset · account deleted) → `_ws_revoke_user()` closes all their sockets. Client reconnects **only with a JWT different from the revoked one** (now, or 2s later, or on `token_renewed`) — never a 4001 loop, never a logout |
+| 4008 | Session Revoked (PR 4.0) | User's sessions ended (password change · admin reset · account deleted) → `_ws_revoke_user()` closes all their sockets. Client reconnects **only with a JWT different from the revoked one** (now, or within 2s) — never a 4001 loop; still the same JWT after 2s → `invalidateSession('ws_revoked')` + the «انتهت الجلسة» notice (task 8.3b) |
 
 ### Per-Event Authorization (Authenticated Loop)
 
@@ -12962,7 +12962,7 @@ Source: `auth.py` — `_APPT_COMPLETE_FROM` · `_APPT_CLOSE_FROM` · `_APPT_TERM
   - `error` — `null` | `normalizeErrorResponse(body)` → `{fieldErrors[], generalError}`; non-JSON body (HTML 502) → generic message.
   - `status` — HTTP status; `0` = no response: `generalError.code` `network` / `timeout` / `aborted` (Arabic messages).
   - `raw` — parsed body (extra fields).
-- 401 on a request that carried the current user's JWT → `TwAuthSync.invalidateSession('api_401')` once; the page guard (`twRequireAuth`) redirects to `/login?next=`. A 401 for an older JWT (another login happened meanwhile) or an `auth:false` request never invalidates.
+- 401 on a request that carried the current user's JWT → `TwAuthSync.invalidateSession('api_401')` once; the shared «انتهت الجلسة» notice (task 8.3b — SYSTEMS_INDEX §11a) sends the user to `/login?next=` on «موافق» (`twRequireAuth` waits for it). A 401 for an older JWT (another login happened meanwhile) or an `auth:false` request never invalidates.
 - `twApiMessage(res, fallback)` — first field error → general error (not `unknown`) → fallback.
 - `normalizeErrorResponse` additions (no change for shapes it already read): `error:{code, message, field}` → `fieldErrors`; legacy `{ok:false, code, message}` → `generalError`.
 

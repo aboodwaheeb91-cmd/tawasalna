@@ -14,6 +14,27 @@
   // startsWith('tw_') is forbidden: would destroy user preferences (tw_cover_edu_*, etc.)
   var _SESSION_KEYS = ['tw_jwt', 'tw_user'];
 
+  // Session ended from outside the user's own hands (task 8.3b — SYSTEMS_INDEX §11a):
+  // server 401 · token expiry · WS 4008 without a renewed token. invalidateSession(reason)
+  // with one of these on a tab that had a JWT → handlers get sessionEnded:true (tw_shared.js
+  // shows the one «انتهت الجلسة» notice). Other tabs learn it from a short mark written next
+  // to the wipe — its value (a timestamp) is read from the storage event, never trusted after
+  // _ENDED_TTL_MS. logout / login / token_renewed / admin_email_change never write it.
+  var _ENDED_REASONS = { api_401: 1, jwt_expired: 1, ws_revoked: 1 };
+  var _ENDED_KEY     = 'tw_session_ended';
+  var _ENDED_TTL_MS  = 60000;
+  var _endedSeenAt   = 0;   // mark seen from another tab (storage event newValue)
+
+  function _endedFresh(ts) {
+    var n = Number(ts);
+    return isFinite(n) && n > 0 && Math.abs(Date.now() - n) < _ENDED_TTL_MS;
+  }
+  // A mark left behind (tab closed mid-way) older than the TTL is dropped on load.
+  try {
+    var _leftMark = localStorage.getItem(_ENDED_KEY);
+    if (_leftMark !== null && !_endedFresh(_leftMark)) localStorage.removeItem(_ENDED_KEY);
+  } catch (e) {}
+
   // Fingerprint both tokens at init time so any change triggers callbacks.
   var _prevJwt     = localStorage.getItem('tw_jwt')  || '';
   var _prevUserStr = localStorage.getItem('tw_user') || '';
@@ -135,7 +156,7 @@
         _scheduleExpiryTimer();
         return;
       }
-      _check('jwt_expired', true);
+      window.TwAuthSync.invalidateSession('jwt_expired');
     }, msLeft);
   }
 
@@ -145,13 +166,15 @@
     var jwt     = localStorage.getItem('tw_jwt')  || '';
     var userStr = localStorage.getItem('tw_user') || '';
     if (!force && jwt === _prevJwt && userStr === _prevUserStr) return;
+    // Another tab ended the session (mark seen just before its wipe) and this tab had a JWT.
+    var ended = reason === 'storage' && !!_prevJwt && !jwt && _endedFresh(_endedSeenAt);
     _prevJwt     = jwt;
     _prevUserStr = userStr;
     _scheduleExpiryTimer();
     var snapshot = _resolveSession();
     _prevStateKey = _stateKey(snapshot);
     for (var i = 0; i < _handlers.length; i++) {
-      try { _handlers[i]({ jwt: jwt, reason: reason, snapshot: snapshot }); } catch (e) {}
+      try { _handlers[i]({ jwt: jwt, reason: reason, snapshot: snapshot, sessionEnded: ended }); } catch (e) {}
     }
   }
 
@@ -161,6 +184,11 @@
   // JWT / tw_user fingerprint (handled by _check) OR resolved state / userId
   // (expiry while hidden). Same session → no handlers, so sockets stay open (PR 2C).
   function _checkOnForeground(reason) {
+    // The token expired while the tab slept (timer late) → same path as the expiry timer.
+    if (_prevJwt && _resolveSession().state === 'expired') {
+      window.TwAuthSync.invalidateSession('jwt_expired');
+      return;
+    }
     _check(reason, _stateKey(_resolveSession()) !== _prevStateKey);
   }
 
@@ -170,6 +198,10 @@
 
   // ── Cross-tab events ─────────────────────────────────────────────
   window.addEventListener('storage', function (e) {
+    if (e.key === _ENDED_KEY) {
+      if (e.newValue && _endedFresh(e.newValue)) _endedSeenAt = Number(e.newValue);
+      return;
+    }
     if (e.key === 'tw_jwt' || e.key === 'tw_user' || e.key === null) {
       _check('storage');
     }
@@ -212,6 +244,11 @@
     // opts: { redirect: '/login' }
     invalidateSession: function (reason, opts) {
       opts = opts || {};
+      var ended = false;
+      try {
+        ended = !!_ENDED_REASONS[reason] && !!(_prevJwt || localStorage.getItem('tw_jwt'));
+        if (ended) localStorage.setItem(_ENDED_KEY, String(Date.now()));
+      } catch (e) {}
       try {
         for (var i = 0; i < _SESSION_KEYS.length; i++) {
           localStorage.removeItem(_SESSION_KEYS[i]);
@@ -229,8 +266,10 @@
       var snapshot = _resolveSession(); // will be 'guest' — storage was just cleared
       _prevStateKey = _stateKey(snapshot);
       for (var i = 0; i < _handlers.length; i++) {
-        try { _handlers[i]({ jwt: '', reason: reason || 'invalidate', snapshot: snapshot }); } catch (e) {}
+        try { _handlers[i]({ jwt: '', reason: reason || 'invalidate', snapshot: snapshot, sessionEnded: ended }); } catch (e) {}
       }
+      // The notice is up (handlers ran) — the mark has reached the other tabs; drop it.
+      if (ended) { try { localStorage.removeItem(_ENDED_KEY); } catch (e) {} }
       if (opts.redirect) {
         window.location.href = opts.redirect;
       }

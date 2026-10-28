@@ -46,6 +46,14 @@
       return { ok: false, status: 0, data: {}, errorType: 'network',
                detail: (e && e.name) || 'TypeError' };
     }).then(function(res){
+      // 401 with the current JWT = the session ended on the server → same path as twApi
+      // (guest at once + the one «انتهت الجلسة» notice, which also silences the toast — task 8.3b)
+      if (res.status === 401 && opts.jwt && window.TwAuthSync
+          && typeof TwAuthSync.invalidateSession === 'function') {
+        var cur = '';
+        try { cur = localStorage.getItem('tw_jwt') || ''; } catch (e) {}
+        if (cur === opts.jwt) TwAuthSync.invalidateSession('api_401');
+      }
       if (!res.ok) {
         // Details only — never the image data
         console.error('[TW.uploadImage] failed', {

@@ -255,13 +255,17 @@ function connectWS() {
     if (event.code >= 4001 && event.code <= 4007) return;
     // 4008 Session Revoked (password change — PR 4.0): never reconnect with the revoked JWT.
     // New JWT already there → reconnect now; else look once more after WS_REVOKED_WAIT_MS;
-    // still the old one → stay closed (TwAuthSync token_renewed reconnects via onSessionChange).
+    // still the same token (not renewed) → the session ended on the server →
+    // TwAuthSync.invalidateSession('ws_revoked') (guest + the «انتهت الجلسة» notice — task 8.3b).
     if (event.code === 4008) {
       var tokenChanged = function () { var t = _wsToken(); return !!t && t !== sentJwt; };
       if (tokenChanged()) { connectWS(); return; }
       _wsReconnectTimer = setTimeout(function () {
         _wsReconnectTimer = null;
-        if (capturedGen === _wsGen && tokenChanged()) connectWS();
+        if (capturedGen !== _wsGen) return;
+        if (tokenChanged()) { connectWS(); return; }
+        if (_wsToken() === sentJwt && typeof TwAuthSync !== 'undefined'
+            && typeof TwAuthSync.invalidateSession === 'function') TwAuthSync.invalidateSession('ws_revoked');
       }, WS_REVOKED_WAIT_MS);
       return;
     }

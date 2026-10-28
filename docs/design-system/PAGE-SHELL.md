@@ -134,7 +134,7 @@ if (!snap) return;                       // الصفحة عم تتحوّل — �
 
 **بعد التحميل** — تسجيل **واحد** على `TwAuthSync.onSessionChange` (نداء ثاني ما بيسجّل): نفس القرار عند logout / انتهاء الجلسة بتاب تاني أو رجوع bfcache (VM-01 — ما في `pageshow` / `storage` listener خاص)؛ حساب تاني سجّل دخول (`userId` تغيّر، نفس النوع المسموح) → `location.reload()` (ما بتضل بيانات الحساب الأول ظاهرة). بعد أول تحويل ما في تحويل ثاني.
 
-- `401` من API الصفحة → `TwAuthSync.invalidateSession('api_401')` → الـ guard نفسه بيحوّل لـ `/login?next=` (نفس نمط `loadGlobalBadges`).
+- `401` من API الصفحة → `TwAuthSync.invalidateSession('api_401')` → نافذة «انتهت الجلسة» الموحّدة (`twSessionEndedNotice` — task 8.3b · SYSTEMS_INDEX §11a) و«موافق» بتحوّل لـ `/login?next=`؛ الـ guard ما بيحوّل قبل الكبسة (نفس الشي لـ `jwt_expired` / `ws_revoked`). باقي حالات الـ guard متل ما هي.
 - الـ guard **UX بس** — الحماية الفعلية بالـ Backend (F6 / F21).
 - `twAccountHref(u)` بياخد `tw_id` من `getTwUser()` (الـ snapshot ما فيه `tw_id`) — نفس `twEntryDestination()`.
 
