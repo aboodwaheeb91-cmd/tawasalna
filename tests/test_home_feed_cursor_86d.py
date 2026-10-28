@@ -5,7 +5,8 @@ real startup migrations:
   - walking every page of every filter returns everything exactly once, in order
     (jobs: match ↓ · created_at ↓ · id ↓ · posts / news: created_at ↓ · id ↓)
   - «all": one fixed pattern per page (job, post, news); an exhausted type's slot goes to the others
-  - a job edited between pages keeps its place (no repeat, no skip) · hidden / suspended / blocked → only that one drops
+  - a job edited between pages keeps its place (no repeat, no skip) · a job hidden by the admin / a suspended company
+    → only those jobs + posts drop · a company blocked by the viewer → its posts drop, its jobs stay
   - content created after the first page never shows on later pages
   - profession / skills changed → 409 feed_reset · expired / missing list → 409
   - tampered / other account / other filter / expired cursor → 422 invalid_cursor
@@ -218,23 +219,38 @@ def test_job_edited_between_pages_keeps_its_place():
     assert first + rest == jobs
 
 
-def test_hidden_or_suspended_between_pages_drops_only_that_one():
-    co, co2, co3 = _user("co"), _user("co"), _user("co")
-    emp = _user("emp")
-    jobs = [_job(co if i != 7 else co2, 5 + i * 10) for i in range(12)]
-    posts = [_post(co if i != 5 else co3, 2 + i * 10) for i in range(9)]
-    r = _page(emp, "all", 6)
+def _split_after_first_page(emp, limit, change):
+    r = _page(emp, "all", limit)
     seen = [(i["type"], i["id"]) for i in r.json()["items"]]
-    _sql("UPDATE jobs SET admin_hidden_at = NOW() WHERE id = :j", j=jobs[5])   # admin hides a job
-    bs.set_suspension(co2, True, None, "test")                                  # company suspended → its job
-    bs.block(emp, co3)                                                          # viewer blocks a company → its post
-    rest = _rest(emp, "all", 6, r.json()["next_cursor"])
-    got = seen + rest
+    change()
+    got = seen + _rest(emp, "all", limit, r.json()["next_cursor"])
     assert len(set(got)) == len(got)
-    want_jobs = [j for j in jobs if j not in (jobs[5], jobs[7])]
-    want_posts = [p for p in posts if p != posts[5]]
-    assert [i for t, i in got if t == "opportunity"] == want_jobs
-    assert [i for t, i in got if t == "post"] == want_posts
+    return [i for t, i in got if t == "opportunity"], [i for t, i in got if t == "post"]
+
+
+def test_hidden_job_or_suspended_company_between_pages_drops_only_those():
+    co, co2 = _user("co"), _user("co")
+    emp = _user("emp")
+    jobs = [_job(co2 if i in (7, 10) else co, 5 + i * 10) for i in range(12)]
+    posts = [_post(co2 if i in (5, 8) else co, 2 + i * 10) for i in range(9)]
+
+    def change():
+        _sql("UPDATE jobs SET admin_hidden_at = NOW() WHERE id = :j", j=jobs[5])   # admin hides one job
+        bs.set_suspension(co2, True, None, "test")                                  # company suspended
+
+    got_jobs, got_posts = _split_after_first_page(emp, 6, change)
+    assert got_jobs == [j for i, j in enumerate(jobs) if i not in (5, 7, 10)]      # its jobs gone, rest complete
+    assert got_posts == [p for i, p in enumerate(posts) if i not in (5, 8)]         # its posts gone, rest complete
+
+
+def test_blocked_company_between_pages_hides_its_posts_not_its_jobs():
+    co, co3 = _user("co"), _user("co")
+    emp = _user("emp")
+    jobs = [_job(co3 if i in (6, 9) else co, 5 + i * 10) for i in range(12)]
+    posts = [_post(co3 if i in (5, 7) else co, 2 + i * 10) for i in range(9)]
+    got_jobs, got_posts = _split_after_first_page(emp, 6, lambda: bs.block(emp, co3))
+    assert got_jobs == jobs                                                          # a block never hides a job (§25f)
+    assert got_posts == [p for i, p in enumerate(posts) if i not in (5, 7)]
 
 
 def test_content_created_after_the_first_page_does_not_show():
