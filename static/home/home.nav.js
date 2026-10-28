@@ -69,8 +69,8 @@
         _completion(user, accountUrl);
         _sbLinks([
           { icon: 'user',      labelKey: 'home.link.my_profile', href: accountUrl  },
-          { icon: 'briefcase', labelKey: 'home.link.browse_jobs', href: '/home'    },
-          { icon: 'newspaper', labelKey: 'home.filter.news',     href: '/home'     },
+          { icon: 'briefcase', labelKey: 'home.link.browse_jobs', href: '/home?f=opportunities' },
+          { icon: 'newspaper', labelKey: 'home.filter.news',     href: '/home?f=news'          },
           { icon: 'settings',  labelKey: 'menu.settings',        href: '/settings' }
         ]);
 
@@ -82,7 +82,7 @@
         _sbLinks([
           { icon: 'layout-dashboard', labelKey: 'home.link.dashboard',  href: accountUrl             },
           { icon: 'users',            labelKey: 'people.talent_bank',   href: twTalentBankHref(user) },
-          { icon: 'plus-circle',      labelKey: 'jobs.post',            href: accountUrl             },
+          { icon: 'plus-circle',      labelKey: 'jobs.post',            href: twPostJobHref(user)    },
           { icon: 'settings',         labelKey: 'menu.settings',        href: '/settings'            }
         ]);
 

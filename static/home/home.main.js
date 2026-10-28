@@ -34,6 +34,6 @@
   /* Static icons already in the DOM (header + bottom nav come from the unified app chrome) */
   window.Home.utils.icons(document.body);
 
-  /* Load default feed */
-  window.Home.filters.load('all');
+  /* Load the initial feed — ?f= from the sidebar links (allowlist; else 'all') */
+  window.Home.filters.select(window.Home.filters.fromUrl());
 }());

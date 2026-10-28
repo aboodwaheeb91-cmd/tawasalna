@@ -11,6 +11,8 @@
  *   F  feed — twApi request · cards via textContent + DS-IMAGE · empty / error states
  *   G  strings — every twT key used (JS + data-tw-t in home-v2.html) exists in tw_strings.json
  *   H  landing — unified guest header placeholder · no GLOSSARY-forbidden word
+ *   I  task 8.6a — hidden salary → no salary chip · ?f= opens its filter (allowlist, else all) ·
+ *      sidebar links → the filter / the post-job deep link
  *
  * Run: node tests/test_home_landing_runtime.js
  */
@@ -31,7 +33,7 @@ const HTML = read('home-v2.html');
 const SCRIPTS = (HTML.match(/<script src="\/static\/home\/[^"]+"/g) || []).map(s => s.slice(13, -1).replace(/^\//, ''));
 const TWS = read('tw_shared.js');
 const fnSrc = name => TWS.slice(TWS.indexOf('function ' + name + '('), TWS.indexOf('\n}\n', TWS.indexOf('function ' + name + '(')) + 3);
-const SHARED_HREFS = fnSrc('twAccountHref') + fnSrc('twTalentBankHref');
+const SHARED_HREFS = fnSrc('twAccountHref') + fnSrc('twTalentBankHref') + fnSrc('twPostJobHref');
 
 // ── tiny fake DOM ───────────────────────────────────────────────────────────
 class El {
@@ -44,7 +46,7 @@ class El {
       add: (...c) => { const s = new Set(self._cls()); c.forEach(x => s.add(x)); self.className = [...s].join(' '); },
       remove: (...c) => { self.className = self._cls().filter(x => c.indexOf(x) < 0).join(' '); },
       contains: c => self._cls().indexOf(c) >= 0,
-      toggle: c => { const on = !self.classList.contains(c); on ? self.classList.add(c) : self.classList.remove(c); return on; },
+      toggle: (c, force) => { const on = force === undefined ? !self.classList.contains(c) : !!force; on ? self.classList.add(c) : self.classList.remove(c); return on; },
     };
   }
   _cls() { return (this.attrs['class'] || '').split(/\s+/).filter(Boolean); }
@@ -115,8 +117,8 @@ async function makePage(opts) {
   const api = opts.api || {};
   const ctx = {
     document, console: { log() {}, warn() {}, error: console.error }, Promise, Date, Math, Number, String,
-    Array, Boolean, Object, JSON, AbortController, encodeURIComponent, parseInt,
-    location: { href: '/home', pathname: '/home', search: '' },
+    Array, Boolean, Object, JSON, AbortController, encodeURIComponent, parseInt, URLSearchParams,
+    location: { href: '/home', pathname: '/home', search: opts.search || '' },
     twRequireAuth: () => (opts.guest ? null : { isAuthenticated: true, userId: opts.uid || 7, userType: opts.type || 'emp' }),
     getTwUser: () => (opts.guest ? null : { id: opts.uid || 7, user_type: opts.type || 'emp', tw_id: opts.twId === undefined ? 'U123' : opts.twId }),
     twApi: (path, o) => {
@@ -252,6 +254,31 @@ const FEED_OK = { ok: true, status: 200, data: { items: [] } };
   rows.forEach(r => { const re = /`([^`]+)`/g; let m; while ((m = re.exec(r.split('|').slice(-2)[0]))) terms.push(m[1]); });
   const hits = terms.filter(t => new RegExp(t).test(visible));
   check('H no GLOSSARY-forbidden word on the landing page (incl. «مراجعة» terms)', terms.length >= 8 && hits.length === 0, hits);
+
+  console.log('\nI — task 8.6a');
+  const jobItem = extra => Object.assign({ type: 'opportunity', id: 9, title: 'T', company_name: 'Acme', created_at: new Date().toISOString() }, extra);
+  p = await makePage({ api: { '/home/feed': { ok: true, status: 200, data: { items: [
+    jobItem({ salary_hidden: true, salary_min: 500, salary_max: 900, currency: 'JOD' }),
+    jobItem({ id: 10, salary_min: 400, salary_max: 600, currency: 'JOD', accepts_all_professions: true }),
+  ] } } } });
+  const cards = $(p, 'hwFeed').children;
+  check('I hidden salary → no salary chip (even if numbers slipped through)', cards.length === 2
+    && !cards[0].querySelectorAll('.hw-chip').some(c => c.classList.contains('g')) && !cards[0].textContent.includes('500'), cards[0] && cards[0].textContent);
+  check('I normal salary → chip shown', cards[1].querySelectorAll('.hw-chip').some(c => c.textContent.includes('400–600')));
+  check('I accepts_all_professions → «all professions» chip', cards[1].textContent.includes(STRINGS['home.card.all_professions'])
+    && !cards[0].textContent.includes(STRINGS['home.card.all_professions']));
+  const activeTab = pp => pp.body.querySelectorAll('.hw-ft').filter(b => b.classList.contains('active')).map(b => b.getAttribute('data-filter'));
+  p = await makePage({ search: '?f=news', api: { '/home/feed': FEED_OK } });
+  check('I ?f=news → news filter requested + its tab active', p.rec.api.indexOf('/home/feed?filter=news&limit=30') !== -1
+    && JSON.stringify(activeTab(p)) === '["news"]', [p.rec.api, activeTab(p)]);
+  p = await makePage({ search: '?f=companies', api: { '/home/feed': FEED_OK } });
+  check('I ?f=<not allowed> → all', p.rec.api.indexOf('/home/feed?filter=all&limit=30') !== -1
+    && JSON.stringify(activeTab(p)) === '["all"]', [p.rec.api, activeTab(p)]);
+  p = await makePage({ api: { '/home/feed': FEED_OK } });
+  check('I emp links → /home?f=opportunities + /home?f=news', linkHrefs(p).indexOf('/home?f=opportunities') !== -1
+    && linkHrefs(p).indexOf('/home?f=news') !== -1, linkHrefs(p));
+  p = await makePage({ type: 'co', twId: 'C55', api: { '/home/feed': FEED_OK } });
+  check('I co «post job» → /u/{tw_id}?post_job=1', linkHrefs(p).indexOf('/u/C55?post_job=1') !== -1, linkHrefs(p));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
