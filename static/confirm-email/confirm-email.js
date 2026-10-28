@@ -3,6 +3,8 @@
 //   - #token=… is read once and removed from the address bar (fragment → never in server logs / Referer)
 //   - the token is sent only on an explicit click (mail link scanners must not consume it):
 //     POST /auth/email-change/confirm → users.email changes, the old address gets a notice
+//   - signed_out (an admin's change — task 8.3): the server ended every session → the local one is
+//     cleared the logout way (TwAuthSync.invalidateSession) + reason message + login button
 //   - every request through twApi (auth:false) · text: twT · icons: twIcon
 (function () {
   'use strict';
@@ -41,6 +43,13 @@
     twApi('/auth/email-change/confirm', { method: 'POST', auth: false, body: { token: token } }).then(function (res) {
       btn.disabled = false;
       btn.setAttribute('aria-busy', 'false');
+      if (res.ok && res.data && res.data.signed_out) {
+        if (window.TwAuthSync) TwAuthSync.invalidateSession('admin_email_change');
+        done(twT('confirm_email.done_signed_out'), false);
+        $('ceSettings').hidden = true;
+        $('ceLogin').hidden = false;
+        return;
+      }
       if (res.ok) { done(twT('confirm_email.done'), false); return; }
       var g = res.error && res.error.generalError;
       // invalid_token / email_taken: the token is spent — no retry button

@@ -5553,12 +5553,16 @@ def email_change_confirm(data: EmailChangeConfirmInput, background_tasks: Backgr
     if not changed:
         return api_error(400, "invalid_token", _EMAILCHANGE_INVALID_MSG)
     uid = int(changed["id"])
+    by_admin = bool(changed.get("by_admin"))
+    if by_admin:   # task 8.3 — session_version bumped with the email: every older JWT → 401 now
+        _end_user_sessions(uid, changed.get("state"), "admin_email_change")
     _cache_del('profile:' + str(uid))
     _login_email_reset(changed["old_email"])
-    background_tasks.add_task(email_service.send_email, changed["old_email"], "email_changed",
+    background_tasks.add_task(email_service.send_email, changed["old_email"],
+                              "email_changed_admin" if by_admin else "email_changed",
                               {"name": changed["full_name"]})
-    print(f"[email-change] email changed user={uid}")
-    return api_ok({"changed": True})
+    print(f"[email-change] email changed user={uid}" + (" by admin — sessions ended" if by_admin else ""))
+    return api_ok({"changed": True, "signed_out": by_admin})
 
 # Display-name length cap — same 100-char limit as the other name input (/profession-suggestions).
 _FULL_NAME_MAX = 100
@@ -8034,8 +8038,9 @@ def admin_reset_password(user_id: int, request: Request, data: dict = Body(...))
         raise _server_error("admin_reset_password", e)
 
 # ── Admin email change (task 8.3 · SYSTEMS_INDEX §1c) — the same token / page / confirm as 5.1b:
-# the admin only REQUESTS; the link goes to the new address and users.email changes only when it
-# is opened (POST /auth/email-change/confirm → old address notified). No address in audit / log.
+# the admin only REQUESTS (purpose email_change_admin); the link goes to the new address and users.email
+# changes only when it is opened (POST /auth/email-change/confirm → every session of the user ends +
+# email_changed_admin to the old address). No address in audit / log.
 _ADMIN_EMAILCHANGE_LIMIT, _ADMIN_EMAILCHANGE_WINDOW = 5, 3600.0
 
 @app.put("/admin/user/{user_id}/email")
@@ -8063,7 +8068,7 @@ def admin_email_change(user_id: int, request: Request, data: dict = Body(...)):
     if not _rate_hit(f"admin-email-change:{user_id}", _ADMIN_EMAILCHANGE_LIMIT, _ADMIN_EMAILCHANGE_WINDOW):
         return api_error(429, "rate_limited", "طلبات كثيرة، حاول مرة أخرى لاحقاً")
     try:
-        link_token = email_change_request(user_id, new_email)   # newest only — an older link dies
+        link_token = email_change_request(user_id, new_email, by_admin=True)   # newest only — any older link dies
     except EmailTakenError:
         return api_error(422, "email_taken", _EMAILCHANGE_TAKEN_MSG, "new_email")
     except Exception as e:

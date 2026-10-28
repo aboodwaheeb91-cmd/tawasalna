@@ -3,6 +3,9 @@
 PUT /admin/user/{id}/email {new_email} → the same email_change token (auth.email_change_request) +
 the same email_change template to the NEW address; users.email changes only when the link is opened
 (POST /auth/email-change/confirm). Perm users.email (owner "*" passes). Audit target = user_id=N, no address.
+Product decision (8.3): the admin's link has its own purpose email_change_admin — confirming it also ends
+every session of the user (session_version + 1) and the old address gets email_changed_admin.
+A user's own change (5.1b) keeps the sessions. One live email change link per account (either purpose).
 
 Real PostgreSQL (tables created here; Resend faked at the HTTP layer):
   TW_TEST_DB_URL=postgresql://user:pass@127.0.0.1:5432/db  (run_tests.sh sets it)
@@ -94,6 +97,24 @@ def _email(uid):
     return _sql("SELECT email FROM users WHERE id = :u", u=uid)[0][0]
 
 
+def _sv(uid):
+    return _sql("SELECT session_version FROM users WHERE id = :u", u=uid)[0][0]
+
+
+def _login(email):
+    r = client.post("/auth/login", json={"email": email, "password": PW})
+    assert r.status_code == 200, r.text
+    return r.json()["token"]
+
+
+def _verify(jwt):
+    return client.post("/auth/verify-token", headers={"Authorization": "Bearer " + jwt}).status_code
+
+
+def _sent_templates():
+    return [r[0] for r in _sql("SELECT template_key FROM email_send_log WHERE status = 'sent' ORDER BY id")]
+
+
 def _put(uid, new_email, headers=None):
     return client.put(f"/admin/user/{uid}/email", json={"new_email": new_email},
                       headers=headers if headers is not None else {"X-Admin-Token": server._admin_jwt_issue()})
@@ -112,7 +133,7 @@ def _err(r):
 def test_no_admin_token_401_staff_without_perm_403_with_perm_passes(env):
     a = _uid(A)
     assert _put(a, NEW, headers={}).status_code == 401
-    user_jwt = client.post("/auth/login", json={"email": A, "password": PW}).json()["token"]
+    user_jwt = _login(A)
     assert _put(a, NEW, headers={"X-Admin-Token": user_jwt}).status_code == 401
     staff = {"X-Admin-Token": server._admin_jwt_issue(sub="staff:1", perms=["users.suspend"])}
     assert _put(a, NEW, headers=staff).status_code == 403
@@ -160,12 +181,69 @@ def test_request_sends_link_to_new_address_and_changes_nothing_until_confirm(env
     assert r.status_code == 200 and r.json() == {"ok": True, "data": {"sent": True}}
     assert _email(a) == A                                     # not changed by the admin request
     rows = _sql("SELECT user_id, purpose, payload FROM password_reset_tokens")
-    assert [tuple(x) for x in rows] == [(a, "email_change", NEW)]
+    assert [tuple(x) for x in rows] == [(a, "email_change_admin", NEW)]
     assert len(env.calls) == 1 and env.calls[0]["to"] == [NEW]
-    r = client.post("/auth/email-change/confirm", json={"token": _token(env.calls[0])})
-    assert r.status_code == 200 and r.json()["data"]["changed"] is True
-    assert _email(a) == NEW
-    assert env.calls[-1]["to"] == [A]                         # «email changed» notice to the old address
+    assert _sent_templates() == ["email_change"]               # the same link email as 5.1b
+
+
+# ── confirm: an admin's link ends every session · a user's own does not ─────────
+def test_confirm_admin_link_changes_email_and_ends_every_session(env):
+    a = _uid(A)
+    old_jwt = _login(A)
+    sv0 = _sv(a)
+    assert _put(a, NEW).status_code == 200
+    assert _verify(old_jwt) == 200                            # the request alone changes nothing
+    r = client.post("/auth/email-change/confirm", json={"token": _token(env.calls[-1])})
+    assert r.status_code == 200 and r.json()["data"] == {"changed": True, "signed_out": True}
+    assert _email(a) == NEW and _sv(a) == sv0 + 1
+    assert _verify(old_jwt) == 401                            # older JWT refused at once
+    assert env.calls[-1]["to"] == [A]
+    assert _sent_templates()[-1] == "email_changed_admin"     # «changed by the team + signed out» to the old address
+    assert client.post("/auth/login", json={"email": NEW, "password": PW}).status_code == 200
+
+
+def test_confirm_user_link_keeps_sessions(env):
+    a = _uid(A)
+    jwt = _login(A)
+    sv0 = _sv(a)
+    r = client.post("/auth/email-change/request", headers={"Authorization": "Bearer " + jwt},
+                    json={"new_email": NEW, "current_password": PW})
+    assert r.status_code == 200, r.text
+    r = client.post("/auth/email-change/confirm", json={"token": _token(env.calls[-1])})
+    assert r.status_code == 200 and r.json()["data"] == {"changed": True, "signed_out": False}
+    assert _email(a) == NEW and _sv(a) == sv0 and _verify(jwt) == 200
+    assert _sent_templates()[-1] == "email_changed"
+
+
+def test_one_live_link_user_and_admin_cancel_each_other(env):
+    a = _uid(A)
+    jwt = _login(A)
+    assert _put(a, "admin83@example.com").status_code == 200
+    admin_tok = _token(env.calls[-1])
+    r = client.post("/auth/email-change/request", headers={"Authorization": "Bearer " + jwt},
+                    json={"new_email": "self83@example.com", "current_password": PW})
+    assert r.status_code == 200, r.text
+    user_tok = _token(env.calls[-1])
+    assert client.post("/auth/email-change/confirm", json={"token": admin_tok}).status_code == 400
+    assert _email(a) == A
+    assert _put(a, "admin2.83@example.com").status_code == 200   # and the other way round
+    admin2 = _token(env.calls[-1])
+    assert client.post("/auth/email-change/confirm", json={"token": user_tok}).status_code == 400
+    assert _email(a) == A
+    assert [tuple(x) for x in _sql("SELECT purpose, payload FROM password_reset_tokens")] \
+        == [("email_change_admin", "admin2.83@example.com")]
+    assert client.post("/auth/email-change/confirm", json={"token": admin2}).status_code == 200
+    assert _email(a) == "admin2.83@example.com"
+
+
+def test_password_change_kills_the_admin_link(env):
+    a = _uid(A)
+    assert _put(a, NEW).status_code == 200
+    tok = _token(env.calls[-1])
+    assert auth.set_user_password(a, "another-secret-2")
+    r = client.post("/auth/email-change/confirm", json={"token": tok})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_token"
+    assert _email(a) == A
 
 
 def test_new_request_kills_the_old_link(env):

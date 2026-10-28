@@ -1112,7 +1112,10 @@ def _migrate_session_version():
 # Table password_reset_tokens (name kept — F14) + purpose / payload columns since 5.1b.
 PASSWORD_RESET_TTL_MINUTES = 30
 EMAIL_TOKEN_TTL_MINUTES = PASSWORD_RESET_TTL_MINUTES
-_EMAIL_TOKEN_PURPOSES = ("password_reset", "email_change")
+_EMAIL_TOKEN_PURPOSES = ("password_reset", "email_change", "email_change_admin")
+# Purposes that share one live link per user (task 8.3): issuing either deletes the other too —
+# a user's own request cancels the admin's pending link and vice versa.
+_EMAIL_CHANGE_PURPOSES = ("email_change", "email_change_admin")
 _RESET_HASH_PREFIX = "v1$"
 
 
@@ -1146,18 +1149,19 @@ def _migrate_password_reset_tokens():
 
 
 def email_token_issue(purpose: str, user_id: int, payload: str = None) -> str:
-    """New token for (user, purpose); older tokens of this user for this purpose (and any
-    expired token) are deleted in the same statement. Returns the plain token — for the
-    email link only, never stored/logged."""
+    """New token for (user, purpose); older tokens of this user for this purpose — for an email
+    change purpose: both email change purposes (8.3) — and any expired token are deleted in the
+    same statement. Returns the plain token — for the email link only, never stored/logged."""
     import secrets
     token = secrets.token_urlsafe(32)
+    p1, p2 = _EMAIL_CHANGE_PURPOSES if purpose in _EMAIL_CHANGE_PURPOSES else (purpose, purpose)
     with db_conn() as conn:
         conn.run(
             "WITH old AS (DELETE FROM password_reset_tokens "
-            "WHERE (user_id = :uid AND purpose = :p) OR expires_at < NOW()) "
+            "WHERE (user_id = :uid AND purpose IN (:p1, :p2)) OR expires_at < NOW()) "
             "INSERT INTO password_reset_tokens (user_id, purpose, payload, token_hash, expires_at) "
             f"VALUES (:uid, :p, :pl, :h, NOW() + INTERVAL '{EMAIL_TOKEN_TTL_MINUTES} minutes')",
-            uid=user_id, p=purpose, pl=payload, h=_email_token_hash(purpose, token))
+            uid=user_id, p=purpose, p1=p1, p2=p2, pl=payload, h=_email_token_hash(purpose, token))
     return token
 
 
@@ -1208,33 +1212,50 @@ def password_reset_consume(token: str) -> Optional[dict]:
 # users.email changes only when the link mailed to the NEW address is opened (token payload =
 # the new address). "Taken" is checked at request time and again by the UNIQUE index at apply
 # time (race) — both surface as EmailTakenError, never by reading error text.
-def email_change_request(user_id: int, new_email: str) -> str:
-    """Raises EmailTakenError when another account has new_email; else → plain token."""
+def email_change_request(user_id: int, new_email: str, by_admin: bool = False) -> str:
+    """Raises EmailTakenError when another account has new_email; else → plain token.
+    by_admin (task 8.3) → purpose email_change_admin: confirming it also ends every session."""
     new_email = (new_email or "").strip().lower()
     with db_conn() as conn:
         rows = conn.run("SELECT 1 FROM users WHERE email = :e AND id <> :uid LIMIT 1",
                         e=new_email, uid=user_id)
     if rows:
         raise EmailTakenError("البريد الإلكتروني مستخدم لحساب آخر")
-    return email_token_issue("email_change", user_id, new_email)
+    return email_token_issue("email_change_admin" if by_admin else "email_change", user_id, new_email)
 
 
 def email_change_apply(token: str) -> Optional[dict]:
     """Consume the token (single use) and set users.email = its payload.
-    → {id, full_name, old_email, new_email} · None = invalid / expired / used token.
+    A user's own link (email_change) keeps the sessions; an admin's link (email_change_admin,
+    task 8.3) also bumps session_version in the same statement → every older JWT dies.
+    → {id, full_name, old_email, new_email, by_admin, state} (state = get_session_state shape,
+    None for a user's link) · None = invalid / expired / used token.
     Raises EmailTakenError when the address was taken meanwhile (UNIQUE violation)."""
+    by_admin = False
     row = email_token_consume("email_change", token)
+    if not row:
+        row = email_token_consume("email_change_admin", token)
+        by_admin = bool(row)
     if not row or not row.get("payload"):
         return None
+    state = None
     try:
         with db_conn() as conn:
-            conn.run("UPDATE users SET email = :e WHERE id = :uid", e=row["payload"], uid=row["id"])
+            if by_admin:
+                r = conn.run("UPDATE users SET email = :e, session_version = session_version + 1 "
+                             "WHERE id = :uid RETURNING EXTRACT(EPOCH FROM password_changed_at), "
+                             "session_version, suspended_at IS NOT NULL", e=row["payload"], uid=row["id"])
+                if r:
+                    state = {"changed": int(r[0][0]) if r[0][0] is not None else None,
+                             "sv": int(r[0][1] or 0), "suspended": bool(r[0][2])}
+            else:
+                conn.run("UPDATE users SET email = :e WHERE id = :uid", e=row["payload"], uid=row["id"])
     except Exception as e:
         if _is_email_taken_error(e):
             raise EmailTakenError("البريد الإلكتروني مستخدم لحساب آخر") from e
         raise
     return {"id": row["id"], "full_name": row["full_name"],
-            "old_email": row["email"], "new_email": row["payload"]}
+            "old_email": row["email"], "new_email": row["payload"], "by_admin": by_admin, "state": state}
 
 
 def get_user_by_id(user_id: int) -> Optional[dict]:

@@ -19,7 +19,7 @@ Result (never raises): {"ok": True, "code": "sent", "id": <provider id>} or
 Logs carry the template + reason only — never the key, the recipient or the body.
 
 Categories (task 5.1c · docs/rules/email.md → Notification Emails):
-  security       password_reset · password_changed · email_change · email_changed · kyc_email_otp ·
+  security       password_reset · password_changed · email_change · email_changed · email_changed_admin · kyc_email_otp ·
                  support_guest_otp (7.1) · support_guest_link (7.2a) ·
                  support_guest_reply · support_reply (7.2b) ·
                  admin_test — never touched by the caps or the user's preferences.
@@ -65,6 +65,8 @@ TEMPLATES = {
     "email_change":     {"category": SECURITY, "vars": ("name", "link", "minutes"),
                          "parts": ("subject", "body", "button", "note")},
     "email_changed":    {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
+    # task 8.3 — changed by the admin (link confirmed): done by the team + every device signed out
+    "email_changed_admin": {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
     "kyc_email_otp":    {"category": SECURITY, "vars": ("name", "code", "minutes"),
                          "parts": ("subject", "body", "note")},
     # Guest support code (task 7.1) — a visitor with a login problem proves the address before a ticket opens.
@@ -111,7 +113,7 @@ PREF_TYPES = tuple(dict.fromkeys(PREF_GROUPS.get(k, k) for k in NOTIFY_TYPES))
 # Inbound support mail (task 7.3) — a switch in types, not a template; starts OFF.
 INBOUND_SWITCH = "support_inbound"
 OFF_BY_DEFAULT = (INBOUND_SWITCH,)
-TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "kyc_email_otp",
+TYPES = ("password_reset", "password_changed", "email_change", "email_changed", "email_changed_admin", "kyc_email_otp",
          "support_guest_otp", "support_guest_link", "support_guest_reply", "support_reply") + NOTIFY_TYPES \
     + OFF_BY_DEFAULT
 TYPE_DEFAULTS = {k: k not in OFF_BY_DEFAULT for k in TYPES}
