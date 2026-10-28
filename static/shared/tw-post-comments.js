@@ -28,7 +28,6 @@
     return (o.postOwner && o.postOwner(postId)) || null;
   }
 
-  var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
   var _ICO_CLOCK   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
   // Comment collapse icons — static SVG only (no API data)
   var _ICO_CMT_EXPAND   = '<span class="pc-cmt-ellipsis" aria-hidden="true">…</span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>';
@@ -526,12 +525,7 @@
     var current = parseInt(btn.dataset.cmtCount, 10) || 0;
     var next = Math.max(0, current + delta);
     btn.dataset.cmtCount = next;
-    btn.innerHTML = '';
-    var tmp = document.createElement('div');
-    tmp.innerHTML = _ICO_COMMENT;
-    btn.appendChild(tmp.firstChild);
-    var txt = document.createTextNode(next > 0 ? ('تعليق · ' + next) : 'تعليق');
-    btn.appendChild(txt);
+    btn.innerHTML = window.TwPostCard.commentButtonInner(next);   // same icon + label as the card (task 8.6c)
   }
 
   // Returns candidate names sorted longest-first (for greedy compound-name matching).

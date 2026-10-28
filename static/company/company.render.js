@@ -592,11 +592,15 @@
   // Card markup = TwPostCard (static/shared/tw-post-card.js — task U.2); page supplies author (+ type) + owner flag.
   function _postCardHtml(post) {
     var prof = window.companyState && companyState.profile;
+    var snap = window.TwAuthSync && TwAuthSync.getSessionSnapshot();   // session id — never tw_user
     return TwPostCard.html(post, {
       authorName: prof ? (prof.full_name || 'الشركة') : 'الشركة',
       avatarUrl:  prof ? prof.avatar_url : '',
       authorType: 'co',
-      canEdit:    !!(window.companyState && companyState.permissions && companyState.permissions.can_edit)
+      canEdit:    !!(window.companyState && companyState.permissions && companyState.permissions.can_edit),
+      authorId:   prof ? prof.id : null,   // ⋯ report / block the company (task 8.6c)
+      viewerId:   snap && snap.isAuthenticated ? snap.userId : null,
+      authorTwId: prof ? prof.tw_id : ''
     });
   }
 

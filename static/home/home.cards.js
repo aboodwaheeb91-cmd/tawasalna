@@ -67,13 +67,17 @@
     },
 
     renderPostCard: function (item) {
+      var snap = window.TwAuthSync && TwAuthSync.getSessionSnapshot();   // session id — never tw_user
       var box = document.createElement('div');
       box.innerHTML = TwPostCard.html(item, {
         authorName: item.author_name || '',
         avatarUrl:  item.author_avatar || '',
         authorType: item.author_type || 'co',
         authorHref: item.author_tw_id ? twAccountHref({ tw_id: item.author_tw_id }) : '',
-        canEdit:    false   // no edit / delete from the feed
+        canEdit:    false,  // no edit / delete from the feed
+        authorId:   item.author_id,   // ⋯ report / block (task 8.6c) — not on the viewer's own post
+        viewerId:   snap && snap.isAuthenticated ? snap.userId : null,
+        authorTwId: item.author_tw_id || ''
       });
       return box.firstElementChild;
     },
