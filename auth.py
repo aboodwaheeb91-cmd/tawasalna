@@ -1403,6 +1403,8 @@ NOTIFICATION_EMAIL_TEMPLATES = {
     "application_hired":       "notify_application_hired",       # 5.1d — final result only
     "application_rejected":    "notify_application_rejected",
     "admin_message":           "admin_message",                   # 5.3b2 — message from the admin
+    "kyc_approved":            "notify_kyc_approved",             # 8.1 — KYC review result (no reason)
+    "kyc_rejected":            "notify_kyc_rejected",
 }
 _EMAIL_POOL = None
 
@@ -4366,6 +4368,12 @@ def _migrate_kyc_otp_security():
     finally:
         release_conn(conn)
 
+def _migrate_kyc_reject_reason():
+    """Task 8.1 — idempotent: kyc_submissions.reject_reason (the reason the user sees after a
+    rejection; NULL otherwise). admin_note stays internal (never returned to the user)."""
+    with db_conn() as conn:
+        conn.run("ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS reject_reason TEXT")
+
 def start_kyc(user_id: int) -> dict:
     """Start or get KYC submission"""
     conn = get_conn()
@@ -4452,7 +4460,7 @@ def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
     with db_conn() as conn:
         rows = conn.run(
             "UPDATE kyc_submissions SET id_front_url=:id_url, selfie_url=:selfie, step='review', "
-            "status='pending', submitted_at=NOW() "
+            "status='pending', submitted_at=NOW(), reject_reason=NULL "
             "WHERE user_id=:uid AND step = ANY(:steps) "
             "AND COALESCE(email_verified, FALSE) AND COALESCE(phone_verified, FALSE) RETURNING id",
             id_url=id_url, selfie=selfie_url, uid=user_id, steps=list(_KYC_DOCS_STEPS))
@@ -4461,21 +4469,27 @@ def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
         return {"status": "submitted", "step": "review"}
 
 def get_kyc_status(user_id: int) -> dict:
-    """Get current KYC status — explicit field allowlist, never returns OTP or document columns."""
+    """Get current KYC status — explicit field allowlist, never returns OTP or document columns,
+    never admin_note. reject_reason (task 8.1) only while status = rejected."""
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT ks.step, ks.status, ks.email_verified, ks.phone_verified, "
-            "ks.submitted_at, ks.reviewed_at, COALESCE(p.is_verified, FALSE) AS is_verified "
+            "ks.submitted_at, ks.reviewed_at, COALESCE(p.is_verified, FALSE) AS is_verified, "
+            "ks.reject_reason "
             "FROM kyc_submissions ks LEFT JOIN profiles p ON p.user_id=ks.user_id WHERE ks.user_id=:uid",
             uid=user_id
         )
         if not rows:
             return {"step": "none", "status": "not_started"}
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        out = _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
+    reason = out.pop("reject_reason", None)
+    if out.get("status") == "rejected" and reason:
+        out["reject_reason"] = reason
+    return out
 
 def set_user_verified(user_id: int, verified: bool, conn) -> None:
     """The ONLY writer of the public «موثّق» badge — profiles.is_verified (task 5.0c).
@@ -4489,16 +4503,20 @@ def set_user_verified(user_id: int, verified: bool, conn) -> None:
         uid=user_id, v=bool(verified))
 
 
-def _kyc_review(user_id: int, approve: bool, note: str) -> dict:
+def _kyc_review(user_id: int, approve: bool, note: str, reason: str = None) -> dict:
     """Approve / reject one KYC submission that is in review (step review + status pending).
-    No submission, or not in review → KycStateError (409). Badge written in the same transaction."""
+    No submission, or not in review → KycStateError (409). Badge + reject_reason (reject: the
+    reason · approve: NULL) written in the same transaction. The user is notified after the
+    COMMIT (task 8.1 — notify_kyc_result, never raises)."""
     with db_conn() as conn:
         conn.run("BEGIN")
         try:
             rows = conn.run(
-                "UPDATE kyc_submissions SET status=:st, step=:st, admin_note=:note, reviewed_at=NOW() "
+                "UPDATE kyc_submissions SET status=:st, step=:st, admin_note=:note, reject_reason=:reason, "
+                "reviewed_at=NOW() "
                 "WHERE user_id=:uid AND step='review' AND status='pending' RETURNING id",
-                st="approved" if approve else "rejected", note=note or "", uid=user_id)
+                st="approved" if approve else "rejected", note=note or "",
+                reason=None if approve else (reason or None), uid=user_id)
             if not rows:
                 conn.run("ROLLBACK")
                 raise KycStateError("لا يوجد طلب توثيق بانتظار المراجعة لهذا الحساب")
@@ -4509,17 +4527,50 @@ def _kyc_review(user_id: int, approve: bool, note: str) -> dict:
         except Exception:
             conn.run("ROLLBACK")
             raise
+    notify_kyc_result(user_id, int(rows[0][0]), approve)
     return {"success": True}
 
 
 def admin_approve_kyc(user_id: int, note: str = "") -> dict:
-    """Admin approves KYC → step/status approved + the public badge (task 5.0c)."""
+    """Admin approves KYC → step/status approved + the public badge (task 5.0c) · reject_reason cleared (8.1)."""
     return _kyc_review(user_id, True, note)
 
 
-def admin_reject_kyc(user_id: int, note: str = "") -> dict:
-    """Admin rejects KYC → step/status rejected + the badge removed (task 5.0c)."""
-    return _kyc_review(user_id, False, note)
+def admin_reject_kyc(user_id: int, reason: str, note: str = "") -> dict:
+    """Admin rejects KYC → step/status rejected + the badge removed (task 5.0c) + reject_reason
+    for the user (task 8.1 — required, checked by the route). note = internal only."""
+    return _kyc_review(user_id, False, note, reason)
+
+
+# Task 8.1 — KYC review result → the user: in-site notification + notification email (5.1c gate).
+# The reason is shown only on /settings (get_kyc_status) — never in the notification or the email.
+KYC_RESULT_TYPES = {True: "kyc_approved", False: "kyc_rejected"}
+
+
+def notify_kyc_result(user_id: int, submission_id: int, approved: bool) -> bool:
+    """After the COMMIT of _kyc_review. One notification per review (event_key = the submission +
+    the review time, so a later review of a re-submission notifies again). Never raises → True
+    when a notification was created."""
+    type_ = KYC_RESULT_TYPES[bool(approved)]
+    try:
+        with db_conn() as conn:
+            rows = conn.run("SELECT reviewed_at FROM kyc_submissions WHERE id = :id", id=int(submission_id))
+        stamp = rows[0][0].isoformat() if rows and rows[0][0] else ""
+        state = "approved" if approved else "rejected"
+        created = create_notification(
+            user_id=int(user_id),
+            type_=type_,
+            title=_tw_text(f"notif.kyc.{state}.title", {}),
+            body=_tw_text(f"notif.kyc.{state}.body", {}),
+            link="/settings",
+            entity_id=int(submission_id),
+            entity_type="kyc_submission",
+            event_key=f"kyc_result:kyc_submission:{int(submission_id)}:{state}:{stamp}",
+        )
+        return created is not None
+    except Exception as e:
+        print(f"[NOTIF] kyc result not sent user={user_id} approved={bool(approved)}: {type(e).__name__}")
+        return False
 
 # PR-7c — explicit allowlist for GET /admin/kyc (never SELECT ks.*).
 # Never returned: email_code / phone_code (OTP — Tier 4), phone, document paths

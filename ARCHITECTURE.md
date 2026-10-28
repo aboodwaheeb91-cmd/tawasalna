@@ -4854,7 +4854,7 @@ CREATE TABLE kyc_submissions (
 | GET | `/admin/kyc` | Admin | قائمة كل الطلبات — allowlist صريح (`auth._ADMIN_KYC_LIST_COLUMNS`): `id, user_id, full_name, email, user_type, step, status, email_verified, phone_verified, admin_note, submitted_at, reviewed_at` — ممنوع `email_code` / `phone_code` / `id_front_url` / `selfie_url` / `ks.*` (PR-7c) |
 | GET | `/admin/kyc/{submission_id}/docs` | Admin | روابط مؤقتة (signed URL، 300s) للهوية والسيلفي — PR-7c → Image Upload Security Contract |
 | PUT | `/admin/kyc/{user_id}/approve` | Admin | موافقة + تفعيل الشارة |
-| PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب |
+| PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب — body `{reason, note?}`: `reason` للمستخدم إلزامي (≤ `kyc_reject_reason_max`، فاضي → 422 field `reason`) · `note` داخلي (task 8.1 — SYSTEMS_INDEX §23) |
 
 ### Rules
 
@@ -6410,7 +6410,7 @@ All rows below call `check_admin(request)` (`X-Admin-Token` header = admin sessi
 | GET | `/admin/kyc/{submission_id}/docs` | `admin_kyc_docs` | Short-lived Supabase signed URLs for the submission's ID + selfie (PR-7c); `Cache-Control: no-store` |
 | POST | `/admin/maintenance/migrate-data-images?dry_run=1` | `admin_migrate_data_images` | Move legacy `data:` images to Storage (PR-7c); `dry_run=1` default = count only |
 | PUT | `/admin/kyc/{user_id}/approve` | `admin_kyc_approve` | Approve KYC |
-| PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC |
+| PUT | `/admin/kyc/{user_id}/reject` | `admin_kyc_reject` | Reject KYC — body `{reason (required, shown to the user), note? (internal)}` → `reject_reason` + notification after commit (task 8.1) |
 | GET | `/admin/jobs` | `admin_list_jobs` | Every job in every state — `?q=&status=active\|paused\|closed\|expired\|archived&page=&limit≤100` → `{ok, data:{items, total, page, limit, counts}}` (task 5.3j · SYSTEMS_INDEX §25e) |
 | GET | `/admin/jobs/{job_id}` | `admin_job_detail` | One job: every field + `admin_status` + `effective_status` + accepted professions + applicants (read only) + `durations` → `{ok, data}` · 404 (task 5.3j phase 4) |
 | PUT | `/admin/jobs/{job_id}` | `admin_update_job_endpoint` | Admin edit — `JobInput` fields + `reason` (required) · same field rules as publishing (`_job_columns_from_input`) · company notice with the reason + one `job_updated` notice per applicant still in review (`applicant_visible_status` = `in_review`; hired / rejected skipped — 5.3j7) (no reason) → `{ok, data:{changed, notified, applicants_notified}}` · 404 · 409 no change · 422 |

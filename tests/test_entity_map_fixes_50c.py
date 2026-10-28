@@ -73,6 +73,7 @@ def env(monkeypatch):
     auth._migrate_session_version()
     auth._migrate_password_reset_tokens()
     auth._migrate_kyc_otp_security()
+    auth._migrate_kyc_reject_reason()
     auth._migrate_email_notify()
     admin_insights.migrate_admin_audit_log()
     auth._migrate_reports_targets()
@@ -174,7 +175,7 @@ def test_kyc_approve_or_reject_without_submission_is_409():
     uid = _user("emp1")
     h = _admin()
     assert client.put(f"/admin/kyc/{uid}/approve", headers=h, json={"note": ""}).status_code == 409
-    assert client.put(f"/admin/kyc/{uid}/reject", headers=h, json={"note": ""}).status_code == 409
+    assert client.put(f"/admin/kyc/{uid}/reject", headers=h, json={"reason": "صورة غير واضحة"}).status_code == 409
     assert _badge(uid) is False
 
 
@@ -182,7 +183,7 @@ def test_kyc_reject_removes_the_badge():
     uid = _user("emp1")
     _sql("INSERT INTO profiles (user_id, is_verified) VALUES (:u, TRUE)", u=uid)
     _kyc_in_review(uid)
-    assert client.put(f"/admin/kyc/{uid}/reject", headers=_admin(), json={"note": ""}).status_code == 200
+    assert client.put(f"/admin/kyc/{uid}/reject", headers=_admin(), json={"reason": "صورة غير واضحة"}).status_code == 200
     assert _badge(uid) is False
 
 

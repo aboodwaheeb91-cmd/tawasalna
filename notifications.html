@@ -428,7 +428,7 @@ body {
     job:     ['job', 'job_applied', 'application_hired', 'application_rejected', 'job_admin', 'job_updated'],
     comment: ['comment', 'reply', 'mention'],
     follow:  ['follow'],
-    verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected'],
+    verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected', 'kyc_approved', 'kyc_rejected'],
     admin:   ['admin_message', 'support_reply']   /* 5.3b2 · 7.2b */
   };
 
@@ -444,6 +444,8 @@ body {
     follow:      { icon: 'user-plus',    tone: 'pink',   filter: 'follow' },
     verify:      { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
     kyc:         { icon: 'shield-check', tone: 'brand',  filter: 'verify' },
+    kyc_approved: { icon: 'shield-check', tone: 'brand', filter: 'verify' },   /* 8.1 — KYC review result → /settings */
+    kyc_rejected: { icon: 'shield-check', tone: '',      filter: 'verify' },
     admin_message: { icon: 'mail',       tone: 'brand',  filter: 'admin' },   /* 5.3b2 */
     support_reply: { icon: 'headset',    tone: 'brand',  filter: 'admin' },   /* 7.2b — admin replied to your support ticket */
     job_admin:   { icon: 'briefcase',    tone: 'brand',  filter: 'job' },     /* 5.3j — admin hid / unhid / reactivated / extended a job */

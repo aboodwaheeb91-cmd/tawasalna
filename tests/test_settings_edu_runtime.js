@@ -416,6 +416,30 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     check('K6 admin override enabled:true → row shown with the button', !!on.$('kycRow') && on.$('kycRow').hidden === false && !!kycBtn(on));
   }
 
+  // ── N — rejected → the admin's reason above «إعادة المحاولة» (task 8.1) ──
+  console.log('\nN — KYC rejection reason');
+  async function openRejected(kyc) {
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE, 'GET /kyc/status/7': OK({ status: 'success', kyc }) } });
+    kycBtn(p).click();
+    await flush();
+    return lastModal(p).m.content;
+  }
+  {
+    const reason = '<img src=x onerror=alert(1)> الصورة غير واضحة';
+    const body = await openRejected({ step: 'rejected', status: 'rejected', reject_reason: reason });
+    const box = byClass(body, 'st-result')[0];
+    const text = byClass(body, 'st-kyc-reason-text')[0];
+    const retry = btnByKey(body, 'settings.kyc.retry');
+    check('N1 reason shown as plain text (textContent, no element from it)', !!text && text._text === reason
+          && body.find(e => e.tagName === 'IMG').length === 0);
+    const order = box ? box.children : [];
+    const iReason = order.indexOf(byClass(body, 'st-kyc-reason')[0]), iRetry = order.indexOf(retry);
+    check('N2 reason block sits above the retry button', iReason >= 0 && iRetry > iReason, { iReason, iRetry });
+    const none = await openRejected({ step: 'rejected', status: 'rejected' });
+    check('N3 no reason → no reason block, retry still there', byClass(none, 'st-kyc-reason').length === 0
+          && !!btnByKey(none, 'settings.kyc.retry'));
+  }
+
   // ── H — strings ──
   console.log('\nH — strings');
   {

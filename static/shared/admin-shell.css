@@ -142,3 +142,4 @@ body.tw-adm-body-page { background: var(--color-surface-page); color: var(--colo
   color: var(--color-text-secondary); font-weight: 700; }
 .tw-adm-form .tw-input { width: 100%; }
 .tw-adm-form textarea.tw-input { min-height: 96px; resize: vertical; }
+.tw-adm-form-group { display: flex; flex-direction: column; gap: var(--space-4); }   /* formDialog o.extra (task 8.1) */

@@ -404,8 +404,10 @@
 
   // ── dialog that collects one value (task 5.3j — was admin-view's own) — the send button calls
   //    onSend(value); it usually runs an action whose confirm stacks on top. false / a falsy promise
-  //    keeps the dialog open. kind: text | password | textarea | select (options = [[value, labelKey], …]) ──
-  function formDialog(o) {
+  //    keeps the dialog open. kind: text | password | textarea | select (options = [[value, labelKey], …]).
+  //    o.extra = {labelKey, kind?, hintKey?} — an optional second field (task 8.1 — KYC reject: reason
+  //    for the user + internal note) → onSend(value, extraValue) ──
+  function formField(o) {
     var form = document.createElement('label'), input;
     form.className = 'tw-adm-form';
     form.textContent = twT(o.labelKey);
@@ -427,11 +429,22 @@
       h.textContent = twT(o.hintKey, o.vars);
       form.appendChild(h);
     }
+    return { form: form, input: input };
+  }
+  function formDialog(o) {
+    var main = formField(o), extra = o.extra ? formField(o.extra) : null, content = main.form;
+    if (extra) {
+      content = document.createElement('div');
+      content.className = 'tw-adm-form-group';
+      content.appendChild(main.form);
+      content.appendChild(extra.form);
+    }
     return twModal({
-      title: twT(o.titleKey, o.vars), content: form,
+      title: twT(o.titleKey, o.vars), content: content,
       actions: [
         { text: twT('common.cancel'), variant: 'secondary' },
-        { text: twT(o.sendKey), variant: o.danger ? 'danger' : 'primary', onClick: function () { return o.onSend(input.value); } },
+        { text: twT(o.sendKey), variant: o.danger ? 'danger' : 'primary',
+          onClick: function () { return o.onSend(main.input.value, extra ? extra.input.value : undefined); } },
       ],
     });
   }

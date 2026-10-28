@@ -251,6 +251,14 @@
     box.appendChild(el('div', 'st-result-title', twT('settings.kyc.' + v + '.title')));
     box.appendChild(el('p', 'st-hint', twT('settings.kyc.' + v + '.hint')));
     if (v === 'rejected') {
+      // task 8.1 — the admin's reason (plain text via textContent — never HTML), above the retry button
+      var reason = kyc && typeof kyc.reject_reason === 'string' ? kyc.reject_reason.trim() : '';
+      if (reason) {
+        var rb = el('div', 'st-kyc-reason');
+        rb.appendChild(el('div', 'st-kyc-reason-label', twT('settings.kyc.rejected.reason')));
+        rb.appendChild(el('p', 'st-kyc-reason-text', reason));
+        box.appendChild(rb);
+      }
       var retry = btn('settings.kyc.retry');
       retry.addEventListener('click', function () { kycRestart(retry); });
       box.appendChild(retry);

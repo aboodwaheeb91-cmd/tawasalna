@@ -35,7 +35,8 @@
       done: 'admin.done.kyc_approved' },
     'kyc.reject': {
       confirm: { title: 'admin.kyc.reject.title', message: 'admin.kyc.reject.message', confirm: 'admin.kyc.reject.confirm', danger: true },
-      request: function (c) { return { url: '/admin/kyc/' + Number(c.id) + '/reject', method: 'PUT', body: { note: '' } }; },
+      // task 8.1 — reason (shown to the user on /settings) + internal note, collected by kycReject first
+      request: function (c) { return { url: '/admin/kyc/' + Number(c.id) + '/reject', method: 'PUT', body: { reason: c.reason, note: c.note || '' } }; },
       done: 'admin.done.kyc_rejected' },
     'report.resolve': {
       confirm: { title: 'admin.report.resolve.title', message: 'admin.report.resolve.message', confirm: 'admin.report.resolve.confirm' },
@@ -772,8 +773,27 @@
     return [twT('admin.kyc.status.other', { step: step || '—' }), ''];
   }
   function kycAct(name, uid) {
-    return run(name, { id: uid }).then(function (res) {
+    if (name === 'kyc.reject') return kycReject(uid);
+    return kycRun(name, { id: uid });
+  }
+  function kycRun(name, ctx) {
+    return run(name, ctx).then(function (res) {
       if (res && res.ok) { loadKYC(); TwAdminShell.refreshBadges(); }
+      return !!(res && res.ok);
+    });
+  }
+  // reject: a reason for the user (required) + an internal note, then run (its confirm on top) — task 8.1
+  function kycReject(uid) {
+    TwAdminShell.formDialog({
+      titleKey: 'admin.kyc.reject.title', labelKey: 'admin.kyc.reject.reason', kind: 'textarea',
+      hintKey: 'admin.kyc.reject.reason.hint', vars: { max: twFormatNumber(twLimit('kyc_reject_reason_max')) },
+      extra: { labelKey: 'admin.kyc.reject.note', kind: 'textarea', hintKey: 'admin.kyc.reject.note.hint' },
+      sendKey: 'admin.kyc.reject', danger: true,
+      onSend: function (reason, note) {
+        reason = String(reason || '').trim();
+        if (!reason) { showToast(twT('admin.kyc.reject.err.reason'), 'error'); return false; }
+        return kycRun('kyc.reject', { id: uid, reason: reason, note: String(note || '').trim() });
+      },
     });
   }
   function renderKYC() {

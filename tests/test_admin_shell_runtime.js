@@ -651,6 +651,29 @@ const tick = () => new Promise(r => setImmediate(r));
     check('I19 every literal text key exists', used.every(x => typeof S[x] === 'string'), used.filter(x => typeof S[x] !== 'string'));
   }
 
+  console.log('\nJ — KYC reject: reason for the user + internal note (task 8.1)');
+  {
+    const s = shell({ page: true, token: LIVE, confirmAnswer: true });
+    const got = [];
+    s.ctx.TwAdminShell.formDialog({ titleKey: 't', labelKey: 'a', kind: 'textarea', sendKey: 's', danger: true,
+      extra: { labelKey: 'b', kind: 'textarea' }, onSend: (v, x) => { got.push([v, x]); return true; } });
+    const m = s.rec.modals[s.rec.modals.length - 1];
+    const fields = m.opts.content.children.map(l => l.children[0]);
+    check('J1 extra → two fields in one dialog', fields.length === 2 && fields.every(f => f.tagName === 'textarea'));
+    fields[0].value = 'سبب'; fields[1].value = 'داخلي';
+    m.opts.actions[1].onClick();
+    check('J2 send → onSend(value, extraValue)', got.length === 1 && got[0][0] === 'سبب' && got[0][1] === 'داخلي');
+    const one = shell({ page: true, token: LIVE });
+    one.ctx.TwAdminShell.formDialog({ titleKey: 't', labelKey: 'a', sendKey: 's', onSend: (v, x) => got.push([v, x]) });
+    one.rec.modals[0].opts.actions[1].onClick();
+    check('J3 no extra → one field, extraValue undefined (old callers unchanged)',
+      one.rec.modals[0].opts.content.className === 'tw-adm-form' && got[1][1] === undefined);
+    const r = await s.ctx.TwAdminShell.run(s.ctx.TwAdminDash.ACTIONS['kyc.reject'], { id: 3, reason: 'سبب', note: 'داخلي' });
+    const req = s.rec.requests[s.rec.requests.length - 1];
+    check('J4 kyc.reject sends {reason, note} after the confirm', !!r && req[0] === '/admin/kyc/3/reject' && req[1] === 'PUT'
+      && JSON.stringify(JSON.parse(req[2])) === JSON.stringify({ reason: 'سبب', note: 'داخلي' }), req);
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })();

@@ -62,6 +62,7 @@ PY_PYTEST=(
   test_migration_classification_doc.py   # task 7.6 — §54f Classification line = _startup_migrations() (ast, no fastapi)
   test_add_job_transaction.py   # task 8.0 — add_job = one transaction (fake conn, no DB)
   test_application_withdraw_82a.py   # task 8.2a — withdraw + re-apply (fake conn, no DB)
+  test_kyc_result_notify_81.py       # task 8.1 — KYC result notification + rejection reason (fake conn, no DB)
 )
 
 # ── Python — run as a script (own checks + exit code) ──────────────────────
