@@ -146,6 +146,7 @@ const gate = py([
   '    import server as srv',
   '    from fastapi.testclient import TestClient',
   '    c = TestClient(srv.app)',
+  '    srv.admin_staff.owner_session_version = lambda: 1   # task 8.4b — owner sv lives in the DB (none here)',
   '    h = {"X-Admin-Token": srv._admin_jwt_issue(perms=["content.edit"])}',
   '    out = [c.get("/admin/actions").status_code, c.put("/admin/actions", json={}).status_code,',
   '           c.get("/admin/actions", headers=h).status_code, c.put("/admin/actions", json={}, headers=h).status_code]',

@@ -18,6 +18,14 @@
 .adm-field { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--size-font-xs); color: var(--color-text-secondary); font-weight: 700; }
 .adm-login-btn { width: 100%; justify-content: center; }
 .adm-login-err { min-height: 1em; text-align: center; font-size: var(--size-font-xs); color: var(--color-status-danger); }
+.adm-login-hint { font-size: var(--size-font-xs); color: var(--color-text-secondary); line-height: 1.8; text-align: center; }
+.adm-login-link { align-self: center; }
+.adm-login-key { direction: ltr; text-align: center; font-family: monospace; font-size: var(--size-font-md); letter-spacing: .08em;
+  word-spacing: .4em; padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface-raised); user-select: all; }
+.adm-login-codes { direction: ltr; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-6); padding: var(--space-4);
+  margin: 0; list-style: none; font-family: monospace; font-size: var(--size-font-sm); border-radius: var(--radius-md); background: var(--color-surface-raised); }
+.adm-login-check { display: flex; align-items: center; gap: var(--space-3); font-size: var(--size-font-xs); color: var(--color-text-secondary); }
+#admin-code { direction: ltr; text-align: center; letter-spacing: .2em; }
 .adm-logo-prev { height: 56px; border-radius: var(--radius-md); border: 1px dashed var(--color-border-strong); background: var(--color-surface-raised);
   display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--color-text-muted); cursor: pointer; width: 100%; }
 .adm-logo-prev img { max-height: 48px; max-width: 100%; object-fit: contain; }
@@ -107,13 +115,44 @@
   <form class="adm-login-box" id="loginForm" novalidate>
     <img class="adm-login-logo" src="/static/33333.svg" alt="" width="120" height="36">
     <h1 class="adm-login-sub" data-tw-t="admin.shell.title"></h1>
-    <label class="adm-field"><span data-tw-t="admin.login.user"></span>
-      <input class="tw-input" id="admin-user" type="text" autocomplete="off" data-tw-t-placeholder="admin.login.user_ph"></label>
+    <label class="adm-field"><span data-tw-t="admin.login.email"></span>
+      <input class="tw-input" id="admin-user" type="email" dir="ltr" autocomplete="username" data-tw-t-placeholder="admin.login.email_ph"></label>
     <label class="adm-field"><span data-tw-t="admin.login.password"></span>
       <input class="tw-input" id="admin-pass" type="password" autocomplete="current-password"></label>
     <button type="submit" class="tw-act tw-act-primary adm-login-btn" id="loginBtn" data-tw-t="admin.login.submit"></button>
     <p class="adm-login-err" id="loginErr" role="alert"></p>
   </form>
+  <!-- task 8.4b — step 2 (authenticator / recovery code) · first-time binding (owner) · recovery codes shown once.
+       The ticket, the key and the codes live in page memory only — never storage, never the URL. -->
+  <form class="adm-login-box" id="codeForm" novalidate hidden>
+    <h1 class="adm-login-sub" data-tw-t="admin.login.code_title"></h1>
+    <p class="adm-login-hint" id="codeHint"></p>
+    <input class="tw-input" id="admin-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="32">
+    <button type="submit" class="tw-act tw-act-primary adm-login-btn" id="codeBtn" data-tw-t="admin.login.verify"></button>
+    <button type="button" class="tw-act tw-act-ghost adm-login-link" id="codeMode"></button>
+    <button type="button" class="tw-act tw-act-ghost adm-login-link" data-adm-login-back data-tw-t="admin.login.back"></button>
+    <p class="adm-login-err" id="codeErr" role="alert"></p>
+  </form>
+  <form class="adm-login-box" id="enrollForm" novalidate hidden>
+    <h1 class="adm-login-sub" data-tw-t="admin.login.enroll_title"></h1>
+    <p class="adm-login-hint" data-tw-t="admin.login.enroll_hint"></p>
+    <a class="tw-act tw-act-secondary adm-login-btn" id="enrollOpen" data-tw-t="admin.login.enroll_open"></a>
+    <p class="adm-login-hint" data-tw-t="admin.login.enroll_manual"></p>
+    <p class="adm-login-key" id="enrollKey"></p>
+    <label class="adm-field"><span data-tw-t="admin.login.enroll_code"></span>
+      <input class="tw-input" id="enroll-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr"></label>
+    <button type="submit" class="tw-act tw-act-primary adm-login-btn" id="enrollBtn" data-tw-t="admin.login.verify"></button>
+    <button type="button" class="tw-act tw-act-ghost adm-login-link" data-adm-login-back data-tw-t="admin.login.back"></button>
+    <p class="adm-login-err" id="enrollErr" role="alert"></p>
+  </form>
+  <div class="adm-login-box" id="codesBox" hidden>
+    <h1 class="adm-login-sub" data-tw-t="admin.login.codes_title"></h1>
+    <p class="adm-login-hint" data-tw-t="admin.login.codes_hint"></p>
+    <ol class="adm-login-codes" id="codesList"></ol>
+    <button type="button" class="tw-act tw-act-secondary adm-login-btn" id="codesCopy" data-tw-t="admin.login.codes_copy"></button>
+    <label class="adm-login-check"><input type="checkbox" id="codesSaved"><span data-tw-t="admin.login.codes_saved"></span></label>
+    <button type="button" class="tw-act tw-act-primary adm-login-btn" id="codesDone" data-tw-t="admin.login.codes_done" disabled></button>
+  </div>
 </div>
 
 <main class="tw-adm-main" id="main-content" hidden>

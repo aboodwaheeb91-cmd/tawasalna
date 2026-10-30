@@ -28,6 +28,7 @@ from fastapi.testclient import TestClient
 import admin_insights
 import auth
 import email_service
+import admin_staff
 import server
 
 client = TestClient(server.app)
@@ -77,6 +78,7 @@ def env(monkeypatch):
     auth._migrate_password_reset_tokens()
     auth._migrate_email_notify()
     admin_insights.migrate_admin_audit_log()
+    admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     f = FakeResend()
     monkeypatch.setattr(email_service.urllib.request, "urlopen", f)
     monkeypatch.setenv("RESEND_API_KEY", "re_TEST_KEY_83")

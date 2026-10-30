@@ -1,4 +1,4 @@
-# Admin Staff Permissions (task 8.4a)
+# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس مسار أدمن (`/admin/*` · مسار اللوحة `/tw-ctrl-…` · `/admin-view` · `/admin-job`).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25h · جلسة الأدمن: §25 · الـ shell: `docs/rules/admin-shell.md`.
@@ -14,7 +14,42 @@
 4. **الإيميل مخفي افتراضياً:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم — `_admin_emails(claims, data)` بـ `server.py` (بيشيل كل مفتاح `email` / `guest_email` بأي عمق عبر `admin_perms.strip_emails`) على: قائمة المستخدمين (+ البحث الموحّد لأنه نفس الـ endpoint) · البروفايل (قراءة + رد التعديل) · التوثيق · الدعم (القائمة + التذكرة). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل → لازم يمرق على `_admin_emails`.
 
 - ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل بدون `_admin_emails` · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
+## Admin Login + Staff Accounts Rules (task 8.4b — mandatory for all AI sessions)
+
+5. **ما في توكن أدمن بدون الخطوتين:** `<panel>/login` نفس المسار بخطوتين. (أ) `{password}` = المالك (`ADMIN_TOKEN`) · `{email, password}` = موظف → `{step: "mfa", ticket}` — **مش** توكن. الـ ticket موقّع بـ `ADMIN_JWT_SECRET` بـ aud خاص (`tw-admin-mfa`، `typ: mfa_ticket`)، 5 دقايق، مربوط بالـ subject + `session_version` — `check_admin` ما بيقبله. (ب) `{ticket, code}` (رمز تطبيق المصادقة أو رمز استرداد) → `{token}`؛ بعد رمز استرداد الرد فيه `recovery_remaining`. (ج) المالك بدون تطبيق مربوط → الخطوة (أ) بترجّع `{step: "enroll", ticket, secret, otpauth_uri}` (السر بينحفظ مشفّر كـ «معلّق»)، وأول رمز صحيح بيربطه → `{token, recovery_codes}` (10 رموز — مرة وحدة).
+6. **نفس الـ 401 لكل فشل:** إيميل مش موجود · كلمة سر غلط · موظف مش `active` · موظف بدون MFA · ticket غلط / منتهي / sv قديم · رمز غلط / مستعمل → نفس الرد (`{"error": "Unauthorized"}`) — إيميل مش موجود بيكلّف bcrypt متل كلمة السر الغلط. الأقفال (فشل بس، `tw_limits.RATES`): `admin_login_ip` / `admin_login_acct` (الخطوة أ) · `admin_mfa_ip` / `admin_mfa_acct` (الخطوة ب) → 429 حتى لو البيانات صح. فوقهم حد `rate_limit_middleware` العام للمسار.
+7. **TOTP + الأسرار — `admin_staff.py` بس:** RFC 6238 بمكتبة Python (SHA-1 · 6 أرقام · 30 ثانية · ±خطوة وحدة) · الخطوة بتنقبل مرة وحدة (`last_step` بيكبر بس — UPDATE ذرّي) · السر مشفّر Fernet بمفتاح مشتق (SHA-256) من `ADMIN_MFA_KEY` (≥ 32 حرف؛ ناقص → الدخول 503) · رموز الاسترداد 10، `secrets`، بتنحفظ SHA-256 بس، كل رمز مرة وحدة (`used_at`). ❌ السر أو الرموز أو الـ ticket بـ localStorage / sessionStorage / URL / لوج / سجل.
+8. **الجلسة بتنقرا من القاعدة بكل طلب (`check_admin`):** التوكن فيه `sv`. المالك (`role: admin`) → `sv` = `admin_owner_mfa.session_version`. الموظف (`role: staff`, `sub: staff:<id>`, `perms: []` بالتوكن) → صف `admin_staff`: `status = active` + MFA مربوط + `sv` مطابق، والصلاحيات الفعلية = (صلاحيات الدور ∪ `allow_perms`) − `deny_perms` ∩ `GRANTABLE` (`admin_staff.effective_perms`) — المنع فوق السماح، و `OWNER_ONLY` / `"*"` ما بيعيشوا أبداً. ما في تطابق → 401 · الصلاحية مش ضمن الفعلية → 403 · القاعدة واقعة → 503. إيقاف موظف / زيادة sv / تغيير دوره أو صلاحياته بينطبق على الطلب الجاي بنفس التوكن. `_admin_emails` بيقرّر على نفس الصلاحيات الفعلية (الـ claims اللي بترجع من `check_admin`).
+9. **السجل:** كل محاولة دخول (نجاح وفشل) بـ `admin_audit_log` — actor `owner` / `staff:<id>` / `-` (إيميل مش معروف أو ticket تالف)، action `admin_login` (الخطوة أ) · `admin_login_mfa` (الخطوة ب) · `admin_mfa_reset` (الاستعادة). ❌ كلمة سر / رمز / سر / ticket بالسجل.
+10. **المالك بس بيدير الموظفين** (`staff.manage` — `OWNER_ONLY`). شاشة الموظفين والدعوة (`admin_invites`) والتحقق الإضافي = 8.4c. لهلق الموظف بينضاف بالقاعدة بس (التستات بتعمله seed).
+
+- ❌ توكن أدمن من كلمة السر لحالها · ❌ صلاحيات موظف من التوكن · ❌ تطبيق TOTP / تشفير / كاتب حسابات أدمن تاني برّا `admin_staff.py` · ❌ نسخة تانية من شاشة الدخول · ❌ أي طريق استعادة للمالك غير اللي تحت.
+- Test: `python -m pytest tests/test_admin_mfa_84b.py -q` (قيم RFC 6238 · ±خطوة · المالك: ربط → رموز → توكن · كلمة السر لحالها · رمز مرة وحدة · رمز استرداد مرة وحدة · `ADMIN_MFA_RESET` اليوم بس · موظف: خطوتين + صلاحيات من القاعدة بكل طلب + الإيميل مخفي · نفس الـ 401 · 429 · السجل).
+
+### الجداول (migration حرجة `admin_staff` — `admin_staff.migrate_admin_staff`)
+
+| الجدول | الأعمدة |
+|--------|--------|
+| `admin_roles` | `id` · `name` UNIQUE · `perms text[]` · `created_at` |
+| `admin_staff` | `id` · `email` (CHECK = lower + UNIQUE على `lower(email)`) · `name` · `password_hash` NULL · `role_id` NULL → `admin_roles` (SET NULL) · `allow_perms text[]` · `deny_perms text[]` · `status` invited / active / suspended · `mfa_secret_enc` NULL · `mfa_enabled_at` NULL · `mfa_last_step bigint` · `session_version` (1) · `created_at` · `last_login_at` |
+| `admin_owner_mfa` | صف واحد (`id = 1`): `secret_enc` · `enabled_at` · `last_step` · `session_version` (1) · `reset_on date` (يوم `ADMIN_MFA_RESET` اللي انطبق — حتى ما ينعاد بنفس اليوم) |
+| `admin_recovery_codes` | `subject` (`owner` / `staff:<id>`) · `code_hash` (SHA-256) · `used_at` |
+| `admin_invites` | `token_hash` UNIQUE · `staff_id` → `admin_staff` (CASCADE) · `kind` invite / mfa_reset · `expires_at` · `used_at` — الجدول بس، الاستعمال بـ 8.4c |
+
+### استعادة المالك (خطوة خطوة — ما في أي طريق تاني)
+
+1. **ضيّعت الجهاز وعندك رموز الاسترداد:** ادخل بكلمة السر عادي → بشاشة الرمز اضغط «استعمل رمز استرداد» → اكتب رمز واحد. الرمز بينشطب، والشاشة بتقلّك كم ضل. (لربط جهاز جديد بدون ما تضيّع الرموز: استعمل الطريق 2.)
+2. **ضيّعت الجهاز والرموز:**
+   1. بـ Railway → Variables: غيّر `ADMIN_TOKEN` لقيمة جديدة (`openssl rand -hex 32`).
+   2. ضيف `ADMIN_MFA_RESET` = تاريخ اليوم بتوقيت UTC بالشكل `YYYY-MM-DD` (مثال `2026-10-30`). Railway بيعيد التشغيل.
+   3. ادخل بكلمة السر الجديدة: أول دخول ناجح بهداك اليوم بيمسح تطبيق المصادقة القديم ورموز الاسترداد، وبيزيد `session_version` (كل جلسات المالك القديمة بتطلع)، وبتطلعلك شاشة ربط جديدة → اربط → احفظ الرموز الجديدة.
+   4. ارجع لـ Railway واحذف `ADMIN_MFA_RESET`.
+   - تاريخ مش اليوم (مبارح / بكرا / شكل غلط) = ما بيصير شي. كلمة سر غلط = ما بيصير شي. بنفس اليوم بينطبق مرة وحدة بس (`reset_on`).
+   - بينسجّل بالسجل (`admin_mfa_reset`، actor `owner`) + سطر لوج `[admin-auth] ADMIN_MFA_RESET applied`.
+
 ## مؤجّل (8.4c)
+
+- شاشة الموظفين (إضافة / تعديل / إيقاف) + الدعوة بالإيميل (`admin_invites` kind `invite`) + إعادة ربط MFA لموظف (`mfa_reset`) + التحقق الإضافي. لهلق ما في واجهة لإضافة موظفين.
 
 - `static/admin-support/admin-support.js` بيعرض `r.email` لتذكرة الزائر (`' · ' + r.email`) — بدون `users.email.view` الحقل غايب فبتطلع «undefined». لازم الصفحة تتعامل مع غيابه (ما تعرض شي / نص twT) — المهمة 8.4a سيرفر بس.
 
@@ -43,7 +78,7 @@
 | `users.export` | المالك بس | تصدير المستخدمين CSV |
 | `settings.security` | المالك بس | الإعدادات الأمنية + تعديل إعدادات الإيميل (`PUT /admin/email`) |
 | `audit.view` | المالك بس | السجل الأمني |
-| `staff.manage` | المالك بس | إدارة فريق الإدارة (ما إلها مسار لسا — 8.4b) |
+| `staff.manage` | المالك بس | إدارة فريق الإدارة (ما إلها مسار لسا — 8.4c) |
 | `system.manage` | المالك بس | صيانة النظام وسجل الأخطاء |
 
 ## المسار → الصلاحية
@@ -83,6 +118,6 @@
 | POST | `/admin/maintenance/migrate-data-images` · `/admin/pipeline/backfill` · `/admin/pipeline/migrate-index` | `system.manage` |
 | GET | `/admin/pipeline/backfill/dry-run` | `system.manage` |
 | — | تفاصيل الإكمال بـ `GET /profile/{id}/score` (توكن أدمن اختياري) | `users.view` |
-| POST | `<panel>/login` | بدون — الدخول نفسه |
+| POST | `<panel>/login` | بدون — الدخول نفسه (خطوتين — task 8.4b، القواعد 5–9) |
 | GET | `/admin/logo` | بدون — عام (الشعار بكل صفحة) |
 | GET | `<panel>` · `/email` · `/settings` · `/content` · `/support` · `/admin-view` · `/admin-job` | بدون — صفحة HTML بس، البيانات من `/admin/*` بصلاحيتها |

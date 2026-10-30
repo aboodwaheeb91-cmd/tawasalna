@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 
 import auth
 import admin_insights
+import admin_staff
 import server as srv
 
 client = TestClient(srv.app)
@@ -80,6 +81,7 @@ def env(monkeypatch):
     finally:
         auth.release_conn(c)
     admin_insights.migrate_admin_audit_log()
+    admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth.bs.migrate_blocks_suspension()   # task 5.4 — users.suspended_* + blocks (read by /mention/search)
     auth.ensure_company_tables()   # company_profiles from the real migration — never a hand-made column (5.3a4)
     assert _sql("SELECT to_regclass('company_profiles')")[0][0], "company_profiles migration failed"
@@ -91,9 +93,8 @@ def env(monkeypatch):
 
 
 def _admin():
-    r = client.post(LOGIN, json={"password": PASSWORD})
-    assert r.status_code == 200
-    return {"X-Admin-Token": r.json()["token"]}
+    # task 8.4b: the login needs password + authenticator code (tests/test_admin_mfa_84b.py) — the owner token directly
+    return {"X-Admin-Token": srv._admin_jwt_issue()}
 
 
 def _audit_rows():
@@ -175,16 +176,17 @@ def test_activity_lists_latest_events_without_private_fields():
 
 
 # ── audit log ──
-def test_audit_records_login_success_and_failure_without_secrets():
+def test_audit_records_login_success_and_failure_without_secrets(monkeypatch):
+    monkeypatch.setenv("ADMIN_MFA_KEY", "test-mfa-key-53a2-" + "k" * 32)
     client.post(LOGIN, json={"password": "wrong-" + "w" * 30}, headers={"X-Real-IP": "203.0.113.9"})
     r = client.post(LOGIN, json={"password": PASSWORD}, headers={"X-Real-IP": "203.0.113.10"})
-    token = r.json()["token"]
+    ticket = r.json()["ticket"]   # step 1 passed (task 8.4b — the token comes after the code)
     rows = _audit_rows()
     assert [(x[1], x[3], x[4], x[5]) for x in rows] == [
         ("admin_login", "denied", 401, "203.0.113.9"), ("admin_login", "ok", 200, "203.0.113.10")]
-    assert rows[0][0] == "-" and rows[1][0] == "owner"
+    assert rows[0][0] == "owner" and rows[1][0] == "owner"   # task 8.4b — the account the login named
     dump = repr(_sql("SELECT * FROM admin_audit_log"))
-    assert PASSWORD not in dump and token not in dump and "wrong-" not in dump
+    assert PASSWORD not in dump and ticket not in dump and r.json().get("secret", "-") not in dump and "wrong-" not in dump
 
 
 def test_audit_records_admin_writes_and_denied_attempts():
@@ -194,7 +196,7 @@ def test_audit_records_admin_writes_and_denied_attempts():
     assert client.put("/admin/reports/1/resolve").status_code == 401                 # no session
     client.get("/admin/reports", headers=h)                                          # reads are not logged
     client.post("/admin/message", headers=h, json={"user_id": 999, "subject": "s", "message": "very private text"})
-    rows = _audit_rows()[1:]   # [0] = the login above
+    rows = _audit_rows()   # _admin() issues the token directly — no login row (task 8.4b)
     assert rows[0] == ("owner", "resolve_report", "report_id=1", "ok", 200, "testclient")
     assert rows[1][:4] == ("-", "resolve_report", "report_id=1", "denied")
     assert len(rows) == 3 and rows[2][1] == "admin_send_message"
@@ -208,7 +210,7 @@ def test_audit_list_filter_and_pages():
     h = _admin()
     d = client.get("/admin/audit?limit=2&action=delete_user", headers=h).json()["data"]
     assert d["total"] == 5 and len(d["items"]) == 2 and d["items"][0]["target"] == "user_id=4"
-    assert set(d["actions"]) >= {"delete_user", "verify_user", "admin_login"}
+    assert set(d["actions"]) >= {"delete_user", "verify_user"}
     d3 = client.get("/admin/audit?limit=2&page=3&action=delete_user", headers=h).json()["data"]
     assert [i["target"] for i in d3["items"]] == ["user_id=0"]
     v = client.get("/admin/audit?action=verify_user", headers=h).json()["data"]["items"][0]

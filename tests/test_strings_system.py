@@ -115,6 +115,7 @@ _srv.ADMIN_JWT_SECRET = "test-strings-admin-" + "a" * 32
 _c = TestClient(_srv.app)
 _staff = {"X-Admin-Token": _srv._admin_jwt_issue(sub="staff:s", perms=["settings.edit"])}
 _owner = {"X-Admin-Token": _srv._admin_jwt_issue()}
+_srv.admin_staff.owner_session_version = lambda: 1   # task 8.4b — check_admin reads the owner session_version (DB — none here; 1 = never reset)
 _bad = {"overrides": {"no.such.key.x": "x"}}
 check("D GET /admin/strings admin + content.edit only",
       _c.get("/admin/strings").status_code == 401 and _c.get("/admin/strings", headers=_staff).status_code == 403)

@@ -23,11 +23,11 @@ from fastapi.testclient import TestClient
 
 import auth
 import admin_insights
+import admin_staff
 import server as srv
 
 client = TestClient(srv.app)
 PASSWORD = "p" * 40
-LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"
 
 
 def _sql(q, **kw):
@@ -63,6 +63,7 @@ def env(monkeypatch):
     finally:
         auth.release_conn(c)
     admin_insights.migrate_admin_audit_log()
+    admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-53j-" + "s" * 32)
     srv._rate_store.clear()
@@ -72,9 +73,8 @@ def env(monkeypatch):
 
 
 def _admin():
-    r = client.post(LOGIN, json={"password": PASSWORD})
-    assert r.status_code == 200
-    return {"X-Admin-Token": r.json()["token"]}
+    # task 8.4b: the login needs password + authenticator code (tests/test_admin_mfa_84b.py) — the owner token directly
+    return {"X-Admin-Token": srv._admin_jwt_issue()}
 
 
 def _seed():

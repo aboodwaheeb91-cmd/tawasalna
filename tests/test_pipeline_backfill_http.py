@@ -44,6 +44,7 @@ client = TestClient(app, raise_server_exceptions=True)
 
 # PR 1.5: a real admin session JWT (the raw ADMIN_TOKEN is the login password only)
 VALID_TOKEN = server._admin_jwt_issue()
+server.admin_staff.owner_session_version = lambda: 1   # task 8.4b — owner sv lives in the DB (no DB here; 1 = never reset)
 WRONG_TOKEN  = "not-the-right-token"
 
 # ── Result tracking ────────────────────────────────────────────────────────────

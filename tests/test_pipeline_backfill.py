@@ -408,6 +408,7 @@ def _backfill_admin_gate():
     import server as srv
     c = TestClient(srv.app)
     staff = {"X-Admin-Token": srv._admin_jwt_issue(perms=["jobs.manage", "system.manage"])}
+    srv.admin_staff.owner_session_version = lambda: 1   # task 8.4b — check_admin reads the owner session_version (DB — none here)
     return (c.post("/admin/pipeline/backfill").status_code,
             c.post("/admin/pipeline/backfill", headers=staff).status_code)
 check("K-08. Backfill endpoint requires an admin JWT with system.manage (owner only)",

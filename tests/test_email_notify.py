@@ -73,6 +73,7 @@ def env(monkeypatch):
     auth.release_conn(c)
     auth._migrate_email_notify()
     auth._migrate_email_notify()          # idempotent
+    server.admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth._migrate_scheduler_jobs()
     f = FakeResend()
     monkeypatch.setattr(email_service.urllib.request, "urlopen", f)
