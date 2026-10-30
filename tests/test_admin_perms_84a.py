@@ -95,6 +95,15 @@ ROUTE_PERMS = {
     ("GET", "/admin/pipeline/backfill/dry-run"): "system.manage",
     ("POST", "/admin/pipeline/migrate-index"): "system.manage",
     ("POST", "/admin/owner/recovery-codes"): "settings.security",   # task 8.4c-1 — new owner recovery codes
+    # task 8.4c-2a1 — roles + staff (owner + step-up on writes)
+    ("GET", "/admin/roles"): "staff.manage",
+    ("POST", "/admin/roles"): "staff.manage",
+    ("PUT", "/admin/roles/{role_id}"): "staff.manage",
+    ("DELETE", "/admin/roles/{role_id}"): "staff.manage",
+    ("GET", "/admin/staff"): "staff.manage",
+    ("PUT", "/admin/staff/{staff_id}/access"): "staff.manage",
+    ("POST", "/admin/staff/{staff_id}/suspend"): "staff.manage",
+    ("POST", "/admin/staff/{staff_id}/restore"): "staff.manage",
 }
 # bodies validated by a model before the endpoint runs (else 422 before check_admin)
 _BODIES = {"/admin/logo": {"data_url": "x"}, "/admin/message": {"user_id": 1, "subject": "s", "message": "m"},

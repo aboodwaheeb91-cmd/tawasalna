@@ -1169,6 +1169,7 @@ def _startup_migrations():
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
         ("admin_staff",                       admin_staff.migrate_admin_staff,     True),   # 8.4b — check_admin + the admin login read it
+        ("admin_roles_seed",                  admin_staff.seed_default_roles,      False),  # 8.4c-2a1 — the 4 ready roles, once ever
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -8531,6 +8532,142 @@ def admin_owner_recovery_codes(request: Request, response: Response):
     response.headers["Cache-Control"] = "no-store"
     print("[admin-auth] owner recovery codes replaced")
     return {"recovery_codes": codes}
+
+
+# ── Roles + staff (task 8.4c-2a1 · docs/rules/admin-staff.md rule 10) ──
+# staff.manage = OWNER_ONLY → the owner only, and every write needs the step-up (428 without — check_admin).
+# The logic + SQL live in admin_staff.py; the audit row comes from admin_audit_middleware (actor owner, route name,
+# ids only). Staff emails (staff_suspended · staff_restored · staff_perms_changed — name only) go AFTER the commit;
+# a failed email never undoes the write.
+STAFF_PERM = "staff.manage"
+
+
+def _staff_error(e: "admin_staff.StaffError") -> JSONResponse:
+    return api_error(e.status, e.code, _tw_text("admin.staff.error." + e.code), e.field)
+
+
+def _staff_email(to: str, template: str, name: str) -> None:
+    try:
+        email_service.send_email(to, template, {"name": name or ""})
+    except Exception as e:   # send_email never raises — belt and braces: the write is already committed
+        print(f"[admin-staff] email failed template={template}: {type(e).__name__}")
+
+
+def _staff_body(data) -> dict:
+    return data if isinstance(data, dict) else {}
+
+
+@app.get("/admin/roles")
+def admin_roles_list(request: Request):
+    check_admin(request, STAFF_PERM)
+    try:
+        roles = admin_staff.list_roles()
+    except Exception as e:
+        raise _server_error("admin_roles_list", e)
+    return api_ok({"roles": roles,
+                   "grantable": [{"perm": k, "label": v} for k, v in admin_perms.GRANTABLE.items()]})
+
+
+@app.post("/admin/roles")
+def admin_roles_create(request: Request, data: dict = Body(...)):
+    check_admin(request, STAFF_PERM)
+    data = _staff_body(data)
+    try:
+        name = admin_staff.clean_role_name(data.get("name"), tw_settings.limit("admin_role_name_max"))
+        perms = admin_staff.clean_perms(data.get("perms"), "perms")
+        role = admin_staff.create_role(name, perms)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_roles_create", e)
+    request.state.audit_target = f"role_id={role['id']}"
+    return api_ok(role)
+
+
+@app.put("/admin/roles/{role_id}")
+def admin_roles_update(role_id: int, request: Request, data: dict = Body(...)):
+    check_admin(request, STAFF_PERM)
+    data = _staff_body(data)
+    try:
+        name = (admin_staff.clean_role_name(data.get("name"), tw_settings.limit("admin_role_name_max"))
+                if "name" in data else None)
+        perms = admin_staff.clean_perms(data.get("perms"), "perms") if "perms" in data else None
+        role, notify = admin_staff.update_role(role_id, name, perms)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_roles_update", e)
+    for st in notify:   # only the active staff whose effective perms really changed
+        _staff_email(st["email"], "staff_perms_changed", st["name"])
+    return api_ok(role)
+
+
+@app.delete("/admin/roles/{role_id}")
+def admin_roles_delete(role_id: int, request: Request):
+    check_admin(request, STAFF_PERM)
+    try:
+        admin_staff.delete_role(role_id)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_roles_delete", e)
+    return api_ok({"id": role_id})
+
+
+@app.get("/admin/staff")
+def admin_staff_list(request: Request):
+    claims = check_admin(request, STAFF_PERM)
+    try:
+        staff = admin_staff.list_staff()
+    except Exception as e:
+        raise _server_error("admin_staff_list", e)
+    return api_ok(_admin_contacts(claims, {"staff": staff}))
+
+
+@app.put("/admin/staff/{staff_id}/access")
+def admin_staff_access(staff_id: int, request: Request, data: dict = Body(...)):
+    claims = check_admin(request, STAFF_PERM)
+    data = _staff_body(data)
+    role_id = data.get("role_id")
+    if role_id is not None and (isinstance(role_id, bool) or not isinstance(role_id, int) or role_id < 1):
+        return _staff_error(admin_staff.StaffError(422, "invalid_role", "role_id"))
+    try:
+        allow = admin_staff.clean_perms(data.get("allow"), "allow")
+        deny = admin_staff.clean_perms(data.get("deny"), "deny")
+        st, notify = admin_staff.set_access(staff_id, role_id, allow, deny)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_staff_access", e)
+    if notify:
+        _staff_email(st["email"], "staff_perms_changed", st["name"])
+    return api_ok(_admin_contacts(claims, st))
+
+
+def _staff_status(request: Request, staff_id: int, suspended: bool, name: str):
+    claims = check_admin(request, STAFF_PERM)
+    try:
+        st, changed = admin_staff.set_suspended(staff_id, suspended)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error(name, e)
+    if changed:
+        _staff_email(st["email"], "staff_suspended" if suspended else "staff_restored", st["name"])
+    return api_ok(_admin_contacts(claims, st))
+
+
+@app.post("/admin/staff/{staff_id}/suspend")
+def admin_staff_suspend(staff_id: int, request: Request):
+    """status suspended + session_version + 1 → every token of this staff member fails on its next request."""
+    return _staff_status(request, staff_id, True, "admin_staff_suspend")
+
+
+@app.post("/admin/staff/{staff_id}/restore")
+def admin_staff_restore(staff_id: int, request: Request):
+    """From suspended only → active (password + authenticator bound) else invited, + session_version + 1 — an old
+    token never comes back."""
+    return _staff_status(request, staff_id, False, "admin_staff_restore")
 
 
 # ══════════════════════════════════════════

@@ -1,4 +1,4 @@
-# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1)
+# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1) + Roles & Staff API (task 8.4c-2a1)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس مسار أدمن (`/admin/*` · مسار اللوحة `/tw-ctrl-…` · `/admin-view` · `/admin-job`).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25h · جلسة الأدمن: §25 · الـ shell: `docs/rules/admin-shell.md`.
@@ -21,7 +21,27 @@
 7. **TOTP + الأسرار — `admin_staff.py` بس:** RFC 6238 بمكتبة Python (SHA-1 · 6 أرقام · 30 ثانية · ±خطوة وحدة) · الخطوة بتنقبل مرة وحدة (`last_step` بيكبر بس — UPDATE ذرّي) · السر مشفّر Fernet بمفتاح مشتق (SHA-256) من `ADMIN_MFA_KEY` (≥ 32 حرف؛ ناقص → الدخول 503) · رموز الاسترداد 10، `secrets`، بتنحفظ SHA-256 بس، كل رمز مرة وحدة (`used_at`). **الـ ticket لمرة وحدة (task 8.4c-0):** فيه `jti` عشوائي · بينمسك وقت فحص الرمز (طلب متزامن بنفس الـ ticket → 401) · بعد أول توكن بينحرق (`_admin_ticket_take` / `_admin_ticket_done`) · إعادة استعماله → نفس الـ 401 الموحّد · الرمز الغلط ما بيحرقه (القفل بيحدّه). الحرق **بالذاكرة** تحت `_rate_lock` (TTL = عمر الـ ticket، تنظيف وقت الاستعمال، حد `mem_store_max_keys` — مليان = رفض، مش مسح) — replica وحدة، متل حدود الطلبات؛ النقل لمخزن مشترك بالخطوة 11. ❌ السر أو الرموز أو الـ ticket بـ localStorage / sessionStorage / URL / لوج / سجل.
 8. **الجلسة بتنقرا من القاعدة بكل طلب (`check_admin`):** التوكن فيه `sv`. المالك (`role: admin`) → `sv` = `admin_owner_mfa.session_version`. الموظف (`role: staff`, `sub: staff:<id>`, `perms: []` بالتوكن) → صف `admin_staff`: `status = active` + MFA مربوط + `sv` مطابق، والصلاحيات الفعلية = (صلاحيات الدور ∪ `allow_perms`) − `deny_perms` ∩ `GRANTABLE` (`admin_staff.effective_perms`) — المنع فوق السماح، و `OWNER_ONLY` / `"*"` ما بيعيشوا أبداً. ما في تطابق → 401 · الصلاحية مش ضمن الفعلية → 403 · القاعدة واقعة → 503. إيقاف موظف / زيادة sv / تغيير دوره أو صلاحياته بينطبق على الطلب الجاي بنفس التوكن. `_admin_contacts` بيقرّر على نفس الصلاحيات الفعلية (الـ claims اللي بترجع من `check_admin`).
 9. **السجل:** كل محاولة دخول (نجاح وفشل) بـ `admin_audit_log` — actor `owner` / `staff:<id>` / `-` (إيميل مش معروف أو ticket تالف)، action `admin_login` (الخطوة أ) · `admin_login_mfa` (الخطوة ب) · `admin_mfa_reset` (الاستعادة). ❌ كلمة سر / رمز / سر / ticket بالسجل.
-10. **المالك بس بيدير الموظفين** (`staff.manage` — `OWNER_ONLY`). شاشة الموظفين والدعوة (`admin_invites`) = 8.4c (التحقق الإضافي = 8.4c-1 — القاعدة 11). لهلق الموظف بينضاف بالقاعدة بس (التستات بتعمله seed).
+10. **المالك بس بيدير الأدوار والموظفين** (`staff.manage` — `OWNER_ONLY`، وكل كتابة بتطلب التحقق الإضافي — القاعدة 11 → 428 بدونه). **API (task 8.4c-2a1 — سيرفر بس):** `GET /admin/roles` (الأدوار `{id, name, perms, staff_count}` + كتالوج `GRANTABLE`) · `POST /admin/roles {name, perms}` · `PUT /admin/roles/{id} {name?, perms?}` · `DELETE /admin/roles/{id}` · `GET /admin/staff` (`id, name, email, status, role, allow, deny, effective_perms, mfa_bound, last_login_at` — ❌ `password_hash` / `mfa_secret_enc` / أي hash) · `PUT /admin/staff/{id}/access {role_id, allow, deny}` · `POST /admin/staff/{id}/suspend` · `POST /admin/staff/{id}/restore`. الردود بالعقد الرسمي (`api_ok` / `api_error`).
+    - **المنطق والـ SQL بـ `admin_staff.py` بس** (`clean_perms` · `create_role` · `update_role` · `delete_role` · `list_staff` · `set_access` · `set_suspended`) — كل عملية transaction وحدة، والأقفال بترتيب واحد: الدور ثم الموظف. `server.py` بيفحص ويبعت الإيميل بس.
+    - **الصلاحيات من `GRANTABLE` بس:** perm من `OWNER_ONLY` أو `"*"` أو اسم مش معروف أو مش list نصوص → 422 `invalid_perms` (الدور · `allow` · `deny`). الاسم فريد (409 `name_taken`) ومش فاضي وحدّه `admin_role_name_max` (422). حتى لو انكتب شي من `OWNER_ONLY` / `"*"` بالقاعدة مباشرة: `effective_perms` بتشيله و `check_admin` بيرفض.
+    - **ما في حذف لدور عليه موظفين** (أي حالة) → 409 `role_in_use` لحد ما المالك ينقلهم. ذرّي: الحذف بيقفل الدور `FOR UPDATE` والتعيين بيقفله `FOR SHARE` — حذف + تعيين بنفس اللحظة = يا الحذف 409 يا التعيين 422 `invalid_role`، وما في موظف `role_id` صار NULL بسبب حذف (الـ FK `SET NULL` ما بيشتغل أبداً).
+    - **ما في حذف لموظف — إيقاف وإرجاع بس.** الإيقاف → `suspended` + `session_version + 1` (كل التوكنات بتموت بالطلب الجاي). الإرجاع (من `suspended` بس، غير هيك 409 `not_suspended`) → `active` إذا كلمة السر والمصادقة مربوطين وإلا `invited`، + `session_version + 1` (التوكن القديم ما بيرجع).
+    - **`session_version + 1` لما تتغيّر الصلاحيات الفعلية فعلاً** (`set_access` · تعديل دور مشترك — لكل موظف عليه تغيّرت صلاحياته). إعادة تسمية أو قيمة بتعطي نفس الصلاحيات = بدون زيادة.
+    - **إيميل للموظف (SECURITY، بالاسم بس — بدون رابط اللوحة، بدون قائمة الصلاحيات):** `staff_suspended` (الإيقاف) · `staff_restored` (الإرجاع) · `staff_perms_changed` (تغيّرت صلاحياته الفعلية — للـ `active` بس؛ الموقوف واللي لسا `invited` ما بيوصله). تعديل دور مشترك بيبعت بس للي `effective_perms` تبعه تغيّرت. بينبعت **بعد الـ commit** وفشله ما بيرجّع العملية. القوالب دايماً شغّالة (برّا `TYPES` متل `admin_test`).
+    - **السجل:** `admin_audit_middleware` (actor `owner`، action = اسم الـ route، الهدف ids بس — `role_id=…` للإنشاء) — بدون أسرار.
+    - **الأدوار الجاهزة (migration اختيارية `admin_roles_seed` → `admin_staff.seed_default_roles`):** بتنزرع **مرة وحدة بس بالعمر** (علامة `app_migrations` تحت `pg_advisory_xact_lock` بنفس الـ transaction — تشغيلين متزامنين = 4 أدوار)، ودور حذفه أو عدّله المالك ما بيرجع. اسم موجود = بيضل متل ما هو.
+
+      | الدور | الصلاحيات |
+      |------|----------|
+      | دعم | `support.manage` · `users.view` · `message.send` |
+      | توثيق | `kyc.review` · `users.view` |
+      | محتوى | `content.edit` · `jobs.manage` |
+      | بلاغات وإشراف | `reports.manage` · `users.view` |
+
+      ولا دور جاهز فيه `users.email.view` أو `users.phone.view`.
+    - ❌ SQL أدوار / موظفين برّا `admin_staff.py` · ❌ حذف موظف · ❌ حذف دور عليه موظفين · ❌ صلاحية من `OWNER_ONLY` / `"*"` بدور أو `allow` · ❌ إيميل فيه رابط اللوحة أو أسماء صلاحيات · ❌ إيميل قبل الـ commit · ❌ زرع الأدوار بكل تشغيل.
+    - Test: `python -m pytest tests/test_admin_staff_84c2a1.py -q` (HTTP حقيقي + PostgreSQL: 401 / 403 (موظف بكل GRANTABLE) / 428 / نجاح لكل route · 422 لـ OWNER_ONLY / `*` / مجهول + المكتوب بالقاعدة ما بيعيش · نفس التوكن بعد الإيقاف / الدور / allow / deny / الدور المشترك → 401 / 403 · الإرجاع ما بيحيي التوكن · حذف ‖ تعيين · الزرع مرة وحدة (متزامن + بعد الحذف) · الإيميلات (2 من 3 · موقوف / invited لأ · بدون مسار اللوحة أو صلاحيات · فشل الإيميل ما بيرجّع) · ما في hash / سر بالرد / اللوج / السجل).
+    - الدعوة بالإيميل (`admin_invites`) + الواجهة = مراحل 8.4c-2 الجاية — لهلق إضافة موظف جديد بالقاعدة بس.
 
 ## Session Perms + Step-up + Owner Recovery Codes (task 8.4c-1 — mandatory for all AI sessions)
 
@@ -41,7 +61,7 @@
 
 | الجدول | الأعمدة |
 |--------|--------|
-| `admin_roles` | `id` · `name` UNIQUE · `perms text[]` · `created_at` |
+| `admin_roles` | `id` · `name` UNIQUE · `perms text[]` · `created_at` — الأدوار الجاهزة مرة وحدة (`admin_roles_seed`، علامة `app_migrations` `admin_roles_seed_84c2a1`) |
 | `admin_staff` | `id` · `email` (CHECK = lower + UNIQUE على `lower(email)`) · `name` · `password_hash` NULL · `role_id` NULL → `admin_roles` (SET NULL) · `allow_perms text[]` · `deny_perms text[]` · `status` invited / active / suspended · `mfa_secret_enc` NULL · `mfa_enabled_at` NULL · `mfa_last_step bigint` · `session_version` (1) · `created_at` · `last_login_at` |
 | `admin_owner_mfa` | صف واحد (`id = 1`): `secret_enc` · `enabled_at` · `last_step` · `session_version` (1) · `reset_on date` (يوم `ADMIN_MFA_RESET` اللي انطبق — حتى ما ينعاد بنفس اليوم) |
 | `admin_recovery_codes` | `subject` (`owner` / `staff:<id>`) · `code_hash` (SHA-256) · `used_at` |
@@ -60,7 +80,7 @@
 
 ## مؤجّل (8.4c)
 
-- شاشة الموظفين (إضافة / تعديل / إيقاف) + الدعوة بالإيميل (`admin_invites` kind `invite`) + إعادة ربط MFA لموظف (`mfa_reset`). لهلق ما في واجهة لإضافة موظفين. (التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 — القواعد 11–13.)
+- شاشة الموظفين (الواجهة — الـ API صار بـ 8.4c-2a1، القاعدة 10) + إضافة موظف + الدعوة بالإيميل (`admin_invites` kind `invite`) + إعادة ربط MFA لموظف (`mfa_reset`). لهلق ما في واجهة لإضافة موظفين. (التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 — القواعد 11–13.)
 - `admin-support.js` بدون `users.email.view`: الإيميل الغايب ما بيطلع (لا «undefined» ولا « · » فاضية) — صار بـ 8.4c-1.
 
 - Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` email / phone + الإيميل والهاتف بكل تركيبة صلاحيات بنص الـ JSON كامل على users · profile · kyc · support + regex إيميل + ما في سر OTP حتى للمالك).
@@ -89,7 +109,7 @@
 | `users.export` | المالك بس | تصدير المستخدمين CSV |
 | `settings.security` | المالك بس | الإعدادات الأمنية + تعديل إعدادات الإيميل (`PUT /admin/email`) |
 | `audit.view` | المالك بس | السجل الأمني |
-| `staff.manage` | المالك بس | إدارة فريق الإدارة (ما إلها مسار لسا — 8.4c) |
+| `staff.manage` | المالك بس | إدارة فريق الإدارة — الأدوار والموظفين (task 8.4c-2a1 — القاعدة 10) |
 | `system.manage` | المالك بس | صيانة النظام وسجل الأخطاء |
 
 ## المسار → الصلاحية
@@ -131,6 +151,8 @@
 | — | تفاصيل الإكمال بـ `GET /profile/{id}/score` (توكن أدمن اختياري) | `users.view` |
 | POST | `/admin/owner/recovery-codes` | `settings.security` + step-up (task 8.4c-1 — القاعدة 13) |
 | — | **كل** مسار perm تبعه من «المالك بس» بـ `POST/PUT/PATCH/DELETE` (حذف · نوع · كلمة سر · إيميل · إعداد أمني · `PUT /admin/email` · الصيانة / pipeline · رموز الاسترداد) | + step-up → بدونه **428** `step_up_required` (task 8.4c-1 — القاعدة 11) |
+| GET | `/admin/roles` · `/admin/staff` | `staff.manage` (task 8.4c-2a1 — القاعدة 10؛ قراءة بدون step-up) |
+| POST · PUT · DELETE | `/admin/roles` · `/admin/roles/{role_id}` · `/admin/staff/{staff_id}/access` · `/admin/staff/{staff_id}/suspend` · `/restore` | `staff.manage` + step-up (428 بدونه) |
 | GET | `/admin/me` | بدون perm — `check_admin_session` (جلسة أدمن صالحة؛ task 8.4c-1 — القاعدة 12) |
 | POST | `/admin/step-up` | بدون perm — `check_admin_session` + المالك بس (موظف 403) + أقفال `admin_mfa_*` (القاعدة 11) |
 | POST | `<panel>/login` | بدون — الدخول نفسه (خطوتين — task 8.4b، القواعد 5–9) |
