@@ -130,7 +130,7 @@ def _err(r):
 
 
 # ── gate ─────────────────────────────────────────────────────────────────────
-def test_no_admin_token_401_staff_without_perm_403_with_perm_passes(env):
+def test_no_admin_token_401_staff_403_even_with_perm_owner_passes(env):
     a = _uid(A)
     assert _put(a, NEW, headers={}).status_code == 401
     user_jwt = _login(A)
@@ -138,7 +138,11 @@ def test_no_admin_token_401_staff_without_perm_403_with_perm_passes(env):
     staff = {"X-Admin-Token": server._admin_jwt_issue(sub="staff:1", perms=["users.suspend"])}
     assert _put(a, NEW, headers=staff).status_code == 403
     assert env.calls == [] and not _sql("SELECT 1 FROM password_reset_tokens")
-    ok = {"X-Admin-Token": server._admin_jwt_issue(sub="staff:2", perms=["users.email"])}
+    # users.email is owner-only since task 8.4a — listed in a staff token it is still 403
+    staff_email = {"X-Admin-Token": server._admin_jwt_issue(sub="staff:2", perms=["users.email"])}
+    assert _put(a, NEW, headers=staff_email).status_code == 403
+    assert env.calls == []
+    ok = {"X-Admin-Token": server._admin_jwt_issue()}   # the owner ("*")
     assert _put(a, NEW, headers=ok).status_code == 200
 
 

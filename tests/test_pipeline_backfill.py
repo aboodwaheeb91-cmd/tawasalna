@@ -398,8 +398,20 @@ check("K-06. Admin migrate-index endpoint calls _migrate_partial_unique_applicat
       and '"/admin/pipeline/migrate-index"' in _server)
 check("K-07. Admin backfill endpoint exists with confirm= guard",
       '"/admin/pipeline/backfill"' in _server and "confirm" in _server)
-check("K-08. Backfill endpoint requires X-Admin-Token (uses check_admin)",
-      "check_admin(request)" in _block(_server, '"/admin/pipeline/backfill"', 800))
+def _backfill_admin_gate():
+    """Behaviour (task 8.4a — was a source-text check): no admin token → 401 · an admin token without
+    the owner-only system.manage perm → 403 — both before the confirm guard / any DB work."""
+    os.environ.setdefault("JWT_SECRET", "test-user-secret-" + "u" * 32)
+    os.environ.setdefault("ADMIN_TOKEN", "a" * 40)
+    os.environ.setdefault("ADMIN_JWT_SECRET", "test-admin-secret-" + "k" * 32)
+    from fastapi.testclient import TestClient
+    import server as srv
+    c = TestClient(srv.app)
+    staff = {"X-Admin-Token": srv._admin_jwt_issue(perms=["jobs.manage", "system.manage"])}
+    return (c.post("/admin/pipeline/backfill").status_code,
+            c.post("/admin/pipeline/backfill", headers=staff).status_code)
+check("K-08. Backfill endpoint requires an admin JWT with system.manage (owner only)",
+      _backfill_admin_gate() == (401, 403))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §L  BlockingConflictError class + server.py JSONResponse (Bnd-8, Bnd-9)

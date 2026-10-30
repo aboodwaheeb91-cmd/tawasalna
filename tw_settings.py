@@ -30,6 +30,7 @@ from auth import db_conn
 
 CACHE_TTL_S = 30          # other workers see a change within this (refresh loop period)
 PERM = "settings.edit"    # admin JWT permission (owner = "*")
+SECURITY_PERM = "settings.security"   # a security key (is_security) — owner only (task 8.4a · admin_perms.OWNER_ONLY)
 
 
 def _limit(name, mn, mx, group, unit="chars", security=False):

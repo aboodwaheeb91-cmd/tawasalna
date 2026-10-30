@@ -750,9 +750,10 @@ def _bad_filter(field: str):
 
 
 def admin_list(status: str = "", category: str = "", priority: str = "", page: int = 1, limit: int = 20,
-               requester: str = "", q: str = "", sort: str = "") -> dict:
+               requester: str = "", q: str = "", sort: str = "", email_search: bool = True) -> dict:
     """Filters status · category · priority · requester (guest | user) · q (an H id exactly, or an email —
-    the guest's or the account's) · sort newest (created) | oldest_waiting (last message first) | priority."""
+    the guest's or the account's) · sort newest (created) | oldest_waiting (last message first) | priority.
+    email_search False (admin without users.email.view — task 8.4a): an email q matches nothing."""
     where, params = [], {}
     for col, expr, val, allowed in (("status", _STATUS_SQL, status, STATUSES), ("category", _CAT_SQL, category, CATEGORIES),
                                     ("priority", "t.priority", priority, PRIORITIES)):
@@ -771,8 +772,11 @@ def admin_list(status: str = "", category: str = "", priority: str = "", page: i
             where.append("t.public_id = :q")
             params["q"] = q.upper()
         elif "@" in q and len(q) <= 254:
-            where.append("(lower(t.guest_email) = :q OR lower(u.email) = :q)")
-            params["q"] = q.lower()
+            if email_search:
+                where.append("(lower(t.guest_email) = :q OR lower(u.email) = :q)")
+                params["q"] = q.lower()
+            else:
+                where.append("FALSE")
         else:
             raise _bad_filter("q")
     sort = sort or "newest"

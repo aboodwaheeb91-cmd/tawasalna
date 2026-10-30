@@ -6320,16 +6320,18 @@ One HS256 implementation for both secrets: `_jwt_sign(payload, secret)` / `_jwt_
 | `iss` / `aud` | `"tawasalna"` / `"tw-admin"` | same |
 | `sub` | `"owner"` | `"staff:<id>"` |
 | `role` | `"admin"` | e.g. `"moderator"` (added to `_ADMIN_ROLES`) |
-| `perms` | `["*"]` | e.g. `["reports.read", "kyc.review"]` → `check_admin(request, perm="kyc.review")` |
+| `perms` | `["*"]` | e.g. `["reports.manage", "kyc.review"]` → `check_admin(request, "kyc.review")` (catalog `admin_perms.py` — task 8.4a) |
 | `iat` / `exp` | `exp = iat + _ADMIN_JWT_TTL` (3600s) | same (a token with `exp − iat > 3600` is refused) |
 | `jti` | random 24 hex | key for a future denylist / revoke |
 
 ```python
-def check_admin(request, perm=None) -> dict:
+def check_admin(request, perm) -> dict:
+    # perm required, in admin_perms.ALL (else RuntimeError — programming error, task 8.4a)
     # 503 — ADMIN_JWT_SECRET missing / < 32 chars / equal to JWT_SECRET or ADMIN_TOKEN
     # 401 — X-Admin-Token missing, not an admin JWT, bad signature, expired, wrong iss/aud
     #       (includes the raw ADMIN_TOKEN and any user JWT)
-    # 403 — valid admin JWT whose role ∉ _ADMIN_ROLES, or perm not in perms (and no "*")
+    # 403 — valid admin JWT whose role ∉ _ADMIN_ROLES, or admin_perms.allows(perms, perm) false
+    #       (an OWNER_ONLY perm passes only with "*")
     # → returns the claims
 ```
 
@@ -6379,7 +6381,7 @@ Header + menu = `TwAdminShell` from `TW_ADMIN_SECTIONS` (`static/shared/admin-se
 
 ### Admin Endpoints (source: `server.py` — single table; PR-3b moved it from `CLAUDE.md`, PR-4 merged the §66c pipeline table into it)
 
-All rows below call `check_admin(request)` (`X-Admin-Token` header = admin session JWT from `<panel>/login` — PR 1.5 / 5.3a) unless marked otherwise.
+All rows below call `check_admin(request, perm)` (`X-Admin-Token` header = admin session JWT from `<panel>/login` — PR 1.5 / 5.3a) unless marked otherwise. The perm of every route: `docs/rules/admin-staff.md` (task 8.4a — SYSTEMS_INDEX §25h); without `users.email.view` no user email in the replies.
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
@@ -6474,7 +6476,7 @@ Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/
 ❌ ممنوع استخدام ADMIN_TOKEN كـ JWT_SECRET
 ❌ ممنوع fallback ثابت أو معروف لأي من الثلاثة
 ❌ لا تُطبع قيمة أي secret في logs
-❌ لا تُضف admin endpoints بدون check_admin dependency
+❌ لا تُضف admin endpoints بدون check_admin(request, perm) — perm من admin_perms.py (task 8.4a)
 ```
 
 ### Image Upload Security Contract (PR-7a — §29a)
@@ -12771,7 +12773,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|
 | `GET /admin/email` | `check_admin` | — | 401 / 503 | `{ok, data:{status, settings, defaults, types, categories, notify_types, notify_limits, stats, templates}}` (5.1c: `stats` = `null` when the counter is unreadable) |
-| `PUT /admin/email` | `check_admin` | partial `{from_address?, from_name?, site_url?, types?, notify?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
+| `PUT /admin/email` | `check_admin(request, "settings.security")` — owner only (8.4a: `site_url` = reset / verify link base) | partial `{from_address?, from_name?, site_url?, types?, notify?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
 | `POST /admin/email/test` | `check_admin` | `{to}` | 422 `invalid_email` · 503 `email_unavailable` · 502 `email_failed` | `{ok, data:{sent:true}}` |
 
 ### Forgot password

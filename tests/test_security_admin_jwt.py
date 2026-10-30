@@ -146,7 +146,7 @@ class TestCheckAdminBehavior(unittest.TestCase):
         try:
             srv.ADMIN_JWT_SECRET = ""
             with self.assertRaises(Exception) as ctx:
-                srv.check_admin(self._make_request("anything"))
+                srv.check_admin(self._make_request("anything"), "stats.view")
             self.assertEqual(ctx.exception.status_code, 503)
         finally:
             srv.ADMIN_JWT_SECRET = original
@@ -158,7 +158,7 @@ class TestCheckAdminBehavior(unittest.TestCase):
         try:
             srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = "a" * 64, "s" * 64
             with self.assertRaises(Exception) as ctx:
-                srv.check_admin(self._make_request("a" * 64))
+                srv.check_admin(self._make_request("a" * 64), "stats.view")
             self.assertEqual(ctx.exception.status_code, 401)
         finally:
             srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = o_tok, o_sec
@@ -169,7 +169,7 @@ class TestCheckAdminBehavior(unittest.TestCase):
         original = srv.ADMIN_JWT_SECRET
         try:
             srv.ADMIN_JWT_SECRET = "s" * 64
-            claims = srv.check_admin(self._make_request(srv._admin_jwt_issue()))
+            claims = srv.check_admin(self._make_request(srv._admin_jwt_issue()), "stats.view")
             self.assertEqual(claims["role"], "admin")
         finally:
             srv.ADMIN_JWT_SECRET = original
