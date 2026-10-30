@@ -120,6 +120,7 @@ PY_DB=(
   pytest:test_admin_email_view_84a.py   # task 8.4a — user emails hidden without users.email.view (replies + search)
   pytest:test_admin_email_keys_84a2.py # task 8.4a2 — "*_email" / "*_phone" keys hidden without users.email.view / users.phone.view (independent) + FIELDS guard + no OTP secret
   pytest:test_admin_mfa_84b.py         # task 8.4b — two-step admin login (RFC 6238 · owner bind / recovery / ADMIN_MFA_RESET) · staff perms from the DB every request
+  pytest:test_security_84c0b.py   # task 8.4c-0b — messages hidden by block / suspension (every messaging route) · user login locks atomic under concurrency · one email link per user + purpose · OTP shape 422 (no attempt) · HSTS
   pytest:test_admin_security_84c0.py   # task 8.4c-0 — admin login locks under concurrency (atomic reserve) · one token per ticket · every admin route 401 / 403 · tickets + sessions · no secret leaks
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation

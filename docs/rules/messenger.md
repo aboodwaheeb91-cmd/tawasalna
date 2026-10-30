@@ -80,11 +80,14 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 
 18. **إنهاء المحادثة:** `POST /messages/conversations/{other_id}/end` — المتصل `co` والطرف التاني `emp` من القاعدة (غير هيك 403 `end_forbidden`) + في رسالة بيناتهم (غير هيك 404 `no_conversation`) · idempotent · **بدون إشعار** · الرسائل القديمة بتضل ظاهرة.
 
+18b. **القراءة كمان مخفية (task 8.4c-0b):** `GET /messages/{user_id}/{other_id}` — الطرف التاني مش موجود / معلّق / حظر بأي اتجاه → **404 `not_found`** (نفس رد المراسلة، `_message_policy_error`)، والفحص (`bs.visible_sql` جوّا `auth.get_messages`) **قبل** أي قراءة أو تعليم `delivered_at` / `is_read` / `read_at` وقبل أي حدث WS · بدون كاش · خطأ = 500 وما في شي انعلّم (fail closed). **إنهاء المحادثة** مع طرف مخفي → نفس 404 `not_found` (العمود السادس بـ `end_conversation`). **إيميل الرسالة غير المقروءة** (`_handle_message_email`) ما بينبعت إذا صار الزوج مخفي بعد الإرسال. مسح المسارات: `POST /messages/send` · `GET /messages/can-send/{id}` · `POST /messages/conversations/{id}/end` · `GET /messages/conversations/{uid}` · `GET /messages/unread/{uid}` · `GET /messages/{uid}/{oid}` · WS typing / active_conversation — كلهم على `bs` (ما في مسارات حذف / تعديل / مرفقات / بحث للرسائل). ❌ حذف رسالة بسبب حظر — الإخفاء بالاستعلام بس.
+
 19. **الواجهة بتقرأ القرار بس:** `GET /messages/can-send/{other_id}` → `{can_message, reason, reason_key, ended, can_end}` عبر `twCanMessage(id)` (`tw_shared.js`، ما بيرمي) → `twAction('message', {canMessage})` بصفحات الملف (profile-showcase · company · edu) و `twAction('end_conversation', {targetType, canEnd})` بهيدر المحادثة (`#chatEndSlot` — confirm من السجل). `messages.html`: مكان الكتابة مخفي لحد ما يوصل الجواب؛ مرفوض → السبب بـ `#chatLocked` بدل مكان الكتابة · فشل إرسال بـ 403 → إعادة قراءة القرار (بدون toast عام). `GET /profile/{id}` → `permissions.can_message` من نفس الدالة.
 
 
 ```
 ❌ مسار بيبعت رسالة بدون can_send_message بنفس الـ transaction وتحت قفل الزوج (task 5.0g)
+❌ مسار رسائل (قراءة / تعليم مقروء / إنهاء / إيميل) بدون bs — بيرجع رسائل طرف محظور أو معلّق (task 8.4c-0b)
 ❌ قاعدة «مين بيراسل مين» تانية (بالصفحة، من نوع الـ JWT، أو فحص Python تاني)
 ❌ إشعار للشخص عن إنهاء المحادثة
 ❌ fetch() أو localStorage بأي ملف messages.*.js — twApi + TwAuthSync (PR 4.4)

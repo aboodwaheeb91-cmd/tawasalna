@@ -185,7 +185,8 @@ def _guest(email, code, ip="7.7.7.7", **over):
 
 def test_guest_needs_the_code_and_login_category():
     email = uuid.uuid4().hex[:8] + "@guest.test"
-    assert _guest(email, "").status_code == 400
+    r = _guest(email, "")                                   # not 6 digits → 422, no attempt used (8.4c-0b)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_code"
     assert _guest(email, "123456").json()["error"]["code"] == "invalid_code"     # no code sent yet
     code = _code(email)
     assert SENT[-1][:2] == (email, "support_guest_otp")

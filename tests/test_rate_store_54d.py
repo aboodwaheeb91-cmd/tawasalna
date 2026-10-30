@@ -46,7 +46,7 @@ def test_full_login_locks_never_reset_message_send(monkeypatch):
     for i in range(max_hits + 5):
         if srv._rate_ok("message_send", 7):
             allowed += 1
-        srv._login_fail(f"flood{i}@x.com", f"203.0.113.{i}")   # more lock keys between sends
+        srv._login_reserve(f"flood{i}@x.com", f"203.0.113.{i}")   # more lock keys between sends
         srv._rate_sweep(force=True)
     assert allowed == max_hits
     assert len(srv._rate_store["message_send:7"]) == max_hits
@@ -57,11 +57,11 @@ def test_full_lock_section_keeps_running_locks(monkeypatch):
     monkeypatch.setitem(srv.tw_settings._overrides, "mem_store_max_keys", cap)
     now = srv._time.time()
     _fill_login_locks(cap * 2, now)
-    srv._login_fail("new@x.com", "203.0.113.77")         # new key into a full lock section
+    srv._login_reserve("new@x.com", "203.0.113.77")         # new key into a full lock section
     srv._rate_sweep(force=True)
     locks = [k for k in srv._rate_store if k.startswith("login_ip:198.51.")]
     assert len(locks) == cap * 2                         # none dropped before its window ends
-    assert srv._login_locked("any@x.com", "198.51.0.0")
+    assert srv._login_reserve("any@x.com", "198.51.0.0")[0] is None   # full lock → refused
     for k in locks:                                      # windows end → they go
         srv._rate_store[k] = [now - R["login_ip"][1] - 1]
     srv._rate_sweep(force=True)
@@ -82,7 +82,7 @@ def test_full_store_no_sort_per_request(monkeypatch):
     t0 = srv._time.perf_counter()
     for i in range(2000):                                # new keys into a full section → eviction
         assert srv._rate_ok("mention_search", f"n{i}")
-        srv._login_fail(f"e{i}@x.com", "203.0.113.5")
+        srv._login_reserve(f"e{i}@x.com", "203.0.113.5")
     elapsed = srv._time.perf_counter() - t0
     assert len(srv._rate_store.section("mention_search")) == cap
     assert elapsed < 2.0, elapsed                        # a sort of 40k keys per hit would take far longer
