@@ -10,6 +10,9 @@ The ONE reader / writer of the admin account tables. server.py (admin_login · c
                           session_version · reset_on (the ADMIN_MFA_RESET day already applied)
     admin_recovery_codes  subject 'owner' | 'staff:<id>' · SHA-256 of the code · used_at (each code once)
     admin_invites         token hash · staff · kind invite | mfa_reset — table only here, used by 8.4c
+  Roles + staff management (task 8.4c-2a1): seed_default_roles (once ever) · list / create / update / delete_role ·
+  list_staff · set_access · set_suspended — the owner's writes, each in one transaction (server.py checks
+  staff.manage + step-up first and sends the emails after the commit).
   TOTP (RFC 6238, stdlib): SHA-1 · 6 digits · 30 s · ±1 step · a step is accepted once (last_step only grows).
   Secrets at rest: Fernet with a key derived (SHA-256) from ADMIN_MFA_KEY (≥ 32 chars) — missing / short →
   mfa_key_ok() False → the admin login answers 503.
@@ -364,3 +367,231 @@ def staff_session(sid: int):
 def staff_mark_login(sid: int) -> None:
     with db_conn() as conn:
         conn.run("UPDATE admin_staff SET last_login_at = NOW() WHERE id = :id", id=int(sid))
+
+
+# ── roles + staff management (task 8.4c-2a1 · docs/rules/admin-staff.md rule 10) ──
+# The owner's writes (staff.manage + step-up — server.py checks, then calls here). Every write runs in ONE
+# transaction; rows are locked role first, then staff (update_role · delete_role · set_access) — one order, no
+# deadlock. A role cannot be deleted while staff use it (role_in_use): delete_role locks the role FOR UPDATE and
+# set_access locks the target role FOR SHARE, so a delete and an assignment at the same moment serialise — the
+# delete sees the assignment (409) or the assignment no longer finds the role (422). The FK's SET NULL never fires.
+# Perm changes bump session_version only when the effective perms really changed (old tokens re-read the DB anyway).
+DEFAULT_ROLES = (
+    ("دعم", ("support.manage", "users.view", "message.send")),
+    ("توثيق", ("kyc.review", "users.view")),
+    ("محتوى", ("content.edit", "jobs.manage")),
+    ("بلاغات وإشراف", ("reports.manage", "users.view")),
+)
+SEED_MARK = "admin_roles_seed_84c2a1"
+_SEED_LOCK = 842201          # pg_advisory_xact_lock key — two boots at once seed once
+STATUSES = ("invited", "active", "suspended")
+
+
+class StaffError(ValueError):
+    """An owner write refused on purpose → server.py answers api_error(status, code, twT admin.staff.error.<code>)."""
+    def __init__(self, status: int, code: str, field: str = None):
+        super().__init__(code)
+        self.status, self.code, self.field = status, code, field
+
+
+def seed_default_roles() -> bool:
+    """The 4 ready roles — ONCE ever (app_migrations mark, claimed under an advisory lock in the same transaction):
+    a role the owner deleted or edited never comes back. A name already taken is left alone. True = seeded now."""
+    from auth import _migration_claim_once
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            conn.run("SELECT pg_advisory_xact_lock(:k)", k=_SEED_LOCK)
+            first = _migration_claim_once(conn, SEED_MARK)
+            if first:
+                for name, perms in DEFAULT_ROLES:
+                    conn.run("INSERT INTO admin_roles (name, perms) VALUES (:n, :p) ON CONFLICT (name) DO NOTHING",
+                             n=name, p=list(perms))
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return first
+
+
+def clean_perms(value, field: str) -> list:
+    """A list of GRANTABLE names (sorted, no duplicates). An OWNER_ONLY perm · "*" · an unknown name · not a
+    list of strings → StaffError 422 invalid_perms."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(p, str) for p in value):
+        raise StaffError(422, "invalid_perms", field)
+    if any(p not in admin_perms.GRANTABLE for p in value):
+        raise StaffError(422, "invalid_perms", field)
+    return sorted(set(value))
+
+
+def clean_role_name(value, max_len: int) -> str:
+    name = " ".join(value.split()) if isinstance(value, str) else ""
+    if not name:
+        raise StaffError(422, "invalid_name", "name")
+    if len(name) > max_len:
+        raise StaffError(422, "name_too_long", "name")
+    return name
+
+
+def _is_unique_violation(e: BaseException) -> bool:
+    f = e.args[0] if getattr(e, "args", None) and isinstance(e.args[0], dict) else {}
+    return f.get("C") == "23505"
+
+
+def _iso(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def list_roles() -> list:
+    with db_conn() as conn:
+        rows = conn.run("SELECT r.id, r.name, r.perms, COUNT(s.id) FROM admin_roles r "
+                        "LEFT JOIN admin_staff s ON s.role_id = r.id GROUP BY r.id ORDER BY r.id")
+    return [{"id": int(r[0]), "name": r[1], "perms": sorted(r[2] or []), "staff_count": int(r[3])} for r in rows]
+
+
+def create_role(name: str, perms: list) -> dict:
+    """name / perms already cleaned. Name taken → StaffError 409 name_taken."""
+    with db_conn() as conn:
+        rows = conn.run("INSERT INTO admin_roles (name, perms) VALUES (:n, :p) ON CONFLICT (name) DO NOTHING "
+                        "RETURNING id", n=name, p=list(perms))
+    if not rows:
+        raise StaffError(409, "name_taken", "name")
+    return {"id": int(rows[0][0]), "name": name, "perms": sorted(perms), "staff_count": 0}
+
+
+def update_role(rid: int, name: str = None, perms: list = None):
+    """Rename and / or new perms (cleaned; None = keep). → (role dict, [{"id", "email", "name"}] — the ACTIVE staff
+    whose effective perms changed: they get staff_perms_changed after the commit). Every staff member whose
+    effective perms changed gets session_version + 1. 404 role_not_found · 409 name_taken."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            rows = conn.run("SELECT name, perms FROM admin_roles WHERE id = :id FOR UPDATE", id=int(rid))
+            if not rows:
+                raise StaffError(404, "role_not_found")
+            old_perms = rows[0][1] or []
+            new_name = rows[0][0] if name is None else name
+            new_perms = list(old_perms) if perms is None else list(perms)
+            try:
+                conn.run("UPDATE admin_roles SET name = :n, perms = :p WHERE id = :id",
+                         n=new_name, p=new_perms, id=int(rid))
+            except Exception as e:
+                if not _is_unique_violation(e):
+                    raise
+                raise StaffError(409, "name_taken", "name")
+            notify = []
+            staff = conn.run("SELECT id, email, name, status, allow_perms, deny_perms FROM admin_staff "
+                             "WHERE role_id = :id ORDER BY id FOR UPDATE", id=int(rid))
+            for sid, email, sname, status, allow, deny in staff:
+                if effective_perms(old_perms, allow, deny) == effective_perms(new_perms, allow, deny):
+                    continue
+                conn.run("UPDATE admin_staff SET session_version = session_version + 1 WHERE id = :id", id=sid)
+                if status == "active":
+                    notify.append({"id": int(sid), "email": email, "name": sname or ""})
+            count = len(staff)
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return {"id": int(rid), "name": new_name, "perms": sorted(new_perms), "staff_count": count}, notify
+
+
+def delete_role(rid: int) -> None:
+    """404 role_not_found · 409 role_in_use while any staff member (any status) has it — move them first."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            if not conn.run("SELECT 1 FROM admin_roles WHERE id = :id FOR UPDATE", id=int(rid)):
+                raise StaffError(404, "role_not_found")
+            if conn.run("SELECT 1 FROM admin_staff WHERE role_id = :id LIMIT 1", id=int(rid)):
+                raise StaffError(409, "role_in_use")
+            conn.run("DELETE FROM admin_roles WHERE id = :id", id=int(rid))
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+
+
+_STAFF_SELECT = ("SELECT s.id, s.name, s.email, s.status, s.role_id, r.name, r.perms, s.allow_perms, s.deny_perms, "
+                 "s.mfa_enabled_at, s.last_login_at FROM admin_staff s LEFT JOIN admin_roles r ON r.id = s.role_id ")
+
+
+def _staff_row(r) -> dict:
+    """The owner's view of one staff member — never password_hash / mfa_secret_enc / any hash."""
+    return {"id": int(r[0]), "name": r[1] or "", "email": r[2], "status": r[3],
+            "role": {"id": int(r[4]), "name": r[5]} if r[4] is not None else None,
+            "allow": sorted(r[7] or []), "deny": sorted(r[8] or []),
+            "effective_perms": sorted(effective_perms(r[6], r[7], r[8])),
+            "mfa_bound": r[9] is not None, "last_login_at": _iso(r[10])}
+
+
+def list_staff() -> list:
+    with db_conn() as conn:
+        rows = conn.run(_STAFF_SELECT + "ORDER BY s.id")
+    return [_staff_row(r) for r in rows]
+
+
+def _get_staff(conn, sid: int) -> dict:
+    rows = conn.run(_STAFF_SELECT + "WHERE s.id = :id", id=int(sid))
+    return _staff_row(rows[0])
+
+
+def set_access(sid: int, role_id, allow: list, deny: list):
+    """New role (None = no role) + allow / deny (cleaned). → (staff dict, notify) — notify = True when the
+    effective perms changed AND the staff member is active (staff_perms_changed after the commit); a change bumps
+    session_version. 404 staff_not_found · 422 invalid_role (no such role — or deleted at the same moment)."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            new_role_perms = []
+            if role_id is not None:
+                rows = conn.run("SELECT perms FROM admin_roles WHERE id = :id FOR SHARE", id=int(role_id))
+                if not rows:
+                    raise StaffError(422, "invalid_role", "role_id")
+                new_role_perms = rows[0][0] or []
+            rows = conn.run("SELECT s.status, r.perms, s.allow_perms, s.deny_perms FROM admin_staff s "
+                            "LEFT JOIN admin_roles r ON r.id = s.role_id WHERE s.id = :id FOR UPDATE OF s", id=int(sid))
+            if not rows:
+                raise StaffError(404, "staff_not_found")
+            status, old_role_perms, old_allow, old_deny = rows[0]
+            changed = effective_perms(old_role_perms, old_allow, old_deny) != effective_perms(new_role_perms, allow, deny)
+            conn.run("UPDATE admin_staff SET role_id = :r, allow_perms = :a, deny_perms = :d, "
+                     "session_version = session_version + :b WHERE id = :id",
+                     r=None if role_id is None else int(role_id), a=list(allow), d=list(deny),
+                     b=1 if changed else 0, id=int(sid))
+            out = _get_staff(conn, sid)
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return out, bool(changed and status == "active")
+
+
+def set_suspended(sid: int, suspended: bool):
+    """suspend → status suspended · restore (from suspended only, else 409 not_suspended) → active when the password
+    and the authenticator are bound, else invited. Both bump session_version (every token dies; restore never
+    revives one). → (staff dict, changed) — changed = the status really moved (the email goes after the commit)."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            rows = conn.run("SELECT status, password_hash IS NOT NULL AND mfa_enabled_at IS NOT NULL "
+                            "FROM admin_staff WHERE id = :id FOR UPDATE", id=int(sid))
+            if not rows:
+                raise StaffError(404, "staff_not_found")
+            status, ready = rows[0]
+            if suspended:
+                new = "suspended"
+            elif status != "suspended":
+                raise StaffError(409, "not_suspended")
+            else:
+                new = "active" if ready else "invited"
+            conn.run("UPDATE admin_staff SET status = :s, session_version = session_version + 1 WHERE id = :id",
+                     s=new, id=int(sid))
+            out = _get_staff(conn, sid)
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return out, status != new

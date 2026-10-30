@@ -22,7 +22,8 @@ Categories (task 5.1c · docs/rules/email.md → Notification Emails):
   security       password_reset · password_changed · email_change · email_changed · email_changed_admin · kyc_email_otp ·
                  support_guest_otp (7.1) · support_guest_link (7.2a) ·
                  support_guest_reply · support_reply (7.2b) ·
-                 admin_test — never touched by the caps or the user's preferences.
+                 admin_test · staff_suspended · staff_restored · staff_perms_changed (8.4c-2a1) —
+                 never touched by the caps or the user's preferences.
   notification   notify_* — send_email(..., user_id=, ref_key=) runs the gate first (registered by
                  server.py via set_send_hooks → auth.email_notify_reserve): user preference ·
                  per-conversation throttle · daily / monthly cap (counted on email_send_log).
@@ -78,6 +79,11 @@ TEMPLATES = {
     "support_guest_reply": {"category": SECURITY, "vars": ("ticket", "link"), "parts": ("subject", "body", "button", "note")},
     "support_reply":    {"category": SECURITY, "vars": ("name", "ticket", "link"), "parts": ("subject", "body", "button")},
     "admin_test":       {"category": SECURITY, "vars": (), "parts": ("subject", "body")},
+    # Admin staff (task 8.4c-2a1) — suspended · restored · effective perms changed. Name only: no panel link,
+    # no perm list, nothing sensitive. Always on (not in TYPES — like admin_test).
+    "staff_suspended":     {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
+    "staff_restored":      {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
+    "staff_perms_changed": {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
     # Notification emails (5.1c) — {title} / {details} = the in-site notification's own text.
     "notify_message":                 {"category": NOTIFICATION, "vars": ("name", "sender", "link"),
                                        "parts": ("subject", "body", "button")},

@@ -49,6 +49,7 @@ LIMITS = {
     "feed_page_max": 50,          # GET /home/feed ?limit= ceiling (task 8.6d-1)
     "feed_snapshot_ttl_min": 60,  # … saved job list (feed_snapshots) lifetime in minutes — older = 409 feed_reset
     "feed_snapshots_per_user": 5, # … saved lists kept per account (oldest deleted on insert)
+    "admin_role_name_max": 60,    # POST / PUT /admin/roles name (chars — owner only, task 8.4c-2a1)
 }
 
 RATES = {
