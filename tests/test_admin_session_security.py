@@ -60,7 +60,7 @@ def test_login_returns_short_admin_jwt_not_raw_secret():
     c = srv._admin_jwt_claims(tok)
     assert c["role"] == "admin" and c["sub"] == "owner" and c["perms"] == ["*"]
     assert 0 < c["exp"] - c["iat"] <= 3600
-    assert srv.check_admin(_req(tok))["sub"] == "owner"
+    assert srv.check_admin(_req(tok), "stats.view")["sub"] == "owner"
     assert client.post(LOGIN, json={"password": "b" * 40}).status_code == 401
 
 
@@ -80,8 +80,8 @@ def test_old_fixed_login_route_is_gone():
 
 
 def test_raw_admin_token_rejected_as_session():
-    assert _status(srv.check_admin, _req("a" * 40)) == 401
-    assert _status(srv.check_admin, _req("")) == 401
+    assert _status(srv.check_admin, _req("a" * 40), "stats.view") == 401
+    assert _status(srv.check_admin, _req(""), "stats.view") == 401
 
 
 def test_expired_admin_jwt_rejected():
@@ -89,28 +89,28 @@ def test_expired_admin_jwt_rejected():
     expired = srv._jwt_sign({"iss": "tawasalna", "aud": "tw-admin", "sub": "owner", "role": "admin",
                              "perms": ["*"], "iat": now - 4000, "exp": now - 400},
                             srv.ADMIN_JWT_SECRET)
-    assert _status(srv.check_admin, _req(expired)) == 401
+    assert _status(srv.check_admin, _req(expired), "stats.view") == 401
     # lifetime longer than 1h is refused even when not yet expired
     long = srv._jwt_sign({"iss": "tawasalna", "aud": "tw-admin", "sub": "owner", "role": "admin",
                           "perms": ["*"], "iat": now, "exp": now + 86400}, srv.ADMIN_JWT_SECRET)
-    assert _status(srv.check_admin, _req(long)) == 401
+    assert _status(srv.check_admin, _req(long), "stats.view") == 401
 
 
 def test_user_jwt_rejected_by_admin_and_admin_jwt_rejected_as_user():
     user_tok = srv._jwt_encode({"sv": 0, "user_id": 7, "user_type": "emp", "tw_id": "U1"})
-    assert _status(srv.check_admin, _req(user_tok)) == 401
+    assert _status(srv.check_admin, _req(user_tok), "stats.view") == 401
     admin_tok = srv._admin_jwt_issue()
     r = client.post("/auth/verify-token", headers={"Authorization": "Bearer " + admin_tok})
     assert r.status_code == 401
     # signed with the admin secret but a non-admin role → 403
     staff = srv._admin_jwt_issue(sub="staff:3", role="viewer", perms=[])
-    assert _status(srv.check_admin, _req(staff)) == 403
+    assert _status(srv.check_admin, _req(staff), "stats.view") == 403
 
 
 def test_admin_jwt_secret_missing_or_shared_fails_closed(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "")
     assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 503
-    assert _status(srv.check_admin, _req("x")) == 503
+    assert _status(srv.check_admin, _req("x"), "stats.view") == 503
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", srv.JWT_SECRET)   # never reuse JWT_SECRET
     assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 503
 

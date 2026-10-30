@@ -250,13 +250,15 @@ def _like(q: str) -> str:
     return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
-def _users_where(q: str = "", user_type: str = "", verification: str = ""):
+def _users_where(q: str = "", user_type: str = "", verification: str = "", with_email: bool = True):
     """→ (where SQL, params). Values are validated by the caller (server.py) — only allowlisted
-    type / verification reach here; q is always a bound parameter."""
+    type / verification reach here; q is always a bound parameter. with_email False (no
+    users.email.view — task 8.4a): q matches the name and the tw_id only."""
     conds, params = [], {}
     q = (q or "").strip()
     if q:
-        conds.append("(u.full_name ILIKE :q OR u.email ILIKE :q OR u.tw_id ILIKE :q)")
+        conds.append("(u.full_name ILIKE :q OR u.email ILIKE :q OR u.tw_id ILIKE :q)" if with_email
+                     else "(u.full_name ILIKE :q OR u.tw_id ILIKE :q)")
         params["q"] = _like(q)
     if user_type:
         conds.append("u.user_type = :t")
@@ -287,10 +289,10 @@ def _user_item(r) -> dict:
 
 
 def users_list(q: str = "", user_type: str = "", verification: str = "", sort: str = "newest",
-               page: int = 1, limit: int = 20) -> dict:
+               page: int = 1, limit: int = 20, with_email: bool = True) -> dict:
     page = max(1, int(page))
     limit = max(1, min(USERS_PAGE_MAX, int(limit)))
-    where, params = _users_where(q, user_type, verification)
+    where, params = _users_where(q, user_type, verification, with_email)
     with db_conn() as conn:
         total = int(conn.run("SELECT COUNT(*)" + _USERS_FROM + where, **params)[0][0] or 0)
         rows = _users_rows(conn, where, params, sort, limit, (page - 1) * limit)

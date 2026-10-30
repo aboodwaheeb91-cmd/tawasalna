@@ -47,6 +47,7 @@ fi
 PY_PYTEST=(
   test_account_security.py
   test_admin_session_security.py
+  test_admin_perms_84a.py   # task 8.4a — every admin route → check_admin(perm) · owner-only perms · "*" unchanged
   test_db_conn_async_safety.py
   test_kyc_docs_migration.py
   test_no_dummy_content.py
@@ -116,6 +117,7 @@ PY_DB=(
   pytest:test_session_version_tokens.py
   pytest:test_admin_user_actions.py
   pytest:test_admin_email_change_83.py
+  pytest:test_admin_email_view_84a.py   # task 8.4a — user emails hidden without users.email.view (replies + search)
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation
   pytest:test_register_profiles_unique.py

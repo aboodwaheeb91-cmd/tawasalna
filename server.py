@@ -212,6 +212,7 @@ from auth import withdraw_application, ApplicationStateError, ReapplyLimitError 
 from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
 from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
 from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
+import admin_perms   # task 8.4a — admin permission catalog (docs/rules/admin-staff.md)
 import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEMS_INDEX §62)
 
 # ── Secrets from environment — NEVER hardcoded in source ──
@@ -1479,21 +1480,32 @@ def _read_html_cached(name: str) -> str:
         print(f"[read_html] page file missing: {name}")
         raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
 
-def check_admin(request: Request, perm: str = None) -> dict:
+def check_admin(request: Request, perm: str) -> dict:
     """Admin gate — accepts ONLY a valid admin JWT (from the admin login, <panel>/login) in X-Admin-Token.
     The raw ADMIN_TOKEN is the login password, never a session token.
     503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
     (admin pages send the admin back to the login screen) · 403 = valid token without
-    the role / permission. `perm` is for plan 5.3 staff roles; "*" grants everything."""
+    the role / permission. `perm` is required and must be in admin_perms.ALL (task 8.4a — else
+    RuntimeError = programming error); an admin_perms.OWNER_ONLY perm passes only with "*"."""
+    admin_perms.require_known(perm)
     if not _admin_jwt_secret_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     if not claims:
         raise HTTPException(status_code=401, detail="انتهت جلسة الإدارة، سجّل الدخول من جديد")
     perms = claims.get("perms") or []
-    if claims.get("role") not in _ADMIN_ROLES or (perm and "*" not in perms and perm not in perms):
+    if claims.get("role") not in _ADMIN_ROLES or not admin_perms.allows(perms, perm):
         raise HTTPException(status_code=403, detail="Forbidden")
     return claims
+
+
+def _admin_email_view(claims: dict) -> bool:
+    """users.email.view (task 8.4a) — without it no admin response carries a user email and no search matches one."""
+    return admin_perms.allows(claims.get("perms"), admin_perms.EMAIL_VIEW)
+
+
+def _admin_emails(claims: dict, data):
+    return data if _admin_email_view(claims) else admin_perms.strip_emails(data)
 
 
 def _migrate_feed_indexes():
@@ -4188,7 +4200,7 @@ def _report_target(rep: dict) -> dict:
 @app.get("/admin/reports")
 def admin_get_reports(request: Request):
     """All reports with their resolved target. A DB error → 500 (never an empty list — F9)."""
-    check_admin(request)
+    check_admin(request, "reports.manage")
     try:
         with db_conn() as conn:
             rows = conn.run("""
@@ -4216,7 +4228,7 @@ def admin_get_reports(request: Request):
 @app.put("/admin/reports/{report_id}/resolve")
 def resolve_report(report_id: int, request: Request):
     """Mark report as resolved"""
-    check_admin(request)
+    check_admin(request, "reports.manage")
     try:
         conn = get_conn()
         try:
@@ -4260,14 +4272,14 @@ def log_client_error(data: ErrorLogInput):
 
 @app.get("/admin/errors")
 def admin_errors(request: Request):
-    check_admin(request)
+    check_admin(request, "system.manage")
     return {"errors": list(reversed(_error_log)), "count": len(_error_log)}
 
 
 # ── Admin Stats + Audit Log reads (task 5.3a2 · SYSTEMS_INDEX §25b / §25c) — read-only, admin JWT ──
 @app.get("/admin/stats/summary")
 def admin_stats_summary(request: Request):
-    check_admin(request)
+    check_admin(request, "stats.view")
     try:
         return api_ok(admin_insights.stats_summary())
     except Exception as e:
@@ -4276,7 +4288,7 @@ def admin_stats_summary(request: Request):
 
 @app.get("/admin/stats/timeseries")
 def admin_stats_timeseries(request: Request, metric: str = "", days: str = "30"):
-    check_admin(request)
+    check_admin(request, "stats.view")
     if metric not in admin_insights.TIMESERIES_METRICS:
         return api_error(422, "invalid_metric", "المؤشر غير معروف", field="metric")
     if not (days.isascii() and days.isdigit() and 1 <= int(days) <= admin_insights.TIMESERIES_DAYS_MAX):
@@ -4293,7 +4305,7 @@ def _admin_int(v: str, lo: int, hi: int) -> bool:
 
 @app.get("/admin/activity")
 def admin_activity(request: Request, page: str = "1", limit: str = str(admin_insights.ACTIVITY_LIMIT)):
-    check_admin(request)
+    check_admin(request, "stats.view")
     if not _admin_int(page, 1, 100000):
         return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
     if not _admin_int(limit, 1, admin_insights.ACTIVITY_PAGE_MAX):
@@ -4321,7 +4333,7 @@ def _admin_users_filters(q: str, type: str, status: str, sort: str):
 @app.get("/admin/users")
 def admin_users(request: Request, q: str = "", type: str = "", status: str = "", sort: str = "newest",
                 page: str = "1", limit: str = "20"):
-    check_admin(request)
+    claims = check_admin(request, "users.view")
     f = _admin_users_filters(q, type, status, sort)
     if isinstance(f, JSONResponse):
         return f
@@ -4330,7 +4342,9 @@ def admin_users(request: Request, q: str = "", type: str = "", status: str = "",
     if not _admin_int(limit, 1, admin_insights.USERS_PAGE_MAX):
         return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
     try:
-        return api_ok(admin_insights.users_list(page=int(page), limit=int(limit), **f))
+        view = _admin_email_view(claims)   # without it: no email column, q never matches an email (8.4a)
+        return api_ok(_admin_emails(claims, admin_insights.users_list(page=int(page), limit=int(limit),
+                                                                     with_email=view, **f)))
     except Exception as e:
         raise _server_error("admin_users", e)
 
@@ -4338,7 +4352,7 @@ def admin_users(request: Request, q: str = "", type: str = "", status: str = "",
 @app.get("/admin/users/export")
 def admin_users_export(request: Request, q: str = "", type: str = "", status: str = "", sort: str = "newest"):
     """Same filters as GET /admin/users → CSV (UTF-8 + BOM). Recorded in the audit log (AUDIT_READ_ROUTES)."""
-    check_admin(request)
+    check_admin(request, "users.export")
     f = _admin_users_filters(q, type, status, sort)
     if isinstance(f, JSONResponse):
         return f
@@ -4352,7 +4366,7 @@ def admin_users_export(request: Request, q: str = "", type: str = "", status: st
 
 @app.get("/admin/audit")
 def admin_audit(request: Request, page: str = "1", limit: str = "20", action: str = ""):
-    check_admin(request)
+    check_admin(request, "audit.view")
     if not (page.isascii() and page.isdigit() and 1 <= int(page) <= 100000):
         return api_error(422, "invalid_page", "رقم الصفحة غير صالح", field="page")
     if not (limit.isascii() and limit.isdigit() and 1 <= int(limit) <= admin_insights.AUDIT_PAGE_MAX):
@@ -4462,7 +4476,7 @@ def _score_detail_allowed(request: Request, uid: int) -> bool:
             return True
     if request.headers.get("X-Admin-Token"):
         try:
-            check_admin(request)
+            check_admin(request, "users.view")
             return True
         except HTTPException:
             return False
@@ -4498,7 +4512,7 @@ class ResetPasswordInput(BaseModel):
 async def upload_logo(data: AdminLogoInput, request: Request):
     """Upload site logo (admin only) — slot: logo_wide | logo_tall.
     Same image validation as /upload/image (PR-7a): JPEG/PNG/WebP only, no SVG."""
-    check_admin(request)
+    check_admin(request, CONTENT_PERM)
     slot = data.filename or "logo_wide"
     if slot not in _LOGO_SLOTS:
         raise HTTPException(400, "نوع الشعار غير معروف")
@@ -4561,7 +4575,7 @@ def admin_put_strings(request: Request, data: dict = Body(...)):
 @app.get("/admin/actions")
 def admin_get_actions(request: Request):
     """Registry + current overrides + the audience / type vocabularies."""
-    check_admin(request)
+    check_admin(request, "settings.edit")
     return api_ok({"actions": tw_actions.REGISTRY, "overrides": dict(_ACTIONS_OVERRIDES),
                    "audiences": list(tw_actions.AUDIENCES), "types": list(tw_actions.TYPES)})
 
@@ -4571,7 +4585,7 @@ def admin_put_actions(request: Request, data: dict = Body(...)):
     """Replace the whole override map: {"overrides": {id: {"enabled": false|true, "visibleTo": [...]}}}
     (true turns on a registry default-off action — tw_actions.json "enabled": false).
     Known ids + known fields + known audiences only (all-or-nothing). {} = registry defaults."""
-    claims = check_admin(request)
+    claims = check_admin(request, "settings.edit")
     try:
         clean = tw_actions.validate_overrides(data.get("overrides"))
     except tw_actions.ActionsError as e:
@@ -4592,7 +4606,7 @@ _EMAIL_UNAVAILABLE_MSG = "خدمة البريد الإلكتروني غير مت
 @app.get("/admin/email")
 def admin_get_email(request: Request):
     """Provider status (configured | missing — never the key) + settings + template string keys."""
-    check_admin(request)
+    check_admin(request, "settings.edit")
     try:
         stats = email_send_stats()
     except Exception as e:   # the counter must never hide the settings (F9: logged)
@@ -4613,7 +4627,7 @@ def admin_get_email(request: Request):
 def admin_put_email(request: Request, data: dict = Body(...)):
     """Partial update: {from_address?, from_name?, site_url?, types?: {key: bool},
     notify?: {daily_cap?, monthly_cap?, message_delay_minutes?, message_throttle_hours?}} (all-or-nothing)."""
-    claims = check_admin(request)
+    claims = check_admin(request, "settings.edit")
     try:
         clean = email_service.validate_settings(data, email_service.get_settings())
     except email_service.EmailSettingsError as e:
@@ -4648,7 +4662,8 @@ def admin_settings_list(request: Request):
 
 
 def _settings_write(request: Request, key: str, fn):
-    claims = check_admin(request, tw_settings.PERM)   # 401 / 403 before anything about the key
+    # 401 / 403 before the key is read or written; a security key needs the owner-only perm (task 8.4a)
+    claims = check_admin(request, tw_settings.SECURITY_PERM if tw_settings.is_security(key) else tw_settings.PERM)
     try:
         old, new = fn(str(claims.get("sub") or "-"))
     except tw_settings.SettingError as e:
@@ -5215,9 +5230,10 @@ def _support_audit(request: Request, public_id: str, old, new) -> None:
 @app.get("/admin/support/tickets")
 def admin_support_list(request: Request, status: str = "", category: str = "", priority: str = "",
                        page: int = 1, limit: int = 20, requester: str = "", q: str = "", sort: str = ""):
-    check_admin(request, SUPPORT_PERM)
+    claims = check_admin(request, SUPPORT_PERM)
     try:
-        out = support.admin_list(status, category, priority, page, limit, requester, q, sort)
+        out = support.admin_list(status, category, priority, page, limit, requester, q, sort,
+                                 email_search=_admin_email_view(claims))
     except support.SupportError as e:
         return _support_err(e)
     except Exception as e:
@@ -5225,7 +5241,7 @@ def admin_support_list(request: Request, status: str = "", category: str = "", p
     out.update(statuses=list(support.STATUSES), categories=list(support.CATEGORIES),
                priorities=list(support.PRIORITIES), sorts=list(support.ADMIN_SORTS),
                requesters=list(support.REQUESTERS), next_statuses=list(support.ADMIN_REPLY_STATUSES))
-    return api_ok(out)
+    return api_ok(_admin_emails(claims, out))
 
 
 @app.get("/admin/support/counts")
@@ -5240,9 +5256,9 @@ def admin_support_counts(request: Request):
 
 @app.get("/admin/support/tickets/{public_id}")
 def admin_support_get(request: Request, public_id: str):
-    check_admin(request, SUPPORT_PERM)
+    claims = check_admin(request, SUPPORT_PERM)
     try:
-        return api_ok(support.admin_get(public_id))
+        return api_ok(_admin_emails(claims, support.admin_get(public_id)))
     except LookupError:
         return _support_not_found()
     except Exception as e:
@@ -5391,7 +5407,7 @@ def company_settings_put(data: dict = Body(...), token=Depends(verify_token)):
 @app.post("/admin/email/test")
 def admin_test_email(request: Request, data: dict = Body(...)):
     """Send the admin_test template to an address the admin chooses."""
-    claims = check_admin(request)
+    claims = check_admin(request, "settings.edit")
     to = (data.get("to") or "").strip() if isinstance(data.get("to"), str) else ""
     if not email_service.valid_address(to):
         return api_error(422, "invalid_email", "عنوان البريد غير صحيح", "to")
@@ -6466,7 +6482,7 @@ def admin_update_profile(user_id: int, data: ProfileUpdateInput, request: Reques
     same validation as PUT /profile/{id} via _apply_profile_update (no admin-only rules);
     the rules follow the TARGET account's user_type (e.g. emp → no full_name)."""
     _t0 = _time.time()
-    claims = check_admin(request)
+    claims = check_admin(request, "users.edit")
     try:
         with db_conn() as conn:
             rows = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=user_id)
@@ -6476,7 +6492,8 @@ def admin_update_profile(user_id: int, data: ProfileUpdateInput, request: Reques
         raise HTTPException(404, "المستخدم غير موجود")
     payload = data.dict(exclude_unset=True)
     print(f"[ADMIN] profile edit by {claims.get('sub')} → user={user_id} fields={list(payload.keys())}")
-    return _apply_profile_update(user_id, payload, rows[0][0], "PUT /admin/profile", _t0)
+    out = _apply_profile_update(user_id, payload, rows[0][0], "PUT /admin/profile", _t0)
+    return _admin_emails(claims, out) if isinstance(out, dict) else out   # 422 JSONResponse unchanged
 
 
 @app.post("/experience/{user_id}")
@@ -7344,18 +7361,18 @@ def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
 
 @app.get("/admin/kyc")
 def admin_get_kyc(request: Request):
-    check_admin(request)
+    claims = check_admin(request, "kyc.review")
     try:
         # PR-7c: allowlisted fields only (auth._ADMIN_KYC_LIST_COLUMNS) — no OTP
         # codes, no document paths (those → GET /admin/kyc/{submission_id}/docs).
-        submissions = get_all_kyc_submissions()
+        submissions = _admin_emails(claims, get_all_kyc_submissions())
         return {"status": "success", "submissions": submissions, "count": len(submissions)}
     except Exception as e:
         raise _server_error("admin_get_kyc", e)
 
 @app.put("/admin/kyc/{user_id}/approve")
 def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
-    check_admin(request)
+    check_admin(request, "kyc.review")
     try:
         result = admin_approve_kyc(user_id, data.note)
         return {"status": "success", **result}
@@ -7368,7 +7385,7 @@ def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
 def admin_kyc_reject(user_id: int, request: Request, data: dict = Body(...)):
     """Reject — body {reason: text for the user (required, trimmed, ≤ kyc_reject_reason_max),
     note?: internal admin note} (task 8.1). The user sees the reason on /settings only."""
-    check_admin(request)
+    check_admin(request, "kyc.review")
     reason, note = data.get("reason"), data.get("note")
     if reason is not None and not isinstance(reason, str):
         return api_error(422, "invalid_value", _tw_text("admin.kyc.reject.err.reason"), "reason")
@@ -7451,7 +7468,7 @@ async def admin_kyc_docs(submission_id: int, request: Request):
     """Admin only — short-lived signed URLs for one KYC submission's documents.
     Only paths matching kyc-docs/{user_id}_{kind}_{12hex}.{ext} of the same
     submission's user are signed; anything else → url null + reason."""
-    check_admin(request)
+    check_admin(request, "kyc.review")
     row = await asyncio.to_thread(
         _current_image_urls,
         "SELECT user_id, id_front_url, selfie_url FROM kyc_submissions WHERE id = :uid",
@@ -7528,7 +7545,7 @@ async def admin_migrate_data_images(request: Request, dry_run: int = 1):
     dry_run=1 (default) only counts. Invalid values are left untouched and
     reported. Idempotent: a second run finds nothing to migrate.
     Response never contains image content or URLs — counts + reasons only."""
-    check_admin(request)
+    check_admin(request, "system.manage")
     dry = dry_run != 0
     if not dry and not (_supabase_base_url() and _supabase_auth_headers()):
         raise HTTPException(503, "خدمة رفع الصور غير متاحة حالياً")
@@ -7905,7 +7922,7 @@ def promote_applicant(app_id: int, token=Depends(verify_token)):
 @app.get("/admin/jobs")
 def admin_list_jobs(request: Request, q: str = "", status: str = "", page: str = "1", limit: str = "20"):
     """Every job in every state (task 5.3j — #8: was the public feed). SYSTEMS_INDEX §25e."""
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     if status and status not in admin_insights.JOB_ADMIN_STATUSES:
         return api_error(422, "invalid_status", "حالة الوظيفة غير معروفة", field="status")
     if len(q) > admin_insights.USERS_Q_MAX:
@@ -7970,7 +7987,7 @@ def _job_out(info: dict) -> dict:
 
 @app.post("/admin/jobs/{job_id}/hide")
 def admin_hide_job(job_id: int, request: Request, data: dict = Body(default={})):
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         info = admin_set_job_hidden(job_id, True, str((data or {}).get("reason") or ""))
         return api_ok({"id": info["id"], "hidden": True,
@@ -7980,7 +7997,7 @@ def admin_hide_job(job_id: int, request: Request, data: dict = Body(default={}))
 
 @app.post("/admin/jobs/{job_id}/unhide")
 def admin_unhide_job(job_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         info = admin_set_job_hidden(job_id, False)
         return api_ok({"id": info["id"], "hidden": False,
@@ -7990,7 +8007,7 @@ def admin_unhide_job(job_id: int, request: Request):
 
 @app.post("/admin/jobs/{job_id}/reactivate")
 def admin_reactivate_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         info = admin_reactivate_job(job_id, (data or {}).get("duration_days"))
         return api_ok({**_job_out(info), "status": "active",
@@ -8000,7 +8017,7 @@ def admin_reactivate_job_endpoint(job_id: int, request: Request, data: dict = Bo
 
 @app.post("/admin/jobs/{job_id}/extend")
 def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         days = (data or {}).get("duration_days")
         info = admin_extend_job(job_id, days)
@@ -8012,7 +8029,7 @@ def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(d
 def admin_job_status(job_id: int, request: Request, data: dict = Body(default={})):
     """Pause / resume / close from the admin — the same auth.set_job_status as the company (task 5.3j).
     Closing needs a reason (sent to the company). Reopening a closed job = /reactivate."""
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         st = str((data or {}).get("status") or "")
         if st not in _ADMIN_JOB_STATUS:
@@ -8032,7 +8049,7 @@ def admin_job_status(job_id: int, request: Request, data: dict = Body(default={}
 @app.get("/admin/jobs/{job_id}")
 def admin_job_detail(job_id: int, request: Request):
     """One job for the admin job page (task 5.3j phase 4): every field + state + applicants (read only)."""
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     try:
         d = admin_insights.job_detail(job_id)
     except Exception as e:
@@ -8047,7 +8064,7 @@ def admin_update_job_endpoint(job_id: int, request: Request, data: dict = Body(d
     """Admin edit (owner decision 5.3j: after publishing only the admin edits). Body = the publish fields
     (JobInput — same model) + reason (required, sent to the company). Every applicant gets one notice per edit
     (without the reason). The duration is not edited here (/extend · /reactivate)."""
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         body = dict(data or {})
         reason = str(body.pop("reason", "") or "")
@@ -8067,13 +8084,13 @@ def admin_update_job_endpoint(job_id: int, request: Request, data: dict = Body(d
 @app.get("/admin/jobs/{job_id}/delete-preview")
 def admin_job_delete_preview_endpoint(job_id: int, request: Request):
     """What DELETE /admin/jobs/{id} removes / detaches — shown in the delete confirm (task 5.3j phase 4)."""
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     return _admin_job_action("admin_job_delete_preview", lambda: api_ok(admin_job_delete_preview(job_id)))
 
 
 @app.post("/admin/jobs/{job_id}/unarchive")
 def admin_unarchive_job_endpoint(job_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     def run():
         info = admin_unarchive_job(job_id)
         return api_ok({"id": info["id"], "archived": False,
@@ -8084,7 +8101,7 @@ def admin_unarchive_job_endpoint(job_id: int, request: Request):
 @app.delete("/admin/jobs/{job_id}")
 def admin_delete_job(job_id: int, request: Request):
     # Hard delete (task 5.3j — #1): pipeline entries go in the same transaction (their FK is RESTRICT).
-    check_admin(request)
+    check_admin(request, "jobs.manage")
     try:
         removed = admin_hard_delete_job(job_id)
     except LookupError as e:
@@ -8136,13 +8153,13 @@ def admin_login(data: AdminLoginInput):
 # ══════════════════════════════════════════
 @app.get("/admin/profile/{user_id}")
 def admin_get_profile(user_id: int, request: Request):
-    check_admin(request)
+    claims = check_admin(request, "users.view")
     try:
         profile = get_full_profile(user_id)
         if not profile:
             raise HTTPException(404, "المستخدم غير موجود")
         profile["suspension"] = bs.get_suspension(user_id)   # task 5.4 — admin-only (reason / by)
-        return {"status": "success", "profile": profile}
+        return {"status": "success", "profile": _admin_emails(claims, profile)}
     except HTTPException:
         raise
     except Exception as e:
@@ -8160,7 +8177,7 @@ def delete_own_account(user_id: int, token=Depends(verify_token)):
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "users.delete")
     conn = get_conn()
     try:
         rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=user_id)
@@ -8179,7 +8196,7 @@ def delete_user(user_id: int, request: Request):
 
 @app.put("/admin/user/{user_id}/type")
 def change_user_type(user_id: int, request: Request, data: dict = Body(...)):
-    check_admin(request)
+    check_admin(request, "users.type")
     new_type = data.get("user_type","emp")
     if new_type not in ("emp","co","edu"):
         raise HTTPException(400, "نوع حساب غير صحيح")
@@ -8195,7 +8212,7 @@ def change_user_type(user_id: int, request: Request, data: dict = Body(...)):
 @app.put("/admin/user/{user_id}/verify")
 def verify_user(user_id: int, request: Request, data: dict = Body(...)):
     """Manual badge on / off — body {is_verified: true|false} (required boolean, no default — task 5.0c)."""
-    check_admin(request)
+    check_admin(request, "kyc.review")
     is_v = data.get("is_verified")
     if not isinstance(is_v, bool):
         return api_error(422, "invalid_value", "قيمة التوثيق مطلوبة (true / false)", "is_verified")
@@ -8239,7 +8256,7 @@ def admin_set_suspension(user_id: int, request: Request, data: dict = Body(...))
 
 @app.put("/admin/user/{user_id}/password")
 def admin_reset_password(user_id: int, request: Request, data: dict = Body(...)):
-    check_admin(request)
+    check_admin(request, "users.password")
     pw = data.get("password")
     err = _password_policy_error(pw)            # the one password rule (task 5.0c — #10)
     if err:
@@ -8299,7 +8316,7 @@ def admin_email_change(user_id: int, request: Request, data: dict = Body(...)):
 
 @app.delete("/admin/experience/{exp_id}")
 def admin_delete_exp(exp_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "users.edit")
     conn = get_conn()
     try:
         conn.run("DELETE FROM experience WHERE id = :id", id=exp_id)
@@ -8311,7 +8328,7 @@ def admin_delete_exp(exp_id: int, request: Request):
 
 @app.delete("/admin/education/{edu_id}")
 def admin_delete_edu(edu_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "users.edit")
     conn = get_conn()
     try:
         conn.run("DELETE FROM education WHERE id = :id", id=edu_id)
@@ -8323,7 +8340,7 @@ def admin_delete_edu(edu_id: int, request: Request):
 
 @app.delete("/admin/course/{course_id}")
 def admin_delete_course(course_id: int, request: Request):
-    check_admin(request)
+    check_admin(request, "users.edit")
     conn = get_conn()
     try:
         conn.run("DELETE FROM courses WHERE id = :id", id=course_id)
@@ -8342,7 +8359,7 @@ def admin_send_message(data: AdminMessageInput, request: Request):
     admin_message (create_notification) — its mapped email (admin_message, category notification)
     goes through the same hook → user preference + caps. ok only when the notification exists.
     The text is stored as written; every renderer escapes it (textContent / email esc)."""
-    check_admin(request)
+    check_admin(request, "message.send")
     subject = (data.subject or "").strip()[:ADMIN_MESSAGE_SUBJECT_MAX]
     message = (data.message or "").strip()
     if not message:
@@ -9036,7 +9053,7 @@ def admin_pipeline_backfill(
 
     Requires X-Admin-Token header.
     """
-    check_admin(request)
+    check_admin(request, "system.manage")
     if not dry_run and not confirm:
         raise HTTPException(
             400,
@@ -9061,7 +9078,7 @@ def admin_pipeline_backfill_dry_run(request: Request):
     Read-only analysis of legacy data eligible for backfill. No writes.
     Requires X-Admin-Token header.
     """
-    check_admin(request)
+    check_admin(request, "system.manage")
     try:
         return pipeline_backfill_dry_run()
     except Exception as e:
@@ -9088,7 +9105,7 @@ def admin_pipeline_migrate_index(
 
     Requires X-Admin-Token header.
     """
-    check_admin(request)
+    check_admin(request, "system.manage")
     if not confirm:
         raise HTTPException(
             400,
