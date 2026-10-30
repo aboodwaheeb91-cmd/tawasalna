@@ -11,9 +11,9 @@
 
 3. **صلاحيات المالك ما بتنعطى:** `admin_perms.allows(perms, perm)` — القرار الوحيد: `"*"` بيمرق كل شي · perm من `OWNER_ONLY` بيمرق **بس** بـ `"*"` حتى لو مكتوب صراحة بـ `perms` التوكن · غير هيك لازم يكون بالتوكن. مفتاح إعداد أمني (`tw_settings.is_security`) بيحتاج `settings.security` (`tw_settings.SECURITY_PERM`) — للمالك بس.
 
-4. **الإيميل مخفي افتراضياً:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم — `_admin_emails(claims, data)` بـ `server.py` (بيشيل كل مفتاح `email` / `guest_email` بأي عمق عبر `admin_perms.strip_emails`) على: قائمة المستخدمين (+ البحث الموحّد لأنه نفس الـ endpoint) · البروفايل (قراءة + رد التعديل) · التوثيق · الدعم (القائمة + التذكرة). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل → لازم يمرق على `_admin_emails`.
+4. **الإيميل مخفي افتراضياً:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم — `_admin_emails(claims, data)` بـ `server.py` (بيشيل بأي عمق — dict و list — كل مفتاح اسمه `email` أو بيخلص بـ `_email` عبر `admin_perms.strip_emails`، والقاعدة `admin_perms.is_email_key` بالاسم مش بقائمة يدوية — task 8.4a2: `guest_email` · `details.account_email` بتذاكر الدعم · أي حقل جديد) على: قائمة المستخدمين (+ البحث الموحّد لأنه نفس الـ endpoint) · البروفايل (قراءة + رد التعديل) · التوثيق · الدعم (القائمة + التذكرة). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل → لازم يمرق على `_admin_emails`.
 
-- ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل بدون `_admin_emails` · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
+- ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل بدون `_admin_emails` · ❌ حقل إيميل بأي رد أدمن (أو بـ `support.FIELDS` نوع `email`) اسمه ما بيطابق `email` / `*_email` · ❌ قائمة أسماء مفاتيح إيميل يدوية · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
 ## Admin Login + Staff Accounts Rules (task 8.4b — mandatory for all AI sessions)
 
 5. **ما في توكن أدمن بدون الخطوتين:** `<panel>/login` نفس المسار بخطوتين. (أ) `{password}` = المالك (`ADMIN_TOKEN`) · `{email, password}` = موظف → `{step: "mfa", ticket}` — **مش** توكن. الـ ticket موقّع بـ `ADMIN_JWT_SECRET` بـ aud خاص (`tw-admin-mfa`، `typ: mfa_ticket`)، 5 دقايق، مربوط بالـ subject + `session_version` — `check_admin` ما بيقبله. (ب) `{ticket, code}` (رمز تطبيق المصادقة أو رمز استرداد) → `{token}`؛ بعد رمز استرداد الرد فيه `recovery_remaining`. (ج) المالك بدون تطبيق مربوط → الخطوة (أ) بترجّع `{step: "enroll", ticket, secret, otpauth_uri}` (السر بينحفظ مشفّر كـ «معلّق»)، وأول رمز صحيح بيربطه → `{token, recovery_codes}` (10 رموز — مرة وحدة).
@@ -53,7 +53,7 @@
 
 - `static/admin-support/admin-support.js` بيعرض `r.email` لتذكرة الزائر (`' · ' + r.email`) — بدون `users.email.view` الحقل غايب فبتطلع «undefined». لازم الصفحة تتعامل مع غيابه (ما تعرض شي / نص twT) — المهمة 8.4a سيرفر بس.
 
-- Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث).
+- Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` + `details.account_email` بنص الـ JSON كامل + regex إيميل على كل ردود `_admin_emails`).
 
 ## الصلاحيات
 
