@@ -1529,7 +1529,7 @@ def check_admin(request: Request, perm: str) -> dict:
     Task 8.4b — the session is re-read on EVERY request: owner → token sv = admin_owner_mfa.session_version ·
     staff ("staff:<id>") → admin_staff row active + MFA bound + sv equal, and the perms are the effective
     ones from the DB (admin_staff.staff_session), never the token's. No match → 401. The returned claims
-    carry those perms (so _admin_emails decides on the same set)."""
+    carry those perms (so _admin_contacts decides on the same set)."""
     admin_perms.require_known(perm)
     if not _admin_jwt_secret_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
@@ -1570,8 +1570,12 @@ def _admin_email_view(claims: dict) -> bool:
     return admin_perms.allows(claims.get("perms"), admin_perms.EMAIL_VIEW)
 
 
-def _admin_emails(claims: dict, data):
-    return data if _admin_email_view(claims) else admin_perms.strip_emails(data)
+def _admin_contacts(claims: dict, data):
+    """Every admin reply that can carry a user's email / phone goes through here (task 8.4a / 8.4a2):
+    email keys need users.email.view, phone keys users.phone.view — independent ("*" = both)."""
+    perms = claims.get("perms")
+    return admin_perms.strip_contacts(data, admin_perms.allows(perms, admin_perms.EMAIL_VIEW),
+                                      admin_perms.allows(perms, admin_perms.PHONE_VIEW))
 
 
 def _migrate_feed_indexes():
@@ -4413,7 +4417,7 @@ def admin_users(request: Request, q: str = "", type: str = "", status: str = "",
         return api_error(422, "invalid_limit", "عدد العناصر غير صالح", field="limit")
     try:
         view = _admin_email_view(claims)   # without it: no email column, q never matches an email (8.4a)
-        return api_ok(_admin_emails(claims, admin_insights.users_list(page=int(page), limit=int(limit),
+        return api_ok(_admin_contacts(claims, admin_insights.users_list(page=int(page), limit=int(limit),
                                                                      with_email=view, **f)))
     except Exception as e:
         raise _server_error("admin_users", e)
@@ -5311,7 +5315,7 @@ def admin_support_list(request: Request, status: str = "", category: str = "", p
     out.update(statuses=list(support.STATUSES), categories=list(support.CATEGORIES),
                priorities=list(support.PRIORITIES), sorts=list(support.ADMIN_SORTS),
                requesters=list(support.REQUESTERS), next_statuses=list(support.ADMIN_REPLY_STATUSES))
-    return api_ok(_admin_emails(claims, out))
+    return api_ok(_admin_contacts(claims, out))
 
 
 @app.get("/admin/support/counts")
@@ -5328,7 +5332,7 @@ def admin_support_counts(request: Request):
 def admin_support_get(request: Request, public_id: str):
     claims = check_admin(request, SUPPORT_PERM)
     try:
-        return api_ok(_admin_emails(claims, support.admin_get(public_id)))
+        return api_ok(_admin_contacts(claims, support.admin_get(public_id)))
     except LookupError:
         return _support_not_found()
     except Exception as e:
@@ -6563,7 +6567,7 @@ def admin_update_profile(user_id: int, data: ProfileUpdateInput, request: Reques
     payload = data.dict(exclude_unset=True)
     print(f"[ADMIN] profile edit by {claims.get('sub')} → user={user_id} fields={list(payload.keys())}")
     out = _apply_profile_update(user_id, payload, rows[0][0], "PUT /admin/profile", _t0)
-    return _admin_emails(claims, out) if isinstance(out, dict) else out   # 422 JSONResponse unchanged
+    return _admin_contacts(claims, out) if isinstance(out, dict) else out   # 422 JSONResponse unchanged
 
 
 @app.post("/experience/{user_id}")
@@ -7435,7 +7439,7 @@ def admin_get_kyc(request: Request):
     try:
         # PR-7c: allowlisted fields only (auth._ADMIN_KYC_LIST_COLUMNS) — no OTP
         # codes, no document paths (those → GET /admin/kyc/{submission_id}/docs).
-        submissions = _admin_emails(claims, get_all_kyc_submissions())
+        submissions = _admin_contacts(claims, get_all_kyc_submissions())
         return {"status": "success", "submissions": submissions, "count": len(submissions)}
     except Exception as e:
         raise _server_error("admin_get_kyc", e)
@@ -8357,7 +8361,7 @@ def admin_get_profile(user_id: int, request: Request):
         if not profile:
             raise HTTPException(404, "المستخدم غير موجود")
         profile["suspension"] = bs.get_suspension(user_id)   # task 5.4 — admin-only (reason / by)
-        return {"status": "success", "profile": _admin_emails(claims, profile)}
+        return {"status": "success", "profile": _admin_contacts(claims, profile)}
     except HTTPException:
         raise
     except Exception as e:

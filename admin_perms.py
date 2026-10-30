@@ -5,7 +5,10 @@ The ONE list of admin permissions. Every check_admin(request, perm) in server.py
   GRANTABLE   → may be given to a staff token (plan 8.4b)
   OWNER_ONLY  → the owner's only — passes ONLY with "*", even when the perm itself is listed in the token
 allows(perms, perm) → the single decision (check_admin + the email-visibility check use it).
-strip_emails(obj)   → removes every user email key from an admin response without EMAIL_VIEW.
+is_email_key(k)     → a key named "email" or ending in "_email" (task 8.4a2 — the rule is the name, no list).
+is_phone_key(k)     → a key named "phone" or ending in "_phone" (phone_verified stays).
+strip_contacts(obj, email_ok, phone_ok) → removes the email keys (without EMAIL_VIEW) and the phone keys
+                      (without PHONE_VIEW) from an admin response — two independent decisions.
 UNGUARDED_ROUTES    → admin-area routes that do NOT call check_admin, each with its reason (the route test
                       in tests/test_admin_perms_84a.py fails on any other admin route without a perm).
 """
@@ -15,6 +18,7 @@ GRANTABLE = {
     "users.edit":       "تعديل ملفات المستخدمين وحذف عناصر منها",
     "users.suspend":    "تعليق الحسابات وإرجاعها",
     "users.email.view": "رؤية إيميلات المستخدمين",
+    "users.phone.view": "رؤية أرقام هواتف المستخدمين",
     "kyc.review":       "مراجعة طلبات التوثيق",
     "jobs.manage":      "إدارة الوظائف",
     "reports.manage":   "مراجعة البلاغات",
@@ -40,7 +44,8 @@ OWNER_ONLY = {
 ALL = {**GRANTABLE, **OWNER_ONLY}
 OWNER = "*"
 EMAIL_VIEW = "users.email.view"
-EMAIL_KEYS = frozenset({"email", "guest_email"})
+PHONE_VIEW = "users.phone.view"
+EMAIL_KEYS = frozenset({"email", "guest_email"})   # docs / examples only — the rule is is_email_key()
 
 # Admin-area routes (FastAPI route name) that never call check_admin — each with its reason.
 UNGUARDED_ROUTES = {
@@ -73,10 +78,23 @@ def allows(perms, perm: str) -> bool:
     return perm in perms
 
 
-def strip_emails(obj):
-    """Copy of obj without any EMAIL_KEYS key (dicts / lists, any depth)."""
+def is_email_key(key) -> bool:
+    """A key named "email" or ending in "_email" (guest_email · support details account_email · …)."""
+    return isinstance(key, str) and (key == "email" or key.endswith("_email"))
+
+
+def is_phone_key(key) -> bool:
+    """A key named "phone" or ending in "_phone" (support details account_phone · …) — never phone_verified."""
+    return isinstance(key, str) and (key == "phone" or key.endswith("_phone"))
+
+
+def strip_contacts(obj, email_ok: bool, phone_ok: bool):
+    """Copy of obj without the email keys (unless email_ok) and the phone keys (unless phone_ok) — any depth."""
+    if email_ok and phone_ok:
+        return obj
     if isinstance(obj, dict):
-        return {k: strip_emails(v) for k, v in obj.items() if k not in EMAIL_KEYS}
+        return {k: strip_contacts(v, email_ok, phone_ok) for k, v in obj.items()
+                if not ((not email_ok and is_email_key(k)) or (not phone_ok and is_phone_key(k)))}
     if isinstance(obj, list):
-        return [strip_emails(v) for v in obj]
+        return [strip_contacts(v, email_ok, phone_ok) for v in obj]
     return obj
