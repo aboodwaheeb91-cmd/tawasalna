@@ -159,6 +159,9 @@ def test_owner_binds_then_password_alone_never_gives_a_token(db):
     assert client.post(LOGIN, json={"ticket": ticket, "code": _code(body["secret"])}).status_code == 401
     r = client.post(LOGIN, json={"ticket": ticket, "code": _code(body["secret"], 1)})
     assert r.status_code == 200 and "recovery_remaining" not in r.json()
+    assert client.post(LOGIN, json={"ticket": ticket, "code": _code(body["secret"], 1)}).status_code == 401  # ticket used
+    # a fresh ticket each time from here (one token per ticket — task 8.4c-0)
+    ticket = client.post(LOGIN, json={"password": PASSWORD}).json()["ticket"]
     assert client.post(LOGIN, json={"ticket": ticket, "code": _code(body["secret"], 1)}).status_code == 401  # replay
     # recovery code: once, and the reply says how many are left
     r = client.post(LOGIN, json={"ticket": ticket, "code": codes[0].upper()})

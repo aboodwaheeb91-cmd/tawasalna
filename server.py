@@ -790,9 +790,11 @@ def _rate_count(key: str) -> None:
         _rate_store[key] = _rate_store.get(key, []) + [now]
 
 
-def _rate_ok_all(checks) -> bool:
-    """[(rate_name, who), …] — every bucket checked first, then every one counted, in one locked
-    step: one full bucket → False and nothing counted (task 4.3). Rates via tw_settings.rate."""
+def _rate_reserve(checks):
+    """[(rate_name, who), …] — every bucket checked first, then one hit added to every one, in one locked
+    step: one full bucket → None and nothing counted; else the reservation [(key, t), …] — the hits stay
+    (a failure counted before the slow check runs — task 8.4c-0) unless _rate_release takes them back.
+    Rates via tw_settings.rate. The ONE check-and-count of several buckets (_rate_ok_all = this)."""
     with _rate_lock:
         buckets = []
         for rate_name, who in checks:
@@ -800,13 +802,31 @@ def _rate_ok_all(checks) -> bool:
             key = f"{rate_name}:{who}"
             hits = _rate_prune_locked(key, window)
             if len(hits) >= max_hits:
-                return False
+                return None
             buckets.append((key, hits))
         now = _time.time()
         for key, hits in buckets:
             _rate_room_locked(key, now)
             _rate_store[key] = hits + [now]
-        return True
+        return [(key, now) for key, _ in buckets]
+
+
+def _rate_release(held) -> None:
+    """Take back the hits of a _rate_reserve reservation (the attempt succeeded)."""
+    with _rate_lock:
+        for key, t in held or ():
+            hits = list(_rate_store.get(key, ()))
+            if t in hits:
+                hits.remove(t)
+                if hits:
+                    _rate_store.keep(key, hits)
+                else:
+                    _rate_store.pop(key, None)
+
+
+def _rate_ok_all(checks) -> bool:
+    """Every bucket checked, then every one counted — one locked step (task 4.3)."""
+    return _rate_reserve(checks) is not None
 
 
 # Per-(user, post / comment) toggles + comments — RATES on the shared store (task 5.0h-2;
@@ -836,7 +856,9 @@ _LOGIN_LOCKS = ("login_email", "login_ip", "login_ip_email")
 # KYC OTP send (task 4.3): per account + channel · per normalised target (any account) · per client IP.
 _OTP_SEND_RATES = ("otp_send_user", "otp_send_target", "otp_send_ip")
 # Security buckets a full section never evicts — only their window ends them (task 5.4d · 4.3).
-_RATE_NO_EVICT = frozenset(_LOGIN_LOCKS + _OTP_SEND_RATES)
+# Admin login locks (task 8.4c-0): a flood of other accounts must never evict the owner's counter.
+_ADMIN_LOGIN_LOCKS = ("admin_login_ip", "admin_login_acct", "admin_mfa_ip", "admin_mfa_acct")
+_RATE_NO_EVICT = frozenset(_LOGIN_LOCKS + _OTP_SEND_RATES + _ADMIN_LOGIN_LOCKS)
 
 
 def _login_lock_who(email: str, ip: str) -> dict:
@@ -8217,7 +8239,8 @@ def stats():
 #   2) {ticket, code} → {token} (code = authenticator or recovery code — recovery_remaining in the reply)
 #      enroll → the first app code binds it → {token, recovery_codes} (shown once)
 #   Every failure of a step = the same 401 (no hint whether the email exists / the staff member is active).
-#   Lock per IP + per account on each step (RATES admin_login_* / admin_mfa_*) → 429. The audit row names
+#   Lock per IP + per account on each step (RATES admin_login_* / admin_mfa_*) → 429, reserved atomically before
+#   the check (task 8.4c-0 — _admin_reserve) · a ticket gives one token (jti burnt — _admin_ticket_take). The audit row names
 #   the account (owner / staff:<id>) through request.state.audit_actor.
 _ADMIN_LOGIN_FAIL = "Unauthorized"
 # bcrypt hash of a random throwaway — an unknown email costs the same time as a wrong password
@@ -8235,19 +8258,51 @@ def _admin_lock_keys(step: str, ip: str, account: str) -> list:
     return [(f"admin_{step}_ip", ip), (f"admin_{step}_acct", account)]
 
 
-def _admin_locked(keys) -> bool:
-    for name, who in keys:
-        hits, window = tw_settings.rate(name)
-        if len(_rate_prune(f"{name}:{who}", window)) >= hits:
-            return True
-    return False
+def _admin_reserve(request: Request, step: str, ip: str, account: str, actor: str) -> list:
+    """Task 8.4c-0 — check + count of every lock of the step in ONE locked step, BEFORE the slow check
+    (bcrypt / DB): a full lock → 429, nothing counted. The hit stays when the attempt fails (that is the
+    failure count) and is taken back on success (_rate_release) — parallel requests can never pass the limit."""
+    held = _rate_reserve(_admin_lock_keys(step, ip, account))
+    if held is None:
+        request.state.audit_actor = actor
+        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    return held
 
 
-def _admin_fail(request: Request, keys, actor: str):
-    for name, who in keys:
-        _rate_count(f"{name}:{who}")
+def _admin_fail(request: Request, actor: str):
+    """The same 401 for every failure — the reservation stays (counted)."""
     request.state.audit_actor = actor
     raise HTTPException(status_code=401, detail=_ADMIN_LOGIN_FAIL)
+
+
+# Single-use tickets (task 8.4c-0): jti → [expires_at, used]. Taken for the time of one code check (a parallel
+# request with the same ticket → 401), burnt after the first token, freed again when the code is wrong (the lock
+# limits the tries). Memory under _rate_lock, expired entries dropped on use, at most mem_store_max_keys
+# (full → refused, never an eviction) — one replica, like the rate limits (docs/rules/admin-staff.md rule 6).
+_admin_tickets = {}
+
+
+def _admin_ticket_take(claims: dict) -> bool:
+    jti = claims.get("jti")
+    if not isinstance(jti, str) or not jti:
+        return False
+    now = _time.time()
+    with _rate_lock:
+        for k in [k for k, (exp, _) in _admin_tickets.items() if exp <= now]:
+            del _admin_tickets[k]
+        if jti in _admin_tickets or len(_admin_tickets) >= tw_settings.limit("mem_store_max_keys"):
+            return False
+        _admin_tickets[jti] = [float(claims.get("exp") or now + _ADMIN_TICKET_TTL), False]
+        return True
+
+
+def _admin_ticket_done(claims: dict, used: bool) -> None:
+    with _rate_lock:
+        entry = _admin_tickets.get(claims.get("jti"))
+        if entry is not None and used:
+            entry[1] = True
+        elif entry is not None:
+            del _admin_tickets[claims["jti"]]
 
 
 def _admin_mfa_reset_today() -> bool:
@@ -8261,13 +8316,11 @@ def _admin_login_password(data: AdminLoginInput, request: Request, ip: str) -> d
     password = data.password or ""
     email = (data.email or "").strip().lower()
     account = ("email:" + email) if email else admin_staff.OWNER
-    keys = _admin_lock_keys("login", ip, account)
-    if _admin_locked(keys):
-        request.state.audit_actor = admin_staff.OWNER if not email else "-"
-        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    held = _admin_reserve(request, "login", ip, account, admin_staff.OWNER if not email else "-")
     if not email:
         if not password or not hmac.compare_digest(password.encode("utf-8"), ADMIN_TOKEN.encode("utf-8")):
-            _admin_fail(request, keys, admin_staff.OWNER)
+            _admin_fail(request, admin_staff.OWNER)
+        _rate_release(held)
         request.state.audit_actor = admin_staff.OWNER
         if _admin_mfa_reset_today():
             from datetime import datetime, timezone
@@ -8292,7 +8345,8 @@ def _admin_login_password(data: AdminLoginInput, request: Request, ip: str) -> d
         password, (staff or {}).get("password_hash") or _admin_dummy_hash())
     actor = admin_staff.STAFF_PREFIX + str(staff["id"]) if staff else "-"
     if not (staff and ok_pw and staff["password_hash"] and staff["status"] == "active" and staff["mfa"]):
-        _admin_fail(request, keys, actor)
+        _admin_fail(request, actor)
+    _rate_release(held)
     request.state.audit_actor = actor
     return {"success": True, "step": "mfa", "ticket": _admin_ticket_issue(actor, staff["sv"]),
             "expires_in": _ADMIN_TICKET_TTL}
@@ -8301,25 +8355,36 @@ def _admin_login_password(data: AdminLoginInput, request: Request, ip: str) -> d
 def _admin_login_code(data: AdminLoginInput, request: Request, ip: str) -> dict:
     claims = _admin_ticket_claims(data.ticket or "")
     sub = claims.get("sub") or ""
-    keys = _admin_lock_keys("mfa", ip, sub or "-")
     request.state.audit_action = "admin_login_mfa"
-    if _admin_locked(keys):
-        request.state.audit_actor = sub or "-"
-        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    held = _admin_reserve(request, "mfa", ip, sub or "-", sub or "-")
     if not claims or (sub != admin_staff.OWNER and admin_staff.staff_id(sub) is None):
-        _admin_fail(request, keys, "-")
-    code = data.code or ""
+        _admin_fail(request, "-")
+    if not _admin_ticket_take(claims):   # used already / in use by a parallel request
+        _admin_fail(request, sub)
+    out = None
+    try:
+        out = _admin_second_factor(request, sub, claims, data.code or "")
+    finally:
+        _admin_ticket_done(claims, used=out is not None)
+    if out is None:
+        _admin_fail(request, sub)
+    _rate_release(held)
+    return out
+
+
+def _admin_second_factor(request: Request, sub: str, claims: dict, code: str):
+    """The code of a held ticket → the token reply, or None (wrong code)."""
     if sub == admin_staff.OWNER and not admin_staff.owner_state()["enabled"]:
         codes = admin_staff.owner_confirm_enroll(code, claims["sv"])
         if not codes:
-            _admin_fail(request, keys, sub)
+            return None
         request.state.audit_actor = sub
         print("[admin-auth] owner authenticator bound + recovery codes issued")
         return {"success": True, "token": _admin_jwt_issue(sv=claims["sv"]), "expires_in": _ADMIN_JWT_TTL,
                 "recovery_codes": codes}
     res = admin_staff.verify_second_factor(sub, code, claims["sv"])
     if not res:
-        _admin_fail(request, keys, sub)
+        return None
     request.state.audit_actor = sub
     if sub == admin_staff.OWNER:
         token = _admin_jwt_issue(sv=claims["sv"])
