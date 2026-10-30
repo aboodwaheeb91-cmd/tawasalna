@@ -189,6 +189,7 @@ def test_catalog_groups():
 def real(monkeypatch):
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-" + "s" * 32)
     monkeypatch.setattr(srv, "ADMIN_TOKEN", "a" * 40)
+    monkeypatch.setattr(srv.admin_staff, "owner_session_version", lambda: 1)   # task 8.4b — owner sv lives in the DB (1 = never reset)
     srv._rate_store.clear()
     tw_settings._set_overrides({})
     yield
@@ -242,8 +243,8 @@ def test_owner_star_unchanged(real):
     assert client.get("/admin/settings", headers=h).status_code == 200
     assert client.put(f"/admin/settings/{_SECURITY_KEY}", json={"value": "x"}, headers=h).status_code == 422
     assert client.get("/admin/settings").status_code == 401
-    r = client.post(PANEL + "/login", json={"password": "a" * 40})
-    assert srv._admin_jwt_claims(r.json()["token"])["perms"] == ["*"]
+    # the owner token (issued after both login steps — tests/test_admin_mfa_84b.py) carries "*"
+    assert srv._admin_jwt_claims(srv._admin_jwt_issue())["perms"] == ["*"]
 
 
 def test_unknown_or_missing_perm_is_a_programming_error(real):

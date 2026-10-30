@@ -941,6 +941,54 @@
     });
     show();
   }
+  // Login (task 8.4b — docs/rules/admin-staff.md → Admin Login): step 1 password (+ email for staff) →
+  // step 2 authenticator / recovery code, or (owner, first time) bind the app → recovery codes shown once.
+  // The ticket, the key and the codes stay in this closure only — never storage, never the URL.
+  var LOGIN = { ticket: '', recovery: false, token: '' };
+  var LOGIN_BOXES = ['loginForm', 'codeForm', 'enrollForm', 'codesBox'];
+
+  function loginBox(id) {
+    LOGIN_BOXES.forEach(function (b) { $(b).hidden = b !== id; });
+    var first = { loginForm: 'admin-pass', codeForm: 'admin-code', enrollForm: 'enroll-code', codesBox: 'codesSaved' }[id];
+    if (first && $(first)) $(first).focus();
+  }
+  function loginReset() {
+    LOGIN.ticket = ''; LOGIN.recovery = false; LOGIN.token = '';
+    ['admin-code', 'enroll-code'].forEach(function (i) { $(i).value = ''; });
+    $('enrollKey').textContent = ''; $('enrollOpen').removeAttribute('href'); $('codesList').textContent = '';
+    loginBox('loginForm');
+  }
+  function loginErrText(r) {
+    return twT(r.status === 401 ? 'admin.login.wrong' : r.status === 429 ? 'admin.login.rate' : 'admin.login.error');
+  }
+  function loginPost(body) {
+    // No admin session yet → shared client without user auth (a 401 here = wrong credentials, not expiry).
+    return twApi(TwAdminShell.base() + '/login', { method: 'POST', auth: false, body: body });
+  }
+  function loginDone(token, remaining) {
+    TwAdminSession.setToken(token);
+    loginReset();
+    enter();
+    if (typeof remaining === 'number') {
+      twAlert({ title: twT('admin.login.recovery_used'), okText: twT('common.ok'),
+                message: twT('admin.login.recovery_left', { n: twFormatNumber(remaining) }) });
+    }
+  }
+  function codeMode(recovery) {
+    LOGIN.recovery = recovery;
+    var input = $('admin-code');
+    input.value = '';
+    input.inputMode = recovery ? 'text' : 'numeric';
+    input.autocomplete = recovery ? 'off' : 'one-time-code';
+    $('codeHint').textContent = twT(recovery ? 'admin.login.recovery_hint' : 'admin.login.code_hint');
+    $('codeMode').textContent = twT(recovery ? 'admin.login.use_app' : 'admin.login.use_recovery');
+    $('codeErr').textContent = '';
+    input.focus();
+  }
+  function groupKey(secret) {
+    return String(secret || '').replace(/[^A-Z2-7]/g, '').replace(/(.{4})/g, '$1 ').trim();
+  }
+
   function showLogin(expired) {
     $('main-content').hidden = true;
     $('loginWrap').hidden = false;
@@ -948,33 +996,86 @@
       $('loginErr').textContent = twT('admin.session.expired');
       try { history.replaceState(null, '', TwAdminShell.base() + location.hash); } catch (e) {}
     }
-    $('admin-pass').focus();
+    loginReset();
   }
   function login(e) {
     e.preventDefault();
-    var pass = $('admin-pass').value, b = $('loginBtn'), err = $('loginErr');
+    var pass = $('admin-pass').value, email = $('admin-user').value.trim(), b = $('loginBtn'), err = $('loginErr');
     if (!pass) return;
     b.disabled = true;
     err.textContent = '';
-    // No admin session yet → shared client without user auth (a 401 here = wrong password, not expiry).
-    twApi(TwAdminShell.base() + '/login', { method: 'POST', auth: false, body: { password: pass } }).then(function (r) {
+    loginPost(email ? { email: email, password: pass } : { password: pass }).then(function (r) {
       b.disabled = false;
-      var token = r.ok && r.data && r.data.token;
-      if (token) {
-        TwAdminSession.setToken(token);
-        $('admin-pass').value = '';
-        enter();
+      var d = (r.ok && r.data) || {};
+      if (!d.ticket) { err.textContent = loginErrText(r); return; }
+      $('admin-pass').value = '';
+      LOGIN.ticket = d.ticket;
+      if (d.step === 'enroll' && d.secret && /^otpauth:\/\/totp\//.test(String(d.otpauth_uri || ''))) {
+        $('enrollKey').textContent = groupKey(d.secret);
+        $('enrollOpen').setAttribute('href', d.otpauth_uri);
+        $('enrollErr').textContent = '';
+        loginBox('enrollForm');
         return;
       }
-      err.textContent = twT(r.status === 401 ? 'admin.login.wrong' : r.status === 429 ? 'admin.login.rate' : 'admin.login.error');
+      loginBox('codeForm');
+      codeMode(false);
     });
+  }
+  function sendCode(input, btn, errEl, onOk) {
+    var code = $(input).value.replace(/\s+/g, '');
+    if (!code || !LOGIN.ticket) return;
+    $(btn).disabled = true;
+    $(errEl).textContent = '';
+    loginPost({ ticket: LOGIN.ticket, code: code }).then(function (r) {
+      $(btn).disabled = false;
+      var d = (r.ok && r.data) || {};
+      if (!d.token) { $(errEl).textContent = loginErrText(r); $(input).value = ''; return; }
+      onOk(d);
+    });
+  }
+  function verifyCode(e) {
+    e.preventDefault();
+    sendCode('admin-code', 'codeBtn', 'codeErr', function (d) { loginDone(d.token, d.recovery_remaining); });
+  }
+  function verifyEnroll(e) {
+    e.preventDefault();
+    sendCode('enroll-code', 'enrollBtn', 'enrollErr', function (d) {
+      var codes = Array.isArray(d.recovery_codes) ? d.recovery_codes : [];
+      if (!codes.length) { loginDone(d.token); return; }
+      LOGIN.token = d.token;   // entered only after "حفظتها"
+      var list = $('codesList');
+      list.textContent = '';
+      codes.forEach(function (c) { var li = document.createElement('li'); li.textContent = String(c); list.appendChild(li); });
+      $('codesSaved').checked = false;
+      $('codesDone').disabled = true;
+      loginBox('codesBox');
+    });
+  }
+  function copyCodes() {
+    var text = Array.prototype.map.call($('codesList').children, function (li) { return li.textContent; }).join('\n');
+    var done = function () { showToast(twT('admin.login.codes_copied'), 'success'); };
+    try {
+      navigator.clipboard.writeText(text).then(done, function () { showToast(twT('admin.login.codes_copy_fail'), 'error'); });
+    } catch (err) { showToast(twT('admin.login.codes_copy_fail'), 'error'); }
+  }
+  function bindLogin() {
+    $('loginForm').addEventListener('submit', login);
+    $('codeForm').addEventListener('submit', verifyCode);
+    $('enrollForm').addEventListener('submit', verifyEnroll);
+    $('codeMode').addEventListener('click', function () { codeMode(!LOGIN.recovery); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-adm-login-back]'), function (b) {
+      b.addEventListener('click', loginReset);
+    });
+    $('codesCopy').addEventListener('click', copyCodes);
+    $('codesSaved').addEventListener('change', function () { $('codesDone').disabled = !this.checked; });
+    $('codesDone').addEventListener('click', function () { if (LOGIN.token && $('codesSaved').checked) loginDone(LOGIN.token); });
   }
 
   function boot() {
     document.title = twT('page.title', { page: twT('admin.shell.title') });
     var logo = document.querySelector('.adm-login-logo');
     if (logo) logo.alt = twT('brand.name');
-    $('loginForm').addEventListener('submit', login);
+    bindLogin();
     if (TwAdminShell.start({ loginPage: true })) enter();
     else showLogin(TwAdminShell.wasExpired());
   }

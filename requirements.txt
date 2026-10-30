@@ -9,3 +9,5 @@ asyncpg==0.29.0
 httpx==0.27.0
 websockets==12.0
 redis==5.0.1
+# task 8.4b — Fernet for the admin authenticator secrets at rest (admin_staff.py)
+cryptography==50.0.1

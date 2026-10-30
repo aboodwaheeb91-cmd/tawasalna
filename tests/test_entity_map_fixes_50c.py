@@ -27,11 +27,11 @@ from fastapi.testclient import TestClient
 
 import admin_insights
 import auth
+import admin_staff
 import server as srv
 
 client = TestClient(srv.app)
 PASSWORD = "p" * 40
-LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"
 
 
 def _sql(q, **kw):
@@ -71,6 +71,7 @@ def env(monkeypatch):
         c.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL")
     auth._migrate_password_changed_at()
     auth._migrate_session_version()
+    admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth._migrate_password_reset_tokens()
     auth._migrate_kyc_otp_security()
     auth._migrate_kyc_reject_reason()
@@ -88,9 +89,8 @@ def env(monkeypatch):
 
 
 def _admin():
-    r = client.post(LOGIN, json={"password": PASSWORD})
-    assert r.status_code == 200
-    return {"X-Admin-Token": r.json()["token"]}
+    # task 8.4b: the login needs password + authenticator code (tests/test_admin_mfa_84b.py) — the owner token directly
+    return {"X-Admin-Token": srv._admin_jwt_issue()}
 
 
 def _job(company_id, title="مطوّر"):

@@ -50,6 +50,7 @@ def env(monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://sb.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "sb_secret_test")
     monkeypatch.delenv("TW_DEV_UPLOAD", raising=False)
+    monkeypatch.setattr(server.admin_staff, "owner_session_version", lambda: 1)   # task 8.4b — owner sv lives in the DB
 
 
 # ── (a) KYC docs ──────────────────────────────────────────────────────────────

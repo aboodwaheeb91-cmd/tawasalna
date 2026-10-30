@@ -32,6 +32,8 @@ def _env(monkeypatch):
     srv._pwd_changed_cache.clear()
     srv._rate_store.clear()
     monkeypatch.setattr(auth, "get_session_state", lambda uid: {"changed": None, "sv": 0})   # live account, no change
+    monkeypatch.setattr(srv.admin_staff, "owner_session_version", lambda: 1)   # task 8.4b — owner sv lives in the DB (1 = never reset)
+    monkeypatch.setenv("ADMIN_MFA_KEY", "test-mfa-key-" + "k" * 32)
     yield
     srv._pwd_changed_cache.clear()
 
@@ -52,10 +54,16 @@ def _status(fn, *a):
 
 # ── PR 1.5 — admin session JWT ───────────────────────────────────────────────
 
-def test_login_returns_short_admin_jwt_not_raw_secret():
+def test_login_password_gives_ticket_then_short_admin_jwt(monkeypatch):
+    """Task 8.4b: the password alone never gives an admin token — a 5-minute ticket for the code step (not
+    accepted by check_admin). The admin token itself (after the code — tests/test_admin_mfa_84b.py) is a ≤ 1h
+    JWT, never the raw secret."""
+    monkeypatch.setattr(srv.admin_staff, "owner_state", lambda: {"enabled": True, "sv": 1})
     r = client.post(LOGIN, json={"password": "a" * 40})
-    assert r.status_code == 200
-    tok = r.json()["token"]
+    assert r.status_code == 200 and r.json()["step"] == "mfa" and "token" not in r.json()
+    ticket = r.json()["ticket"]
+    assert srv.ADMIN_TOKEN not in ticket and _status(srv.check_admin, _req(ticket), "stats.view") == 401
+    tok = srv._admin_jwt_issue()
     assert tok != srv.ADMIN_TOKEN and srv.ADMIN_TOKEN not in tok
     c = srv._admin_jwt_claims(tok)
     assert c["role"] == "admin" and c["sub"] == "owner" and c["perms"] == ["*"]
@@ -64,10 +72,13 @@ def test_login_returns_short_admin_jwt_not_raw_secret():
     assert client.post(LOGIN, json={"password": "b" * 40}).status_code == 401
 
 
-def test_login_under_panel_path_rate_limited():
+def test_login_under_panel_path_rate_limited(monkeypatch):
     """Task 5.3a — admin pages post the login to <panel>/login. Wrong password → 401;
-    past the per-IP limit → 429 (rate_limit_middleware)."""
-    for _ in range(srv._RATE_LIMIT):
+    past the failure limit (task 8.4b — RATES admin_login_*, under rate_limit_middleware's) → 429,
+    even with the right password."""
+    monkeypatch.setattr(srv.admin_staff, "owner_state", lambda: {"enabled": True, "sv": 1})
+    hits = min(srv.tw_settings.rate("admin_login_acct")[0], srv._RATE_LIMIT)
+    for _ in range(hits):
         assert client.post(LOGIN, json={"password": "b" * 40}).status_code == 401
     assert client.post(LOGIN, json={"password": "a" * 40}).status_code == 429
 

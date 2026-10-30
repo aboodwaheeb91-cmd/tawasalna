@@ -86,6 +86,10 @@ RATES = {
     "support_track_code_ip": (10, 3600),      # … per client IP → 429
     "support_inbound_sender": (3, 3600),      # new ticket from an inbound email — per sender address (over it: ignored, 7.3)
     "support_inbound_global": (100, 3600),    # … every inbound ticket together
+    "admin_login_ip": (10, 900),      # admin login step 1 (password) — failures per client IP (task 8.4b)
+    "admin_login_acct": (5, 900),     # … per account (owner / staff email)
+    "admin_mfa_ip": (10, 900),        # admin login step 2 (authenticator / recovery code) — failures per client IP
+    "admin_mfa_acct": (5, 900),       # … per account (owner / staff:<id>)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")

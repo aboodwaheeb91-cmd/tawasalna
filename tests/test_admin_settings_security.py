@@ -26,6 +26,7 @@ import auth
 import admin_insights
 import tw_limits
 import tw_settings
+import admin_staff
 import server as srv
 
 client = TestClient(srv.app)
@@ -49,6 +50,7 @@ def env():
         auth.release_conn(c)
     admin_insights.migrate_admin_audit_log()
     tw_settings.migrate_app_settings()
+    admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     tw_settings.reload()
     srv._rate_store.clear()
     yield

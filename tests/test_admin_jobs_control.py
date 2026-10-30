@@ -43,7 +43,6 @@ import server as srv
 
 client = TestClient(srv.app)
 PASSWORD = "p" * 40
-LOGIN = "/tw-ctrl-" + srv.ADMIN_URL_TOKEN + "/login"
 USER_SECRET = "test-user-secret-53j2-" + "u" * 32
 
 
@@ -79,9 +78,8 @@ def _sql(q, **kw):
 
 
 def _admin():
-    r = client.post(LOGIN, json={"password": PASSWORD})
-    assert r.status_code == 200
-    return {"X-Admin-Token": r.json()["token"]}
+    # task 8.4b: the login needs password + authenticator code (tests/test_admin_mfa_84b.py) — the owner token directly
+    return {"X-Admin-Token": srv._admin_jwt_issue()}
 
 
 def _user(ut="co"):

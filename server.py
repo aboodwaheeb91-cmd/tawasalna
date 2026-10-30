@@ -213,6 +213,8 @@ from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser
 from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
 from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
 import admin_perms   # task 8.4a — admin permission catalog (docs/rules/admin-staff.md)
+from auth import hash_password as _hash_password, verify_password as _verify_password
+import admin_staff   # task 8.4b — staff accounts + admin two-step login (docs/rules/admin-staff.md)
 import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEMS_INDEX §62)
 
 # ── Secrets from environment — NEVER hardcoded in source ──
@@ -221,6 +223,9 @@ import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEM
 #   ADMIN_JWT_SECRET — random 32+ byte hex, signs admin session JWTs; INDEPENDENT of JWT_SECRET / ADMIN_TOKEN
 #   JWT_SECRET       — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
 #   ADMIN_URL_TOKEN  — random slug for admin panel URL path
+#   ADMIN_MFA_KEY    — ≥ 32 chars, encrypts the admin authenticator secrets at rest (admin_staff.py — task 8.4b)
+#   ADMIN_MFA_RESET  — optional, YYYY-MM-DD: owner MFA reset on the first password login of that UTC day
+#                      (docs/rules/admin-staff.md → owner recovery) — removed again right after
 # Rotating JWT_SECRET invalidates all active sessions (users must re-login). This is expected.
 # Rotating ADMIN_JWT_SECRET signs every admin out (sessions last ≤ 1h anyway).
 ADMIN_TOKEN      = os.environ.get("ADMIN_TOKEN", "").strip()
@@ -372,13 +377,18 @@ def verify_token(request: Request):
 # The admin login (<panel>/login) checks the ADMIN_TOKEN password and returns THIS token — the raw
 # ADMIN_TOKEN never reaches the browser and is never accepted as a session.
 # Claims shape is fixed so plan 5.3 (staff accounts) adds values, not fields:
-#   iss "tawasalna" · aud "tw-admin" · sub "owner" (later "staff:<id>")
-#   role "admin" (later e.g. "moderator") · perms ["*"] (later e.g. ["reports.read"])
+#   iss "tawasalna" · aud "tw-admin" · sub "owner" | "staff:<id>" (task 8.4b)
+#   role "admin" (owner, perms ["*"]) | "staff" (perms [] — check_admin reads the real ones from the DB)
+#   sv = session_version (owner: admin_owner_mfa · staff: admin_staff) — compared on every request
 #   iat · exp (iat + _ADMIN_JWT_TTL, ≤ 1h) · jti (random, for a future denylist)
+# Issued ONLY after both login steps (password, then authenticator code) — _admin_ticket_* is the step between.
 _ADMIN_JWT_TTL = 3600
 _ADMIN_JWT_ISS = "tawasalna"
 _ADMIN_JWT_AUD = "tw-admin"
-_ADMIN_ROLES = {"admin"}   # roles accepted by check_admin; plan 5.3 adds staff roles here
+_ADMIN_ROLES = {"admin", "staff"}   # roles accepted by check_admin (staff — task 8.4b)
+# Login ticket (task 8.4b): password step → this, never an admin token. Own aud → never verifies as one.
+_ADMIN_TICKET_TTL = 300
+_ADMIN_TICKET_AUD = "tw-admin-mfa"
 # Content screens (phase 5a — strings · theme colors · news): read + write behind this permission,
 # same pattern as tw_settings.PERM ("settings.edit"). The owner token ("*") holds both.
 CONTENT_PERM = "content.edit"
@@ -388,16 +398,40 @@ def _admin_jwt_secret_ok() -> bool:
             and not hmac.compare_digest(ADMIN_JWT_SECRET.encode(), JWT_SECRET.encode())
             and not hmac.compare_digest(ADMIN_JWT_SECRET.encode(), ADMIN_TOKEN.encode()))
 
-def _admin_jwt_issue(sub: str = "owner", role: str = "admin", perms=None) -> str:
+def _admin_jwt_issue(sub: str = "owner", role: str = "admin", perms=None, sv: int = 1) -> str:
     import time, secrets
     if not _admin_jwt_secret_ok():
         raise RuntimeError("ADMIN_JWT_SECRET is not configured")
     now = int(time.time())
     return _jwt_sign({
         "iss": _ADMIN_JWT_ISS, "aud": _ADMIN_JWT_AUD,
-        "sub": sub, "role": role, "perms": list(perms) if perms is not None else ["*"],
+        "sub": sub, "role": role, "perms": list(perms) if perms is not None else ["*"], "sv": int(sv),
         "iat": now, "exp": now + _ADMIN_JWT_TTL, "jti": secrets.token_hex(12),
     }, ADMIN_JWT_SECRET)
+
+
+def _admin_ticket_issue(sub: str, sv: int) -> str:
+    """Password step passed (task 8.4b) → 5-minute ticket for the code step. Not an admin token (own aud)."""
+    import time, secrets
+    now = int(time.time())
+    return _jwt_sign({"iss": _ADMIN_JWT_ISS, "aud": _ADMIN_TICKET_AUD, "typ": "mfa_ticket", "sub": sub,
+                      "sv": int(sv), "iat": now, "exp": now + _ADMIN_TICKET_TTL, "jti": secrets.token_hex(12)},
+                     ADMIN_JWT_SECRET)
+
+
+def _admin_ticket_claims(token: str) -> dict:
+    if not _admin_jwt_secret_ok() or not isinstance(token, str):
+        return {}
+    c = _jwt_verify(token, ADMIN_JWT_SECRET)
+    if (not c or c.get("iss") != _ADMIN_JWT_ISS or c.get("aud") != _ADMIN_TICKET_AUD
+            or c.get("typ") != "mfa_ticket" or not isinstance(c.get("sub"), str) or not isinstance(c.get("sv"), int)):
+        return {}
+    try:
+        if int(c["exp"]) - int(c["iat"]) > _ADMIN_TICKET_TTL:
+            return {}
+    except (KeyError, TypeError, ValueError):
+        return {}
+    return c
 
 def _admin_jwt_claims(token: str) -> dict:
     """Admin JWT → claims, or {} (bad signature / expired / wrong iss·aud / no role / lifetime > TTL)."""
@@ -883,7 +917,9 @@ def _admin_audit_entry(request, status: int):
     """The audit row for this request, or None when it is not an admin write / login."""
     path = request.url.path
     if path in _ADMIN_LOGIN_PATHS and request.method == "POST":
-        return {"actor": "owner" if status < 400 else "-", "action": "admin_login", "target": None,
+        # task 8.4b — the account the login named (owner / staff:<id>, "-" = unknown); step 2 = admin_login_mfa
+        return {"actor": str(getattr(request.state, "audit_actor", "-")),
+                "action": str(getattr(request.state, "audit_action", "admin_login")), "target": None,
                 "status": status, "ip": get_client_ip(request)}
     if not path.startswith("/admin/"):
         return None
@@ -1122,6 +1158,7 @@ def _startup_migrations():
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
+        ("admin_staff",                       admin_staff.migrate_admin_staff,     True),   # 8.4b — check_admin + the admin login read it
         ("rls_lockdown",                      _migrate_rls_lockdown,               True),   # last — after every table exists
     )
 
@@ -1189,6 +1226,8 @@ async def on_startup():
     if not _admin_jwt_secret_ok():
         print("⚠️  ADMIN_JWT_SECRET not configured (min 32 chars, must differ from JWT_SECRET / ADMIN_TOKEN) "
               "— admin login + admin endpoints will return 503")
+    if not admin_staff.mfa_key_ok():
+        print("⚠️  ADMIN_MFA_KEY not configured (min 32 chars) — admin login will return 503")
     if not ADMIN_URL_TOKEN:
         print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
     for _line in _supabase_storage_status_lines():
@@ -1486,17 +1525,44 @@ def check_admin(request: Request, perm: str) -> dict:
     503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
     (admin pages send the admin back to the login screen) · 403 = valid token without
     the role / permission. `perm` is required and must be in admin_perms.ALL (task 8.4a — else
-    RuntimeError = programming error); an admin_perms.OWNER_ONLY perm passes only with "*"."""
+    RuntimeError = programming error); an admin_perms.OWNER_ONLY perm passes only with "*".
+    Task 8.4b — the session is re-read on EVERY request: owner → token sv = admin_owner_mfa.session_version ·
+    staff ("staff:<id>") → admin_staff row active + MFA bound + sv equal, and the perms are the effective
+    ones from the DB (admin_staff.staff_session), never the token's. No match → 401. The returned claims
+    carry those perms (so _admin_emails decides on the same set)."""
     admin_perms.require_known(perm)
     if not _admin_jwt_secret_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
     if not claims:
-        raise HTTPException(status_code=401, detail="انتهت جلسة الإدارة، سجّل الدخول من جديد")
-    perms = claims.get("perms") or []
-    if claims.get("role") not in _ADMIN_ROLES or not admin_perms.allows(perms, perm):
+        raise HTTPException(status_code=401, detail=_ADMIN_SESSION_OVER)
+    role = claims.get("role")
+    if role not in _ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    live = _admin_live_session(claims)
+    if live is None or not isinstance(claims.get("sv"), int) or live["sv"] != claims["sv"]:
+        raise HTTPException(status_code=401, detail=_ADMIN_SESSION_OVER)
+    if live["perms"] is not None:
+        claims = dict(claims, perms=sorted(live["perms"]))
+    if not admin_perms.allows(claims.get("perms") or [], perm):
         raise HTTPException(status_code=403, detail="Forbidden")
     return claims
+
+
+_ADMIN_SESSION_OVER = "انتهت جلسة الإدارة، سجّل الدخول من جديد"
+
+
+def _admin_live_session(claims: dict):
+    """{sv, perms} from the DB for this admin token (perms None = keep the token's — the owner), or None.
+    role "staff" → sub must be "staff:<id>" · role "admin" → the owner's session_version. DB down → 503."""
+    try:
+        if claims.get("role") == "staff":
+            sid = admin_staff.staff_id(claims.get("sub"))
+            return admin_staff.staff_session(sid) if sid is not None else None
+        return {"sv": admin_staff.owner_session_version(), "perms": None}
+    except Exception as e:
+        print(f"[admin-auth] session read failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
 
 def _admin_email_view(claims: dict) -> bool:
@@ -2679,7 +2745,11 @@ class CourseInput(BaseModel):
     description: Optional[str] = None
 
 class AdminLoginInput(BaseModel):
-    password: str
+    # task 8.4b — step 1: {password} = owner · {email, password} = staff · step 2: {ticket, code}
+    password: Optional[str] = Field(None, max_length=256)
+    email: Optional[str] = Field(None, max_length=254)
+    ticket: Optional[str] = Field(None, max_length=2048)
+    code: Optional[str] = Field(None, max_length=64)
 
 class AdminMessageInput(BaseModel):
     user_id: int
@@ -8137,16 +8207,144 @@ def stats():
 # Task 5.3a: the login answers under the panel path (<panel>/login) so no served file carries the
 # panel prefix (the page posts relative to its own path — docs/rules/admin-shell.md). In _RATE_LIMITED_PATHS.
 # Task 5.3b: the old fixed /tw-ctrl-login route is deleted (no page used it any more) → 404.
+# Task 8.4b — two steps on the same route (docs/rules/admin-staff.md → Admin Login):
+#   1) {password} (owner = ADMIN_TOKEN) · {email, password} (staff) → {step: "mfa", ticket}
+#      owner without a bound app → {step: "enroll", ticket, secret, otpauth_uri}
+#   2) {ticket, code} → {token} (code = authenticator or recovery code — recovery_remaining in the reply)
+#      enroll → the first app code binds it → {token, recovery_codes} (shown once)
+#   Every failure of a step = the same 401 (no hint whether the email exists / the staff member is active).
+#   Lock per IP + per account on each step (RATES admin_login_* / admin_mfa_*) → 429. The audit row names
+#   the account (owner / staff:<id>) through request.state.audit_actor.
+_ADMIN_LOGIN_FAIL = "Unauthorized"
+# bcrypt hash of a random throwaway — an unknown email costs the same time as a wrong password
+_ADMIN_DUMMY_HASH = None
+
+
+def _admin_dummy_hash() -> str:
+    global _ADMIN_DUMMY_HASH
+    if _ADMIN_DUMMY_HASH is None:
+        _ADMIN_DUMMY_HASH = _hash_password(secrets.token_hex(16))
+    return _ADMIN_DUMMY_HASH
+
+
+def _admin_lock_keys(step: str, ip: str, account: str) -> list:
+    return [(f"admin_{step}_ip", ip), (f"admin_{step}_acct", account)]
+
+
+def _admin_locked(keys) -> bool:
+    for name, who in keys:
+        hits, window = tw_settings.rate(name)
+        if len(_rate_prune(f"{name}:{who}", window)) >= hits:
+            return True
+    return False
+
+
+def _admin_fail(request: Request, keys, actor: str):
+    for name, who in keys:
+        _rate_count(f"{name}:{who}")
+    request.state.audit_actor = actor
+    raise HTTPException(status_code=401, detail=_ADMIN_LOGIN_FAIL)
+
+
+def _admin_mfa_reset_today() -> bool:
+    """ADMIN_MFA_RESET=YYYY-MM-DD equal to today (UTC) — anything else does nothing."""
+    from datetime import datetime, timezone
+    want = os.environ.get("ADMIN_MFA_RESET", "").strip()
+    return bool(want) and want == datetime.now(timezone.utc).date().isoformat()
+
+
+def _admin_login_password(data: AdminLoginInput, request: Request, ip: str) -> dict:
+    password = data.password or ""
+    email = (data.email or "").strip().lower()
+    account = ("email:" + email) if email else admin_staff.OWNER
+    keys = _admin_lock_keys("login", ip, account)
+    if _admin_locked(keys):
+        request.state.audit_actor = admin_staff.OWNER if not email else "-"
+        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    if not email:
+        if not password or not hmac.compare_digest(password.encode("utf-8"), ADMIN_TOKEN.encode("utf-8")):
+            _admin_fail(request, keys, admin_staff.OWNER)
+        request.state.audit_actor = admin_staff.OWNER
+        if _admin_mfa_reset_today():
+            from datetime import datetime, timezone
+            if admin_staff.owner_reset(datetime.now(timezone.utc).date().isoformat()):
+                print("[admin-auth] ADMIN_MFA_RESET applied — owner MFA + recovery codes cleared, owner sessions ended")
+                admin_insights.audit_record(actor=admin_staff.OWNER, action="admin_mfa_reset", target=None,
+                                            status=200, ip=ip)
+        st = admin_staff.owner_state()
+        if st["enabled"]:
+            return {"success": True, "step": "mfa", "ticket": _admin_ticket_issue(admin_staff.OWNER, st["sv"]),
+                    "expires_in": _ADMIN_TICKET_TTL}
+        pending = admin_staff.owner_begin_enroll()
+        if not pending:   # bound between the two reads — ask for the code
+            return {"success": True, "step": "mfa", "ticket": _admin_ticket_issue(admin_staff.OWNER, st["sv"]),
+                    "expires_in": _ADMIN_TICKET_TTL}
+        secret, sv = pending
+        return {"success": True, "step": "enroll", "ticket": _admin_ticket_issue(admin_staff.OWNER, sv),
+                "expires_in": _ADMIN_TICKET_TTL, "secret": secret,
+                "otpauth_uri": admin_staff.otpauth_uri(secret, admin_staff.OWNER)}
+    staff = admin_staff.staff_for_login(email)
+    ok_pw = bool(password) and len(password.encode("utf-8")) <= 72 and _verify_password(
+        password, (staff or {}).get("password_hash") or _admin_dummy_hash())
+    actor = admin_staff.STAFF_PREFIX + str(staff["id"]) if staff else "-"
+    if not (staff and ok_pw and staff["password_hash"] and staff["status"] == "active" and staff["mfa"]):
+        _admin_fail(request, keys, actor)
+    request.state.audit_actor = actor
+    return {"success": True, "step": "mfa", "ticket": _admin_ticket_issue(actor, staff["sv"]),
+            "expires_in": _ADMIN_TICKET_TTL}
+
+
+def _admin_login_code(data: AdminLoginInput, request: Request, ip: str) -> dict:
+    claims = _admin_ticket_claims(data.ticket or "")
+    sub = claims.get("sub") or ""
+    keys = _admin_lock_keys("mfa", ip, sub or "-")
+    request.state.audit_action = "admin_login_mfa"
+    if _admin_locked(keys):
+        request.state.audit_actor = sub or "-"
+        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    if not claims or (sub != admin_staff.OWNER and admin_staff.staff_id(sub) is None):
+        _admin_fail(request, keys, "-")
+    code = data.code or ""
+    if sub == admin_staff.OWNER and not admin_staff.owner_state()["enabled"]:
+        codes = admin_staff.owner_confirm_enroll(code, claims["sv"])
+        if not codes:
+            _admin_fail(request, keys, sub)
+        request.state.audit_actor = sub
+        print("[admin-auth] owner authenticator bound + recovery codes issued")
+        return {"success": True, "token": _admin_jwt_issue(sv=claims["sv"]), "expires_in": _ADMIN_JWT_TTL,
+                "recovery_codes": codes}
+    res = admin_staff.verify_second_factor(sub, code, claims["sv"])
+    if not res:
+        _admin_fail(request, keys, sub)
+    request.state.audit_actor = sub
+    if sub == admin_staff.OWNER:
+        token = _admin_jwt_issue(sv=claims["sv"])
+    else:
+        sid = admin_staff.staff_id(sub)
+        token = _admin_jwt_issue(sub=sub, role="staff", perms=[], sv=claims["sv"])
+        admin_staff.staff_mark_login(sid)
+    print(f"[admin-auth] admin session issued sub={sub} via={res['method']}")
+    out = {"success": True, "token": token, "expires_in": _ADMIN_JWT_TTL}
+    if res["method"] == "recovery":
+        out["recovery_remaining"] = res["remaining"]
+    return out
+
+
 @app.post("/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")
-def admin_login(data: AdminLoginInput):
+def admin_login(data: AdminLoginInput, request: Request):
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    if not _admin_jwt_secret_ok():
+    if not _admin_jwt_secret_ok() or not admin_staff.mfa_key_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    if not hmac.compare_digest(data.password.encode(), ADMIN_TOKEN.encode()):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    print("[admin-auth] admin session issued sub=owner")
-    return {"success": True, "token": _admin_jwt_issue(), "expires_in": _ADMIN_JWT_TTL}
+    ip = get_client_ip(request)
+    try:
+        if data.ticket is not None:
+            return _admin_login_code(data, request, ip)
+        return _admin_login_password(data, request, ip)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _server_error("admin_login", e)
 
 # ══════════════════════════════════════════
 # Admin API - all require X-Admin-Token header

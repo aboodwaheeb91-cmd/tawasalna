@@ -6340,11 +6340,12 @@ def check_admin(request, perm) -> dict:
 - `ADMIN_TOKEN` missing → warning → `<panel>/login` returns 503
 - `ADMIN_JWT_SECRET` missing / invalid → warning → `<panel>/login` **and** every admin endpoint return 503 (fail closed — never falls back to `JWT_SECRET`)
 - `ADMIN_URL_TOKEN` missing → warning logged → admin panel URL not accessible
+- `ADMIN_MFA_KEY` missing / < 32 chars → warning → `<panel>/login` returns 503 (task 8.4b — encrypts the authenticator secrets)
 
-**Admin Login Flow:**
-1. POST `<panel>/login` `{password}` (task 5.3a — `admin.html` posts relative to its own path; rate limited — `_RATE_LIMITED_PATHS`). The old fixed `POST /tw-ctrl-login` is deleted (task 5.3b) → 404
-2. Server compares with `ADMIN_TOKEN` via `hmac.compare_digest` (timing-safe) → 401 on mismatch
-3. Returns `{"success": true, "token": <admin JWT>, "expires_in": 3600}` — the raw `ADMIN_TOKEN` never reaches the browser
+**Admin Login Flow (two steps — task 8.4b · `docs/rules/admin-staff.md` rules 5–9):**
+1. POST `<panel>/login` `{password}` (owner) or `{email, password}` (staff) (task 5.3a — `admin.html` posts relative to its own path; rate limited — `_RATE_LIMITED_PATHS` + failure locks `RATES admin_login_*`). The old fixed `POST /tw-ctrl-login` is deleted (task 5.3b) → 404
+2. Owner: `hmac.compare_digest` with `ADMIN_TOKEN` · staff: `admin_staff` row (bcrypt; unknown email → dummy bcrypt) — active + MFA bound. Any failure → the same 401. Success → `{"success": true, "step": "mfa", "ticket": <5-min ticket>}` (aud `tw-admin-mfa` — never an admin token); owner without a bound app → `{"step": "enroll", "ticket", "secret", "otpauth_uri"}`
+3. POST `<panel>/login` `{ticket, code}` (authenticator code or recovery code; locks `RATES admin_mfa_*`) → `{"success": true, "token": <admin JWT>, "expires_in": 3600}` (+ `recovery_remaining` after a recovery code · + `recovery_codes` once, when the owner binds the app) — the raw `ADMIN_TOKEN` never reaches the browser. Owner token `sub=owner · role=admin · perms=["*"] · sv`; staff token `sub=staff:<id> · role=staff · perms=[] · sv` — `check_admin` re-reads `admin_owner_mfa.session_version` / the `admin_staff` row (status · sv · DB perms) on every request
 4. `static/shared/admin-session.js` (`TwAdminSession`) stores it in `sessionStorage.tw_adm_token` (per tab, never `localStorage`) and sends it as `X-Admin-Token` through `TwAdminSession.fetch()`
 5. Expiry: `TwAdminSession` fires `onExpired` at `exp` (timer) **or** on any 401/403 from an admin call → on every admin page (`admin.html` · `admin-email.html` · `admin-view.html` — 5.3b) ONE handler in `TwAdminShell` → `location.replace(<panel>?session=expired)` → the login screen shows `admin.session.expired` (task 5.3a — SYSTEMS_INDEX §25a). `admin-view.html` is outside the panel path → the panel root saved by this tab (`TwAdminSession.panelHref()`); a tab that never opened the panel shows `admin.view.open_panel` (no link to the secret URL). No silent hang, no reload loop.
 
@@ -6447,6 +6448,20 @@ All rows below call `check_admin(request, perm)` (`X-Admin-Token` header = admin
 | GET | `/admin/pipeline/backfill/dry-run` | `admin_pipeline_backfill_dry_run` | Read-only backfill dry-run shortcut (§66c) |
 | POST | `/admin/pipeline/migrate-index` | `admin_pipeline_migrate_index` | Create pipeline partial UNIQUE index (§66c). `?confirm=true` required; idempotent; run AFTER backfill. Checks status before (for `action` label) and after (readiness guard). `BlockingConflictError` → `JSONResponse(409, e.report)`; `ready=False` → `JSONResponse(500, {"code":"pipeline_index_not_ready","index_status":{...}})`; success `{"status":"ok","action":"created"\|"already_exists","index_status":{ready:true,...}}` |
 
+### Admin Staff Accounts + Admin MFA (task 8.4b · SYSTEMS_INDEX §25h · `docs/rules/admin-staff.md`)
+
+Critical startup migration `admin_staff` (`admin_staff.migrate_admin_staff` — idempotent `CREATE … IF NOT EXISTS`). `admin_staff.py` is the only reader / writer.
+
+| Table | Columns / constraints |
+|-------|-----------------------|
+| `admin_roles` | `id SERIAL PK` · `name TEXT UNIQUE NOT NULL` · `perms TEXT[] NOT NULL DEFAULT '{}'` · `created_at` |
+| `admin_staff` | `id SERIAL PK` · `email TEXT NOT NULL CHECK (email = lower(email))` + unique index on `lower(email)` · `name` · `password_hash NULL` · `role_id → admin_roles ON DELETE SET NULL` · `allow_perms TEXT[]` · `deny_perms TEXT[]` · `status CHECK IN (invited, active, suspended)` · `mfa_secret_enc NULL` (Fernet) · `mfa_enabled_at NULL` · `mfa_last_step BIGINT` · `session_version INT DEFAULT 1` · `created_at` · `last_login_at` |
+| `admin_owner_mfa` | one row `id = 1` (CHECK): `secret_enc` · `enabled_at` · `last_step` · `session_version INT DEFAULT 1` · `reset_on DATE` |
+| `admin_recovery_codes` | `subject CHECK ~ '^(owner|staff:[0-9]+)$'` · `code_hash` (SHA-256) · `used_at` · index on `subject` |
+| `admin_invites` | `token_hash UNIQUE` · `staff_id → admin_staff ON DELETE CASCADE` · `kind CHECK IN (invite, mfa_reset)` · `expires_at` · `used_at` (used from 8.4c) |
+
+TOTP RFC 6238 (stdlib `hmac` — SHA-1 · 6 digits · 30 s · ±1 step; a step accepted once: `UPDATE … WHERE last_step < :s`). Secrets: Fernet (`cryptography`, pinned) with key `base64url(SHA-256(ADMIN_MFA_KEY))`. Recovery codes: 10 × `xxxxx-xxxxx` from `secrets`, SHA-256 only. Effective staff perms = (role ∪ allow) − deny ∩ `admin_perms.GRANTABLE`. Env `ADMIN_MFA_RESET=YYYY-MM-DD` (today UTC) → the first correct owner password of that day clears the owner MFA + codes and bumps `session_version` (`reset_on` = once per day).
+
 ### Admin Audit Log (task 5.3a2 · SYSTEMS_INDEX §25b)
 
 Table `admin_audit_log` — critical startup migration `admin_audit_log` (`admin_insights.migrate_admin_audit_log`):
@@ -6463,7 +6478,7 @@ Table `admin_audit_log` — critical startup migration `admin_audit_log` (`admin
 | `ip` | TEXT | `get_client_ip(request)` only |
 | `old_value` / `new_value` | TEXT | task 4.1 — a settings change only (`request.state.audit_change`), NULL for every other row |
 
-Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited). Reads (`GET`) are not recorded — except the routes in `AUDIT_READ_ROUTES` (data leaving the site: `admin_users_export` — task 5.3a3). ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
+Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/PUT/PATCH/DELETE` under `/admin/` that matched a route (also when `check_admin` refused it) + every `POST` to the admin login paths (success, wrong password, rate limited — actor = the account the login named: `owner` / `staff:<id>` / `-`, action `admin_login` (step 1) · `admin_login_mfa` (step 2) via `request.state.audit_actor` / `audit_action` — task 8.4b; plus `admin_mfa_reset` written by the login itself). Reads (`GET`) are not recorded — except the routes in `AUDIT_READ_ROUTES` (data leaving the site: `admin_users_export` — task 5.3a3). ❌ request body, password, token or message text in any column · ❌ a second writer of `admin_audit_log`.
 
 ### Rules
 

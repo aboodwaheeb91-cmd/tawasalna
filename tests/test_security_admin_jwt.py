@@ -134,7 +134,14 @@ class TestCheckAdminBehavior(unittest.TestCase):
     def _make_request(self, token_value: str):
         req = MagicMock()
         req.headers.get = lambda k, d="": token_value if k == "X-Admin-Token" else d
+        req.client.host = "127.0.0.1"
         return req
+
+    @staticmethod
+    def _login_data(password):
+        data = MagicMock()
+        data.password, data.email, data.ticket, data.code = password, None, None, None
+        return data
 
     # PR 1.5: check_admin accepts ONLY an admin JWT (ADMIN_JWT_SECRET) — the raw
     # ADMIN_TOKEN is the login password, never a session. Full matrix:
@@ -169,7 +176,9 @@ class TestCheckAdminBehavior(unittest.TestCase):
         original = srv.ADMIN_JWT_SECRET
         try:
             srv.ADMIN_JWT_SECRET = "s" * 64
-            claims = srv.check_admin(self._make_request(srv._admin_jwt_issue()), "stats.view")
+            # task 8.4b: the owner session_version is re-read on every request (DB) — 1 = never reset
+            with patch.object(srv.admin_staff, "owner_session_version", return_value=1):
+                claims = srv.check_admin(self._make_request(srv._admin_jwt_issue()), "stats.view")
             self.assertEqual(claims["role"], "admin")
         finally:
             srv.ADMIN_JWT_SECRET = original
@@ -180,10 +189,8 @@ class TestCheckAdminBehavior(unittest.TestCase):
         original = srv.ADMIN_TOKEN
         try:
             srv.ADMIN_TOKEN = ""
-            data = MagicMock()
-            data.password = "anything"
             with self.assertRaises(Exception) as ctx:
-                srv.admin_login(data)
+                srv.admin_login(self._login_data("anything"), self._make_request(""))
             self.assertEqual(ctx.exception.status_code, 503)
         finally:
             srv.ADMIN_TOKEN = original
@@ -195,29 +202,31 @@ class TestCheckAdminBehavior(unittest.TestCase):
         try:
             # PR 1.5: without a valid ADMIN_JWT_SECRET admin_login is 503 (fail closed)
             srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = "c" * 64, "s" * 64
-            data = MagicMock()
-            data.password = "wrong"
-            with self.assertRaises(Exception) as ctx:
-                srv.admin_login(data)
+            srv._rate_store.clear()
+            with patch.dict(os.environ, {"ADMIN_MFA_KEY": "m" * 40}), self.assertRaises(Exception) as ctx:
+                srv.admin_login(self._login_data("wrong"), self._make_request(""))
             self.assertEqual(ctx.exception.status_code, 401)
         finally:
             srv.ADMIN_TOKEN, srv.ADMIN_JWT_SECRET = original, o_sec
 
-    def test_admin_login_succeeds_with_correct_admin_token(self):
-        """admin_login returns success when password == ADMIN_TOKEN."""
+    def test_admin_login_correct_password_gives_ticket_not_token(self):
+        """Task 8.4b: password == ADMIN_TOKEN → step 1 passed: a short ticket for the code step, never an
+        admin token (and never the raw ADMIN_TOKEN)."""
         import server as srv
         original = srv.ADMIN_TOKEN
         try:
             srv.ADMIN_TOKEN = "d" * 64
             o_sec = srv.ADMIN_JWT_SECRET
             srv.ADMIN_JWT_SECRET = "s" * 64
-            data = MagicMock()
-            data.password = "d" * 64
-            result = srv.admin_login(data)
+            srv._rate_store.clear()
+            with patch.dict(os.environ, {"ADMIN_MFA_KEY": "m" * 40}), \
+                    patch.object(srv.admin_staff, "owner_state", return_value={"enabled": True, "sv": 1}):
+                result = srv.admin_login(self._login_data("d" * 64), self._make_request(""))
             self.assertTrue(result.get("success"))
-            # PR 1.5: an admin JWT, never the raw ADMIN_TOKEN
-            self.assertNotEqual(result.get("token"), "d" * 64)
-            self.assertTrue(srv._admin_jwt_claims(result.get("token")))
+            self.assertEqual(result.get("step"), "mfa")
+            self.assertNotIn("token", result)
+            self.assertEqual(srv._admin_jwt_claims(result["ticket"]), {})
+            self.assertEqual(srv._admin_ticket_claims(result["ticket"])["sub"], "owner")
             srv.ADMIN_JWT_SECRET = o_sec
         finally:
             srv.ADMIN_TOKEN = original
