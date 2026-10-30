@@ -135,10 +135,23 @@ check('C11 override enabled:true kept only where it differs from the default (de
   JSON.stringify(keptOv) === JSON.stringify({ verify_identity: { enabled: true } }), JSON.stringify(keptOv));
 check('C8 page block is script-safe', !/<\/script>.*<\/script>/.test(pageBlock({})) && pageBlock({}).startsWith('<script>window.TW_ACTIONS='));
 const SRV = read('server.py');
-const getA = SRV.split('@app.get("/admin/actions")')[1].split('\n@app.')[0];
 const putA = SRV.split('@app.put("/admin/actions")')[1].split('\n@app.')[0];
+// admin-only = behaviour (task 8.4a — was a source-text check): real app, no token → 401 · admin token
+// without settings.edit → 403 (both before any read / write)
+const gate = py([
+  'import os, io, contextlib',
+  'os.environ.setdefault("JWT_SECRET", "test-user-secret-" + "u" * 32)',
+  'os.environ.setdefault("ADMIN_JWT_SECRET", "test-admin-secret-" + "c" * 32)',
+  'with contextlib.redirect_stdout(io.StringIO()):',
+  '    import server as srv',
+  '    from fastapi.testclient import TestClient',
+  '    c = TestClient(srv.app)',
+  '    h = {"X-Admin-Token": srv._admin_jwt_issue(perms=["content.edit"])}',
+  '    out = [c.get("/admin/actions").status_code, c.put("/admin/actions", json={}).status_code,',
+  '           c.get("/admin/actions", headers=h).status_code, c.put("/admin/actions", json={}, headers=h).status_code]',
+  'print(json.dumps(out))'].join('\n'));
 check('C9 GET/PUT /admin/actions admin-only + validated + saved + live',
-  /check_admin\(request\)/.test(getA) && /check_admin\(request\)/.test(putA)
+  JSON.stringify(gate) === '[401,401,403,403]'
   && /tw_actions\.validate_overrides\(/.test(putA) && /set_site_setting\(tw_actions\.SETTING_KEY/.test(putA)
   && /_actions_set_overrides\(clean\)/.test(putA));
 check('C10 overrides loaded at startup', /await asyncio\.to_thread\(_actions_load_overrides\)/.test(SRV));
