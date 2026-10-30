@@ -14,6 +14,10 @@
 4. **الإيميل مخفي افتراضياً:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم — `_admin_emails(claims, data)` بـ `server.py` (بيشيل كل مفتاح `email` / `guest_email` بأي عمق عبر `admin_perms.strip_emails`) على: قائمة المستخدمين (+ البحث الموحّد لأنه نفس الـ endpoint) · البروفايل (قراءة + رد التعديل) · التوثيق · الدعم (القائمة + التذكرة). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل → لازم يمرق على `_admin_emails`.
 
 - ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل بدون `_admin_emails` · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
+## مؤجّل (8.4c)
+
+- `static/admin-support/admin-support.js` بيعرض `r.email` لتذكرة الزائر (`' · ' + r.email`) — بدون `users.email.view` الحقل غايب فبتطلع «undefined». لازم الصفحة تتعامل مع غيابه (ما تعرض شي / نص twT) — المهمة 8.4a سيرفر بس.
+
 - Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث).
 
 ## الصلاحيات
@@ -29,7 +33,7 @@
 | `reports.manage` | قابلة للإعطاء | مراجعة البلاغات |
 | `content.edit` | قابلة للإعطاء | النصوص والألوان والأخبار والشعار |
 | `support.manage` | قابلة للإعطاء | تذاكر الدعم |
-| `settings.edit` | قابلة للإعطاء | الإعدادات العادية والإيميل وأزرار الإجراءات |
+| `settings.edit` | قابلة للإعطاء | الإعدادات العادية وأزرار الإجراءات وقراءة إعدادات الإيميل + إيميل تجربة |
 | `stats.view` | قابلة للإعطاء | لوحة القيادة والإحصائيات والنشاط |
 | `message.send` | قابلة للإعطاء | إرسال رسالة لمستخدم |
 | `users.delete` | المالك بس | حذف حساب |
@@ -37,7 +41,7 @@
 | `users.password` | المالك بس | تغيير كلمة سر مستخدم |
 | `users.email` | المالك بس | تغيير إيميل مستخدم |
 | `users.export` | المالك بس | تصدير المستخدمين CSV |
-| `settings.security` | المالك بس | الإعدادات الأمنية |
+| `settings.security` | المالك بس | الإعدادات الأمنية + تعديل إعدادات الإيميل (`PUT /admin/email`) |
 | `audit.view` | المالك بس | السجل الأمني |
 | `staff.manage` | المالك بس | إدارة فريق الإدارة (ما إلها مسار لسا — 8.4b) |
 | `system.manage` | المالك بس | صيانة النظام وسجل الأخطاء |
@@ -63,7 +67,8 @@
 | GET · POST · PUT | `/admin/support/tickets` · `/admin/support/counts` · `/admin/support/tickets/{public_id}` (+ `/messages`) | `support.manage` (+ `users.email.view` للإيميل والبحث فيه) |
 | GET | `/admin/settings` | `settings.edit` |
 | PUT · POST | `/admin/settings/{key}` · `/admin/settings/{key}/reset` | `settings.edit` — مفتاح أمني: `settings.security` |
-| GET · PUT | `/admin/actions` · `/admin/email` | `settings.edit` |
+| GET · PUT | `/admin/actions` | `settings.edit` |
+| GET | `/admin/email` | `settings.edit` |
 | POST | `/admin/email/test` | `settings.edit` |
 | GET | `/admin/stats/summary` · `/admin/stats/timeseries` · `/admin/activity` | `stats.view` |
 | POST | `/admin/message` | `message.send` |
@@ -73,6 +78,7 @@
 | PUT | `/admin/user/{user_id}/email` | `users.email` |
 | GET | `/admin/users/export` | `users.export` |
 | GET | `/admin/audit` | `audit.view` |
+| PUT | `/admin/email` | `settings.security` — بيغيّر `site_url` / `from_address`، و `site_url` مصدر روابط إعادة كلمة السر والتوثيق بالإيميلات (موظف ما لازم يقدر يحوّلها لموقع تاني) |
 | GET | `/admin/errors` | `system.manage` |
 | POST | `/admin/maintenance/migrate-data-images` · `/admin/pipeline/backfill` · `/admin/pipeline/migrate-index` | `system.manage` |
 | GET | `/admin/pipeline/backfill/dry-run` | `system.manage` |

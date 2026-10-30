@@ -76,7 +76,6 @@ ROUTE_PERMS = {
     ("GET", "/admin/actions"): "settings.edit",
     ("PUT", "/admin/actions"): "settings.edit",
     ("GET", "/admin/email"): "settings.edit",
-    ("PUT", "/admin/email"): "settings.edit",
     ("POST", "/admin/email/test"): "settings.edit",
     ("GET", "/admin/stats/summary"): "stats.view",
     ("GET", "/admin/stats/timeseries"): "stats.view",
@@ -89,6 +88,7 @@ ROUTE_PERMS = {
     ("PUT", "/admin/user/{user_id}/email"): "users.email",
     ("GET", "/admin/users/export"): "users.export",
     ("GET", "/admin/audit"): "audit.view",
+    ("PUT", "/admin/email"): "settings.security",               # site_url / from_address = reset / verify link source
     ("GET", "/admin/errors"): "system.manage",
     ("POST", "/admin/maintenance/migrate-data-images"): "system.manage",
     ("POST", "/admin/pipeline/backfill"): "system.manage",
@@ -223,6 +223,17 @@ def test_owner_only_perm_in_token_still_403(real):
                                (["settings.edit", "settings.security"], "PUT", f"/admin/settings/{_SECURITY_KEY}")):
         r = client.request(method, url, json={"value": "x"}, headers=_h(perms))
         assert r.status_code == 403, (perms, url, r.status_code)
+
+
+def test_email_settings_write_is_owner_only(real):
+    """PUT /admin/email changes site_url — the base of every password-reset / verify link → settings.security."""
+    staff = _h(["settings.edit"])
+    assert client.get("/admin/email", headers=staff).status_code == 200
+    assert client.put("/admin/email", json={"site_url": "https://evil.example"}, headers=staff).status_code == 403
+    assert client.post("/admin/email/test", json={"to": "bad"}, headers=staff).status_code == 422   # passes the gate
+    assert client.put("/admin/email", json={"site_url": "x"}, headers=_h(["settings.edit", "settings.security"])).status_code == 403
+    r = client.put("/admin/email", json={"site_url": "javascript:x"}, headers=_h(None))   # owner: gate passed, validation as before
+    assert r.status_code == 422 and r.json()["error"]["field"] == "site_url"
 
 
 def test_owner_star_unchanged(real):

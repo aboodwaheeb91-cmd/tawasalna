@@ -12773,7 +12773,7 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 | Endpoint | Auth | Body | Errors | Success |
 |----------|------|------|--------|---------|
 | `GET /admin/email` | `check_admin` | — | 401 / 503 | `{ok, data:{status, settings, defaults, types, categories, notify_types, notify_limits, stats, templates}}` (5.1c: `stats` = `null` when the counter is unreadable) |
-| `PUT /admin/email` | `check_admin` | partial `{from_address?, from_name?, site_url?, types?, notify?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
+| `PUT /admin/email` | `check_admin(request, "settings.security")` — owner only (8.4a: `site_url` = reset / verify link base) | partial `{from_address?, from_name?, site_url?, types?, notify?}` | 422 `{code, message, field}` · 500 `save_failed` | `{ok, data:{settings}}` |
 | `POST /admin/email/test` | `check_admin` | `{to}` | 422 `invalid_email` · 503 `email_unavailable` · 502 `email_failed` | `{ok, data:{sent:true}}` |
 
 ### Forgot password

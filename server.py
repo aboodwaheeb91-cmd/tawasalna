@@ -4627,7 +4627,7 @@ def admin_get_email(request: Request):
 def admin_put_email(request: Request, data: dict = Body(...)):
     """Partial update: {from_address?, from_name?, site_url?, types?: {key: bool},
     notify?: {daily_cap?, monthly_cap?, message_delay_minutes?, message_throttle_hours?}} (all-or-nothing)."""
-    claims = check_admin(request, "settings.edit")
+    claims = check_admin(request, "settings.security")   # site_url / from_address = the source of reset / verify links → owner only (8.4a)
     try:
         clean = email_service.validate_settings(data, email_service.get_settings())
     except email_service.EmailSettingsError as e:
