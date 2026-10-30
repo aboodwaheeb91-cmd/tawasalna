@@ -83,4 +83,7 @@ jobs:
           test "$(psql -h 127.0.0.1 -U tawasalna_test_user -d postgres -tAc 'SHOW ssl')" = on
 
       - name: Run all tests
+        env:
+          # task 8.4c-0 — a skipped admin security test fails the run (tests/conftest.py)
+          TW_SECURITY_TESTS_REQUIRED: "1"
         run: ./run_tests.sh
