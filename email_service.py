@@ -22,7 +22,8 @@ Categories (task 5.1c · docs/rules/email.md → Notification Emails):
   security       password_reset · password_changed · email_change · email_changed · email_changed_admin · kyc_email_otp ·
                  support_guest_otp (7.1) · support_guest_link (7.2a) ·
                  support_guest_reply · support_reply (7.2b) ·
-                 admin_test · staff_suspended · staff_restored · staff_perms_changed (8.4c-2a1) —
+                 admin_test · staff_suspended · staff_restored · staff_perms_changed (8.4c-2a1) ·
+                 staff_invite · staff_mfa_reset · staff_password_reset · staff_password_changed (8.4c-2a2) —
                  never touched by the caps or the user's preferences.
   notification   notify_* — send_email(..., user_id=, ref_key=) runs the gate first (registered by
                  server.py via set_send_hooks → auth.email_notify_reserve): user preference ·
@@ -84,6 +85,15 @@ TEMPLATES = {
     "staff_suspended":     {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
     "staff_restored":      {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
     "staff_perms_changed": {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
+    # Admin staff links (task 8.4c-2a2) — the link is site_url + a public /staff/* page + #t=<token>; never the
+    # panel path. Always on (not in TYPES).
+    "staff_invite":           {"category": SECURITY, "vars": ("name", "link", "hours"),
+                               "parts": ("subject", "body", "button", "note")},
+    "staff_mfa_reset":        {"category": SECURITY, "vars": ("name", "link", "hours"),
+                               "parts": ("subject", "body", "button", "note")},
+    "staff_password_reset":   {"category": SECURITY, "vars": ("name", "link", "minutes"),
+                               "parts": ("subject", "body", "button", "note")},
+    "staff_password_changed": {"category": SECURITY, "vars": ("name",), "parts": ("subject", "body", "note")},
     # Notification emails (5.1c) — {title} / {details} = the in-site notification's own text.
     "notify_message":                 {"category": NOTIFICATION, "vars": ("name", "sender", "link"),
                                        "parts": ("subject", "body", "button")},

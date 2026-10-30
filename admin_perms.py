@@ -60,6 +60,7 @@ UNGUARDED_ROUTES = {
     "admin_job_page":      "HTML shell only (outside the panel path)",
     "admin_me":            "session-only (check_admin_session) — who is signed in + the effective perms",
     "admin_step_up":       "session-only (check_admin_session) — the owner's step-up code check (staff → 403)",
+    "admin_forgot":        "public — staff password reset request (always the same reply; own IP + email limits)",
 }
 
 

@@ -104,6 +104,10 @@ ROUTE_PERMS = {
     ("PUT", "/admin/staff/{staff_id}/access"): "staff.manage",
     ("POST", "/admin/staff/{staff_id}/suspend"): "staff.manage",
     ("POST", "/admin/staff/{staff_id}/restore"): "staff.manage",
+    ("POST", "/admin/staff/invite"): "staff.manage",                       # task 8.4c-2a2
+    ("POST", "/admin/staff/{staff_id}/invite/resend"): "staff.manage",
+    ("DELETE", "/admin/staff/{staff_id}"): "staff.manage",
+    ("POST", "/admin/staff/{staff_id}/mfa-reset"): "staff.manage",
 }
 # bodies validated by a model before the endpoint runs (else 422 before check_admin)
 _BODIES = {"/admin/logo": {"data_url": "x"}, "/admin/message": {"user_id": 1, "subject": "s", "message": "m"},
@@ -173,6 +177,8 @@ def test_unguarded_routes_are_known_html_or_login_or_public_logo():
         r = by_name[name]
         if name == "admin_login":
             assert r.methods == {"POST"} and r.path == PANEL + "/login"
+        elif name == "admin_forgot":   # task 8.4c-2a2 — public, the same reply whether the email exists or not
+            assert r.methods == {"POST"} and r.path == PANEL + "/forgot"
         elif name == "get_logos":
             assert r.methods == {"GET"} and r.path == "/admin/logo"
         elif name in ("admin_me", "admin_step_up"):   # task 8.4c-1 — session-only (check_admin_session)

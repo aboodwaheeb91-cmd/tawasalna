@@ -50,6 +50,8 @@ LIMITS = {
     "feed_snapshot_ttl_min": 60,  # … saved job list (feed_snapshots) lifetime in minutes — older = 409 feed_reset
     "feed_snapshots_per_user": 5, # … saved lists kept per account (oldest deleted on insert)
     "admin_role_name_max": 60,    # POST / PUT /admin/roles name (chars — owner only, task 8.4c-2a1)
+    "admin_staff_name_max": 80,   # POST /admin/staff/invite name (chars — owner only, task 8.4c-2a2)
+    "staff_password_min": 12,     # admin staff password (chars — invite / password reset, task 8.4c-2a2; max = password_max_bytes)
 }
 
 RATES = {
@@ -91,6 +93,10 @@ RATES = {
     "admin_login_acct": (5, 900),     # … per account (owner / staff email)
     "admin_mfa_ip": (10, 900),        # admin login step 2 (authenticator / recovery code) — failures per client IP
     "admin_mfa_acct": (5, 900),       # … per account (owner / staff:<id>)
+    "staff_link_ip": (20, 900),       # /staff/invite|mfa-reset|password-reset/* — every call per client IP (task 8.4c-2a2)
+    "staff_link_token": (10, 900),    # … per link (SHA-256 of the token — wrong codes count here)
+    "staff_forgot_ip": (10, 3600),    # <panel>/forgot — per client IP (task 8.4c-2a2)
+    "staff_forgot_email": (3, 3600),  # … per email address (counted for unknown addresses too — same reply)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
