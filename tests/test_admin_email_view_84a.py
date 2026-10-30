@@ -18,6 +18,12 @@ import auth
 import server as srv
 import tw_settings
 
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = srv._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": srv._admin_step_up_issue("owner", 1, tok)}
+
+
 client = TestClient(srv.app)
 _DB_URL = os.environ.get("TW_TEST_DB_URL", "").strip()
 _ADMIN_SECRET = "test-admin-secret-84a-" + "a" * 32
@@ -72,7 +78,7 @@ def account():
 
 
 def _admin(perms):
-    return {"X-Admin-Token": srv._admin_jwt_issue(perms=perms)}
+    return _owner_stepup_hdr() if perms is None else {"X-Admin-Token": srv._admin_jwt_issue(perms=perms)}
 
 
 _NO_EMAIL = ["users.view", "kyc.review", "support.manage"]

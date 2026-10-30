@@ -31,6 +31,12 @@ import email_service
 import admin_staff
 import server
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = server._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(server.app)
 A, B = "rana83@example.com", "omar83@example.com"
 NEW = "rana83.new@example.com"
@@ -119,7 +125,7 @@ def _sent_templates():
 
 def _put(uid, new_email, headers=None):
     return client.put(f"/admin/user/{uid}/email", json={"new_email": new_email},
-                      headers=headers if headers is not None else {"X-Admin-Token": server._admin_jwt_issue()})
+                      headers=headers if headers is not None else _owner_stepup_hdr())
 
 
 def _token(call):
@@ -144,7 +150,7 @@ def test_no_admin_token_401_staff_403_even_with_perm_owner_passes(env):
     staff_email = {"X-Admin-Token": server._admin_jwt_issue(sub="staff:2", perms=["users.email"])}
     assert _put(a, NEW, headers=staff_email).status_code == 403
     assert env.calls == []
-    ok = {"X-Admin-Token": server._admin_jwt_issue()}   # the owner ("*")
+    ok = _owner_stepup_hdr()   # the owner ("*")
     assert _put(a, NEW, headers=ok).status_code == 200
 
 

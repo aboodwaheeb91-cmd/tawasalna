@@ -94,6 +94,7 @@ ROUTE_PERMS = {
     ("POST", "/admin/pipeline/backfill"): "system.manage",
     ("GET", "/admin/pipeline/backfill/dry-run"): "system.manage",
     ("POST", "/admin/pipeline/migrate-index"): "system.manage",
+    ("POST", "/admin/owner/recovery-codes"): "settings.security",   # task 8.4c-1 — new owner recovery codes
 }
 # bodies validated by a model before the endpoint runs (else 422 before check_admin)
 _BODIES = {"/admin/logo": {"data_url": "x"}, "/admin/message": {"user_id": 1, "subject": "s", "message": "m"},
@@ -165,6 +166,10 @@ def test_unguarded_routes_are_known_html_or_login_or_public_logo():
             assert r.methods == {"POST"} and r.path == PANEL + "/login"
         elif name == "get_logos":
             assert r.methods == {"GET"} and r.path == "/admin/logo"
+        elif name in ("admin_me", "admin_step_up"):   # task 8.4c-1 — session-only (check_admin_session)
+            assert "check_admin_session" in admin_perms.UNGUARDED_ROUTES[name]
+            # no admin session → no data (401; 503 when another module left ADMIN_JWT_SECRET unset)
+            assert client.request(next(iter(r.methods)), r.path, json={}).status_code in (401, 503)
         else:   # page shell: GET HTML, no data
             assert r.methods <= {"GET", "HEAD"} and r.response_class is srv.HTMLResponse, name
 
@@ -200,6 +205,12 @@ def _h(perms):
     return {"X-Admin-Token": srv._admin_jwt_issue(perms=perms)}
 
 
+def _h_stepup():
+    """The owner token + a step-up grant for it (task 8.4c-1 — owner-only writes need it, else 428)."""
+    tok = srv._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": srv._admin_step_up_issue("owner", 1, tok)}
+
+
 def test_in_scope_200_out_of_scope_403(real):
     h = _h(["settings.edit"])
     assert client.get("/admin/settings", headers=h).status_code == 200
@@ -233,7 +244,8 @@ def test_email_settings_write_is_owner_only(real):
     assert client.put("/admin/email", json={"site_url": "https://evil.example"}, headers=staff).status_code == 403
     assert client.post("/admin/email/test", json={"to": "bad"}, headers=staff).status_code == 422   # passes the gate
     assert client.put("/admin/email", json={"site_url": "x"}, headers=_h(["settings.edit", "settings.security"])).status_code == 403
-    r = client.put("/admin/email", json={"site_url": "javascript:x"}, headers=_h(None))   # owner: gate passed, validation as before
+    assert client.put("/admin/email", json={"site_url": "javascript:x"}, headers=_h(None)).status_code == 428   # owner without step-up
+    r = client.put("/admin/email", json={"site_url": "javascript:x"}, headers=_h_stepup())   # owner + step-up: gate passed, validation as before
     assert r.status_code == 422 and r.json()["error"]["field"] == "site_url"
 
 
@@ -241,7 +253,8 @@ def test_owner_star_unchanged(real):
     h = _h(None)   # default = ["*"] (the owner login)
     assert client.get("/admin/errors", headers=h).status_code == 200
     assert client.get("/admin/settings", headers=h).status_code == 200
-    assert client.put(f"/admin/settings/{_SECURITY_KEY}", json={"value": "x"}, headers=h).status_code == 422
+    assert client.put(f"/admin/settings/{_SECURITY_KEY}", json={"value": "x"}, headers=h).status_code == 428
+    assert client.put(f"/admin/settings/{_SECURITY_KEY}", json={"value": "x"}, headers=_h_stepup()).status_code == 422
     assert client.get("/admin/settings").status_code == 401
     # the owner token (issued after both login steps — tests/test_admin_mfa_84b.py) carries "*"
     assert srv._admin_jwt_claims(srv._admin_jwt_issue())["perms"] == ["*"]

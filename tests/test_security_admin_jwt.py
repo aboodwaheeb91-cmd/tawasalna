@@ -95,8 +95,28 @@ class TestNoHardcodedSecrets(unittest.TestCase):
             "_jwt_verify must use hmac.compare_digest")
 
     def test_check_admin_verifies_through_jwt_verify(self):
-        self.assertIn("_admin_jwt_claims(", self._fn_body("check_admin"),
-            "check_admin must verify the admin JWT via _admin_jwt_claims")
+        # task 8.4c-1 — behaviour (was a source-text check broken by the check_admin_session split):
+        # a token signed with another secret / an edited payload → 401 from check_admin
+        import server as srv
+        original = srv.ADMIN_JWT_SECRET
+        try:
+            srv.ADMIN_JWT_SECRET = "s" * 64
+            good = srv._admin_jwt_issue()
+            h, p, sig = good.split(".")
+            forged = srv._jwt_sign(dict(srv._admin_jwt_claims(good)), "z" * 64)
+            edited = h + "." + p[:-2] + ("AA" if p[-2:] != "AA" else "BB") + "." + sig
+            def req(tok):
+                r = MagicMock()
+                r.headers.get = lambda k, d="": tok if k == "X-Admin-Token" else d
+                return r
+            with patch.object(srv.admin_staff, "owner_session_version", return_value=1):
+                self.assertEqual(srv.check_admin(req(good), "stats.view")["role"], "admin")
+                for tok in (forged, edited):
+                    with self.assertRaises(Exception) as ctx:
+                        srv.check_admin(req(tok), "stats.view")
+                    self.assertEqual(ctx.exception.status_code, 401)
+        finally:
+            srv.ADMIN_JWT_SECRET = original
         self.assertIn("_jwt_verify(", self._fn_body("_admin_jwt_claims"),
             "_admin_jwt_claims must verify the signature via _jwt_verify")
 

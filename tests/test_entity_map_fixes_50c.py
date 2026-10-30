@@ -30,6 +30,12 @@ import auth
 import admin_staff
 import server as srv
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = srv._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": srv._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(srv.app)
 PASSWORD = "p" * 40
 
@@ -90,7 +96,7 @@ def env(monkeypatch):
 
 def _admin():
     # task 8.4b: the login needs password + authenticator code (tests/test_admin_mfa_84b.py) — the owner token directly
-    return {"X-Admin-Token": srv._admin_jwt_issue()}
+    return _owner_stepup_hdr()
 
 
 def _job(company_id, title="مطوّر"):

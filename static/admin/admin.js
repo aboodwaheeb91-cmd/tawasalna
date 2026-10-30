@@ -55,6 +55,12 @@
     'maintenance.scan': {
       request: function () { return { url: '/admin/maintenance/migrate-data-images?dry_run=1', method: 'POST' }; },
       done: 'admin.done.scanned' },
+    // new owner recovery codes (task 8.4c-1) — the old ones void at once · needs the step-up (owner only)
+    'owner.recovery_codes': {
+      confirm: { title: 'admin.recovery.confirm.title', message: 'admin.recovery.confirm.message',
+                 confirm: 'admin.recovery.confirm.confirm', danger: true },
+      request: function () { return { url: '/admin/owner/recovery-codes', method: 'POST' }; },
+      ok: function (d) { return !!d && Array.isArray(d.recovery_codes) && d.recovery_codes.length > 0; } },
     // CSV of the users table with its current filters — confirm before the download (task 5.3a3)
     'users.export': {
       confirm: { title: 'admin.users.export.title', message: 'admin.users.export.message', confirm: 'admin.users.export.confirm' },
@@ -64,7 +70,7 @@
   // job writes live in the shared TwAdminJobs (static/shared/admin-jobs.js — also the job page, task 5.3j phase 4)
   Object.keys(TwAdminJobs.ACTIONS).forEach(function (k) { ACTIONS[k] = TwAdminJobs.ACTIONS[k]; });
   window.TwAdminDash = { ACTIONS: ACTIONS, usersQuery: usersQuery, jobsQuery: jobsQuery, jobActions: TwAdminJobs.actions, pageList: pageList,
-                        openKYCDocs: openKYCDocs };
+                        openKYCDocs: openKYCDocs, newRecoveryCodes: newRecoveryCodes };
 
   function run(name, ctx) { return TwAdminShell.run(ACTIONS[name], ctx); }
 
@@ -150,6 +156,13 @@
     mb.appendChild(scan);
     mb.appendChild(go);
     bm.appendChild(mb);
+    // owner recovery codes (task 8.4c-1) — shown once in a dialog, never kept on the page
+    var brc = TwAdminShell.card($('sec-system'), { titleKey: 'admin.recovery.title', hintKey: 'admin.recovery.hint', icon: 'shield' });
+    var nrc = btn('danger', 'shield', 'admin.recovery.new', function () {
+      nrc.disabled = true;
+      newRecoveryCodes().then(function () { nrc.disabled = false; });
+    });
+    brc.appendChild(nrc);
     BODY.mig = el('div', 'adm-report');
     BODY.mig.setAttribute('aria-live', 'polite');
     bm.appendChild(BODY.mig);
@@ -452,7 +465,7 @@
     var key = TwAdminShell.currentKey();
     if (!$('sec-' + key)) key = 'overview';
     document.querySelectorAll('[data-adm-section]').forEach(function (s) { s.hidden = s.getAttribute('data-adm-section') !== key; });
-    if (LOADERS[key]) LOADERS[key]();
+    TwAdminShell.whenAllowed($('sec-' + key), LOADERS[key], key);   // task 8.4c-1 — no perm → empty state, nothing asked
   }
 
   // ── users / companies (one view, VIEWS[name] — task 5.3a3: server search / filters / pages) ──
@@ -1051,12 +1064,29 @@
       loginBox('codesBox');
     });
   }
-  function copyCodes() {
-    var text = Array.prototype.map.call($('codesList').children, function (li) { return li.textContent; }).join('\n');
+  // POST /admin/owner/recovery-codes → the 10 new codes in a DS-OVL dialog (copy button + "old ones void")
+  function newRecoveryCodes() {
+    return run('owner.recovery_codes').then(function (res) {
+      if (!res || !res.ok) return res;
+      var codes = res.data.recovery_codes, wrap = el('div', 'tw-adm-form-group'), list = el('ol', 'adm-login-codes');
+      wrap.appendChild(el('p', 'tw-adm-hint', twT('admin.recovery.old_void')));
+      codes.forEach(function (c) { list.appendChild(el('li', null, String(c))); });
+      wrap.appendChild(list);
+      twModal({ title: twT('admin.login.codes_title'), content: wrap, dismissible: false,
+                actions: [{ text: twT('admin.login.codes_copy'), variant: 'secondary',
+                            onClick: function () { writeClipboard(codes.join('\n')); return false; } },
+                          { text: twT('admin.login.codes_saved'), variant: 'primary' }] });
+      return res;
+    });
+  }
+  function writeClipboard(text) {
     var done = function () { showToast(twT('admin.login.codes_copied'), 'success'); };
     try {
       navigator.clipboard.writeText(text).then(done, function () { showToast(twT('admin.login.codes_copy_fail'), 'error'); });
     } catch (err) { showToast(twT('admin.login.codes_copy_fail'), 'error'); }
+  }
+  function copyCodes() {
+    writeClipboard(Array.prototype.map.call($('codesList').children, function (li) { return li.textContent; }).join('\n'));
   }
   function bindLogin() {
     $('loginForm').addEventListener('submit', login);

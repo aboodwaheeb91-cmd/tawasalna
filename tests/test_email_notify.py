@@ -27,6 +27,12 @@ import auth
 import email_service
 import server
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = server._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(server.app)
 KEY = "re_TEST_SECRET_KEY_51c_never_leak"
 A, B = "amal@example.com", "bassam@example.com"
@@ -94,7 +100,7 @@ def _hdr(uid):
 
 
 def _admin():
-    return {"X-Admin-Token": server._admin_jwt_issue()}
+    return _owner_stepup_hdr()
 
 
 def _limits(**kw):

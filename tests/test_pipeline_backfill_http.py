@@ -118,7 +118,8 @@ check("http-p-03. POST /admin/pipeline/migrate-index (no token) → 401",
 # http-p-04  POST /admin/pipeline/backfill with valid token but confirm=false → 400
 #            (dry_run=false by default; confirm must be true for real run)
 # ─────────────────────────────────────────────────────────────────────────────
-_headers = {"X-Admin-Token": VALID_TOKEN}
+# task 8.4c-1 — system.manage writes are owner-only → the owner after the step-up (else 428)
+_headers = {"X-Admin-Token": VALID_TOKEN, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, VALID_TOKEN)}
 _r04 = client.post("/admin/pipeline/backfill", headers=_headers)
 check("http-p-04. POST /admin/pipeline/backfill (confirm=false) → 400",
       _r04.status_code == 400, f"status={_r04.status_code}")

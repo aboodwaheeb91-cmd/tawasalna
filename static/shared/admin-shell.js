@@ -19,6 +19,13 @@
 //   TwAdminShell.confirm(opts)       → twConfirm, or (opts.typeWord) a twModal whose confirm button
 //        stays disabled until that word is typed.
 //   TwAdminShell.card(parent, opts)  → card with an ⓘ button that shows one plain sentence.
+//   TwAdminShell.me()                → GET /admin/me once (task 8.4c-1) → {kind, name, perms} | null (failed).
+//        The menu links / badges / quick icons of sections whose `perm` (registry) the session lacks are hidden
+//        (allows() = the JS twin of admin_perms.allows) — UX only: the server checks every route; null → full menu.
+//   TwAdminShell.whenAllowed(target, fn, key?) → fn() when the current section (or `key`) is allowed, else
+//        `target` hidden + an empty state (admin.perm.denied) — a page never asks for data it may not read.
+//   Step-up (task 8.4c-1): TwAdminSession.onStepUp → ONE DS-OVL dialog (authenticator code / «استعمل رمز
+//        استرداد») → TwAdminSession.stepUp(code); cancelled → toast admin.stepup.cancelled, the session stays.
 //   Session over (401 / 403 / exp — TwAdminSession.onExpired) → registered ONCE here:
 //        location.replace(panel root + '?session=expired') → the login page shows admin.session.expired.
 // Paths: the panel root is read from location.pathname at runtime — ❌ the slug or its prefix in any
@@ -73,9 +80,38 @@
 
   function ico(name, size) { return typeof window.twIcon === 'function' ? window.twIcon(name, { size: size }) : ''; }
 
+  // ── session perms (GET /admin/me — task 8.4c-1) ──
+  var _me = null, _mePromise = null;
+  // JS twin of admin_perms.allows: "*" passes everything · an owner-only perm only with "*" · else listed.
+  // perms null (unknown / /admin/me failed) → true: the full menu, the server still decides.
+  function allows(perms, perm, ownerOnly) {
+    if (!perm || !Array.isArray(perms)) return true;
+    if (perms.indexOf('*') !== -1) return true;
+    if (Array.isArray(ownerOnly) && ownerOnly.indexOf(perm) !== -1) return false;
+    return perms.indexOf(perm) !== -1;
+  }
+  function _perms() { return _me ? _me.perms : null; }
+  function _ownerOnly() { return _me ? _me.owner_only : null; }
+  function allowedKey(key) {
+    var list = sections();
+    for (var i = 0; i < list.length; i++) if (list[i].key === key) return allows(_perms(), list[i].perm, _ownerOnly());
+    return true;
+  }
+  function me() {
+    if (!_mePromise) {
+      _mePromise = TwAdminSession.fetch('/admin/me', { cache: 'no-store', permissionAware: true })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { _me = d && Array.isArray(d.perms) ? d : null; return _me; })
+        .catch(function (e) { console.error('[TwAdminShell] me:', e); _me = null; return null; });
+    }
+    return _mePromise;
+  }
+
   // Menu items from the registry → [{key, href, label, icon, badge}] (pure — tests read it).
-  function items() {
-    return sections().map(function (s) {
+  // perms (optional) = an /admin/me perms list (+ ownerOnly) — default the session's; unknown → every item.
+  function items(perms, ownerOnly) {
+    var p = perms === undefined ? _perms() : perms, oo = perms === undefined ? _ownerOnly() : ownerOnly;
+    return sections().filter(function (s) { return allows(p, s.perm, oo); }).map(function (s) {
       return { key: s.key, href: hrefFor(s), label: twT(s.labelKey), icon: s.icon, badge: s.badge || '' };
     });
   }
@@ -95,7 +131,7 @@
   function headerHtml(current) {
     var logo = '<img class="tw-adm-logo" src="/static/33333.svg" alt="' + twEscAttr(twT('brand.name')) + '" width="96" height="26">';
     var quick = sections().filter(function (s) { return s.badge; }).map(function (s) {
-      return '<a class="tw-adm-iconbtn" href="' + twEscAttr(hrefFor(s)) + '" aria-label="' + twEscAttr(twT(s.labelKey))
+      return '<a class="tw-adm-iconbtn" data-adm-quick="' + twEscAttr(s.key) + '" href="' + twEscAttr(hrefFor(s)) + '" aria-label="' + twEscAttr(twT(s.labelKey))
         + '" title="' + twEscAttr(twT(s.labelKey)) + '">' + ico(s.icon, 'sm')
         + '<span class="tw-adm-badge" data-adm-badge="' + twEscAttr(s.badge) + '" hidden></span></a>';
     }).join('');
@@ -267,7 +303,7 @@
 
   function refreshBadges() {
     var used = {};
-    sections().forEach(function (s) { if (s.badge && BADGE_SOURCES[s.badge]) used[s.badge] = 1; });
+    sections().forEach(function (s) { if (s.badge && BADGE_SOURCES[s.badge] && allowedKey(s.key)) used[s.badge] = 1; });
     return Promise.all(Object.keys(used).map(function (name) {
       var src = BADGE_SOURCES[name];
       return TwAdminSession.fetch(src.url, src.permissionAware ? { permissionAware: true } : undefined).then(function (r) { return r.ok ? r.json() : null; })
@@ -294,9 +330,108 @@
     h.querySelector('[data-adm-menu]').addEventListener('click', openMenu);
     bindSearch(h);
     window.addEventListener('hashchange', function () { setCurrent(currentKey()); });
-    refreshBadges();
+    me().then(function () { applyPerms(h); refreshBadges(); });
     health().then(showHealth);
   }
+
+  // hide the links / quick icons of sections the session may not open (after /admin/me)
+  function applyPerms(h) {
+    h.querySelectorAll('[data-adm-key], [data-adm-quick]').forEach(function (a) {
+      a.hidden = !allowedKey(a.getAttribute('data-adm-key') || a.getAttribute('data-adm-quick'));
+    });
+  }
+
+  function whenAllowed(target, fn, key) {
+    return me().then(function () {
+      document.querySelectorAll('[data-adm-denied]').forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+      if (allowedKey(key || currentKey())) {
+        if (typeof fn === 'function') fn();
+        return true;
+      }
+      if (target) {
+        var p = document.createElement('p');
+        p.className = 'tw-adm-msg';
+        p.setAttribute('data-adm-denied', '');
+        p.setAttribute('role', 'status');
+        p.textContent = twT('admin.perm.denied');
+        target.hidden = true;
+        if (target.parentNode) target.parentNode.insertBefore(p, target);
+      }
+      return false;
+    });
+  }
+
+  // ── step-up dialog (task 8.4c-1) — one at a time; parallel 428s share it ──
+  var _stepUp = null;
+  function stepUpDialog() {
+    if (_stepUp) return _stepUp;
+    _stepUp = new Promise(function (resolve) {
+      var ok = false, recovery = false;
+      var wrap = document.createElement('div');
+      wrap.className = 'tw-adm-form-group';
+      var label = document.createElement('label');
+      label.className = 'tw-adm-form';
+      var hint = document.createElement('span');
+      hint.className = 'tw-adm-hint';
+      var input = document.createElement('input');
+      input.className = 'tw-input';
+      input.type = 'text';
+      var err = document.createElement('span');
+      err.className = 'tw-adm-field-err';
+      err.setAttribute('role', 'alert');
+      err.hidden = true;
+      var sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'tw-act tw-act-secondary';
+      label.appendChild(hint);
+      label.appendChild(input);
+      label.appendChild(err);
+      wrap.appendChild(label);
+      wrap.appendChild(sw);
+      function setErr(t) { err.textContent = t || ''; err.hidden = !t; }
+      function mode(rec) {
+        recovery = rec;
+        input.value = '';
+        input.inputMode = rec ? 'text' : 'numeric';
+        input.autocomplete = rec ? 'off' : 'one-time-code';
+        hint.textContent = twT(rec ? 'admin.login.recovery_hint' : 'admin.login.code_hint');
+        input.setAttribute('aria-label', hint.textContent);
+        sw.textContent = twT(rec ? 'admin.login.use_app' : 'admin.login.use_recovery');
+        setErr('');
+      }
+      mode(false);
+      sw.addEventListener('click', function () { mode(!recovery); });
+      input.addEventListener('input', function () { setErr(''); });
+      twModal({
+        title: twT('admin.stepup.title'), message: twT('admin.stepup.message'), content: wrap,
+        actions: [
+          { text: twT('common.cancel'), variant: 'secondary' },
+          { text: twT('admin.stepup.confirm'), variant: 'primary', onClick: function () {
+            var code = String(input.value || '').replace(/\s+/g, '');
+            if (!code) { setErr(twT('admin.stepup.empty')); return false; }
+            return TwAdminSession.stepUp(code).then(function (res) {
+              if (res.ok) {
+                ok = true;
+                if (res.remaining != null) showToast(twT('admin.login.recovery_left', { n: res.remaining }), 'info');
+                return true;
+              }
+              input.value = '';
+              setErr(twT(res.status === 429 ? 'admin.stepup.locked' : 'admin.stepup.wrong'));
+              return false;
+            });
+          } },
+        ],
+        onClose: function () {
+          _stepUp = null;
+          if (!ok) showToast(twT('admin.stepup.cancelled'), 'info');
+          resolve(ok);
+        },
+      });
+      try { input.focus(); } catch (e) {}
+    });
+    return _stepUp;
+  }
+  if (typeof TwAdminSession.onStepUp === 'function') TwAdminSession.onStepUp(stepUpDialog);
 
   // ── session gate ──
   function goLogin(expired) {
@@ -390,6 +525,7 @@
           // action.ok(d) = the body proves the change happened (e.g. a notification id) — 2xx alone is not enough
           var ok = r.ok && (typeof action.ok !== 'function' || !!action.ok(d));
           if (ok) { if (action.done) showToast(twT(action.done), 'success'); }
+          else if (r.status === 428) { /* step-up cancelled — the dialog already said so (admin.stepup.cancelled) */ }
           else if (r.status === 403 && action.permissionAware) showToast(twT(action.forbidden || 'admin.action.error'), 'error');
           else if (r.status !== 401 && r.status !== 403) showToast(_errText(d) || twT(action.fail || 'admin.action.error'), 'error');
           return { ok: ok, status: r.status, data: d };
@@ -504,5 +640,6 @@
     start: start, mount: mount, setCurrent: setCurrent, setBadge: setBadge, refreshBadges: refreshBadges,
     wasExpired: wasExpired, logout: logout, confirm: confirm, run: run, card: card, formDialog: formDialog,
     openMenu: openMenu, searchResults: searchResults, health: health, healthState: healthState,
+    me: me, allows: allows, allowedKey: allowedKey, whenAllowed: whenAllowed, stepUpDialog: stepUpDialog,
   };
 }());

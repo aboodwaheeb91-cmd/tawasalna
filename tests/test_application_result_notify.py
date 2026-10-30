@@ -27,6 +27,12 @@ import auth
 import email_service
 import server
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = server._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(server.app)
 
 DROP = ("pipeline_stage_events", "pipeline_notes", "job_pipeline_entries", "candidate_bank_notes",
@@ -185,7 +191,7 @@ def test_candidate_status_path_sends_too(env):
 # ── 3. switches: admin · company · user ──────────────────────────────────────
 def test_admin_switch_off_stops_that_status_only(env):
     co, emp, job, app = _world()
-    adm = {"X-Admin-Token": server._admin_jwt_issue()}
+    adm = _owner_stepup_hdr()
     assert client.put("/admin/email", headers=adm,
                       json={"types": {"notify_application_rejected": False}}).status_code == 200
     _status(co, app, "rejected")

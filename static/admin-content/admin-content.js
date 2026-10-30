@@ -537,5 +537,5 @@
 
   // test hook (node tests/test_admin_shell_runtime.js — I) — read only
   window.TwAdminContent = { ACTIONS: ACTIONS, contrast: contrast, colorCheck: colorCheck, show: show };
-  start();
+  TwAdminShell.whenAllowed(root, start);   // task 8.4c-1 — no content.edit → empty state
 }());

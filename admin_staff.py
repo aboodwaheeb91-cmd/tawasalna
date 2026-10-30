@@ -199,6 +199,23 @@ def _replace_recovery_codes(conn, subject: str) -> list:
     return codes
 
 
+def owner_new_recovery_codes(sv: int):
+    """Task 8.4c-1 — a new set of 10 owner recovery codes (the old ones void) → the codes (shown once), or None
+    (owner MFA not bound / session_version changed). The owner row is locked first, so two parallel calls leave
+    ONE valid set (the second deletes the first one's codes after it commits)."""
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            rows = conn.run("SELECT 1 FROM admin_owner_mfa WHERE id = 1 AND enabled_at IS NOT NULL "
+                            "AND session_version = :sv FOR UPDATE", sv=int(sv))
+            codes = _replace_recovery_codes(conn, OWNER) if rows else None
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return codes
+
+
 def recovery_remaining(subject: str) -> int:
     with db_conn() as conn:
         return int(conn.run("SELECT COUNT(*) FROM admin_recovery_codes WHERE subject = :s AND used_at IS NULL",
@@ -333,15 +350,15 @@ def staff_for_login(email: str):
 
 
 def staff_session(sid: int):
-    """Live state for check_admin — {sv, perms} for an active staff member with MFA bound, else None."""
+    """Live state for check_admin — {sv, perms, name} for an active staff member with MFA bound, else None."""
     with db_conn() as conn:
         rows = conn.run(
-            "SELECT s.status, s.session_version, s.mfa_enabled_at, s.allow_perms, s.deny_perms, r.perms "
+            "SELECT s.status, s.session_version, s.mfa_enabled_at, s.allow_perms, s.deny_perms, r.perms, s.name "
             "FROM admin_staff s LEFT JOIN admin_roles r ON r.id = s.role_id WHERE s.id = :id", id=int(sid))
     if not rows or rows[0][0] != "active" or rows[0][2] is None:
         return None
     r = rows[0]
-    return {"sv": int(r[1]), "perms": effective_perms(r[5], r[3], r[4])}
+    return {"sv": int(r[1]), "perms": effective_perms(r[5], r[3], r[4]), "name": r[6] or ""}
 
 
 def staff_mark_login(sid: int) -> None:

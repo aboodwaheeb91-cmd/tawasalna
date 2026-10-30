@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, ConfigDict, ValidationError
-import base64, mimetypes
+import base64, hashlib, mimetypes
 from typing import List, Optional
 from datetime import datetime
 import re, secrets, json, os, time, asyncio
@@ -1541,18 +1541,12 @@ def _read_html_cached(name: str) -> str:
         print(f"[read_html] page file missing: {name}")
         raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
 
-def check_admin(request: Request, perm: str) -> dict:
-    """Admin gate — accepts ONLY a valid admin JWT (from the admin login, <panel>/login) in X-Admin-Token.
-    The raw ADMIN_TOKEN is the login password, never a session token.
-    503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
-    (admin pages send the admin back to the login screen) · 403 = valid token without
-    the role / permission. `perm` is required and must be in admin_perms.ALL (task 8.4a — else
-    RuntimeError = programming error); an admin_perms.OWNER_ONLY perm passes only with "*".
-    Task 8.4b — the session is re-read on EVERY request: owner → token sv = admin_owner_mfa.session_version ·
-    staff ("staff:<id>") → admin_staff row active + MFA bound + sv equal, and the perms are the effective
-    ones from the DB (admin_staff.staff_session), never the token's. No match → 401. The returned claims
-    carry those perms (so _admin_contacts decides on the same set)."""
-    admin_perms.require_known(perm)
+def check_admin_session(request: Request) -> dict:
+    """The admin session gate WITHOUT a perm (task 8.4c-1) — the same checks check_admin runs: a valid admin JWT
+    in X-Admin-Token + the session re-read from the DB (owner sv · staff row active + MFA bound + sv), → the claims
+    with the effective perms (owner ["*"] · staff from the DB). 503 / 401 / 403 exactly as check_admin.
+    ONLY admin_me and admin_step_up call it (admin_perms.UNGUARDED_ROUTES "session-only") — every other admin
+    route goes through check_admin(request, perm)."""
     if not _admin_jwt_secret_ok():
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     claims = _admin_jwt_claims(request.headers.get("X-Admin-Token", ""))
@@ -1565,10 +1559,78 @@ def check_admin(request: Request, perm: str) -> dict:
     if live is None or not isinstance(claims.get("sv"), int) or live["sv"] != claims["sv"]:
         raise HTTPException(status_code=401, detail=_ADMIN_SESSION_OVER)
     if live["perms"] is not None:
-        claims = dict(claims, perms=sorted(live["perms"]))
+        claims = dict(claims, perms=sorted(live["perms"]), name=live.get("name") or "")
+    return claims
+
+
+def check_admin(request: Request, perm: str) -> dict:
+    """Admin gate — accepts ONLY a valid admin JWT (from the admin login, <panel>/login) in X-Admin-Token.
+    The raw ADMIN_TOKEN is the login password, never a session token.
+    503 = ADMIN_JWT_SECRET not configured · 401 = missing / invalid / expired token
+    (admin pages send the admin back to the login screen) · 403 = valid token without
+    the role / permission. `perm` is required and must be in admin_perms.ALL (task 8.4a — else
+    RuntimeError = programming error); an admin_perms.OWNER_ONLY perm passes only with "*".
+    Task 8.4b — the session is re-read on EVERY request: owner → token sv = admin_owner_mfa.session_version ·
+    staff ("staff:<id>") → admin_staff row active + MFA bound + sv equal, and the perms are the effective
+    ones from the DB (admin_staff.staff_session), never the token's. No match → 401. The returned claims
+    carry those perms (so _admin_contacts decides on the same set) — check_admin_session does all of that.
+    Task 8.4c-1 — an OWNER_ONLY perm on a write (POST/PUT/PATCH/DELETE) or a route in _STEP_UP_READ_ROUTES
+    (the CSV export) also needs a valid X-Admin-Stepup grant for this token + sv → else 428 step_up_required."""
+    admin_perms.require_known(perm)
+    claims = check_admin_session(request)
     if not admin_perms.allows(claims.get("perms") or [], perm):
         raise HTTPException(status_code=403, detail="Forbidden")
+    if _step_up_needed(request, perm) and not _admin_step_up_ok(request, claims):
+        raise HTTPException(status_code=428, detail="step_up_required")
     return claims
+
+
+# ── Step-up (task 8.4c-1 · docs/rules/admin-staff.md rule 11) ──
+# POST /admin/step-up (owner, a fresh authenticator / recovery code) → a 5-minute grant sent as X-Admin-Stepup.
+# Signed with ADMIN_JWT_SECRET, own aud → never an admin token / ticket (and they are never a grant). Bound to the
+# admin token it was asked with (tok = SHA-256 of it) + sv. Accepted for any number of requests until exp.
+_ADMIN_STEPUP_AUD = "tw-admin-stepup"
+_ADMIN_STEPUP_TTL = 300
+_STEP_UP_READ_ROUTES = frozenset({"admin_users_export"})   # reads that still need it (data leaving the site)
+
+
+def _step_up_needed(request: Request, perm: str) -> bool:
+    if perm not in admin_perms.OWNER_ONLY:
+        return False
+    if request.method in _AUDIT_WRITE_METHODS:
+        return True
+    route = request.scope.get("route") if isinstance(getattr(request, "scope", None), dict) else None
+    return getattr(route, "name", "") in _STEP_UP_READ_ROUTES
+
+
+def _admin_token_digest(token: str) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def _admin_step_up_issue(sub: str, sv: int, admin_token: str) -> str:
+    import time, secrets
+    now = int(time.time())
+    return _jwt_sign({"iss": _ADMIN_JWT_ISS, "aud": _ADMIN_STEPUP_AUD, "typ": "step_up", "sub": sub, "sv": int(sv),
+                      "tok": _admin_token_digest(admin_token), "iat": now, "exp": now + _ADMIN_STEPUP_TTL,
+                      "jti": secrets.token_hex(12)}, ADMIN_JWT_SECRET)
+
+
+def _admin_step_up_ok(request: Request, claims: dict) -> bool:
+    """X-Admin-Stepup is a live grant for THIS admin token (tok) + subject + sv."""
+    grant = request.headers.get("X-Admin-Stepup", "")
+    if not grant or not isinstance(grant, str):
+        return False
+    c = _jwt_verify(grant, ADMIN_JWT_SECRET)
+    if (not c or c.get("iss") != _ADMIN_JWT_ISS or c.get("aud") != _ADMIN_STEPUP_AUD or c.get("typ") != "step_up"
+            or c.get("sub") != claims.get("sub") or not isinstance(c.get("sv"), int) or c["sv"] != claims.get("sv")
+            or not isinstance(c.get("tok"), str)):
+        return False
+    try:
+        if int(c["exp"]) - int(c["iat"]) > _ADMIN_STEPUP_TTL:
+            return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    return hmac.compare_digest(c["tok"], _admin_token_digest(request.headers.get("X-Admin-Token", "")))
 
 
 _ADMIN_SESSION_OVER = "انتهت جلسة الإدارة، سجّل الدخول من جديد"
@@ -8414,6 +8476,61 @@ def admin_login(data: AdminLoginInput, request: Request):
         raise
     except Exception as e:
         raise _server_error("admin_login", e)
+
+# ── Admin session endpoints (task 8.4c-1 · docs/rules/admin-staff.md rules 11–13) ──
+@app.get("/admin/me")
+def admin_me(request: Request):
+    """Who is signed in + the effective perms (the menu hides what they cannot open — the server still checks
+    every route). Never an email / phone / sv / secret."""
+    claims = check_admin_session(request)
+    owner = claims.get("role") == "admin"
+    return {"kind": "owner" if owner else "staff", "name": None if owner else (claims.get("name") or ""),
+            "perms": [admin_perms.OWNER] if owner else list(claims.get("perms") or []),
+            "owner_only": sorted(admin_perms.OWNER_ONLY)}   # for the menu's allows() twin — the catalog stays in admin_perms.py
+
+
+@app.post("/admin/step-up")
+def admin_step_up(request: Request, data: dict = Body(...)):
+    """Owner only: a fresh authenticator code or a recovery code → {grant, expires_in} (a 5-minute X-Admin-Stepup
+    grant for THIS token). Same mfa locks as the login code step (_admin_reserve — reserved before the check,
+    released on success). Wrong code → 401 · lock full → 429 · staff → 403. Audit row admin_step_up (middleware,
+    never the code)."""
+    claims = check_admin_session(request)
+    if claims.get("role") != "admin" or claims.get("sub") != admin_staff.OWNER:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    code = data.get("code") if isinstance(data, dict) else None
+    code = code if isinstance(code, str) else ""
+    held = _admin_reserve(request, "mfa", get_client_ip(request), admin_staff.OWNER, admin_staff.OWNER)
+    try:
+        res = admin_staff.verify_second_factor(admin_staff.OWNER, code, claims["sv"])
+    except Exception as e:
+        raise _server_error("admin_step_up", e)
+    if not res:
+        raise HTTPException(status_code=401, detail=_ADMIN_LOGIN_FAIL)
+    _rate_release(held)
+    print(f"[admin-auth] step-up granted sub={admin_staff.OWNER} via={res['method']}")
+    out = {"grant": _admin_step_up_issue(admin_staff.OWNER, claims["sv"], request.headers.get("X-Admin-Token", "")),
+           "expires_in": _ADMIN_STEPUP_TTL}
+    if res["method"] == "recovery":
+        out["recovery_remaining"] = res["remaining"]
+    return out
+
+
+@app.post("/admin/owner/recovery-codes")
+def admin_owner_recovery_codes(request: Request, response: Response):
+    """New owner recovery codes (settings.security → owner + step-up): the old ones are void at once, the 10 new
+    ones are returned this one time (stored as SHA-256 only)."""
+    claims = check_admin(request, "settings.security")
+    try:
+        codes = admin_staff.owner_new_recovery_codes(claims["sv"])
+    except Exception as e:
+        raise _server_error("admin_owner_recovery_codes", e)
+    if codes is None:
+        raise HTTPException(status_code=401, detail=_ADMIN_SESSION_OVER)
+    response.headers["Cache-Control"] = "no-store"
+    print("[admin-auth] owner recovery codes replaced")
+    return {"recovery_codes": codes}
+
 
 # ══════════════════════════════════════════
 # Admin API - all require X-Admin-Token header

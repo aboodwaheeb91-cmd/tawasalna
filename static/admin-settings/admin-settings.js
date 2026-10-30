@@ -154,5 +154,5 @@
 
   // test hook (node tests/test_admin_shell_runtime.js · tests/test_admin_settings_page_runtime.js) — read only
   window.TwAdminSettings = { ACTIONS: ACTIONS };
-  load();
+  TwAdminShell.whenAllowed(root, load);   // task 8.4c-1 — no settings.edit → empty state
 }());

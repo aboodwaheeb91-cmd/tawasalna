@@ -30,6 +30,12 @@ import auth
 import email_service
 import server
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = server._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(server.app)
 KEY = "re_TEST_SECRET_KEY_must_never_leak_123456"
 EMAIL = "member@example.com"
@@ -141,7 +147,7 @@ def test_key_never_in_logs_or_responses(fake, capsys, db):
     fake.fail = None
     r = client.get("/health")
     assert r.json()["email"] == "configured"
-    admin = {"X-Admin-Token": server._admin_jwt_issue()}
+    admin = _owner_stepup_hdr()
     g = client.get("/admin/email", headers=admin)
     assert g.status_code == 200 and g.json()["data"]["status"] == "configured"
     out = capsys.readouterr()
@@ -161,7 +167,7 @@ def test_missing_key_is_unavailable_not_a_crash(fake, monkeypatch, db):
 # ── 3. admin settings + test email ──────────────────────────────────────────
 def test_admin_settings_and_test_email(fake, db):
     assert client.put("/admin/email", json={"from_name": "x"}).status_code == 401
-    admin = {"X-Admin-Token": server._admin_jwt_issue()}
+    admin = _owner_stepup_hdr()
     bad = client.put("/admin/email", headers=admin, json={"from_address": "no at sign"})
     assert bad.status_code == 422 and bad.json()["error"]["field"] == "from_address"
     ok = client.put("/admin/email", headers=admin,
