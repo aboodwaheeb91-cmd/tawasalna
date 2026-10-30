@@ -166,6 +166,10 @@ img{display:block;max-width:100%}
   transition:border-color .15s;
 }
 .hw-retry:hover{border-color:var(--g);color:var(--g)}
+.hw-retry:disabled{opacity:.6;cursor:default;border-color:var(--brd);color:var(--text)}
+.hw-more{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0 16px}
+.hw-more .hw-retry{margin-top:0}
+.hw-more-err{font-size:12px;color:var(--color-status-danger)}
 
 /* === Buttons === */
 .hw-btn{

@@ -73,3 +73,10 @@ These rules are permanent and apply to all future AI sessions:
     - الحدود من `tw_settings` بس: `feed_page_max` · `feed_snapshot_ttl_min` · `feed_snapshots_per_user`؛ التنظيف وقت الإدخال (ممنوع thread). فشل حفظ القائمة → أول صفحة عادي و `next_cursor = null`.
     - ❌ cursor بدون توقيع · ❌ قائمة بالذاكرة · ❌ رجوع حد الـ 200 وظيفة.
     - Test: `python -m pytest tests/test_home_feed_cursor_86d.py -q -s`.
+
+15. **«عرض المزيد» بالفيد — الواجهة (task 8.6d-2 — SYSTEMS_INDEX §12).** زر واحد `#hwMoreBtn` آخر الفيد، بيطلع بس لما `Home.state.nextCursor` موجود (`next_cursor` من `GET /home/feed`)؛ ما في تحميل تلقائي مع السكرول.
+    - `Home.api.loadMore(filter)` = نفس `twApi` + نفس `state.abortCtrl` (`?cursor=next_cursor`) — `loadFeed` (تغيير الفلتر) بيلغي الطلب الجاري وبيصفّر الـ cursor؛ الرد المتأخر بيرجع `null` وبينرمى. ضغطة تانية وقت التحميل ما بتبعت شي (الزر `disabled` + `common.loading`).
+    - `Home.render.renderFeed(items, filter, true)` بيضيف تحت البطاقات بدون مسح · `state.seen` (`type:id`) حماية إضافية من التكرار · `Home.posts.remember(items, true)` بيدمج · `afterRender(feedEl, cards)`: الـ clamp على البطاقات الجديدة بس، و `trackViews(feedEl)` بيبدّل الـ observer الوحيد (المنشور اللي انحسب ما بينبعت مرة تانية) · الـ controller مربوط مرة وحدة على `#hwFeed` فالتعليقات / الإبلاغ / الحظر / أقدّر / الحفظ شغّالين على البطاقات المضافة.
+    - 409 `feed_reset` / 422 `invalid_cursor` → `showToast(twT('home.more.reset'))` + نفس الفلتر من أوله · أي خطأ تاني → `home.more.error` جنب الزر + الزر نفسه «إعادة المحاولة» بنفس الـ cursor، والبطاقات بتضل · `next_cursor = null` → الزر بيختفي بدون رسالة.
+    - ❌ تحميل تلقائي مع السكرول · ❌ `fetch` مباشر · ❌ `initClamps` على كل الفيد بعد إضافة (بيقصّ منشور مفتوح) · ❌ `bind` بكل صفحة.
+    - Test: `node tests/test_home_landing_runtime.js` (K + L).

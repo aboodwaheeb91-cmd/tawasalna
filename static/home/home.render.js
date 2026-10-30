@@ -1,4 +1,4 @@
-/* home.render.js — feed UI states for Home V2 (skeleton / empty / error / feed) */
+/* home.render.js — feed UI states for Home V2 (skeleton / empty / error / feed / «عرض المزيد») */
 (function () {
   'use strict';
   window.Home = window.Home || {};
@@ -6,6 +6,18 @@
   var feedEl  = document.getElementById('hwFeed');
   var emptyEl = document.getElementById('hwEmpty');
   var errorEl = document.getElementById('hwError');
+  var moreEl  = document.getElementById('hwMore');
+  var moreBtn = document.getElementById('hwMoreBtn');
+  var moreErr = document.getElementById('hwMoreErr');
+
+  function _hideMore() { moreEl.classList.add('hidden'); }
+
+  /* «عرض المزيد» button state: idle / loading (disabled) / error (message + retry) */
+  function _setMore(mode) {
+    moreBtn.disabled = mode === 'loading';
+    moreBtn.textContent = twT(mode === 'loading' ? 'common.loading' : mode === 'error' ? 'home.retry' : 'home.more.load');
+    moreErr.classList.toggle('hidden', mode !== 'error');
+  }
 
   /* Skeleton markup is static (no API data) — innerHTML is safe here */
   function _buildSkeletons() {
@@ -29,6 +41,7 @@
       feedEl.innerHTML = '';
       feedEl.appendChild(_buildSkeletons());
       feedEl.classList.remove('hidden');
+      _hideMore();
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
     },
@@ -37,6 +50,7 @@
       var L = window.Home.utils.emptyLabels(filter);
       feedEl.innerHTML = '';
       feedEl.classList.add('hidden');
+      _hideMore();
       var h3 = emptyEl.querySelector('h3');
       var p  = emptyEl.querySelector('p');
       if (h3) h3.textContent = L.h;
@@ -48,26 +62,50 @@
     showError: function (retryFn) {
       feedEl.innerHTML = '';
       feedEl.classList.add('hidden');
+      _hideMore();
       emptyEl.classList.add('hidden');
       errorEl.classList.remove('hidden');
       var btn = errorEl.querySelector('.hw-retry');
       if (btn) btn.onclick = retryFn;
     },
 
-    renderFeed: function (items, filter) {
-      feedEl.innerHTML = '';
-      if (!items || !items.length) { this.showEmpty(filter); return; }
-      window.Home.posts.remember(items);   // post authors for mentions / share (home.posts.js)
+    /* append = true («عرض المزيد») adds the page under the cards on screen; otherwise the feed starts over.
+     * An item already on screen (same type + id) is skipped — a guard only, the server cursor has no repeats. */
+    renderFeed: function (items, filter, append) {
+      var state = window.Home.state;
+      if (!append) { feedEl.innerHTML = ''; state.seen = {}; }
+      var fresh = (items || []).filter(function (it) {
+        var key = it && (it.type + ':' + it.id);
+        if (!key || state.seen[key]) return false;
+        state.seen[key] = true;
+        return true;
+      });
+      if (!append && !fresh.length) { this.showEmpty(filter); return; }
+      window.Home.posts.remember(fresh, append);   // post authors for mentions / share (home.posts.js)
       var frag = document.createDocumentFragment();
-      items.forEach(function (item) {
+      var cards = [];
+      fresh.forEach(function (item) {
         var card = window.Home.cards.renderCard(item);
-        if (card) frag.appendChild(card);
+        if (card) { frag.appendChild(card); cards.push(card); }
       });
       feedEl.appendChild(frag);
       feedEl.classList.remove('hidden');
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
-      window.Home.posts.afterRender(feedEl);   // clamp + view tracking of the post cards
-    }
+      window.Home.posts.afterRender(feedEl, cards);   // clamp the new cards + view tracking
+      this.updateMore();
+    },
+
+    /* The button shows only while the server has a next page (next_cursor) */
+    updateMore: function () {
+      if (!window.Home.state.nextCursor) { _hideMore(); return; }
+      _setMore('idle');
+      moreEl.classList.remove('hidden');
+    },
+
+    moreLoading: function () { _setMore('loading'); },
+
+    /* A failed page keeps the cards on screen — small message + the same button retries */
+    moreError: function () { _setMore('error'); }
   };
 }());

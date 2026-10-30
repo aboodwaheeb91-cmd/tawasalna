@@ -588,6 +588,8 @@ function bootCards(o) {
       feed.addEventListener = function (t, fn) { if (t === 'click') calls.feedClick++; addFeed.call(this, t, fn); };
       const empty = mk('div', { id: 'hwEmpty', class: 'hidden' }); mk('h3', {}, empty); mk('p', {}, empty);
       const err = mk('div', { id: 'hwError', class: 'hidden' }); mk('button', { class: 'hw-retry' }, err);
+      const more = mk('div', { id: 'hwMore', class: 'hw-more hidden' });   // «عرض المزيد» (task 8.6d-2), as in home-v2.html
+      mk('button', { id: 'hwMoreBtn', class: 'hw-retry' }, more); mk('p', { id: 'hwMoreErr', class: 'hw-more-err hidden' }, more);
       const loc = { pathname: '/home', search: '?f=posts', origin: 'https://x.test' };
       let href = '/home?f=posts';
       Object.defineProperty(loc, 'href', { get: () => href, set: v => { calls.nav.push(v); href = v; } });

@@ -49,6 +49,12 @@
     <!-- Feed list (populated by Home.render via static/home/ modules) -->
     <div id="hwFeed"></div>
 
+    <!-- «عرض المزيد» — shown only while the feed has a next_cursor (task 8.6d-2) -->
+    <div id="hwMore" class="hw-more hidden">
+      <button type="button" class="hw-retry" id="hwMoreBtn" data-tw-t="home.more.load"></button>
+      <p id="hwMoreErr" class="hw-more-err hidden" role="alert" data-tw-t="home.more.error"></p>
+    </div>
+
     <!-- Empty state -->
     <div id="hwEmpty" class="hw-empty hidden">
       <div class="hw-state-ico"><i data-tw-icon="rss" data-tw-size="xl"></i></div>

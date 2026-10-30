@@ -2,10 +2,13 @@
  *
  * user_id is NEVER passed as a query param to /home/feed — the server reads it from the token.
  *
- * loadFeed returns a Promise<Array|null>:
+ * loadFeed / loadMore return a Promise<Array|null>:
  *   Array  — items from the API
  *   null   — request was aborted (filter changed mid-flight); caller ignores
  *   throws — network/server error; caller shows error state
+ *            (loadMore: err.reset = true on 409 feed_reset / 422 invalid_cursor → reload from the top)
+ * One AbortController for both: a new loadFeed (filter change) aborts a loadMore in flight and
+ * clears the cursor (task 8.6d-2).
  */
 (function () {
   'use strict';
@@ -23,15 +26,49 @@
       state.abortCtrl     = ctrl;
       state.currentFilter = filter;
       state.loading       = true;
+      state.loadingMore   = false;
+      state.nextCursor    = null;
 
       var url = FEED_URL
         + '?filter=' + encodeURIComponent(filter)
         + '&limit='  + (limit || DEFAULT_LIMIT);
 
       return twApi(url, { signal: ctrl.signal }).then(function (res) {
-        if (ctrl.signal.aborted) return null;
+        if (ctrl.signal.aborted || state.abortCtrl !== ctrl) return null;
         state.loading = false;
         if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = res.data || {};
+        state.nextCursor = data.next_cursor || null;
+        return data.items || [];
+      });
+    },
+
+    /* Next page of the current filter (GET /home/feed?cursor=next_cursor — task 8.6d-2).
+     * null without a request when there is no cursor / a load is running / the filter changed. */
+    loadMore: function (filter) {
+      var state = window.Home.state;
+      if (!state.nextCursor || state.loading || state.loadingMore || filter !== state.currentFilter) {
+        return Promise.resolve(null);
+      }
+      var ctrl          = new AbortController();
+      state.abortCtrl   = ctrl;
+      state.loadingMore = true;
+
+      var url = FEED_URL
+        + '?filter=' + encodeURIComponent(filter)
+        + '&limit='  + DEFAULT_LIMIT
+        + '&cursor=' + encodeURIComponent(state.nextCursor);
+
+      return twApi(url, { signal: ctrl.signal }).then(function (res) {
+        if (ctrl.signal.aborted || state.abortCtrl !== ctrl) return null;
+        state.loadingMore = false;
+        if (!res.ok) {
+          var g   = res.error && res.error.generalError;
+          var err = new Error('HTTP ' + res.status);
+          err.reset = (res.status === 409 && !!g && g.code === 'feed_reset')
+                   || (res.status === 422 && !!g && g.code === 'invalid_cursor');
+          throw err;
+        }
         var data = res.data || {};
         state.nextCursor = data.next_cursor || null;
         return data.items || [];

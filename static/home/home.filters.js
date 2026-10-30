@@ -32,6 +32,9 @@
           window.Home.filters.select(filter);
         });
       });
+      document.getElementById('hwMoreBtn').addEventListener('click', function () {
+        window.Home.filters.loadMore();
+      });
     },
 
     load: function (filter) {
@@ -44,6 +47,30 @@
         })
         .catch(function () {
           render.showError(function () { window.Home.filters.load(filter); });
+        });
+    },
+
+    /* «عرض المزيد» (task 8.6d-2) — next page appended · 409 feed_reset / 422 invalid_cursor → the
+     * same filter from the top + a toast · any other error → message by the button, cards stay */
+    loadMore: function () {
+      var state  = window.Home.state;
+      var render = window.Home.render;
+      var filter = state.currentFilter;
+      if (!state.nextCursor || state.loading || state.loadingMore) return;
+      render.moreLoading();
+      window.Home.api.loadMore(filter)
+        .then(function (items) {
+          if (items === null) return;
+          render.renderFeed(items, filter, true);
+        })
+        .catch(function (err) {
+          if (state.currentFilter !== filter) return;
+          if (err && err.reset) {
+            showToast(twT('home.more.reset'), 'info');
+            window.Home.filters.load(filter);
+            return;
+          }
+          render.moreError();
         });
     }
   };

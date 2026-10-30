@@ -5,14 +5,15 @@
  * Home.cards.renderPostCard (TwPostCard.html). Nothing here navigates — every card button and
  * the comments panel stay on /home; only the author name / avatar link to /u/{tw_id}.
  *   bind(feedEl)          → click delegation on the feed list, once
- *   remember(items)       → the posts of this render (author for mention suggestions / share)
- *   afterRender(feedEl)   → 3-line clamp + view tracking, after every render
+ *   remember(items, append) → the posts on screen (author for mention suggestions / share) —
+ *                           append («عرض المزيد») adds to them, otherwise they start over
+ *   afterRender(feedEl, cards) → 3-line clamp of the new cards only + view tracking, after every render
  */
 (function () {
   'use strict';
   window.Home = window.Home || {};
 
-  var _posts = {};   // post id → feed item of the current render
+  var _posts = {};   // post id → feed item of the cards on screen
 
   /* The page's session (TwAuthSync snapshot — /home is protected by twRequireAuth) */
   function signedIn() {
@@ -57,19 +58,22 @@
       card.bind(feedEl);
     },
 
-    remember: function (items) {
-      _posts = {};
+    remember: function (items, append) {
+      if (!append) _posts = {};
       (items || []).forEach(function (it) {
         if (it && it.type === 'post') _posts[String(it.id)] = it;
       });
     },
 
-    /* Two rAFs (as the company page): layout first, then fonts are measured */
-    afterRender: function (feedEl) {
-      if (!feedEl.querySelector('.post-card')) return;
+    /* Two rAFs (as the company page): layout first, then fonts are measured.
+     * Clamp runs on the new cards only (a second pass would re-cut an opened post); trackViews
+     * replaces its one observer over every post card — a post already counted is never sent again. */
+    afterRender: function (feedEl, cards) {
+      var fresh = (cards || []).filter(function (c) { return c.classList.contains('post-card'); });
+      if (!fresh.length) return;
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          TwPostCard.initClamps(feedEl);
+          fresh.forEach(function (c) { TwPostCard.initClamps(c); });
           card.trackViews(feedEl);
         });
       });
