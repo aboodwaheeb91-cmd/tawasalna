@@ -183,5 +183,5 @@
       .catch(function () { message('admin.email.load_error'); });
   }
 
-  load();
+  TwAdminShell.whenAllowed(root, load);   // task 8.4c-1 — no settings.edit → empty state
 }());

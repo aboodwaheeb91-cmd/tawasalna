@@ -18,10 +18,16 @@ from fastapi.testclient import TestClient
 
 import server
 
+
+def _owner_stepup_hdr():
+    """The owner after the step-up (task 8.4c-1 — owner-only writes / the export need X-Admin-Stepup, else 428)."""
+    tok = server._admin_jwt_issue()
+    return {"X-Admin-Token": tok, "X-Admin-Stepup": server._admin_step_up_issue("owner", 1, tok)}
+
 client = TestClient(server.app)
 if not server._admin_jwt_secret_ok():   # server imported earlier by another test file
     server.ADMIN_JWT_SECRET = os.environ["ADMIN_JWT_SECRET"]
-ADMIN = {"X-Admin-Token": server._admin_jwt_issue()}   # PR 1.5: admin session JWT, not the raw ADMIN_TOKEN
+ADMIN = _owner_stepup_hdr()   # PR 1.5: admin session JWT, not the raw ADMIN_TOKEN
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 DATA_PNG = "data:image/png;base64," + base64.b64encode(PNG).decode()
 DATA_SVG = "data:image/svg+xml;base64," + base64.b64encode(b"<svg/>").decode()

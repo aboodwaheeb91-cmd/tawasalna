@@ -37,12 +37,14 @@
       : (value === 'urgent' ? 'is-danger' : value === 'high' ? 'is-warn' : 'is-muted');
     return el('span', 'tw-adm-pill ' + cls, twT('support.' + kind + '.' + value));
   }
+  // the email is absent without users.email.view (task 8.4a) → no « · undefined» / empty « · » (task 8.4c-1)
   function requesterText(r) {
     if (!r) return '';
     // inbound mail (7.3): a hint only — the address matching an account proves nothing, never a link
-    if (r.kind === 'guest') return twT('admin.support.guest') + ' · ' + r.email
-      + (r.matches_account ? ' · ' + twT('admin.support.matches_account') : '');
-    return (r.name || r.tw_id || '') + ' · ' + (r.email || '');
+    var parts = r.kind === 'guest'
+      ? [twT('admin.support.guest'), r.email, r.matches_account ? twT('admin.support.matches_account') : '']
+      : [r.name || r.tw_id || '', r.email];
+    return parts.filter(function (p) { return typeof p === 'string' && p; }).join(' · ');
   }
   function sourceText(t) {
     return t.source === 'email' ? ' · ' + twT('admin.support.source.email') : '';
@@ -258,6 +260,7 @@
     }).catch(function (e) { console.error('[admin-support] ticket:', e); showToast(twT('admin.support.load_error'), 'error'); });
   }
 
+  TwAdminShell.whenAllowed(root, function () {   // task 8.4c-1 — no support.manage → empty state, nothing asked
   twApi('/support/meta', { auth: false }).then(function (res) {
     var faq = (res.ok && res.data && res.data.faq) || {};
     Object.keys(faq).forEach(function (cat) { faq[cat].forEach(function (id) { faqCat[id] = cat; }); });
@@ -267,4 +270,5 @@
     });
   });
   loadList();
+  });
 })();

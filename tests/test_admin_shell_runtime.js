@@ -94,6 +94,7 @@ function shell(opts) {
       const emailAct = method === 'PUT' && /^\/admin\/user\/\d+\/email$/.test(url);
       const body = opts.json || (st < 300 && url === '/admin/message' ? { ok: true, data: { notification_id: 1 } }
         : st < 300 && emailAct ? { ok: true, data: { sent: true } }
+        : st < 300 && url === '/admin/owner/recovery-codes' ? { recovery_codes: ['abcde-fghjk', 'mnpqr-stuvw'] }   // task 8.4c-1
         : st < 300 && jobAct ? { ok: true, data: { id: 3 } }
         : st < 300 && preview ? { ok: true, data: { id: 3, title: 'T', applicants: 4, pipeline_entries: 4, appointments: 1 } } : {});
       return Promise.resolve({ ok: st < 300, status: st, json: () => Promise.resolve(body),
@@ -242,8 +243,10 @@ const tick = () => new Promise(r => setImmediate(r));
     const out = view({ panel: PANEL });
     check('E2 panel known, no session → back to the panel login', out.rec.replaced[0] === PANEL && out.rec.requests.length === 0);
     const live = view({ panel: PANEL, token: LIVE });
-    check('E3 live session → loads the user once', live.rec.requests.length === 1
-      && live.rec.requests[0][0] === '/admin/profile/5' && live.rec.replaced.length === 0);
+    for (let i = 0; i < 4; i++) await tick();   // task 8.4c-1 — the page loads after GET /admin/me (whenAllowed)
+    const data = live.rec.requests.filter(r => r[0] !== '/admin/me');
+    check('E3 live session → loads the user once', data.length === 1
+      && data[0][0] === '/admin/profile/5' && live.rec.replaced.length === 0);
     check('E4 menu links = this tab\'s panel root · «users» marked',
       live.ctx.TwAdminShell.items().every(i => i.href.indexOf(PANEL) === 0) && live.ctx.TwAdminShell.currentKey() === 'users');
     const bad = view({ panel: PANEL, token: LIVE, search: '?id=5x' });
@@ -336,7 +339,7 @@ const tick = () => new Promise(r => setImmediate(r));
     check('F3 body gets the side-menu layout class', s.ctx.document.body.classList.list.indexOf('tw-adm-has-side') !== -1);
     check('F4 top bar: menu button · search · system status · badge shortcuts · logout',
       /data-adm-menu/.test(html) && /data-adm-search/.test(html) && /data-adm-health/.test(html)
-      && (html.match(/class="tw-adm-iconbtn" href=/g) || []).length === reg.filter(x => x.badge).length && /data-adm-logout/.test(html));
+      && (html.match(/data-adm-quick=/g) || []).length === reg.filter(x => x.badge).length && /data-adm-logout/.test(html));
     check('F5 no request for search data before the search is used', !s.rec.requests.some(r => r[0] === '/admin/jobs'));
     parts['[data-adm-menu]'].fire('click');
     const m = s.rec.modals[0];
@@ -740,6 +743,113 @@ const tick = () => new Promise(r => setImmediate(r));
       JSON.stringify(labels(closed)) === '["common.close"]', JSON.stringify(labels(closed)));
     check('L3 docs window in review → approve + reject + close',
       JSON.stringify(labels(open)) === '["admin.kyc.approve","admin.kyc.reject","common.close"]', JSON.stringify(labels(open)));
+  }
+
+  console.log('\nM — task 8.4c-1: menu from /admin/me perms · empty state · step-up 428 → dialog → one retry');
+  {
+    const { ctx } = shell();
+    const reg = ctx.TW_ADMIN_SECTIONS, A = ctx.TwAdminShell;
+    const OO = ['audit.view', 'system.manage', 'settings.security', 'users.delete', 'users.export', 'users.type',
+                'users.password', 'users.email', 'staff.manage'];
+    check('M1 every registry entry names a perm', reg.every(x => typeof x.perm === 'string' && x.perm));
+    const keys = (perms, oo) => A.items(perms, oo).map(i => i.key).join(',');
+    check('M2 "*" → every item', keys(['*'], OO) === reg.map(x => x.key).join(','));
+    check('M3 unknown perms (/admin/me failed) → every item', keys(null, null) === reg.map(x => x.key).join(','));
+    check('M4 partial perms → only their sections',
+      keys(['users.view', 'support.manage'], OO) === 'users,companies,support', keys(['users.view', 'support.manage'], OO));
+    check('M5 an owner-only perm listed without "*" → still hidden',
+      keys(['audit.view', 'system.manage', 'stats.view'], OO) === 'overview,activity', keys(['audit.view', 'system.manage', 'stats.view'], OO));
+    check('M6 no perm → no item', keys([], OO) === '');
+    check('M7 allows twin: "*" · owner-only · listed',
+      A.allows(['*'], 'audit.view', OO) && !A.allows(['audit.view'], 'audit.view', OO) && A.allows(['jobs.manage'], 'jobs.manage', OO)
+      && !A.allows(['jobs.manage'], 'kyc.review', OO));
+  }
+  {
+    // staff without support.manage on the support page → empty state, no data request
+    const root = fakeEl('div');
+    const parent = fakeEl('div');
+    parent.insertBefore = (n) => { parent.children.push(n); };
+    root.parentNode = parent;
+    const sp = shell({ page: 'static/admin-support/admin-support.js', path: PANEL + '/support', token: LIVE, root, rootId: 'aspRoot',
+                       json: { kind: 'staff', name: 'S', perms: ['users.view'], owner_only: ['audit.view'] },
+                       extra: { TwSupportForm: { el: fakeEl }, twApi: () => { throw new Error('no data request expected'); } } });
+    for (let i = 0; i < 6; i++) await tick();
+    check('M8 no perm for the page → only /admin/me asked', sp.rec.requests.map(r => r[0]).join(',') === '/admin/me',
+      sp.rec.requests.map(r => r[0]).join(','));
+    check('M9 page root hidden + empty state text', root.hidden === true
+      && parent.children.some(n => n.textContent === 'admin.perm.denied'));
+    check('M10 session kept', sp.rec.replaced.length === 0);
+  }
+  {
+    // 428 step_up_required → dialog → POST /admin/step-up → the same request again ONCE with the grant
+    const calls = [];
+    let answer = 'ok';
+    const res = (st, body) => ({ ok: st < 300, status: st, json: () => Promise.resolve(body),
+                                 clone() { return res(st, body); } });
+    const fetchStub = (url, init) => {
+      const h = (init && init.headers) || {};
+      calls.push([url, (init && init.method) || 'GET', h['X-Admin-Stepup'] || '', init && init.body]);
+      if (url === '/admin/step-up') return Promise.resolve(answer === 'ok' ? res(200, { grant: 'G.R.ANT', expires_in: 300 }) : res(401, { error: 'Unauthorized' }));
+      if (url === '/admin/me') return Promise.resolve(res(200, { kind: 'owner', perms: ['*'] }));
+      return Promise.resolve(h['X-Admin-Stepup'] ? res(200, { success: true }) : res(428, { error: 'step_up_required' }));
+    };
+    const st = shell({ token: LIVE, extra: { fetch: fetchStub } });
+    const S = st.ctx.TwAdminSession;
+    const del = { confirm: null, request: () => ({ url: '/admin/user/7', method: 'DELETE' }), done: 'admin.done.deleted' };
+    const p1 = st.ctx.TwAdminShell.run(del);
+    for (let i = 0; i < 4; i++) await tick();
+    const dlg = st.rec.modals[st.rec.modals.length - 1];
+    check('M11 428 → one DS-OVL step-up dialog (cancel + confirm)', !!dlg && dlg.opts.title === 'admin.stepup.title'
+      && dlg.opts.actions.length === 2);
+    // type a code into the dialog's input and press confirm
+    const input = dlg.opts.content.children[0].children[1];
+    input.value = '123 456';
+    const r1 = dlg.opts.actions[1].onClick();
+    await r1;
+    dlg.opts.onClose('action');
+    const out = await p1;
+    const dels = calls.filter(c => c[0] === '/admin/user/7');
+    const up = calls.find(c => c[0] === '/admin/step-up');
+    check('M12 code sent to /admin/step-up (spaces removed)', !!up && up[1] === 'POST' && JSON.parse(up[3]).code === '123456');
+    check('M13 the original request sent again once, with X-Admin-Stepup', dels.length === 2 && dels[0][2] === '' && dels[1][2] === 'G.R.ANT');
+    check('M14 run() → ok + done toast', out && out.ok === true && st.rec.toasts.some(t => t[0] === 'admin.done.deleted'));
+    check('M15 grant in memory only (never sessionStorage)', S.hasStepUp() && !Object.values(st.store).some(v => String(v).indexOf('G.R.ANT') !== -1));
+    await st.ctx.TwAdminShell.run(del);
+    check('M16 next owner-only write carries the grant (no new dialog)', calls.filter(c => c[0] === '/admin/user/7').length === 3
+      && calls[calls.length - 1][2] === 'G.R.ANT' && st.rec.modals.length === 1);
+    S.setToken(LIVE);
+    check('M17 a new admin token drops the grant', !S.hasStepUp());
+    // cancel → the 428 back, a toast, the session kept, no retry
+    const p2 = st.ctx.TwAdminShell.run(del);
+    for (let i = 0; i < 4; i++) await tick();
+    const dlg2 = st.rec.modals[st.rec.modals.length - 1];
+    dlg2.opts.onClose('cancel');
+    const out2 = await p2;
+    check('M18 cancel → 428 returned · toast admin.stepup.cancelled · session kept',
+      out2 && out2.status === 428 && st.rec.toasts.some(t => t[0] === 'admin.stepup.cancelled')
+      && st.rec.replaced.length === 0 && S.getToken() === LIVE);
+    // wrong code → stays open with an error, the session is not ended
+    answer = 'bad';
+    const p3 = st.ctx.TwAdminShell.run(del);
+    for (let i = 0; i < 4; i++) await tick();
+    const dlg3 = st.rec.modals[st.rec.modals.length - 1];
+    dlg3.opts.content.children[0].children[1].value = '000000';
+    const kept = await dlg3.opts.actions[1].onClick();
+    check('M19 wrong code → dialog stays open (false) · error shown · session kept',
+      kept === false && dlg3.opts.content.children[0].children[2].textContent === 'admin.stepup.wrong'
+      && st.rec.replaced.length === 0 && S.getToken() === LIVE);
+    dlg3.opts.onClose('cancel');
+    await p3;
+  }
+  {
+    const rc = shell({ page: true, token: LIVE, confirmAnswer: true });
+    await rc.ctx.TwAdminDash.newRecoveryCodes();
+    const d = rc.rec.modals[rc.rec.modals.length - 1];
+    check('M20 new recovery codes: danger confirm → the codes once in a dialog (copy + "old ones void") · not stored',
+      rc.rec.confirms.length === 1 && rc.rec.confirms[0].danger === true && d && d.opts.title === 'admin.login.codes_title'
+      && d.opts.content.children[0].textContent === 'admin.recovery.old_void' && d.opts.content.children[1].children.length === 2
+      && d.opts.actions[0].text === 'admin.login.codes_copy' && d.opts.actions[0].onClick() === false
+      && !Object.values(rc.store).some(v => String(v).indexOf('abcde') !== -1));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

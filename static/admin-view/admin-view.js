@@ -286,5 +286,5 @@
       .catch(function (e) { console.error('[admin-view] load:', e); message('admin.view.load_error'); });
   }
 
-  load();
+  TwAdminShell.whenAllowed(root, load);   // task 8.4c-1 — no users.view → empty state
 }());

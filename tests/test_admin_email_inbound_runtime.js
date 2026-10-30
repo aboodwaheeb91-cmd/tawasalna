@@ -60,6 +60,7 @@ async function boot(types, confirmAnswer) {
     twConfirm: o => { rec.confirms.push(o); return Promise.resolve(confirmAnswer !== false); },
     TwAdminShell: {
       start: () => true, mount() {},
+      whenAllowed: (target, fn) => { fn(); return Promise.resolve(true); },   // task 8.4c-1 — allowed (the shell's own test covers the denial)
       card(parent, o) { const s = fakeEl('section'); s.titleKey = o.titleKey; s.hintKey = o.hintKey; rec.cards.push(s); parent.appendChild(s); return s; },
     },
     TwAdminSession: {

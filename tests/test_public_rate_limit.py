@@ -161,7 +161,7 @@ def test_admin_value_applies_at_once():
 # Auth that the endpoint itself always runs first (admin JWT · scheduler secret · the settings write
 # wrapper = check_admin first). Only the endpoint's own calls — an optional check deeper down (e.g. the
 # owner / admin detail of /profile/{id}/score) does not make a guest route private.
-_GUARDS = {"check_admin", "SCHEDULER_SECRET", "_settings_write"}
+_GUARDS = {"check_admin", "check_admin_session", "SCHEDULER_SECRET", "_settings_write"}   # check_admin_session = the admin session gate without a perm (task 8.4c-1 — /admin/me · /admin/step-up)
 
 
 def _deps(dependant):

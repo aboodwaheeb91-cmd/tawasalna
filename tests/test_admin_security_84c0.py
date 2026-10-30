@@ -353,6 +353,13 @@ def test_every_admin_route_is_guarded(scan, method, path):
     if perm in admin_perms.OWNER_ONLY:
         tok = _scan_staff(scan, grantable + [perm, "*"])
         assert client.request(method, url, json=body, headers=_hdr(tok)).status_code == 403
+        # task 8.4c-1 — the owner without a step-up grant: a write / the export → 428 · a read passes the gate
+        owner = srv._admin_jwt_issue(sv=admin_staff.owner_session_version())
+        r = client.request(method, url, json=body, headers=_hdr(owner))
+        if method != "GET" or path == "/admin/users/export":
+            assert (r.status_code, r.json()) == (428, {"error": "step_up_required"}), (r.status_code, r.text[:200])
+        else:
+            assert r.status_code not in (401, 403, 428) and r.status_code < 500, (r.status_code, r.text[:200])
         return
     tok = _scan_staff(scan, [p for p in grantable if p != perm])
     assert client.request(method, url, json=body, headers=_hdr(tok)).status_code == 403

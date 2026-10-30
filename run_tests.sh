@@ -122,6 +122,7 @@ PY_DB=(
   pytest:test_admin_mfa_84b.py         # task 8.4b — two-step admin login (RFC 6238 · owner bind / recovery / ADMIN_MFA_RESET) · staff perms from the DB every request
   pytest:test_security_84c0b.py   # task 8.4c-0b — messages hidden by block / suspension (every messaging route) · user login locks atomic under concurrency · one email link per user + purpose · OTP shape 422 (no attempt) · HSTS
   pytest:test_admin_security_84c0.py   # task 8.4c-0 — admin login locks under concurrency (atomic reserve) · one token per ticket · every admin route 401 / 403 · tickets + sessions · no secret leaks
+  pytest:test_admin_stepup_84c.py      # task 8.4c-1 — /admin/me · owner step-up (428 · grant bound to token + sv · atomic locks) · new owner recovery codes
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation
   pytest:test_register_profiles_unique.py
