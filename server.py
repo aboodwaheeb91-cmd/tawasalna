@@ -8644,8 +8644,7 @@ def admin_staff_access(staff_id: int, request: Request, data: dict = Body(...)):
     return api_ok(_admin_contacts(claims, st))
 
 
-def _staff_status(request: Request, staff_id: int, suspended: bool, name: str):
-    claims = check_admin(request, STAFF_PERM)
+def _staff_status(claims: dict, staff_id: int, suspended: bool, name: str):
     try:
         st, changed = admin_staff.set_suspended(staff_id, suspended)
     except admin_staff.StaffError as e:
@@ -8660,14 +8659,16 @@ def _staff_status(request: Request, staff_id: int, suspended: bool, name: str):
 @app.post("/admin/staff/{staff_id}/suspend")
 def admin_staff_suspend(staff_id: int, request: Request):
     """status suspended + session_version + 1 → every token of this staff member fails on its next request."""
-    return _staff_status(request, staff_id, True, "admin_staff_suspend")
+    claims = check_admin(request, STAFF_PERM)
+    return _staff_status(claims, staff_id, True, "admin_staff_suspend")
 
 
 @app.post("/admin/staff/{staff_id}/restore")
 def admin_staff_restore(staff_id: int, request: Request):
     """From suspended only → active (password + authenticator bound) else invited, + session_version + 1 — an old
     token never comes back."""
-    return _staff_status(request, staff_id, False, "admin_staff_restore")
+    claims = check_admin(request, STAFF_PERM)
+    return _staff_status(claims, staff_id, False, "admin_staff_restore")
 
 
 # ══════════════════════════════════════════
