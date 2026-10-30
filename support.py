@@ -49,7 +49,7 @@ import re
 import secrets
 import unicodedata
 
-from auth import (db_conn, generate_public_id, generate_code, otp_max_attempts, otp_ttl_minutes,
+from auth import (db_conn, generate_public_id, generate_code, otp_code_valid, otp_max_attempts, otp_ttl_minutes,
                   _otp_hash, _otp_norm_target)
 import blocks_suspension as bs
 import email_service
@@ -636,7 +636,7 @@ def guest_verify(token, code, session_hours: int):
     def fn(conn):
         _, t = _guest_access(conn, token)
         tid, tgt = int(t["id"]), _otp_norm_target("email", t["guest_email"])
-        if not code or not tgt:
+        if not otp_code_valid(code) or not tgt:   # not 6 digits → no attempt used (8.4c-0b)
             return None
         mx = otp_max_attempts()
         rows = conn.run("UPDATE support_track_otp SET attempts = attempts + 1 WHERE ticket_id = :t "

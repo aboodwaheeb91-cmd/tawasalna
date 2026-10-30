@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field, ConfigDict, ValidationError
+from pydantic import BaseModel, Field, ConfigDict, ValidationError, field_validator
 import base64, hashlib, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -211,6 +211,7 @@ from auth import ContentValidationError, validate_professional_text, JobArchived
 from auth import withdraw_application, ApplicationStateError, ReapplyLimitError   # task 8.2a
 from auth import _otp_norm_target   # task 4.3 — the one OTP target normaliser (send limits = stored target)
 from auth import guest_otp_issue, guest_otp_verify   # task 7.1 — guest support code (same OTP rules)
+from auth import otp_code_valid   # task 8.4c-0b — the one OTP shape check (6 digits)
 from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
 import admin_perms   # task 8.4a — admin permission catalog (docs/rules/admin-staff.md)
 from auth import hash_password as _hash_password, verify_password as _verify_password
@@ -592,6 +593,8 @@ async def security_headers(request, call_next):
     response = await call_next(request)
     try:
         response.headers["X-Content-Type-Options"] = "nosniff"
+        # task 8.4c-0b — HTTPS only for a year (sub-domains too). No preload; CSP is a separate task.
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         if response.headers.get("content-type", "").startswith("text/html") \
@@ -758,11 +761,6 @@ def _rate_prune_locked(key: str, window: float) -> list:
     return hits
 
 
-def _rate_prune(key: str, window: float) -> list:
-    with _rate_lock:
-        return _rate_prune_locked(key, window)
-
-
 def _rate_hit_retry(key: str, limit: int, window: float) -> int:
     """Sliding window on the shared _rate_store — one locked step. Allowed → counted, 0. Over the
     limit → seconds (≥ 1) until enough old hits leave the window for the next one to pass (Retry-After)."""
@@ -781,20 +779,16 @@ def _rate_hit(key: str, limit: int, window: float) -> bool:
     return _rate_hit_retry(key, limit, window) == 0
 
 
-def _rate_count(key: str) -> None:
-    """Count one hit without a limit check (failed logins)."""
-    with _rate_lock:
-        _rate_sweep_locked()
-        now = _time.time()
-        _rate_room_locked(key, now)
-        _rate_store[key] = _rate_store.get(key, []) + [now]
-
-
 def _rate_reserve(checks):
     """[(rate_name, who), …] — every bucket checked first, then one hit added to every one, in one locked
     step: one full bucket → None and nothing counted; else the reservation [(key, t), …] — the hits stay
     (a failure counted before the slow check runs — task 8.4c-0) unless _rate_release takes them back.
     Rates via tw_settings.rate. The ONE check-and-count of several buckets (_rate_ok_all = this)."""
+    return _rate_reserve_window(checks)[0]
+
+
+def _rate_reserve_window(checks):
+    """_rate_reserve + the window (s) of the first full bucket: (reservation, None) or (None, window)."""
     with _rate_lock:
         buckets = []
         for rate_name, who in checks:
@@ -802,13 +796,13 @@ def _rate_reserve(checks):
             key = f"{rate_name}:{who}"
             hits = _rate_prune_locked(key, window)
             if len(hits) >= max_hits:
-                return None
+                return None, window
             buckets.append((key, hits))
         now = _time.time()
         for key, hits in buckets:
             _rate_room_locked(key, now)
             _rate_store[key] = hits + [now]
-        return [(key, now) for key, _ in buckets]
+        return [(key, now) for key, _ in buckets], None
 
 
 def _rate_release(held) -> None:
@@ -866,18 +860,12 @@ def _login_lock_who(email: str, ip: str) -> dict:
     return {"login_email": e, "login_ip": ip, "login_ip_email": f"{ip}|{e}"}
 
 
-def _login_locked(email: str, ip: str):
-    """The window (s) of the first lock that is full, else None."""
-    for name, who in _login_lock_who(email, ip).items():
-        max_fails, window = tw_settings.rate(name)
-        if len(_rate_prune(f"{name}:{who}", window)) >= max_fails:
-            return window
-    return None
-
-
-def _login_fail(email: str, ip: str) -> None:
-    for name, who in _login_lock_who(email, ip).items():
-        _rate_count(f"{name}:{who}")
+def _login_reserve(email: str, ip: str):
+    """task 8.4c-0b — the three locks checked + counted in ONE locked step BEFORE bcrypt (_rate_reserve):
+    (reservation, None) or, one lock full, (None, its window s) with nothing counted. The hits stay on a
+    failure (= the failure count) and _rate_release takes them back on success — parallel wrong passwords
+    can never pass the limit."""
+    return _rate_reserve_window(list(_login_lock_who(email, ip).items()))
 
 
 def _login_email_reset(email: str, ip: str = None, every_ip: bool = False) -> None:
@@ -2718,6 +2706,14 @@ class KYCEmailInput(BaseModel):
 class KYCCodeInput(BaseModel):
     model_config = ConfigDict(extra='ignore')
     code: str
+
+    @field_validator("code")
+    @classmethod
+    def _six_digits(cls, v: str) -> str:
+        # task 8.4c-0b — not exactly 6 digits (after strip) → 422 (form error shape); no attempt is used
+        if not otp_code_valid(v):
+            raise ValueError("invalid_code")
+        return v.strip()
 
 class KYCPhoneInput(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -5043,8 +5039,10 @@ def support_guest_ticket(request: Request, data: dict = Body(...)):
     if not email_service.can_send("support_guest_link"):   # fail closed — a guest ticket without its link = lost
         return api_error(503, "otp_delivery_unavailable", _tw_text("support.error.code_unavailable"))
     code = data.get("code")
+    if not otp_code_valid(code):   # task 8.4c-0b — wrong shape → 422, no attempt used
+        return api_error(422, "invalid_code", _tw_text("support.error.code_invalid"), "code")
     try:
-        verified = isinstance(code, str) and guest_otp_verify(email, code)
+        verified = guest_otp_verify(email, code)
     except Exception as e:
         raise _server_error("support_guest_ticket", e)
     if not verified:
@@ -5738,13 +5736,13 @@ def login(data: LoginInput, request: Request):
     if not data.email.strip() or not data.password:
         raise HTTPException(400, detail="البريد وكلمة المرور مطلوبان")
     ip = get_client_ip(request)
-    locked = _login_locked(data.email, ip)   # email · IP · IP + email (task 5.0h-2) — one text for all
-    if locked:
+    held, locked = _login_reserve(data.email, ip)   # email · IP · IP + email (task 5.0h-2) — one text for all
+    if held is None:
         return _limit_error(429, "login_locked", "limits.login_locked", minutes=_fmt_number(-(-locked // 60)))
     user = authenticate_user(data.email, data.password)
-    if not user:
-        _login_fail(data.email, ip)
+    if not user:   # the reservation stays — it is the failure count
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
+    _rate_release(held)
     _login_email_reset(data.email, ip)
     if user.pop("suspended", False):   # task 5.4 — a suspended account never gets a token
         return api_error(401, "account_suspended", "الحساب معلّق")
@@ -7027,6 +7025,7 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
     if int(token.get("user_id") or 0) != user_id:
         raise HTTPException(403, "غير مصرح")
     try:
+        # Hidden / missing peer → MessagePolicyError not_found (404) before any read mark or WS event (8.4c-0b)
         msgs, newly_read_ids = await asyncio.to_thread(get_messages, user_id, other_id)
         if newly_read_ids:
             await ws_manager.send_to_user(other_id, {
@@ -7035,6 +7034,8 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
                 "status": "read"
             })
         return {"status": "success", "messages": msgs}
+    except MessagePolicyError as e:
+        return _message_policy_error(e)
     except Exception as e:
         raise _server_error("get_msgs", e)
 

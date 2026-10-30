@@ -64,7 +64,7 @@ def env(monkeypatch):
         c = auth.get_conn()
     except Exception as e:
         pytest.skip(f"test PostgreSQL unavailable: {e}")
-    for t in ("email_notify_prefs", "email_send_log", "scheduler_jobs", "notifications", "messages", "users"):
+    for t in ("email_notify_prefs", "email_send_log", "scheduler_jobs", "notifications", "messages", "blocks", "users"):
         c.run(f"DROP TABLE IF EXISTS {t}")
     c.run("CREATE TABLE users (id SERIAL PRIMARY KEY, tw_id TEXT, email TEXT UNIQUE, full_name TEXT, "
           "user_type TEXT DEFAULT 'emp')")
@@ -79,6 +79,7 @@ def env(monkeypatch):
     auth.release_conn(c)
     auth._migrate_email_notify()
     auth._migrate_email_notify()          # idempotent
+    server.bs.migrate_blocks_suspension()   # task 8.4c-0b — the message email job reads the block rule
     server.admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth._migrate_scheduler_jobs()
     f = FakeResend()

@@ -1156,12 +1156,22 @@ def email_token_issue(purpose: str, user_id: int, payload: str = None) -> str:
     token = secrets.token_urlsafe(32)
     p1, p2 = _EMAIL_CHANGE_PURPOSES if purpose in _EMAIL_CHANGE_PURPOSES else (purpose, purpose)
     with db_conn() as conn:
-        conn.run(
-            "WITH old AS (DELETE FROM password_reset_tokens "
-            "WHERE (user_id = :uid AND purpose IN (:p1, :p2)) OR expires_at < NOW()) "
-            "INSERT INTO password_reset_tokens (user_id, purpose, payload, token_hash, expires_at) "
-            f"VALUES (:uid, :p, :pl, :h, NOW() + INTERVAL '{EMAIL_TOKEN_TTL_MINUTES} minutes')",
-            uid=user_id, p=purpose, p1=p1, p2=p2, pl=payload, h=_email_token_hash(purpose, token))
+        # task 8.4c-0b — one transaction under a per-user lock: a parallel issue waits, then its DELETE sees
+        # this INSERT → one valid link per (user, purpose) — per user for both email change purposes.
+        conn.run("BEGIN")
+        try:
+            conn.run("SELECT pg_advisory_xact_lock(hashtextextended('tw_email_token:' || :uid::text, 0))",
+                     uid=int(user_id))
+            conn.run(
+                "WITH old AS (DELETE FROM password_reset_tokens "
+                "WHERE (user_id = :uid AND purpose IN (:p1, :p2)) OR expires_at < NOW()) "
+                "INSERT INTO password_reset_tokens (user_id, purpose, payload, token_hash, expires_at) "
+                f"VALUES (:uid, :p, :pl, :h, NOW() + INTERVAL '{EMAIL_TOKEN_TTL_MINUTES} minutes')",
+                uid=user_id, p=purpose, p1=p1, p2=p2, pl=payload, h=_email_token_hash(purpose, token))
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
     return token
 
 
@@ -4242,9 +4252,21 @@ def otp_max_attempts() -> int:
     return int(tw_settings.limit("otp_max_attempts"))
 
 
-def generate_code(length=6):
+OTP_LENGTH = 6   # every issued OTP (KYC · guest support · support follow-up) — otp_code_valid checks this shape
+
+
+def generate_code(length=OTP_LENGTH):
     """Cryptographically secure numeric code."""
     return ''.join(_secrets.choice('0123456789') for _ in range(length))
+
+
+def otp_code_valid(code) -> bool:
+    """task 8.4c-0b — an entered OTP is exactly OTP_LENGTH ASCII digits after strip. Anything else never
+    reaches an attempt (no attempt used): KYCCodeInput (422) · guest support code · follow-up code."""
+    if not isinstance(code, str) or len(code) > 64:
+        return False
+    code = code.strip()
+    return len(code) == OTP_LENGTH and code.isascii() and code.isdigit()
 
 
 def _otp_norm_target(channel: str, target: str) -> str:
@@ -4288,7 +4310,9 @@ def _otp_verify(user_id: int, channel: str, code: str, expected_target: str) -> 
     attempts exhausted, stored target != expected_target, or hash mismatch.
     On success the code is cleared (single use) — the caller marks verified."""
     code_c, target_c, exp_c, att_c = _OTP_COLUMNS[channel]
-    code = (code or "").strip()
+    if not otp_code_valid(code):
+        return False
+    code = code.strip()
     tgt = _otp_norm_target(channel, expected_target)
     if not code or not tgt:
         return False
@@ -4352,7 +4376,9 @@ def guest_otp_issue(email: str) -> str:
 def guest_otp_verify(email: str, code: str) -> bool:
     """Same steps as _otp_verify: the attempt counted first (atomic), then compared; success = row
     deleted (single use); the last wrong attempt kills the code."""
-    code = (code or "").strip()
+    if not otp_code_valid(code):
+        return False
+    code = code.strip()
     tgt = _otp_norm_target("email", email)
     if not code or not tgt:
         return False
@@ -4746,7 +4772,7 @@ def end_conversation(company_id: int, other_id: int) -> dict:
         try:
             conn.run(MESSAGE_PAIR_LOCK_SQL_PG8000, s=int(company_id), r=int(other_id))
             rows = conn.run(MESSAGE_POLICY_FACTS_SQL_PG8000, s=int(company_id), r=int(other_id))
-            if not rows:
+            if not rows or rows[0][5]:   # missing — or hidden (suspended / a block either way, 8.4c-0b)
                 raise MessagePolicyError("not_found", 404)
             s_type, r_type, has_history = rows[0][0], rows[0][1], bool(rows[0][2])
             if s_type != "co" or r_type != "emp":
@@ -4923,6 +4949,11 @@ def get_messages(user_id: int, other_id: int):
     """
     conn = get_conn()
     try:
+        # task 8.4c-0b — a missing / suspended account or a block either way = the messaging «not found»
+        # (404), checked BEFORE anything is read or marked read / delivered. The rule: bs.visible_sql.
+        if not conn.run("SELECT 1 FROM users WHERE id = :oid AND " + bs.visible_sql(":oid", ":uid"),
+                        uid=user_id, oid=other_id):
+            raise MessagePolicyError("not_found", 404)
         # Root-cause note: must take the latest 100 by DESC first, then
         # re-sort ASC for display — "ORDER BY created_at ASC LIMIT 100"
         # silently dropped the newest messages once a conversation passed
@@ -11710,7 +11741,8 @@ def _handle_message_email(job: dict) -> None:
         msg = conn.run("SELECT is_read FROM messages WHERE id = :id AND receiver_id = :r AND sender_id = :s",
                        id=mid, r=rid, s=sid)
         sender = conn.run("SELECT full_name, tw_id FROM users WHERE id = :id", id=sid)
-    if not msg or msg[0][0] or not sender:
+        hidden = bs.is_hidden(rid, sid, conn)   # 8.4c-0b — blocked / suspended since the send → no email
+    if not msg or msg[0][0] or not sender or hidden:
         return
     link = "/messages?with=" + str(sender[0][1]) if sender[0][1] else "/messages"
     res = email_notify_user(rid, "notify_message", {"sender": sender[0][0] or "", "link": link},

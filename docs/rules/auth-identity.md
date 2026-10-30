@@ -50,6 +50,17 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 - Test: `python -m pytest tests/test_security_50f.py -q` (PostgreSQL — deleted account · no-`sv` cutoff).
 - Test: `python -m pytest tests/test_session_version_tokens.py -q` (PostgreSQL) · type change: `python -m pytest tests/test_admin_user_actions.py -q`.
 
+### User Login Lock under Concurrency (task 8.4c-0b — SYSTEMS_INDEX §54n)
+1. **`POST /auth/login` reserves the three locks (`login_email` · `login_ip` · `login_ip_email`) BEFORE bcrypt** — `_login_reserve(email, ip)` = `_rate_reserve_window` (the one check-and-count, `_rate_reserve` of task 8.4c-0, under `_rate_lock`): one lock full → the same 429 `login_locked` (`limits.login_locked`, minutes from that lock's window), nothing counted. Wrong password → the reservation stays (that is the failure count). Success → `_rate_release(held)` then `_login_email_reset(email, ip)` as before. 30 parallel wrong passwords → 401s ≤ the smallest lock, the rest 429.
+- ❌ a check then a separate count (the old `_login_locked` + `_login_fail` — deleted) · ❌ a second lock implementation.
+- Test: `python -m pytest tests/test_security_84c0b.py -q`.
+
+### Email Links + OTP Shape + HSTS (task 8.4c-0b)
+1. **`auth.email_token_issue`** runs `BEGIN` → `pg_advisory_xact_lock(hashtextextended('tw_email_token:' || user_id, 0))` → the DELETE + INSERT → `COMMIT`: parallel issues for one user wait for each other → one valid link per (user, purpose), and one for both email change purposes together.
+2. **OTP shape — `auth.otp_code_valid(code)`** (the one check): exactly `auth.OTP_LENGTH` (6 — `generate_code` uses it) ASCII digits after `strip`. `KYCCodeInput.code` (field validator) → 422 in the form error shape (`{error, details:[{loc:["body","code"], type}]}`) · `POST /support/guest/tickets` → 422 `invalid_code` · `_otp_verify` / `guest_otp_verify` / `support.guest_verify` return «wrong» before the attempt UPDATE — a wrong shape never uses an attempt.
+3. **`Strict-Transport-Security: max-age=31536000; includeSubDomains`** on every response (the `security_headers` middleware, next to `nosniff`). ❌ `preload` · CSP is a separate task.
+- Test: `python -m pytest tests/test_security_84c0b.py -q`.
+
 ### Login Lock after Password Reset (task 7.5b — SYSTEMS_INDEX §54n)
 1. **A successful `POST /auth/password-reset/confirm`** (after `set_user_password` changed the password) calls `_login_email_reset(email, every_ip=True)`: clears `login_email:{email}` **and every `login_ip_email:{ip}|{email}` key of that email from any IP** (`_rate_store` section `login_ip_email`, under `_rate_lock`). The owner proved the inbox, so the locks on that address end.
 2. `login_ip` (per IP, any email) and every general rate stay as they are. A failed / invalid reset clears nothing. A successful login still clears only its own email + its own IP pair.

@@ -10,6 +10,7 @@ import pytest
 SECURITY_TESTS = frozenset({
     "test_admin_security_84c0.py",
     "test_admin_stepup_84c.py",
+    "test_security_84c0b.py",
     "test_admin_mfa_84b.py",
     "test_admin_email_view_84a.py",
     "test_admin_email_keys_84a2.py",
