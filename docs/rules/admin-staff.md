@@ -11,15 +11,15 @@
 
 3. **صلاحيات المالك ما بتنعطى:** `admin_perms.allows(perms, perm)` — القرار الوحيد: `"*"` بيمرق كل شي · perm من `OWNER_ONLY` بيمرق **بس** بـ `"*"` حتى لو مكتوب صراحة بـ `perms` التوكن · غير هيك لازم يكون بالتوكن. مفتاح إعداد أمني (`tw_settings.is_security`) بيحتاج `settings.security` (`tw_settings.SECURITY_PERM`) — للمالك بس.
 
-4. **الإيميل مخفي افتراضياً:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم — `_admin_emails(claims, data)` بـ `server.py` (بيشيل بأي عمق — dict و list — كل مفتاح اسمه `email` أو بيخلص بـ `_email` عبر `admin_perms.strip_emails`، والقاعدة `admin_perms.is_email_key` بالاسم مش بقائمة يدوية — task 8.4a2: `guest_email` · `details.account_email` بتذاكر الدعم · أي حقل جديد) على: قائمة المستخدمين (+ البحث الموحّد لأنه نفس الـ endpoint) · البروفايل (قراءة + رد التعديل) · التوثيق · الدعم (القائمة + التذكرة). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل → لازم يمرق على `_admin_emails`.
+4. **الإيميل والهاتف مخفيين افتراضياً — صلاحيتين مستقلتين:** بدون `users.email.view` ما في رد أدمن فيه إيميل مستخدم، وبدون `users.phone.view` ما في رد فيه رقم هاتف (وحدة ما بتكشف التانية · المالك `"*"` بيشوف الاتنين). كل رد أدمن ممكن يحمل إيميل أو هاتف بيمرق على `_admin_contacts(claims, data)` بـ `server.py` → `admin_perms.strip_contacts(data, email_ok, phone_ok)` (بأي عمق — dict و list)، والقرارين من الصلاحيات الفعلية (`allows`). **القاعدة اسم المفتاح، مش قائمة يدوية (task 8.4a2):** إيميل = `email` أو بيخلص بـ `_email` (`is_email_key` — `guest_email` · `details.account_email`) · هاتف = `phone` أو بيخلص بـ `_phone` (`is_phone_key` — `profile.phone` · `details.account_phone`؛ `phone_verified` / `email_verified` ما بينشالوا). الردود: قائمة المستخدمين (+ البحث الموحّد) · البروفايل (قراءة + رد التعديل — فيه `phone`) · التوثيق · الدعم (القائمة + التذكرة — `details`). البحث بإيميل بدون الصلاحية ما بيطابق: `/admin/users?q=` بيدوّر بالاسم و `tw_id` بس (`users_list(with_email=False)`) · `/admin/support/tickets?q=<email>` → صفر نتائج (`admin_list(email_search=False)`). **ما في بحث أدمن بالهاتف** (`/admin/users?q=` = اسم / `tw_id` / إيميل · `/admin/support/tickets?q=` = رقم H أو إيميل، غير هيك 422) — بحث هاتف جديد لازم يشترط `users.phone.view`. **أسرار OTP (`email_code` / `phone_code` / `phone_code_target` …) ما بترجع بأي رد أدمن ولا للمالك** — قائمة التوثيق allowlist (`_ADMIN_KYC_LIST_COLUMNS`، بدون `phone` كمان) والبروفايل ما بيقرأهم. التصدير CSV = `users.export` (للمالك). رد أدمن جديد فيه إيميل أو هاتف → لازم يمرق على `_admin_contacts`.
 
-- ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل بدون `_admin_emails` · ❌ حقل إيميل بأي رد أدمن (أو بـ `support.FIELDS` نوع `email`) اسمه ما بيطابق `email` / `*_email` · ❌ قائمة أسماء مفاتيح إيميل يدوية · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
+- ❌ `check_admin(request)` بدون perm · ❌ perm مكتوب برّا `admin_perms.py` · ❌ endpoint أدمن بيرجّع إيميل أو هاتف بدون `_admin_contacts` · ❌ حقل إيميل / هاتف بأي رد أدمن (أو بـ `support.FIELDS` نوع `email` / `phone`) اسمه ما بيطابق `email` / `*_email` / `phone` / `*_phone` · ❌ قائمة أسماء مفاتيح يدوية · ❌ `users.email.view` بتكشف هاتف أو العكس · ❌ سر OTP بأي رد أدمن · ❌ بحث بهاتف بدون `users.phone.view` · ❌ بحث بإيميل بدون `users.email.view` · ❌ إعطاء صلاحية من `OWNER_ONLY` لموظف.
 ## Admin Login + Staff Accounts Rules (task 8.4b — mandatory for all AI sessions)
 
 5. **ما في توكن أدمن بدون الخطوتين:** `<panel>/login` نفس المسار بخطوتين. (أ) `{password}` = المالك (`ADMIN_TOKEN`) · `{email, password}` = موظف → `{step: "mfa", ticket}` — **مش** توكن. الـ ticket موقّع بـ `ADMIN_JWT_SECRET` بـ aud خاص (`tw-admin-mfa`، `typ: mfa_ticket`)، 5 دقايق، مربوط بالـ subject + `session_version` — `check_admin` ما بيقبله. (ب) `{ticket, code}` (رمز تطبيق المصادقة أو رمز استرداد) → `{token}`؛ بعد رمز استرداد الرد فيه `recovery_remaining`. (ج) المالك بدون تطبيق مربوط → الخطوة (أ) بترجّع `{step: "enroll", ticket, secret, otpauth_uri}` (السر بينحفظ مشفّر كـ «معلّق»)، وأول رمز صحيح بيربطه → `{token, recovery_codes}` (10 رموز — مرة وحدة).
 6. **نفس الـ 401 لكل فشل:** إيميل مش موجود · كلمة سر غلط · موظف مش `active` · موظف بدون MFA · ticket غلط / منتهي / sv قديم · رمز غلط / مستعمل → نفس الرد (`{"error": "Unauthorized"}`) — إيميل مش موجود بيكلّف bcrypt متل كلمة السر الغلط. الأقفال (فشل بس، `tw_limits.RATES`): `admin_login_ip` / `admin_login_acct` (الخطوة أ) · `admin_mfa_ip` / `admin_mfa_acct` (الخطوة ب) → 429 حتى لو البيانات صح. فوقهم حد `rate_limit_middleware` العام للمسار.
 7. **TOTP + الأسرار — `admin_staff.py` بس:** RFC 6238 بمكتبة Python (SHA-1 · 6 أرقام · 30 ثانية · ±خطوة وحدة) · الخطوة بتنقبل مرة وحدة (`last_step` بيكبر بس — UPDATE ذرّي) · السر مشفّر Fernet بمفتاح مشتق (SHA-256) من `ADMIN_MFA_KEY` (≥ 32 حرف؛ ناقص → الدخول 503) · رموز الاسترداد 10، `secrets`، بتنحفظ SHA-256 بس، كل رمز مرة وحدة (`used_at`). ❌ السر أو الرموز أو الـ ticket بـ localStorage / sessionStorage / URL / لوج / سجل.
-8. **الجلسة بتنقرا من القاعدة بكل طلب (`check_admin`):** التوكن فيه `sv`. المالك (`role: admin`) → `sv` = `admin_owner_mfa.session_version`. الموظف (`role: staff`, `sub: staff:<id>`, `perms: []` بالتوكن) → صف `admin_staff`: `status = active` + MFA مربوط + `sv` مطابق، والصلاحيات الفعلية = (صلاحيات الدور ∪ `allow_perms`) − `deny_perms` ∩ `GRANTABLE` (`admin_staff.effective_perms`) — المنع فوق السماح، و `OWNER_ONLY` / `"*"` ما بيعيشوا أبداً. ما في تطابق → 401 · الصلاحية مش ضمن الفعلية → 403 · القاعدة واقعة → 503. إيقاف موظف / زيادة sv / تغيير دوره أو صلاحياته بينطبق على الطلب الجاي بنفس التوكن. `_admin_emails` بيقرّر على نفس الصلاحيات الفعلية (الـ claims اللي بترجع من `check_admin`).
+8. **الجلسة بتنقرا من القاعدة بكل طلب (`check_admin`):** التوكن فيه `sv`. المالك (`role: admin`) → `sv` = `admin_owner_mfa.session_version`. الموظف (`role: staff`, `sub: staff:<id>`, `perms: []` بالتوكن) → صف `admin_staff`: `status = active` + MFA مربوط + `sv` مطابق، والصلاحيات الفعلية = (صلاحيات الدور ∪ `allow_perms`) − `deny_perms` ∩ `GRANTABLE` (`admin_staff.effective_perms`) — المنع فوق السماح، و `OWNER_ONLY` / `"*"` ما بيعيشوا أبداً. ما في تطابق → 401 · الصلاحية مش ضمن الفعلية → 403 · القاعدة واقعة → 503. إيقاف موظف / زيادة sv / تغيير دوره أو صلاحياته بينطبق على الطلب الجاي بنفس التوكن. `_admin_contacts` بيقرّر على نفس الصلاحيات الفعلية (الـ claims اللي بترجع من `check_admin`).
 9. **السجل:** كل محاولة دخول (نجاح وفشل) بـ `admin_audit_log` — actor `owner` / `staff:<id>` / `-` (إيميل مش معروف أو ticket تالف)، action `admin_login` (الخطوة أ) · `admin_login_mfa` (الخطوة ب) · `admin_mfa_reset` (الاستعادة). ❌ كلمة سر / رمز / سر / ticket بالسجل.
 10. **المالك بس بيدير الموظفين** (`staff.manage` — `OWNER_ONLY`). شاشة الموظفين والدعوة (`admin_invites`) والتحقق الإضافي = 8.4c. لهلق الموظف بينضاف بالقاعدة بس (التستات بتعمله seed).
 
@@ -53,7 +53,7 @@
 
 - `static/admin-support/admin-support.js` بيعرض `r.email` لتذكرة الزائر (`' · ' + r.email`) — بدون `users.email.view` الحقل غايب فبتطلع «undefined». لازم الصفحة تتعامل مع غيابه (ما تعرض شي / نص twT) — المهمة 8.4a سيرفر بس.
 
-- Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` + `details.account_email` بنص الـ JSON كامل + regex إيميل على كل ردود `_admin_emails`).
+- Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` email / phone + الإيميل والهاتف بكل تركيبة صلاحيات بنص الـ JSON كامل على users · profile · kyc · support + regex إيميل + ما في سر OTP حتى للمالك).
 
 ## الصلاحيات
 
@@ -63,6 +63,7 @@
 | `users.edit` | قابلة للإعطاء | تعديل ملفات المستخدمين وحذف عناصر منها |
 | `users.suspend` | قابلة للإعطاء | تعليق الحسابات وإرجاعها |
 | `users.email.view` | قابلة للإعطاء | رؤية إيميلات المستخدمين |
+| `users.phone.view` | قابلة للإعطاء | رؤية أرقام هواتف المستخدمين (task 8.4a2 — مستقلة عن الإيميل) |
 | `kyc.review` | قابلة للإعطاء | مراجعة طلبات التوثيق |
 | `jobs.manage` | قابلة للإعطاء | إدارة الوظائف |
 | `reports.manage` | قابلة للإعطاء | مراجعة البلاغات |
@@ -86,8 +87,8 @@
 | Method | المسار | الصلاحية |
 |--------|--------|---------|
 | GET | `/admin/users` | `users.view` (+ `users.email.view` للإيميل والبحث فيه) |
-| GET | `/admin/profile/{user_id}` | `users.view` |
-| PUT | `/admin/profile/{user_id}` | `users.edit` |
+| GET | `/admin/profile/{user_id}` | `users.view` (+ `users.email.view` للإيميل · `users.phone.view` للهاتف) |
+| PUT | `/admin/profile/{user_id}` | `users.edit` (الرد: + `users.email.view` / `users.phone.view`) |
 | DELETE | `/admin/experience/{exp_id}` · `/admin/education/{edu_id}` · `/admin/course/{course_id}` | `users.edit` |
 | PUT | `/admin/user/{user_id}/suspension` | `users.suspend` |
 | GET | `/admin/kyc` · `/admin/kyc/{submission_id}/docs` | `kyc.review` |
@@ -99,7 +100,7 @@
 | GET · PUT | `/admin/strings` · `/admin/theme/colors` | `content.edit` |
 | GET · POST · PUT · DELETE | `/admin/news` · `/admin/news/{news_id}` | `content.edit` |
 | POST | `/admin/logo` | `content.edit` |
-| GET · POST · PUT | `/admin/support/tickets` · `/admin/support/counts` · `/admin/support/tickets/{public_id}` (+ `/messages`) | `support.manage` (+ `users.email.view` للإيميل والبحث فيه) |
+| GET · POST · PUT | `/admin/support/tickets` · `/admin/support/counts` · `/admin/support/tickets/{public_id}` (+ `/messages`) | `support.manage` (+ `users.email.view` للإيميل والبحث فيه · `users.phone.view` لـ `details.account_phone`) |
 | GET | `/admin/settings` | `settings.edit` |
 | PUT · POST | `/admin/settings/{key}` · `/admin/settings/{key}/reset` | `settings.edit` — مفتاح أمني: `settings.security` |
 | GET · PUT | `/admin/actions` | `settings.edit` |
