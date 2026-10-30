@@ -117,24 +117,20 @@ def test_login_locks_follow_the_setting():
     email, ip = "lock42@example.com", "9.9.9.9"
     _set("login_email_hits", 3)
     _set("login_email_window_s", 300)
-    for _ in range(2):
-        srv._login_fail(email, ip)
-    assert srv._login_locked(email, ip) is None
-    srv._login_fail(email, ip)
-    assert srv._login_locked(email, ip) == 300                            # locked after the NEW count, new window
+    for _ in range(3):                                                    # failed attempts = reservations kept
+        assert srv._login_reserve(email, ip)[0] is not None
+    assert srv._login_reserve(email, ip) == (None, 300)                   # locked after the NEW count, new window
     srv._rate_store.clear()
     _set("login_ip_hits", 10)
     for i in range(10):
-        srv._login_fail(f"u{i}@example.com", "8.8.8.8")
-    assert srv._login_locked("other@example.com", "8.8.8.8") == tw_limits.RATES["login_ip"][1]
+        assert srv._login_reserve(f"u{i}@example.com", "8.8.8.8")[0] is not None
+    assert srv._login_reserve("other@example.com", "8.8.8.8") == (None, tw_limits.RATES["login_ip"][1])
     srv._rate_store.clear()
     _set("login_ip_email_hits", 4)
     _set("login_email_hits", 20)
-    for _ in range(3):
-        srv._login_fail(email, ip)
-    assert srv._login_locked(email, ip) is None                           # default pair cap (3) no longer applies
-    srv._login_fail(email, ip)
-    assert srv._login_locked(email, ip) is not None
+    for _ in range(4):                                                    # default pair cap (3) no longer applies
+        assert srv._login_reserve(email, ip)[0] is not None
+    assert srv._login_reserve(email, ip)[0] is None
 
 
 def test_otp_attempts_and_lifetime_follow_the_setting():
