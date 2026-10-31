@@ -1,5 +1,5 @@
 // profile-v2.edu.js — Education Add / Edit / Delete
-// Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js
+// Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js, profile-v2.certs.js (task 8.7 — PDF)
 
 (function(){
   var overlay   = document.getElementById('eduOverlay');
@@ -15,6 +15,7 @@
   function sv(id,v){ var el=f(id); if(el) el.value=(v==null?'':v); }
 
   var _editId = null;
+  var cert = window.TwProfileCert ? window.TwProfileCert.field('edu', 'education') : null;   // task 8.7
 
   // Populate start-year once at module init (past only, no future)
   (function _populateStartYear(){
@@ -72,6 +73,7 @@
     if(cbCurrent){ cbCurrent.checked = false; }
     _refreshEndYear(0, false, '');
     sv('eduEY','');
+    if(cert) cert.reset(null);
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
@@ -87,6 +89,7 @@
     if(cbCurrent){ cbCurrent.checked = isCur; }
     _refreshEndYear(entry.start_year || 0, isCur, entry.end_year ? String(entry.end_year) : '');
     sv('eduDesc',  entry.description || '');
+    if(cert) cert.reset(entry);
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
@@ -161,11 +164,14 @@
           cache.education = [entry].concat(cache.education||[]);
         }
       }
-      closeModal();
       showToast(isEdit ? 'تم التحديث' : 'تمت الإضافة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderEdu();
       if(window._bgRefetch) window._bgRefetch();
+      var flushed = (!isEdit && cert) ? cert.flush(entry.id) : Promise.resolve(true);   // task 8.7
+      return flushed.then(function(ok){
+        if(ok) closeModal(); else { _editId = entry.id; _setModalTitle('تعديل الشهادة'); }
+      });
     }).catch(function(){
       showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
@@ -242,6 +248,7 @@
         + '<div class="sc-exp-company">' + inst + '</div>'
         + (period ? '<div class="sc-exp-period">' + period + '</div>' : '')
         + (desc   ? '<div class="sc-exp-desc">'   + desc   + '</div>' : '')
+        + (window.TwProfileCert ? window.TwProfileCert.viewButtonHtml('education', e) : '')   // task 8.7
         + '</div>'
         + actions
         + '</div>'

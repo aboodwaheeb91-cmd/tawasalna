@@ -191,6 +191,7 @@ PY_DB=(
   pytest:test_data_export_85b.py     # task 8.5b — «تنزيل بياناتي»: password + 429 before bcrypt · 401 · own data only (sentinels) · no forbidden key · KYC links own paths ≤ TTL
   pytest:test_account_deletion_85a.py  # task 8.5a — soft delete: 401 + WS 4008 · hidden content + counters · «حساب محذوف» records · company effects · restore · 401/403/428
   pytest:test_account_self_delete_85d.py  # task 8.5d — owner delete (403 · 422 · 429 before bcrypt · effects + one email) · /auth/restore (same 401 · admin 403 · expired / purging 409 · races) · login restorable · peer_deleted
+  pytest:test_certificates_87.py     # task 8.7 — certificate PDFs: PDF check · owner row 404 · emp only · no orphan · access table (cert_access.can_view) · same 404 · rate first · TTL · no-store · legacy link owner-only · purge + export
   pytest:test_account_purge_85c.py    # task 8.5c — final purge after 30 days: files first (retry · 404 = ok) then one DB transaction · idempotent · restore 409 · «حساب محذوف» · email free · retention · sentinel scan
   pytest:test_experience_sort_order_49.py  # AUD-P2-49 — experience sort_order backfill / add / tie order / reorder ownership + save-job button gone
 )
@@ -225,6 +226,7 @@ DB_WEIGHTS=(
 # ── Node (vm / static — no browser) ────────────────────────────────────────
 NODE_TESTS=(
   test_actions_registry_runtime.js
+  test_certificates_87_runtime.js    # task 8.7 — view button by can_view_certificate · sandboxed preview + new tab · legacy link owner-only
   test_appointments_guard_runtime.js
   test_auth_next_icon_hydrate_runtime.js
   test_auth_sync_runtime.js

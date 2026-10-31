@@ -26,7 +26,7 @@ FORBIDDEN_KEYS = frozenset({
     "deleted_at", "deleted_by", "deleted_kind", "deleted_reason",
     "suspended_at", "suspended_reason", "suspended_by",
     "admin_note", "admin_hidden_reason", "admin_hidden_at", "notes", "note",
-    "ip", "ip_address", "client_ip", "id_front_url", "selfie_url",
+    "ip", "ip_address", "client_ip", "id_front_url", "selfie_url", "certificate_path",   # 8.7 — has_certificate only
 })
 
 _PROFILE_COLS = ("headline, title, first_name, middle_name, last_name, short_bio, bio, dob, phone, country, city, "
@@ -98,9 +98,12 @@ def build_export(user_id: int) -> dict:
             "experience": _q(conn, "SELECT title, company, location, start_date, end_date, is_current, description, "
                                    "sort_order, created_at FROM experience WHERE user_id = :u "
                                    "ORDER BY sort_order, id", u=uid),
+            # task 8.7 — has_certificate only (never certificate_path); the file itself = GET /certificates/…/view
             "education": _q(conn, "SELECT institution, degree, field, start_year, end_year, is_current, description, "
-                                  "created_at FROM education WHERE user_id = :u ORDER BY id", u=uid),
-            "courses": _q(conn, "SELECT title, provider, completion_date, certificate_url, description, created_at "
+                                  "created_at, certificate_path IS NOT NULL AS has_certificate "
+                                  "FROM education WHERE user_id = :u ORDER BY id", u=uid),
+            "courses": _q(conn, "SELECT title, provider, completion_date, certificate_url, description, created_at, "
+                                "certificate_path IS NOT NULL AS has_certificate "
                                 "FROM courses WHERE user_id = :u ORDER BY id", u=uid),
             "skills_list": _q(conn, "SELECT skill, level, created_at FROM user_skills WHERE user_id = :u "
                                     "ORDER BY id", u=uid),
