@@ -164,6 +164,7 @@ const PHASE_C_PAGES = ['job-detail.html', 'landing.html', 'appointments.html', '
   'admin-view.html',   // task 5.3b — admin user page (Admin Shell: menu + card ⓘ + action icons)
   'admin-job.html',   // task 5.3j phase 4 — admin job page (Admin Shell: menu + card ⓘ + action icons)
   'admin-settings.html',   // task 4.1 — admin settings page (Admin Shell: menu + card ⓘ + title icon)
+  'admin-staff.html',   // task 8.4c-2b-2 — owner staff page (Admin Shell: menu + card ⓘ + title icon)
   'admin-content.html',   // phase 5b — admin content page (Admin Shell: menu + card ⓘ + title icon)
   'privacy.html', 'terms.html',   // task terms — unified header + draft-note icon (data-tw-icon)
   'support.html', 'admin-support.html',   // task 7.1 — support page (unified header + title icon) · admin support inbox (Admin Shell)

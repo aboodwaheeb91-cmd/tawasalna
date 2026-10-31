@@ -55,6 +55,7 @@ UNGUARDED_ROUTES = {
     "admin_email_page":    "HTML shell only",
     "admin_settings_page": "HTML shell only",
     "admin_content_page":  "HTML shell only",
+    "admin_staff_page":    "HTML shell only",
     "admin_support_page":  "HTML shell only",
     "admin_view":          "HTML shell only (outside the panel path)",
     "admin_job_page":      "HTML shell only (outside the panel path)",

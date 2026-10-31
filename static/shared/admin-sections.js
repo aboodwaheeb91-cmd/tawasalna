@@ -27,4 +27,5 @@ window.TW_ADMIN_SECTIONS = [
   { key: 'settings',  icon: 'settings-2',       labelKey: 'admin.nav.settings',  perm: 'settings.edit', path: 'settings' },   // task 4.1
   { key: 'content',   icon: 'file-text',        labelKey: 'admin.nav.content',   perm: 'content.edit', path: 'content' },    // phase 5b
   { key: 'system',    icon: 'wrench',           labelKey: 'admin.nav.system',    perm: 'system.manage', path: '#system' },
+  { key: 'staff',     icon: 'shield-check',     labelKey: 'admin.nav.staff',     perm: 'staff.manage', path: 'staff' },      // task 8.4c-2b-2 — owner only
 ];
