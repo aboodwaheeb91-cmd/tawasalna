@@ -125,6 +125,7 @@ PY_DB=(
   pytest:test_admin_stepup_84c.py      # task 8.4c-1 — /admin/me · owner step-up (428 · grant bound to token + sv · atomic locks) · new owner recovery codes
   pytest:test_admin_staff_84c2a1.py    # task 8.4c-2a1 — roles + staff API (owner + step-up) · OWNER_ONLY never reaches staff · same token after each change · delete ‖ assign · seed once · staff emails
   pytest:test_admin_staff_84c2a2.py    # task 8.4c-2a2 — staff invite · staff password reset · authenticator reset (one-time links, atomic, one live link) · public routes 429 · no token / secret leaks
+  pytest:test_admin_staff_84c2b1.py    # task 8.4c-2b-1 — staff link pages: GET /staff/* HTML shells (no-store · no-referrer · no token / panel path) · UNGUARDED_ROUTES
   pytest:test_pr2b_flow_fixes.py
   pytest:test_conversation_policy.py   # task 5.0g — who may message whom + ending a conversation
   pytest:test_register_profiles_unique.py
@@ -173,6 +174,7 @@ NODE_TESTS=(
   test_ds_overlay_runtime.js
   test_admin_email_inbound_runtime.js   # task 7.3a — «استقبال بريد الدعم» switch: own card · off unless true · on asks warn.inbound_on · off no warning (vm)
   test_admin_shell_runtime.js       # task 5.3a — Admin Shell: menu registry · confirm gate · 401 → login (vm)
+  test_staff_link_runtime.js        # task 8.4c-2b-1 — staff link pages + admin forgot box + TwOtpUi (token from #t= only · codes box · QR) (vm)
   test_news_banner_runtime.js       # phase 5b — news banner: null / failed → nothing · text only · safe link · close per id (vm)
   test_header_hidden_runtime.js     # real headless Chrome (ubuntu-latest google-chrome); SKIP locally without one
   test_login_jobdetail_runtime.js

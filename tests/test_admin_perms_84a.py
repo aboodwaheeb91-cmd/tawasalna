@@ -118,7 +118,8 @@ _SECURITY_KEY = next(iter(tw_settings.SECURITY_KEYS))
 
 def _admin_area(path: str) -> bool:
     return (path.startswith("/admin/") or path == PANEL or path.startswith(PANEL + "/")
-            or path.split(".")[0] in ("/admin-view", "/admin-job"))
+            or path.split(".")[0] in ("/admin-view", "/admin-job")
+            or path in ("/staff/invite", "/staff/mfa-reset", "/staff/password-reset"))   # task 8.4c-2b-1 — GET pages
 
 
 def _url(path: str, key: str = _NORMAL_KEY) -> str:

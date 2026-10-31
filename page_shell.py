@@ -51,6 +51,8 @@ PAGE_ASSETS = {
     "tw-chart.js": os.path.join("static", "shared", "tw-chart.js"),   # task 5.3a2 — dashboard charts
     "admin.js": os.path.join("static", "admin", "admin.js"),
     "admin-jobs.js": os.path.join("static", "shared", "admin-jobs.js"),   # task 5.3j phase 4 — job actions
+    "admin-otp-ui.js": os.path.join("static", "shared", "admin-otp-ui.js"),   # task 8.4c-2b-1 — QR + recovery codes box
+    "staff-link.js": os.path.join("static", "staff-link", "staff-link.js"),   # task 8.4c-2b-1 — staff link pages
     "admin-job.js": os.path.join("static", "admin-job", "admin-job.js"),  # the admin job page
     "admin-settings.js": os.path.join("static", "admin-settings", "admin-settings.js"),  # task 4.1 — settings page
     "admin-content.js": os.path.join("static", "admin-content", "admin-content.js"),     # phase 5b — content page
