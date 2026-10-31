@@ -349,6 +349,8 @@ def _jwt_revoked_by_password_change(payload: dict) -> bool:
         return False
     if state is None:
         return True   # account deleted — its tokens die with it (task 5.0f); DB down is handled above
+    if state.get("deleted"):
+        return True   # soft-deleted (task 8.5a) — every request 401; a restore needs a new login (sv bumped)
     if state.get("suspended"):
         return True   # suspended by the admin (task 5.4) — same 401 path as a deleted account, reversible
     if "sv" in payload:
@@ -928,6 +930,7 @@ async def rate_limit_middleware(request, call_next):
 # (get_client_ip). Never the body, the password, the token or any message text.
 import admin_insights
 import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
+import account_deletion as ad    # task 8.5a — soft account delete + restore (SYSTEMS_INDEX §25i)
 import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _STAFF_PUBLIC_PATHS = frozenset({"/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
@@ -1189,6 +1192,7 @@ def _startup_migrations():
         ("experience_sort_order",             _migrate_experience_sort_order,      True),   # AUD-P2-49 — read by every profile
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
+        ("account_deletion",                  ad.migrate_account_deletion,         True),   # 8.5a — read by the session check + every visibility query
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
@@ -1528,6 +1532,7 @@ def _fmt_number(n: int) -> str:
 # settings (sender, site URL, per-type on/off) live in site_settings, loaded at startup + on save.
 import email_service
 email_service.set_strings_provider(lambda: tw_strings.merged(_STRINGS_OVERRIDES))
+ad.set_strings_provider(lambda: tw_strings.merged(_STRINGS_OVERRIDES))   # «حساب محذوف» + the deletion notice
 # 5.1c — every attempt → email_send_log; notification emails pass the gate (prefs · throttle · caps).
 email_service.set_send_hooks(reserve=email_notify_reserve, log=email_log_write)
 
@@ -4409,8 +4414,9 @@ def _report_target(rep: dict) -> dict:
         return {"kind": "job", "id": jid, "name": rep.get("job_title"),
                 "href": f"/job-detail?id={int(jid)}" if jid else None, "deleted": jid is None}
     uid, tw = rep.get("reported_id"), rep.get("reported_tw_id")
-    return {"kind": "user", "id": uid, "name": rep.get("reported_name"),
-            "href": f"/u/{tw}" if uid and tw else None, "deleted": uid is None}
+    gone = uid is None or bool(rep.get("reported_deleted"))   # task 8.5a — soft-deleted = «حساب محذوف», no link
+    return {"kind": "user", "id": uid, "name": None if gone else rep.get("reported_name"),
+            "href": f"/u/{tw}" if uid and tw and not gone else None, "deleted": gone}
 
 
 @app.get("/admin/reports")
@@ -4424,6 +4430,7 @@ def admin_get_reports(request: Request):
                        r.report_type, r.reason, r.target_url, r.status, r.created_at,
                        u1.full_name AS reporter_name,
                        u2.full_name AS reported_name, u2.tw_id AS reported_tw_id,
+                       u2.deleted_at IS NOT NULL AS reported_deleted,
                        j.title AS job_title
                 FROM reports r
                 LEFT JOIN users u1 ON r.reporter_id = u1.id
@@ -5808,6 +5815,8 @@ def login(data: LoginInput, request: Request):
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
     _rate_release(held)
     _login_email_reset(data.email, ip)
+    if user.pop("deleted", False):     # task 8.5a — right password only (a wrong one got the normal 401 above)
+        return api_error(401, "account_deleted", _tw_text("auth.account_unavailable"))
     if user.pop("suspended", False):   # task 5.4 — a suspended account never gets a token
         return api_error(401, "account_suspended", "الحساب معلّق")
     sv = int(user.pop("session_version", 0) or 0)   # read with the password check — never sent to the client
@@ -6227,8 +6236,11 @@ def profile_metrics(user_id: str, request: Request):
 
         course_count     = _cnt("courses")
         lang_count       = _cnt("user_langs")
-        followers_count  = _cnt("profile_follows", "followed_id")
-        following_count  = _cnt("profile_follows", "follower_id")
+        # task 8.5a — the counters = the followers / following lists (bs.active_sql: no suspended / deleted account)
+        followers_count  = conn.run("SELECT COUNT(*) FROM profile_follows pf WHERE pf.followed_id=:uid AND "
+                                    + bs.active_sql("pf.follower_id"), uid=uid)[0][0]
+        following_count  = conn.run("SELECT COUNT(*) FROM profile_follows pf WHERE pf.follower_id=:uid AND "
+                                    + bs.active_sql("pf.followed_id"), uid=uid)[0][0]
         views_count      = _cnt("profile_views",   "viewed_user_id")
 
         _is_following = False
@@ -8983,6 +8995,7 @@ def admin_get_profile(user_id: int, request: Request):
         if not profile:
             raise HTTPException(404, "المستخدم غير موجود")
         profile["suspension"] = bs.get_suspension(user_id)   # task 5.4 — admin-only (reason / by)
+        profile["deletion"] = ad.get_deletion(user_id)        # task 8.5a — admin-only (kind / reason / by)
         return {"status": "success", "profile": _admin_contacts(claims, profile)}
     except HTTPException:
         raise
@@ -8996,27 +9009,69 @@ def admin_get_profile(user_id: int, request: Request):
 def delete_own_account(user_id: int, token=Depends(verify_token)):
     """Self-service account delete — CLOSED (task 5.0e): always 403, nothing is deleted from this path
     until soft delete (F27) is built (ADMIN_ENTITY_MAP §1). The old path hard-deleted users with every
-    CASCADE row. Admin delete (DELETE /admin/user/{id}) is a separate route and unchanged."""
+    CASCADE row. The user's own soft delete comes in task 8.5d (account_deletion.soft_delete kind 'self')."""
     raise HTTPException(403, "حذف الحساب غير متاح حالياً")
 
+def _account_reason(data: dict, required: bool):
+    """→ (reason | None, None) or (None, 422 response). ≤ LIMITS account_reason_max."""
+    reason = data.get("reason") if isinstance(data, dict) else None
+    if reason is not None and not isinstance(reason, str):
+        return None, api_error(422, "invalid_value", _tw_text("admin.account.err.reason"), "reason")
+    reason = (reason or "").strip() or None
+    if required and not reason:
+        return None, api_error(422, "reason_required", _tw_text("admin.account.err.reason"), "reason")
+    too_long = _too_long(reason, "account_reason_max", "reason")
+    return (None, too_long) if too_long else (reason, None)
+
+
 @app.delete("/admin/user/{user_id}")
-def delete_user(user_id: int, request: Request):
-    check_admin(request, "users.delete")
-    conn = get_conn()
+def delete_user(user_id: int, request: Request, data: Optional[dict] = Body(None)):
+    """Soft delete (task 8.5a · F27 — no hard delete on any path; 8.5c). Body {reason?} (admin-only text).
+    The account: every request 401 at once (session_version + 1 · cache · sockets 4008) · content hidden by the
+    one visibility rule · shared records stay as «حساب محذوف». Company: open jobs closed + one notice per affected
+    applicant · upcoming interviews cancelled (account_deletion.apply_effects — by the call that changed the state).
+    users.delete is OWNER_ONLY → the step-up grant is required (428 step_up_required)."""
+    claims = check_admin(request, "users.delete")
+    reason, err = _account_reason(data or {}, required=False)
+    if err:
+        return err
     try:
-        rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=user_id)
-        if not rows:
-            raise HTTPException(404, "المستخدم غير موجود")
-        conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
-        _pwd_changed_cache.pop(user_id, None)   # next request reads the DB → no user → 401 (task 5.0f)
-        _ws_revoke_user(user_id, "admin_deleted")
-        return {"success": True, "message": "تم حذف الحساب"}
-    except HTTPException:
-        raise
+        out = ad.soft_delete(user_id, str(claims.get("sub") or "admin"), "admin", reason)
+        if out is None:
+            return api_error(404, "not_found", "الحساب غير موجود")
+        _password_changed_cache_set(user_id, out["state"])   # effective at once in this process
     except Exception as e:
         raise _server_error("delete_user", e)
-    finally:
-        release_conn(conn)
+    _ws_revoke_user(user_id, "admin_deleted")
+    request.state.audit_change = ("active" if out["changed"] else "deleted", "deleted")
+    if out["changed"]:
+        try:
+            ad.apply_effects(user_id)
+        except Exception as e:   # the account is deleted either way — logged (F9)
+            print(f"[delete_user] effects user={user_id} failed: {type(e).__name__}: {e}")
+    _cache_del("jobs:")
+    return api_ok({"deleted": True, "deleted_at": out["deleted_at"], "changed": out["changed"]})
+
+
+@app.post("/admin/user/{user_id}/restore")
+def restore_user(user_id: int, request: Request, data: Optional[dict] = Body(None)):
+    """Restore a soft-deleted account (task 8.5a) — body {reason} (required, ≤ account_reason_max; kept in the
+    admin audit log). Content shows again · jobs stay closed · cancelled interviews stay cancelled · old tokens
+    stay 401 (a new login). users.delete + step-up (428)."""
+    claims = check_admin(request, "users.delete")
+    reason, err = _account_reason(data or {}, required=True)
+    if err:
+        return err
+    try:
+        out = ad.restore(user_id, str(claims.get("sub") or "admin"), reason)
+        if out is None:
+            return api_error(404, "not_found", "الحساب غير موجود")
+        _password_changed_cache_set(user_id, out["state"])
+    except Exception as e:
+        raise _server_error("restore_user", e)
+    request.state.audit_change = ("deleted" if out["changed"] else "active", reason)
+    _cache_del("jobs:")
+    return api_ok({"deleted": False, "changed": out["changed"]})
 
 @app.put("/admin/user/{user_id}/type")
 def change_user_type(user_id: int, request: Request, data: dict = Body(...)):

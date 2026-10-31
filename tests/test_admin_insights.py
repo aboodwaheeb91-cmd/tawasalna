@@ -89,6 +89,7 @@ def env(monkeypatch):
     admin_insights.migrate_admin_audit_log()
     admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth.bs.migrate_blocks_suspension()   # task 5.4 — users.suspended_* + blocks (read by /mention/search)
+    auth.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     auth.ensure_company_tables()   # company_profiles from the real migration — never a hand-made column (5.3a4)
     assert _sql("SELECT to_regclass('company_profiles')")[0][0], "company_profiles migration failed"
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
@@ -273,7 +274,8 @@ def test_admin_users_fields_filters_search_pages():
     assert d["total"] == 4 and d["page"] == 1 and d["limit"] == 20
     assert [u["id"] for u in d["items"]] == [4, 3, 2, 1]                       # newest first
     assert set(d["items"][0]) == {"id", "tw_id", "full_name", "avatar_url", "user_type", "email",
-                                  "verification", "created_at"}
+                                  "verification", "created_at", "deleted_at"}   # deleted_at: task 8.5a badge
+    assert all(u["deleted_at"] is None for u in d["items"])
     by_id = {u["id"]: u for u in d["items"]}
     assert {i: u["verification"] for i, u in by_id.items()} == {1: "pending", 2: "verified", 3: "verified", 4: "unverified"}
     assert by_id[1]["avatar_url"] == "https://cdn.x/a.png" and by_id[2]["avatar_url"] == "https://cdn.x/logo.png"

@@ -243,7 +243,8 @@ def activity(page: int = 1, limit: int = ACTIVITY_LIMIT) -> dict:
 _VERIFIED_SQL = "COALESCE(p.is_verified, FALSE)"
 _PENDING_SQL = "EXISTS (SELECT 1 FROM kyc_submissions k WHERE k.user_id = u.id AND k.step = 'review')"
 _USERS_FROM = " FROM users u LEFT JOIN profiles p ON p.user_id = u.id"
-USERS_COLUMNS = ("id", "tw_id", "full_name", "avatar_url", "user_type", "email", "verification", "created_at")
+USERS_COLUMNS = ("id", "tw_id", "full_name", "avatar_url", "user_type", "email", "verification", "created_at",
+                 "deleted_at")   # task 8.5a — the «محذوف» badge
 
 
 def _like(q: str) -> str:
@@ -277,7 +278,7 @@ def _users_rows(conn, where, params, sort, limit, offset):
     return conn.run(
         "SELECT u.id, u.tw_id, u.full_name, NULLIF(p.avatar_url, ''), u.user_type, u.email, "
         "CASE WHEN " + _VERIFIED_SQL + " THEN 'verified' WHEN " + _PENDING_SQL + " THEN 'pending' ELSE 'unverified' END, "
-        "u.created_at" + _USERS_FROM + where +
+        "u.created_at, u.deleted_at" + _USERS_FROM + where +
         f" ORDER BY u.created_at {order} NULLS LAST, u.id {order} LIMIT :lim OFFSET :off",
         lim=int(limit), off=int(offset), **params)
 
@@ -285,6 +286,7 @@ def _users_rows(conn, where, params, sort, limit, offset):
 def _user_item(r) -> dict:
     it = dict(zip(USERS_COLUMNS, r))
     it["created_at"] = it["created_at"].isoformat() if it["created_at"] else None
+    it["deleted_at"] = it["deleted_at"].isoformat() if it["deleted_at"] else None
     return it
 
 

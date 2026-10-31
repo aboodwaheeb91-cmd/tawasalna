@@ -36,6 +36,7 @@ LIMITS = {
     "ip_country_cache_ttl_s": 86400,  # … one lookup per IP per day
     "blocks_page_max": 50,        # GET /blocks ?limit= ceiling (task 5.4)
     "suspend_reason_max": 500,    # PUT /admin/user/{id}/suspension reason (chars — admin only)
+    "account_reason_max": 500,    # DELETE /admin/user/{id} reason (optional) + POST …/restore reason (task 8.5a — admin only)
     "otp_ttl_min": 10,            # KYC OTP (email / phone) — code lifetime in minutes (auth._otp_issue · task 4.2)
     "otp_max_attempts": 5,        # … wrong tries before the code dies (auth._otp_verify)
     "support_subject_max": 120,   # support ticket subject (chars — task 7.1)

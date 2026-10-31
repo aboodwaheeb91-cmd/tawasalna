@@ -75,6 +75,7 @@ def db(monkeypatch):
     auth.init_db()
     auth._migrate_session_version()
     auth.bs.migrate_blocks_suspension()
+    auth.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     auth._migrate_password_changed_at()
     auth._migrate_kyc_otp_security()
     tw_settings.migrate_app_settings()

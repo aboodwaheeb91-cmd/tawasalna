@@ -71,6 +71,7 @@ def env(monkeypatch):
     auth._migrate_scheduler_jobs()
     auth._migrate_email_notify()
     server.bs.migrate_blocks_suspension()   # task 8.4c-0b — the message email job reads the block rule
+    server.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     f = FakeResend()
     monkeypatch.setattr(email_service.urllib.request, "urlopen", f)
     monkeypatch.setenv("RESEND_API_KEY", "re_TEST_KEY_63")

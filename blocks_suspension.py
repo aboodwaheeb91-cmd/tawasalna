@@ -16,8 +16,10 @@ Blocks — a user blocks a user, both directions, no notification:
   block() deletes the follow rows of both directions in the same transaction. Job applications are never touched.
 
 The ONE visibility rule — SQL fragments, used by every list / read that shows another account's content:
-  visible_sql(col, viewer)  → account `col` is not suspended AND no block row between it and `viewer` (either way)
-  active_sql(col)           → account `col` is not suspended (jobs: suspension only — a block never hides a job)
+  visible_sql(col, viewer)  → account `col` is not suspended / deleted AND no block row between it and `viewer`
+  active_sql(col)           → account `col` is not suspended / deleted (jobs: a block never hides a job)
+  (task 8.5a — a soft-deleted account (account_deletion.py) hides exactly like a suspended one; keep_deleted=True
+   only on shared records that stay: conversations + unread count)
   is_hidden(viewer, target) → the same rule as one bool (profile / post / follow / message checks)
 A hidden account answers exactly like a missing one (404 «غير موجود») — never a «blocked» message.
 
@@ -26,14 +28,22 @@ Pure SQL builders at import time; DB functions import auth lazily (auth.py impor
 
 # ── Visibility rule ─────────────────────────────────────────────────────────
 
-def active_sql(col: str) -> str:
-    """Account `col` is not suspended."""
-    return f"NOT EXISTS (SELECT 1 FROM users bs_u WHERE bs_u.id = {col} AND bs_u.suspended_at IS NOT NULL)"
+def active_sql(col: str, keep_deleted: bool = False) -> str:
+    """Account `col` is not suspended and not deleted (task 8.5a — a deleted account hides like a suspended one).
+    keep_deleted=True — ONLY for records shared with another person that stay after a deletion (conversations ·
+    unread count): a deleted account stays listed there (scrubbed to «حساب محذوف» by account_deletion.scrub),
+    a suspended one that is not deleted is still hidden."""
+    if keep_deleted:
+        return (f"NOT EXISTS (SELECT 1 FROM users bs_u WHERE bs_u.id = {col} "
+                "AND bs_u.suspended_at IS NOT NULL AND bs_u.deleted_at IS NULL)")
+    return (f"NOT EXISTS (SELECT 1 FROM users bs_u WHERE bs_u.id = {col} "
+            "AND (bs_u.suspended_at IS NOT NULL OR bs_u.deleted_at IS NOT NULL))")
 
 
-def visible_sql(col: str, viewer: str = ":bs_viewer") -> str:
-    """Account `col` is visible to `viewer` (SQL expression / param; 0 = guest): not suspended + no block either way."""
-    return (active_sql(col) + " AND NOT EXISTS (SELECT 1 FROM blocks bs_b WHERE "
+def visible_sql(col: str, viewer: str = ":bs_viewer", keep_deleted: bool = False) -> str:
+    """Account `col` is visible to `viewer` (SQL expression / param; 0 = guest): not suspended / deleted + no block
+    either way. keep_deleted — see active_sql (shared records only)."""
+    return (active_sql(col, keep_deleted) + " AND NOT EXISTS (SELECT 1 FROM blocks bs_b WHERE "
             f"(bs_b.blocker_id = {viewer} AND bs_b.blocked_id = {col}) OR "
             f"(bs_b.blocker_id = {col} AND bs_b.blocked_id = {viewer}))")
 
@@ -60,11 +70,13 @@ def is_hidden(viewer_id, target_id, conn=None) -> bool:
 
 
 def is_suspended(user_id: int, conn=None) -> bool:
+    """Suspended OR deleted (task 8.5a) — the account is out: no page, no inbound support mail."""
     if conn is None:
         from auth import db_conn
         with db_conn() as c:
             return is_suspended(user_id, c)
-    rows = conn.run("SELECT suspended_at IS NOT NULL FROM users WHERE id = :uid", uid=int(user_id))
+    rows = conn.run("SELECT suspended_at IS NOT NULL OR deleted_at IS NOT NULL FROM users WHERE id = :uid",
+                    uid=int(user_id))
     return bool(rows and rows[0][0])
 
 

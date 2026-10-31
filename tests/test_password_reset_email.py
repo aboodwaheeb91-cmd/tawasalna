@@ -81,6 +81,7 @@ def db():
     auth._migrate_password_reset_tokens()   # idempotent
     auth._migrate_session_version()
     auth.bs.migrate_blocks_suspension()     # task 5.4 — users.suspended_* + blocks (read by the session check)
+    auth.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     server.admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     return auth
 

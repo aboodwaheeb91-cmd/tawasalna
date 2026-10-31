@@ -595,6 +595,7 @@
       var nm = el('span', 'adm-u-name');
       nm.appendChild(el('span', 'adm-u-title', u.full_name || twT('admin.user.unnamed')));
       if (u.tw_id) nm.appendChild(el('span', 'adm-u-sub', u.tw_id));
+      if (u.deleted_at) nm.appendChild(pill(twT('admin.users.deleted'), 'danger'));   // task 8.5a — soft deleted
       a.appendChild(nm);
       who.appendChild(a);
       cell(tr, 'adm-u-type').appendChild(pill(typeLabel(t), t === 'emp' ? '' : t));
@@ -605,7 +606,7 @@
       var acts = cell(tr, 'adm-u-acts').appendChild(el('div', 'adm-u-btns'));
       acts.appendChild(linkAct('eye', 'admin.users.view', view));
       acts.appendChild(linkAct('edit', 'admin.users.edit', view + '#edit'));
-      acts.appendChild(btn('danger', 'delete', 'admin.users.delete', function () {
+      if (!u.deleted_at) acts.appendChild(btn('danger', 'delete', 'admin.users.delete', function () {
         run('user.delete', { id: id }).then(function (res) { if (res && res.ok) loadUsers(name); });
       }));
       tbody.appendChild(tr);
