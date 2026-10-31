@@ -4728,6 +4728,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
 | `/support/track` | `support-track.html` | Guest — follow-up link page (task 7.2a — §81; token from the fragment, POST body only · headers + metas no-store / no-referrer / noindex) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}/support` | `admin-support.html` | Admin — support inbox (task 7.1 — §81; data needs `support.manage`) |
+| `/tw-ctrl-{ADMIN_URL_TOKEN}/staff` | `admin-staff.html` | Owner — staff + roles screen (task 8.4c-2b-2; data needs `staff.manage`, writes need step-up — `docs/rules/admin-staff.md` rule 16) |
 
 ### Legacy Redirect Page (PR-4)
 
@@ -6390,6 +6391,7 @@ All rows below call `check_admin(request, perm)` (`X-Admin-Token` header = admin
 | POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Admin login (password = `ADMIN_TOKEN`) — **no** `check_admin`; rate-limited. The old fixed `/tw-ctrl-login` is deleted (task 5.3b) → 404 |
 | POST | `/tw-ctrl-{ADMIN_URL_TOKEN}/login` | `admin_login` | Same handler under the panel path (task 5.3a) — what admin pages call (relative to their own path, no panel prefix in served files); rate-limited |
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
+| GET | `/tw-ctrl-{ADMIN_URL_TOKEN}/staff` | `admin_staff_page` | Serves `admin-staff.html` — the owner's staff screen (task 8.4c-2b-2; HTML only — data = `/admin/staff` · `/admin/roles`, `staff.manage`) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
 | GET | `/admin-job` · `/admin-job.html` | `admin_job_page` | Serves `admin-job.html` — one job (task 5.3j phase 4; HTML only — data calls are guarded) |
 | GET | `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset` | `staff_invite_page` · `staff_mfa_reset_page` · `staff_password_reset_page` | Serve `staff-link.html` (task 8.4c-2b-1; HTML only, no token / panel path, `Cache-Control: no-store` + `Referrer-Policy: no-referrer`; data = POST `/staff/*/start\|complete`) |

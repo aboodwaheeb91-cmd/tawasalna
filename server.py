@@ -1498,6 +1498,7 @@ PUBLIC_RATE_EXEMPT = {
         "/tw-ctrl-" + ADMIN_URL_TOKEN, "/tw-ctrl-" + ADMIN_URL_TOKEN + "/email",
         "/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/content",
         "/support", "/support/track", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/support",
+        "/tw-ctrl-" + ADMIN_URL_TOKEN + "/staff",
         "/sitemap.xml", "/robots.txt", "/tw_shared.js", "/sw.js", "/manifest.json", "/theme.css",
         "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png", "/favicon.ico",
         "/static/{filename:path}")},
@@ -2628,6 +2629,11 @@ def admin_settings_page(): return read_html("admin-settings.html")
 # /admin/theme/colors · /admin/news (content.edit — docs/rules/content-admin.md).
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/content", response_class=HTMLResponse)
 def admin_content_page(): return read_html("admin-content.html")
+
+# Admin — the owner's staff screen (task 8.4c-2b-2 · docs/rules/admin-staff.md rule 16). HTML only; data via
+# GET /admin/staff · /admin/roles and the writes of rules 10 + 14 (staff.manage + step-up).
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN + "/staff", response_class=HTMLResponse)
+def admin_staff_page(): return read_html("admin-staff.html")
 
 # Support tickets (task 7.1 — docs/rules/support.md): the account's page + the admin inbox.
 @app.get("/support", response_class=HTMLResponse)

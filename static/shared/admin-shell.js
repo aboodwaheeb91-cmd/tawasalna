@@ -502,10 +502,20 @@
     return '';
   }
 
+  // action.errors = {code | 'status': twT key} (task 8.4c-2b-2) → that key's text for an error reply
+  //   ({error: {code}} / {error: "code"} first, then the HTTP status) instead of the server text
+  function _mapped(action, d, status) {
+    var m = action.errors;
+    if (!m) return '';
+    var code = d && d.error && typeof d.error === 'object' ? d.error.code : (d && typeof d.error === 'string' ? d.error : '');
+    return (code && m[code]) || m[String(status)] || '';
+  }
+
   // action = { confirm?: {title, message, confirm, danger?, typeWord?} (twT keys) | fn(ctx) → same,
   //            request: fn(ctx) → {url, method, body?}, done?: twT key, fail?: twT key, as?: 'blob',
   //            ok?: fn(body) → true only when the body proves the change (task 5.3b2),
-  //            permissionAware?: true → 403 = "no permission" toast (action.forbidden key), session kept (task 4.2) }
+  //            permissionAware?: true → 403 = "no permission" toast (action.forbidden key), session kept (task 4.2),
+  //            errors?: {code | status: twT key} — a fixed message per error code (task 8.4c-2b-2) }
   // → Promise<{ok, status, data} | null>  (null = not confirmed → no request was sent)
   function run(action, ctx) {
     ctx = ctx || {};
@@ -527,6 +537,7 @@
           if (ok) { if (action.done) showToast(twT(action.done), 'success'); }
           else if (r.status === 428) { /* step-up cancelled — the dialog already said so (admin.stepup.cancelled) */ }
           else if (r.status === 403 && action.permissionAware) showToast(twT(action.forbidden || 'admin.action.error'), 'error');
+          else if (_mapped(action, d, r.status)) showToast(twT(_mapped(action, d, r.status)), 'error');
           else if (r.status !== 401 && r.status !== 403) showToast(_errText(d) || twT(action.fail || 'admin.action.error'), 'error');
           return { ok: ok, status: r.status, data: d };
         });

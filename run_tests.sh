@@ -176,6 +176,7 @@ NODE_TESTS=(
   test_admin_email_inbound_runtime.js   # task 7.3a — «استقبال بريد الدعم» switch: own card · off unless true · on asks warn.inbound_on · off no warning (vm)
   test_admin_shell_runtime.js       # task 5.3a — Admin Shell: menu registry · confirm gate · 401 → login (vm)
   test_staff_link_runtime.js        # task 8.4c-2b-1 — staff link pages + admin forgot box + TwOtpUi (token from #t= only · codes box · QR) (vm)
+  test_admin_staff_runtime.js       # task 8.4c-2b-2 — owner staff screen: owner-only section · buttons by status · danger confirm · 428 retry · error codes (vm)
   test_news_banner_runtime.js       # phase 5b — news banner: null / failed → nothing · text only · safe link · close per id (vm)
   test_header_hidden_runtime.js     # real headless Chrome (ubuntu-latest google-chrome); SKIP locally without one
   test_login_jobdetail_runtime.js

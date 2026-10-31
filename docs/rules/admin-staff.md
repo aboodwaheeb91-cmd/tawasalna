@@ -1,4 +1,4 @@
-# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1) + Roles & Staff API (task 8.4c-2a1) + Invite · Password Reset · Authenticator Reset (task 8.4c-2a2) + Staff Link Pages (task 8.4c-2b-1)
+# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1) + Roles & Staff API (task 8.4c-2a1) + Invite · Password Reset · Authenticator Reset (task 8.4c-2a2) + Staff Link Pages (task 8.4c-2b-1) + Owner Staff Screen (task 8.4c-2b-2)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس مسار أدمن (`/admin/*` · مسار اللوحة `/tw-ctrl-…` · `/admin-view` · `/admin-job`).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25h · جلسة الأدمن: §25 · الـ shell: `docs/rules/admin-shell.md`.
@@ -70,6 +70,16 @@
     - ❌ نسخة تانية من الـ QR / صندوق الرموز · ❌ توكن رابط برّا ذاكرة الصفحة · ❌ رابط لوحة برّا رد `/staff/invite/complete`.
     - Test: `python -m pytest tests/test_admin_staff_84c2b1.py -q` (الصفحات الثلاثة 200 بدون توكن · no-store + no-referrer · ما في `ADMIN_URL_TOKEN` / `#t=` / سر بالـ HTML · `UNGUARDED_ROUTES`) · `node tests/test_staff_link_runtime.js` (الـ hash بينشال قبل أول طلب · التوكن بالـ body بس · بدون `#t=` ما في طلب · storage ما بينلمس · كل كود ← رسالته · ما في إرسال مزدوج · صندوق الرموز + TXT · QR لـ totp بس · رابط اللوحة بالدعوة بس · صندوق forgot نفس الرسالة).
 
+## Owner Staff Screen (task 8.4c-2b-2 — mandatory for all AI sessions)
+
+16. **شاشة «فريق الإدارة» للمالك — `admin-staff.html` + `static/admin-staff/admin-staff.js`** على `GET <panel>/staff` (`admin_staff_page` — `UNGUARDED_ROUTES` «HTML shell only» · `PUBLIC_RATE_EXEMPT` كصفحة ثابتة). قسم `staff` بـ `TW_ADMIN_SECTIONS` (`perm: 'staff.manage'` · `path: 'staff'`) → الموظف ما بيشوفه بالقائمة (`OWNER_ONLY` بيمرق بـ `"*"` بس)، وإذا فتح الرابط `whenAllowed` بيعرض `admin.perm.denied` بدون أي طلب بيانات. واجهة بس — ما في تغيير بالـ API (القاعدتين 10 و 14).
+    - **البيانات:** `GET /admin/staff` + `GET /admin/roles` (`TwAdminSession.fetch` · `permissionAware` — 403 = «للمالك بس» بالصفحة والجلسة بتضل). تبويب «الموظفون»: الاسم · الإيميل · الحالة (مدعو / فعّال / موقوف) · الدور · آخر دخول (`twFormatDateTime`) · تطبيق المصادقة مربوط أو لأ · «الصلاحيات» = الفعلية مع مصدر كل وحدة (`permRows`: من الدور / سماح إضافي / ممنوع) بأسماء `grantable` العربية من الرد. تبويب «الأدوار»: الاسم + عدد الموظفين + الصلاحيات · إضافة / تعديل (اسم + checkbox لكل صلاحية من الكتالوج) · حذف.
+    - **الأزرار حسب الحالة (`STATUS_ACTIONS` — اللي ما بينطبق ما بينرسم):** مدعو → إعادة إرسال الدعوة · إلغاء الدعوة (`DELETE`) · فعّال → تعديل الدور والصلاحيات (`PUT access`) · إيقاف · إعادة ربط المصادقة · موقوف → إرجاع · تعديل الدور والصلاحيات. إضافة موظف = اسم + إيميل + دور + لكل صلاحية «حسب الدور / سماح / منع» → `POST /admin/staff/invite`.
+    - **كل كتابة عبر `TwAdminShell.run`** (step-up من السيرفر: 428 → نافذة الـ shell الوحيدة → إعادة الطلب مرة) · تأكيد `danger` بالاسم والأثر قبل: الإيقاف · إعادة ربط المصادقة · إلغاء الدعوة · حذف الدور (الإرجاع وإعادة الإرسال تأكيد عادي) · الإلغاء = ما في طلب.
+    - **الأخطاء — رسالة twT لكل كود (`action.errors` بـ `run`):** `not_invited` · `not_active` · `staff_active` · `not_suspended` · `role_in_use` (توست، الصفحة بتضل) · `already_invited` / `email_taken` (تحت حقل الإيميل والنموذج بيضل مفتوح) · `name_taken` · `invalid_*` · 403 `admin.staff.forbidden` · 429 `admin.staff.error.rate` · 500 · شبكة `admin.staff.error.network` · 428 ملغي = `admin.stepup.cancelled` من الـ shell. بعد أي كتابة ناجحة القائمتين بينقروا من جديد. الزر معطّل وطلب واحد لكل (إجراء، هدف) أثناء الطلب. الدعوة / إعادة الإرسال / إعادة الربط: `email_sent` من الرد → «أُرسلت» أو «ما انبعت الإيميل».
+    - ❌ توكن أو رابط دعوة بالصفحة (السيرفر ما بيرجّعهم) · ❌ نسخة تانية من نافذة الرمز أو من فحص الصلاحيات · ❌ `TwAdminSession.fetch` مباشر لكتابة.
+    - Test: `node tests/test_admin_staff_runtime.js` (القسم مخفي عن الموظف / ظاهر للمالك · الأزرار حسب الحالة · الإجراء الخطير ما بيبعت قبل التأكيد والإلغاء = ما في طلب · 428 → نافذة → إعادة مرة · كل كود ← رسالته · `role_in_use` ما بيسكّر الصفحة · ما في إرسال مزدوج · الصلاحيات الفعلية = دور + سماح − منع) · `python -m pytest tests/test_admin_perms_84a.py -q` (المسار الجديد بـ `UNGUARDED_ROUTES`).
+
 ## Session Perms + Step-up + Owner Recovery Codes (task 8.4c-1 — mandatory for all AI sessions)
 
 11. **التحقق الإضافي (step-up) — المالك بس:** `check_admin(request, perm)` بعد ما يمرق `allows`: perm من `OWNER_ONLY` على كتابة (`POST/PUT/PATCH/DELETE`) **أو** route بـ `_STEP_UP_READ_ROUTES` (`admin_users_export`) → لازم `X-Admin-Stepup` صالح، غير هيك **428 `{"error": "step_up_required"}`** (مش 403 — `admin-session.js` بيطلّع من الجلسة على 403 · مش 401 — الجلسة صالحة). قراءة `audit.view` / `system.manage` ما بتطلبه. الـ grant من `POST /admin/step-up {code}` (رمز تطبيق المصادقة أو رمز استرداد — `admin_staff.verify_second_factor("owner", …)`؛ كل خطوة TOTP مرة وحدة، رمز الاسترداد بينشطب): `_admin_reserve(request, "mfa", ip, "owner", "owner")` **قبل** التحقق و `_rate_release` عند النجاح (نفس أقفال خطوة الرمز بالدخول) · رمز غلط → 401 · قفل مليان → 429 · موظف → 403 · الرد `{grant, expires_in: 300}` (+ `recovery_remaining` بعد رمز استرداد). الـ grant = JWT بـ `ADMIN_JWT_SECRET`، aud `tw-admin-stepup`، `typ: step_up`، `sub` + `sv`، `tok` = SHA-256 لتوكن الأدمن اللي انطلب فيه، 5 دقايق، `jti` — بينقبل لكذا طلب لحد ما يخلص (مش لمرة وحدة)، بس لنفس التوكن ونفس `sv`. توكن أدمن / ticket ما بيمرقوا كـ grant، والـ grant ما بيمرق كتوكن أدمن (aud تاني). السجل: `admin_step_up` (نجاح وفشل) من `admin_audit_middleware` — بدون الرمز.
@@ -107,7 +117,7 @@
 
 ## مؤجّل (8.4c)
 
-- شاشة الموظفين للمالك (8.4c-2b-2 — الـ API صار بـ 8.4c-2a1 + 8.4c-2a2، القاعدتين 10 و 14). صفحات الروابط العامة + «نسيت كلمة السر» صاروا بـ 8.4c-2b-1 (القاعدة 15). (التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 — القواعد 11–13.)
+- ما في شي مؤجّل من 8.4c: شاشة الموظفين = 8.4c-2b-2 (القاعدة 16) · صفحات الروابط + «نسيت كلمة السر» = 8.4c-2b-1 (القاعدة 15) · التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 (القواعد 11–13).
 - `admin-support.js` بدون `users.email.view`: الإيميل الغايب ما بيطلع (لا «undefined» ولا « · » فاضية) — صار بـ 8.4c-1.
 
 - Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` email / phone + الإيميل والهاتف بكل تركيبة صلاحيات بنص الـ JSON كامل على users · profile · kyc · support + regex إيميل + ما في سر OTP حتى للمالك).
@@ -186,5 +196,5 @@
 | POST | `<panel>/login` | بدون — الدخول نفسه (خطوتين — task 8.4b، القواعد 5–9) |
 | POST | `<panel>/forgot` | بدون — عام: طلب استرجاع كلمة سر موظف (نفس الرد دايماً + حدود IP / إيميل — القاعدة 14) |
 | GET | `/admin/logo` | بدون — عام (الشعار بكل صفحة) |
-| GET | `<panel>` · `/email` · `/settings` · `/content` · `/support` · `/admin-view` · `/admin-job` | بدون — صفحة HTML بس، البيانات من `/admin/*` بصلاحيتها |
+| GET | `<panel>` · `/email` · `/settings` · `/content` · `/support` · `/staff` (8.4c-2b-2) · `/admin-view` · `/admin-job` | بدون — صفحة HTML بس، البيانات من `/admin/*` بصلاحيتها |
 | GET | `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset` | بدون — صفحة HTML بس (task 8.4c-2b-1 — القاعدة 15)، البيانات من POST `/staff/*` العامة |

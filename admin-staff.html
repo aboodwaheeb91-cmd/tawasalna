@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head:admin-->
+<!-- Admin — the owner's staff screen (task 8.4c-2b-2 · docs/rules/admin-staff.md rule 16).
+     Route: the admin panel path + /staff (server.py → admin_staff_page) · data: GET /admin/staff · GET /admin/roles ·
+     writes (invite · resend · cancel · access · suspend · restore · mfa-reset · roles) via TwAdminShell.run —
+     every write needs the owner's step-up (428 → the shell's one dialog → one retry).
+     Header + menu + session gate: Admin Shell (docs/rules/admin-shell.md). No token / invite link ever on this page. -->
+<link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
+<title></title>
+<style>
+.st-title { display: flex; align-items: center; gap: var(--space-3); font-size: var(--size-font-md); font-weight: 900; margin: 0 0 var(--space-5); }
+.st-title svg { color: var(--color-brand-primary); }
+.st-tabs { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0 0 var(--space-5); }
+.st-tabs [aria-selected="true"] { border-color: var(--color-brand-primary); color: var(--color-brand-primary); }
+.st-tools { display: flex; justify-content: flex-end; margin: 0 0 var(--space-4); }
+.st-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.st-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2);
+  font-size: var(--size-font-xs); color: var(--color-text-muted); }
+.st-perms { width: 100%; margin: 0; padding: var(--space-4); list-style: none; display: grid; gap: var(--space-2);
+  border-radius: var(--radius-control); background: var(--color-surface-page); border: 1px solid var(--color-border-subtle); }
+.st-perms li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  font-size: var(--size-font-sm); color: var(--color-text-primary); }
+.st-perms li.is-deny { color: var(--color-text-muted); text-decoration: line-through; }
+.st-form { display: grid; gap: var(--space-5); }
+.st-form label, .st-f { display: grid; gap: var(--space-2); font-size: var(--size-font-xs); font-weight: 700; color: var(--color-text-secondary); }
+.st-form .tw-input { width: 100%; }
+.st-plist { display: grid; gap: var(--space-3); max-height: 50vh; overflow-y: auto; padding-inline-end: var(--space-2); }
+.st-prow { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-subtle); }
+.st-prow:last-child { border-bottom: 0; }
+.st-plabel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--size-font-sm); font-weight: 700; color: var(--color-text-primary); }
+.st-check { display: flex !important; grid-template-columns: none; align-items: center; gap: var(--space-3); font-size: var(--size-font-sm) !important; color: var(--color-text-primary) !important; }
+.st-check input { width: var(--size-icon-md); height: var(--size-icon-md); margin: 0; }
+@media (min-width: 640px) { .st-prow { grid-template-columns: 1fr 180px; align-items: center; } }
+</style>
+</head>
+<body class="tw-adm-body-page">
+<header data-tw-header="admin" hidden></header>
+
+<main class="tw-adm-main" id="main-content">
+  <h1 class="st-title"><i data-tw-icon="shield-check"></i><span data-tw-t="admin.staff.title"></span></h1>
+  <div id="stRoot" aria-live="polite"><p class="tw-adm-msg" data-tw-t="common.loading"></p></div>
+</main>
+
+<!--tw:strings-->
+<!--tw:shell-scripts:admin-->
+<script src="/static/shared/admin-session.js"></script>
+<script src="/static/shared/tw-icons.js?v={{v:tw-icons.js}}"></script>
+<script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
+<script src="/static/shared/admin-sections.js?v={{v:admin-sections.js}}"></script>
+<script src="/static/shared/admin-shell.js?v={{v:admin-shell.js}}"></script>
+<script src="/static/admin-staff/admin-staff.js?v={{v:admin-staff.js}}"></script>
+</body>
+</html>
