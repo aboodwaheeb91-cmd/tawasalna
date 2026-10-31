@@ -2508,8 +2508,10 @@ def update_co_cover(company_id: int, data: CoverUrlInput, token=Depends(verify_t
 # ── Company Branches ──────────────────────────────────────────────────────────
 
 @app.get("/company/branches/{company_id}", dependencies=[Depends(_public_rate)])
-def get_branches(company_id: int):
-    """Public — returns all branches for a company ordered by display_order."""
+def get_branches(company_id: int, request: Request):
+    """Public — returns all branches for a company ordered by display_order.
+    Hidden account (suspended / block either way) → 404 (task 5.4 rule)."""
+    _404_if_hidden(_optional_viewer_id(request), company_id, "الشركة غير موجودة")
     return {"branches": get_company_branches(company_id)}
 
 
@@ -3576,6 +3578,13 @@ def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
         payload = _jwt_decode(auth_header[7:])
         if payload:
             viewer_id = payload.get("user_id")
+    # Suspended company → 404 (task 5.4 rule). Blocks are not applied here yet (pending decision).
+    try:
+        suspended = bs.is_suspended(resolved_id)
+    except Exception as e:
+        raise _server_error("company_ratings_visibility", e)
+    if suspended:
+        raise HTTPException(404, "الشركة غير موجودة")
     result = get_company_ratings_detail(resolved_id, viewer_id, limit)
     return {"status": "success", **result}
 
@@ -4698,7 +4707,9 @@ def profile_score(user_id: int, request: Request):
     """Profile completion score. Uses _calc_profile_score — no algorithm duplication.
     Public: {score, level} (the profile page shows the score to visitors — stats tile).
     Owner / admin only: + tips + items — which items are missing is the owner's business
-    (PR 4.2a · docs/security/PROFILE-DATA-VISIBILITY.md → Completion score)."""
+    (PR 4.2a · docs/security/PROFILE-DATA-VISIBILITY.md → Completion score).
+    Hidden account (suspended / block either way) → 404 (task 5.4 rule)."""
+    _404_if_hidden(_optional_viewer_id(request), user_id, "الملف الشخصي غير موجود")
     try:
         conn = get_conn()
         try:
