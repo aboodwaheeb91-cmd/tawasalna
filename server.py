@@ -617,6 +617,9 @@ async def security_headers(request, call_next):
                 and not _is_indexable_page(_req_path(request)):
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
         _path = _req_path(request)
+        if _path == "/me/export" or _path.startswith("/me/export/"):
+            # «تنزيل بياناتي» (task 8.5b): a personal data copy / signed links — never cached, every status
+            response.headers["Cache-Control"] = "no-store"
         if _path == "/support/track" or _path.startswith("/support/track/"):
             # guest follow-up link (task 7.2a — ARCHITECTURE §81): page + API, every status
             response.headers["Cache-Control"] = "no-store"
@@ -931,6 +934,7 @@ async def rate_limit_middleware(request, call_next):
 import admin_insights
 import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
 import account_deletion as ad    # task 8.5a — soft account delete + restore (SYSTEMS_INDEX §25i)
+import data_export                # task 8.5b — «تنزيل بياناتي» (docs/rules/data-export.md)
 import account_purge             # task 8.5c — final purge after account_purge_days (SYSTEMS_INDEX §25i)
 import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
@@ -5866,6 +5870,80 @@ def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
     print(f"[PUT /auth/password] changed user={uid} — older sessions invalidated")
     return {"ok": True, "status": "success", "token": new_token}
 
+# ── «تنزيل بياناتي» (task 8.5b · docs/rules/data-export.md · SYSTEMS_INDEX §1e) ──
+# Owner only (JWT — a suspended / deleted account is already 401) + the current password again in the body,
+# checked by the server. The rate bucket is reserved BEFORE bcrypt (a flood never reaches the slow check) and kept
+# (it counts exports, not failures). The file = data_export.build_export (the ONE builder); KYC documents are a
+# separate call with its own bucket → short-lived signed links of the caller's own kyc_submissions paths only.
+# Every reply of /me/export* is no-store (security_headers_middleware — decided on _req_path).
+class DataExportInput(BaseModel):
+    password: str = ""
+
+
+def _export_password_gate(uid: int, password, rate_name: str):
+    """None when the password is right, else the error reply. Order: required → rate (reserved) → bcrypt."""
+    if not isinstance(password, str) or not password:
+        return api_error(422, "required", _tw_text("export.error.password_required"), "password")
+    if _rate_reserve([(rate_name, uid)]) is None:
+        return _rate_limited()
+    ok = check_user_password(uid, password)
+    if ok is None:
+        return api_error(401, "unauthorized", "غير مصرح")
+    if not ok:   # 422, not 401 — a wrong password is not an ended session (twApi would sign out on 401)
+        return api_error(422, "wrong_password", _tw_text("export.error.wrong_password"), "password")
+    return None
+
+
+@app.post("/me/export")
+def me_export(data: DataExportInput, token=Depends(verify_token)):
+    uid = int(token.get("user_id") or 0)
+    if not uid:
+        return api_error(401, "unauthorized", "غير مصرح")
+    err = _export_password_gate(uid, data.password, "data_export")
+    if err:
+        return err
+    try:
+        payload = data_export.build_export(uid)
+    except LookupError:
+        return api_error(401, "unauthorized", "غير مصرح")
+    except Exception as e:
+        raise _server_error("me_export", e)
+    body = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    name = "tawasalna-data-" + datetime.utcnow().strftime("%Y-%m-%d") + ".json"
+    print(f"[data-export] user={uid} bytes={len(body)}")
+    return Response(content=body, media_type="application/json; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"',
+                             "Cache-Control": "no-store", "Pragma": "no-cache"})
+
+
+@app.post("/me/export/kyc-docs")
+async def me_export_kyc_docs(data: DataExportInput, token=Depends(verify_token)):
+    uid = int(token.get("user_id") or 0)
+    if not uid:
+        return api_error(401, "unauthorized", "غير مصرح")
+    err = await asyncio.to_thread(_export_password_gate, uid, data.password, "data_export_kyc")
+    if err:
+        return err
+    try:
+        row = await asyncio.to_thread(
+            _current_image_urls,
+            "SELECT id_front_url, selfie_url FROM kyc_submissions WHERE user_id = :uid", uid)
+    except Exception as e:
+        raise _server_error("me_export_kyc_docs", e)
+    ttl = tw_settings.limit("data_export_kyc_url_ttl_s")
+    docs = []
+    for label, col, kind in _KYC_DOC_FIELDS:   # paths from the caller's own row only — nothing from the request
+        if not row.get(col):
+            continue
+        name, reason = _kyc_doc_path_reason(row.get(col), uid, kind)
+        url = None
+        if name:
+            url, reason = await _sign_kyc_doc(name, ttl)
+        docs.append({"kind": label, "url": url, "reason": reason})
+    print(f"[data-export] kyc docs user={uid} count={len(docs)}")
+    return JSONResponse(api_ok({"expires_in": ttl, "docs": docs}), headers={"Cache-Control": "no-store"})
+
+
 # ── Forgot password (task 5.1a · SYSTEMS_INDEX §1b) ──
 # request: same reply for every address (never says whether it exists); lookup + token +
 # email run AFTER the reply (BackgroundTasks) so the response time does not tell either.
@@ -7720,7 +7798,7 @@ def admin_kyc_reject(user_id: int, request: Request, data: dict = Body(...)):
 # public URL, never logged, never cached (Cache-Control: no-store).
 _KYC_DOC_FIELDS = (("id_front", "id_front_url", "kyc-id-front"),
                    ("selfie", "selfie_url", "kyc-selfie"))
-_KYC_SIGN_EXPIRES = 300
+_KYC_SIGN_EXPIRES = 300   # admin viewing (PR-7c) · the user's own download → LIMITS data_export_kyc_url_ttl_s
 
 
 def _kyc_doc_path_reason(value, uid: int, kind: str):
@@ -7740,7 +7818,7 @@ def _kyc_doc_path_reason(value, uid: int, kind: str):
     return None, "invalid_path"
 
 
-async def _sign_kyc_doc(name: str):
+async def _sign_kyc_doc(name: str, expires: int = None):
     """Supabase signed URL for kyc-docs/{name} → (url, None) or (None, reason).
     Base via _supabase_base_url() (same as _store_image). Logs never contain
     the signed URL / token."""
@@ -7752,7 +7830,7 @@ async def _sign_kyc_doc(name: str):
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
                 f"{base}/storage/v1/object/sign/kyc-docs/{name}",
-                json={"expiresIn": _KYC_SIGN_EXPIRES},
+                json={"expiresIn": int(expires or _KYC_SIGN_EXPIRES)},
                 headers=auth_headers,
             )
     except Exception as e:

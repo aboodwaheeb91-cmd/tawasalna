@@ -12869,6 +12869,18 @@ Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exist
 - DB access only via `check_user_password(uid, pw)` (None = no user · False · True) and `set_user_password(uid, pw)` in `auth.py`.
 - **Session invalidation (PR 1.8 — SYSTEMS_INDEX §2a):** a password change (self or admin reset) stamps `users.password_changed_at`; every user JWT with `iat` earlier than that second is rejected by `_jwt_decode` (→ `verify_token` 401 and every optional-auth reader). The response carries a fresh `token`; `settings.html` stores it only through `TwAuthSync.renewToken(token)` — if missing / refused, the page signs out via `TwAuthSync.invalidateSession('password_changed')`.
 
+### Data Export (task 8.5b)
+
+> SYSTEMS_INDEX §1e · rules `docs/rules/data-export.md`. Builder `data_export.build_export(uid)` (explicit columns per section, `forbidden_keys()` check before the file leaves).
+
+| Endpoint | Auth | Body | Errors | Success |
+|----------|------|------|--------|---------|
+| `POST /me/export` | JWT (401 — suspended / deleted already 401) | `{password}` | 422 `required` / `wrong_password` (field `password`) · 429 `rate_limited` (`RATES["data_export"]`, reserved **before** bcrypt) · 500 `_server_error` | 200 JSON file — `Content-Disposition: attachment; filename="tawasalna-data-YYYY-MM-DD.json"` · `Cache-Control: no-store`. Top-level keys: `export · account · profile · company · posts · comments · saved_posts · appreciated_posts · following · followers · blocked · applications · messages_sent · appointments · notifications · email_notifications · kyc` |
+| `POST /me/export/kyc-docs` | JWT | `{password}` (checked again) | same · 429 on `RATES["data_export_kyc"]` | `{ok, data:{expires_in, docs:[{kind: id_front\|selfie, url, reason}]}}` · `no-store` — paths from the caller's own `kyc_submissions` row only → `_kyc_doc_path_reason` → `_sign_kyc_doc(name, LIMITS["data_export_kyc_url_ttl_s"])`; no documents → `docs: []` |
+
+- `security_headers_middleware` sets `Cache-Control: no-store` on every reply of `/me/export*` (decided on `_req_path`).
+- Applications carry `applicant_visible_status` only; a company's jobs carry `applicants_count` only; messages = the caller's sent ones (`conversation_with_tw_id`); a deleted other party → `tw_id: null` + `is_deleted`.
+
 ### Session invalidation after password change (PR 1.8)
 
 | Piece | Where | Rule |

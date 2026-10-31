@@ -59,6 +59,7 @@ LIMITS = {
     "admin_role_name_max": 60,    # POST / PUT /admin/roles name (chars — owner only, task 8.4c-2a1)
     "admin_staff_name_max": 80,   # POST /admin/staff/invite name (chars — owner only, task 8.4c-2a2)
     "staff_password_min": 12,     # admin staff password (chars — invite / password reset, task 8.4c-2a2; max = password_max_bytes)
+    "data_export_kyc_url_ttl_s": 300,  # POST /me/export/kyc-docs — signed link lifetime in seconds (task 8.5b — fixed, not admin-editable)
 }
 
 RATES = {
@@ -104,6 +105,8 @@ RATES = {
     "staff_link_token": (10, 900),    # … per link (SHA-256 of the token — wrong codes count here)
     "staff_forgot_ip": (10, 3600),    # <panel>/forgot — per client IP (task 8.4c-2a2)
     "staff_forgot_email": (3, 3600),  # … per email address (counted for unknown addresses too — same reply)
+    "data_export": (3, 3600),         # POST /me/export — per account, reserved before bcrypt, every attempt counts (task 8.5b)
+    "data_export_kyc": (3, 3600),     # POST /me/export/kyc-docs — per account, same rule, own bucket
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
@@ -128,7 +131,8 @@ POST_TAGS = _load_post_tags()
 # What the pages need (window.TW_LIMITS) — limits only, no rates.
 _CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max",
                   "support_subject_max", "support_body_max",
-                  "staff_password_min", "password_max_bytes")   # task 8.4c-2b-1 — staff link page hint only
+                  "staff_password_min", "password_max_bytes",   # task 8.4c-2b-1 — staff link page hint only
+                  "data_export_kyc_url_ttl_s")                  # task 8.5b — /settings KYC links warning (minutes)
 
 
 def page_block(limit=None) -> str:

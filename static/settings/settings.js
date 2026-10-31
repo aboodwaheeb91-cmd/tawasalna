@@ -13,6 +13,9 @@
 //   - company settings (task 5.1d, co only): «إبلاغ المتقدمين بالنتيجة النهائية» → GET / PUT
 //     /company/settings (section #companySettings)
 //   - account delete hidden until plan 5.5 (soft delete — F27)
+//   - «تنزيل بياناتي» (task 8.5b — docs/rules/data-export.md): twModal + current password → POST /me/export
+//     → the JSON file is saved (success only on res.ok) · inside: a separate KYC documents option
+//     (warning + POST /me/export/kyc-docs → short-lived signed links, opened through twSafeLinkUrl)
 (function () {
   'use strict';
   var snap = twRequireAuth();
@@ -183,6 +186,88 @@
       if (fe && PW_FIELD[fe.field]) { setErr(f[PW_FIELD[fe.field]].input, fe.message); return false; }
       if (res.status !== 401) showToast(twApiMessage(res, twT('settings.pw.error')), 'error');
       return false;
+    });
+  }
+
+  // ══ «تنزيل بياناتي» (task 8.5b) — the password is checked by the server on every request ══
+  function saveJsonFile(obj, name) {
+    var url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json;charset=utf-8' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportPwOk(input) {
+    if (input.value) return true;
+    setErr(input, twT('settings.export.password_required'));
+    return false;
+  }
+  function exportFail(res, input, fallbackKey) {
+    var fe = res.error && res.error.fieldErrors[0];
+    if (fe && fe.field === 'password') { setErr(input, fe.message); return; }
+    if (res.status !== 401) showToast(twApiMessage(res, twT(fallbackKey)), 'error');
+  }
+  function openExport() {
+    var pw = field('settings.export.password', { type: 'password', autocomplete: 'current-password' });
+    var form = el('div', 'st-form');
+    form.appendChild(el('p', 'st-hint', twT('settings.export.intro')));
+    form.appendChild(pw.wrap);
+    // Separate option — KYC documents (sensitive · links expire fast · its own request + password check)
+    var kycBox = el('div', 'st-export-kyc');
+    var head = el('div', 'st-export-kyc-title');
+    head.appendChild(twIconEl('alert', { size: 'sm' }));
+    head.appendChild(el('span', null, twT('settings.export.kyc.title')));
+    kycBox.appendChild(head);
+    var ttlMin = Math.max(1, Math.round((twLimit('data_export_kyc_url_ttl_s') || 300) / 60));
+    kycBox.appendChild(el('p', 'st-hint', twT('settings.export.kyc.warn', { minutes: twFormatNumber(ttlMin) })));
+    var kycBtn = btn('settings.export.kyc.submit');
+    var docs = el('div', 'st-export-docs');
+    kycBtn.addEventListener('click', function () { exportKycDocs(pw.input, kycBtn, docs); });
+    kycBox.appendChild(kycBtn);
+    kycBox.appendChild(docs);
+    form.appendChild(kycBox);
+    twModal({ title: twT('settings.export.title'), content: form, actions: [
+      { text: twT('common.cancel') },
+      { text: twT('settings.export.submit'), variant: 'primary', onClick: function () { return exportData(pw.input); } },
+    ] });
+  }
+  // false keeps the dialog open (twModal)
+  function exportData(input) {
+    if (!exportPwOk(input)) return false;
+    return twApi('/me/export', { method: 'POST', body: { password: input.value } }).then(function (res) {
+      if (!res.ok || !res.raw || typeof res.raw !== 'object') { exportFail(res, input, 'settings.export.error'); return false; }
+      saveJsonFile(res.raw, 'tawasalna-data.json');
+      showToast(twT('settings.export.done'), 'success');
+    });
+  }
+  function exportKycDocs(input, b, box) {
+    if (!exportPwOk(input)) return Promise.resolve(false);
+    setBtnLoad(b, true);
+    box.textContent = '';
+    return twApi('/me/export/kyc-docs', { method: 'POST', body: { password: input.value } }).then(function (res) {
+      setBtnLoad(b, false);
+      var list = res.ok && res.data && res.data.docs;
+      if (!list) { exportFail(res, input, 'settings.export.kyc.error'); return false; }
+      if (!list.length) { box.appendChild(el('p', 'st-hint', twT('settings.export.kyc.empty'))); return true; }
+      list.forEach(function (d) {
+        var row = el('div', 'st-export-doc');
+        row.appendChild(el('span', null, twT('settings.export.kyc.doc.' + (d.kind === 'selfie' ? 'selfie' : 'id_front'))));
+        var safe = twSafeLinkUrl(d.url);
+        if (safe) {
+          var a = el('a', null, twT('settings.export.kyc.open'));
+          a.href = safe;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          row.appendChild(a);
+        } else {
+          row.appendChild(el('span', 'st-val', twT('settings.export.kyc.unavailable')));
+        }
+        box.appendChild(row);
+      });
+      return true;
     });
   }
 
@@ -549,7 +634,7 @@
   else kycRow.remove();
 
   // ── wire up ──
-  var OPEN = { email: openEmail, phone: openPhone, password: openPassword };
+  var OPEN = { email: openEmail, phone: openPhone, password: openPassword, export: openExport };
   document.querySelectorAll('[data-st-open]').forEach(function (b) {
     b.addEventListener('click', function () { OPEN[b.getAttribute('data-st-open')](); });
   });

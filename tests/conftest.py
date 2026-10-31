@@ -9,6 +9,7 @@ import pytest
 
 SECURITY_TESTS = frozenset({
     "test_admin_security_84c0.py",
+    "test_data_export_85b.py",
     "test_admin_stepup_84c.py",
     "test_scope_path_88a.py",
     "test_admin_staff_84c2a1.py",
