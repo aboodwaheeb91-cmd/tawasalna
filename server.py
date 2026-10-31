@@ -473,7 +473,9 @@ def is_phone_otp_delivery_available() -> bool:
 
 
 # ── App ──
-app = FastAPI(title="تواصلنا API", version="1.0.0")
+# strict_content_type=False (task 8.8b): FastAPI ≥ 0.132 rejects a JSON body without a JSON Content-Type by
+# default — kept off so every client request is parsed exactly as before the upgrade.
+app = FastAPI(title="تواصلنا API", version="1.0.0", strict_content_type=False)
 
 # Fix [A-4]: Prevent browser HTTP cache from serving stale .html/.js files
 # This is the correct architectural fix — works for every page, not just profile
@@ -8212,7 +8214,7 @@ def _job_out(info: dict) -> dict:
 
 
 @app.post("/admin/jobs/{job_id}/hide")
-def admin_hide_job(job_id: int, request: Request, data: dict = Body(default={})):
+def admin_hide_job(job_id: int, request: Request, data: Optional[dict] = Body(default={})):
     check_admin(request, "jobs.manage")
     def run():
         info = admin_set_job_hidden(job_id, True, str((data or {}).get("reason") or ""))
@@ -8232,7 +8234,7 @@ def admin_unhide_job(job_id: int, request: Request):
 
 
 @app.post("/admin/jobs/{job_id}/reactivate")
-def admin_reactivate_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+def admin_reactivate_job_endpoint(job_id: int, request: Request, data: Optional[dict] = Body(default={})):
     check_admin(request, "jobs.manage")
     def run():
         info = admin_reactivate_job(job_id, (data or {}).get("duration_days"))
@@ -8242,7 +8244,7 @@ def admin_reactivate_job_endpoint(job_id: int, request: Request, data: dict = Bo
 
 
 @app.post("/admin/jobs/{job_id}/extend")
-def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+def admin_extend_job_endpoint(job_id: int, request: Request, data: Optional[dict] = Body(default={})):
     check_admin(request, "jobs.manage")
     def run():
         days = (data or {}).get("duration_days")
@@ -8252,7 +8254,7 @@ def admin_extend_job_endpoint(job_id: int, request: Request, data: dict = Body(d
 
 
 @app.post("/admin/jobs/{job_id}/status")
-def admin_job_status(job_id: int, request: Request, data: dict = Body(default={})):
+def admin_job_status(job_id: int, request: Request, data: Optional[dict] = Body(default={})):
     """Pause / resume / close from the admin — the same auth.set_job_status as the company (task 5.3j).
     Closing needs a reason (sent to the company). Reopening a closed job = /reactivate."""
     check_admin(request, "jobs.manage")
@@ -8286,7 +8288,7 @@ def admin_job_detail(job_id: int, request: Request):
 
 
 @app.put("/admin/jobs/{job_id}")
-def admin_update_job_endpoint(job_id: int, request: Request, data: dict = Body(default={})):
+def admin_update_job_endpoint(job_id: int, request: Request, data: Optional[dict] = Body(default={})):
     """Admin edit (owner decision 5.3j: after publishing only the admin edits). Body = the publish fields
     (JobInput — same model) + reason (required, sent to the company). Every applicant gets one notice per edit
     (without the reason). The duration is not edited here (/extend · /reactivate)."""

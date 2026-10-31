@@ -54,7 +54,7 @@
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Backend framework | FastAPI (Starlette 0.50.0 pinned — task 5.0f) | 0.121.3 |
+| Backend framework | FastAPI (Starlette 1.10.0 pinned — task 8.8b) | 0.162.0 |
 | ASGI server | Uvicorn | 0.30.1 |
 | Database | PostgreSQL via Supabase (pg8000) | pg8000 1.31.5 |
 | Password hashing | bcrypt | 4.1.3 |
