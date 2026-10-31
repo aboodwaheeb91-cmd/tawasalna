@@ -3,6 +3,8 @@ name: Tests
 # PR 6.4 — ONE test workflow: every PR to main + every push to main, no path filters.
 # Runs ./run_tests.sh (the same script used locally; every test lives in tests/ — PR 3.9b) — the lists of what runs and what is
 # EXCLUDED (live server / Playwright, with the reason) live in that script only.
+# Task 8.11b — the same script, split into parallel jobs with `--only <group>` (py · db1 · db2 · node);
+# the last job waits for all of them and keeps the old check name, so the required check on main is unchanged.
 # Spec: docs/SYSTEMS_INDEX.md §54g · CLAUDE.md → Testing & CI.
 
 on:
@@ -16,10 +18,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    name: All tests (Python 3.11 + Node 20 + PostgreSQL)
+  py:
+    name: Python (no database)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # full history + origin/main: test_ds_size_tokens (S4) and test_landing_shell (F05)
+          # diff the change against `git merge-base origin/main HEAD` — both are in this group only
+          fetch-depth: 0
+
+      - name: Set up Python (same as runtime.txt)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Set up Node.js   # a few Python tests run small node checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run group py
+        env:
+          TW_SECURITY_TESTS_REQUIRED: "1"
+        run: ./run_tests.sh --only py
+
+  db:
+    name: Python + PostgreSQL (${{ matrix.part }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [db1, db2]   # fixed halves of PY_DB — split_db() in run_tests.sh; each job = its own PostgreSQL
 
     services:
       postgres:
@@ -39,10 +78,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          # full history + origin/main: test_ds_size_tokens (S4) and test_landing_shell (F05)
-          # diff the change against `git merge-base origin/main HEAD`
-          fetch-depth: 0
 
       - name: Set up Python (same as runtime.txt)
         uses: actions/setup-python@v5
@@ -52,11 +87,6 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
@@ -82,8 +112,44 @@ jobs:
           sleep 1
           test "$(psql -h 127.0.0.1 -U tawasalna_test_user -d postgres -tAc 'SHOW ssl')" = on
 
-      - name: Run all tests
+      - name: Run group ${{ matrix.part }}
         env:
           # task 8.4c-0 — a skipped admin security test fails the run (tests/conftest.py)
           TW_SECURITY_TESTS_REQUIRED: "1"
-        run: ./run_tests.sh
+        run: ./run_tests.sh --only ${{ matrix.part }}
+
+  node:
+    name: Node (no database)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # no pip / PostgreSQL — the few node tests that call python3 use the standard library only
+      - name: Run group node
+        run: ./run_tests.sh --only node
+
+  # The required status check on main. Keeps the exact name of the old single job so branch
+  # protection does not change. Fails when any group failed, was cancelled or was skipped.
+  tests:
+    name: All tests (Python 3.11 + Node 20 + PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: [py, db, node]
+    if: always()
+    steps:
+      - name: Every group passed
+        env:
+          PY: ${{ needs.py.result }}
+          DB: ${{ needs.db.result }}
+          NODE: ${{ needs.node.result }}
+        run: |
+          echo "py=$PY db=$DB node=$NODE"
+          for r in "$PY" "$DB" "$NODE"; do
+            [ "$r" = success ] || { echo "✗ a test group did not succeed ($r)"; exit 1; }
+          done
+          echo "✓ all test groups passed"

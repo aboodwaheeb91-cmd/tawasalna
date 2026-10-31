@@ -2,8 +2,20 @@
 # run_tests.sh — the ONE test runner (PR 6.4). CI (.github/workflows/tests.yml) runs exactly
 # this script; run it locally the same way. Spec: docs/SYSTEMS_INDEX.md §54g · CLAUDE.md → Testing & CI.
 #
-#   ./run_tests.sh            everything (needs PostgreSQL with SSL — see DB below)
-#   ./run_tests.sh --no-db    skip the DB tests (they are listed, never silently ignored)
+#   ./run_tests.sh                 everything (needs PostgreSQL with SSL — see DB below)
+#   ./run_tests.sh --no-db         skip the DB tests (they are listed, never silently ignored)
+#   ./run_tests.sh --only <group>  one group (task 8.11b — CI runs each group as its own parallel job):
+#        py    Python without a database: python syntax · PY_PYTEST · PY_SCRIPT · page audit · changelog check
+#        db    Python + PostgreSQL: PY_DB (= db1 + db2)
+#        db1 / db2  the two fixed halves of PY_DB — split_db() below: longest-first by the measured
+#              seconds in DB_WEIGHTS (unlisted file = 2 s), each file to the lighter half, tie → db1.
+#              Deterministic (same lists → same split). In CI each half runs on its own PostgreSQL.
+#        node  JS syntax (node --check) · NODE_TESTS (no PostgreSQL, no pip — a few call python3 stdlib)
+#      The "every test file in exactly one list" guard runs first in EVERY group — a file in no list
+#      fails even when its group is not the one running. --no-db works with --only too.
+#   TW_BCRYPT_ROUNDS=4 (exported below — tests only): auth.hash_password uses cost 4 instead of the
+#      default; verify_password reads the cost from the hash. APP_ENV=production + TW_BCRYPT_ROUNDS
+#      → the server refuses to start (auth.check_bcrypt_env).
 #
 # Rules:
 #   - Every tests/test_*.py / test_*.js / test_*.mjs is in EXACTLY ONE list below (names are
@@ -25,7 +37,20 @@ cd "$(dirname "$0")"
 
 PY="${PYTHON:-python}"
 NO_DB=0
-[ "${1:-}" = "--no-db" ] && NO_DB=1
+ONLY=all
+usage() { echo "usage: $0 [--no-db] [--only py|db|db1|db2|node]" >&2; exit 2; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-db) NO_DB=1 ;;
+    --only)  [ $# -ge 2 ] || usage; ONLY="$2"; shift ;;
+    *) usage ;;
+  esac
+  shift
+done
+case "$ONLY" in all|py|db|db1|db2|node) ;; *) usage ;; esac
+want() {  # want <py|db|node> — does the selected group run this part?
+  case "$ONLY" in all) return 0 ;; db1|db2) [ "$1" = db ] ;; *) [ "$1" = "$ONLY" ] ;; esac
+}
 
 # ── Test environment (never production values) ─────────────────────────────
 export APP_ENV="${APP_ENV:-development}"
@@ -33,13 +58,14 @@ export JWT_SECRET="${JWT_SECRET:-ci-test-jwt-secret-0123456789abcdef0123456789ab
 export PYTHONDONTWRITEBYTECODE=1
 export SCHEDULER_LOOP=0   # task 6.3 — no internal scheduler loop inside test servers (tests drive the cycle)
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+export TW_BCRYPT_ROUNDS=4   # task 8.11b — cheap bcrypt in tests only (production + this variable = refuses to start)
 T=tests
 DB_URL="${TW_TEST_DB_URL:-postgresql://tawasalna_test_user:test_pass_pr1@127.0.0.1:5432/tawasalna_test_pipeline}"
 
 # ── DB safety guard (task 5.0e) — BEFORE any connection / DROP / CREATE DATABASE ──
 # Refuses (exit 2): APP_ENV=production · a database name without "test" · a host that is not
 # localhost / 127.0.0.1 unless TW_TEST_DB_ALLOW_REMOTE=1. Rules: tools/db_guard.py.
-if [ "$NO_DB" = 0 ]; then
+if [ "$NO_DB" = 0 ] && want db; then
   "$PY" tools/db_guard.py "$DB_URL" || exit 2
 fi
 
@@ -64,6 +90,7 @@ PY_PYTEST=(
   test_add_job_transaction.py   # task 8.0 — add_job = one transaction (fake conn, no DB)
   test_application_withdraw_82a.py   # task 8.2a — withdraw + re-apply (fake conn, no DB)
   test_kyc_result_notify_81.py       # task 8.1 — KYC result notification + rejection reason (fake conn, no DB)
+  test_bcrypt_rounds_811b.py         # task 8.11b — TW_BCRYPT_ROUNDS tests only: production + variable → refuses to start · default cost · $2b$04$
 )
 
 # ── Python — run as a script (own checks + exit code) ──────────────────────
@@ -167,6 +194,33 @@ PY_DB=(
   pytest:test_experience_sort_order_49.py  # AUD-P2-49 — experience sort_order backfill / add / tie order / reorder ownership + save-job button gone
 )
 
+# ── DB split weights (task 8.11b) — measured seconds per file in CI (main run 41226781727, before
+# TW_BCRYPT_ROUNDS); only files ≥ 4 s, everything else counts 2. Only balances db1 / db2 — never
+# decides WHAT runs. Re-measure from the "(N.Ns)" on each ✓ line when one half grows much longer.
+DB_WEIGHTS=(
+  "test_admin_staff_84c2a2.py|19"
+  "test_pipeline_backfill_integration.py|15"
+  "test_account_purge_85c.py|14"
+  "test_blocks_suspension.py|11"
+  "test_admin_security_84c0.py|11"
+  "test_account_deletion_85a.py|10"
+  "test_talent_bank_quota.py|9"
+  "test_admin_email_change_83.py|8"
+  "test_data_export_85b.py|6"
+  "test_privacy_boundary_http.py|6"
+  "test_job_archive_integration.py|6"
+  "test_admin_mfa_84b.py|6"
+  "test_email_change_kyc_email.py|6"
+  "test_security_84c0b.py|6"
+  "test_admin_stepup_84c.py|5"
+  "test_admin_staff_84c2a1.py|5"
+  "test_password_reset_email.py|4"
+  "test_admin_user_actions.py|4"
+  "test_session_version_tokens.py|4"
+  "test_input_limits_50h2.py|4"
+  "test_home_feed_cursor_86d.py|4"
+)
+
 # ── Node (vm / static — no browser) ────────────────────────────────────────
 NODE_TESTS=(
   test_actions_registry_runtime.js
@@ -233,22 +287,47 @@ fi
 dupes=$(printf '%s\n' "$listed" | uniq -d)
 missing=$(comm -13 <(printf '%s\n' "$listed" | sort -u) <(printf '%s\n' "$actual"))
 stale=$(comm -23 <(printf '%s\n' "$listed" | sort -u) <(printf '%s\n' "$actual"))
-if [ -n "$dupes$missing$stale" ]; then
+wstale=$(comm -23 <(printf '%s\n' "${DB_WEIGHTS[@]%%|*}" | sort -u) <(printf '%s\n' "${PY_DB[@]#pytest:}" | sort -u))
+if [ -n "$dupes$missing$stale$wstale" ]; then
+  [ -n "$wstale" ]  && echo "✗ DB_WEIGHTS names file(s) that are not in PY_DB:" && echo "$wstale"
   [ -n "$missing" ] && echo "✗ test file(s) in no list of run_tests.sh — add to a run list or EXCLUDED (with reason):" && echo "$missing"
   [ -n "$stale" ]   && echo "✗ run_tests.sh lists file(s) that do not exist:" && echo "$stale"
   [ -n "$dupes" ]   && echo "✗ file(s) listed twice:" && echo "$dupes"
   exit 1
 fi
 
+# ── split_db — PY_DB → DB1 / DB2 (fixed, deterministic; every PY_DB entry in exactly one half) ──
+split_db() {
+  DB1=(); DB2=()
+  local s1=0 s2=0 w e line
+  local lines=()
+  for e in "${PY_DB[@]}"; do
+    w=2
+    for line in "${DB_WEIGHTS[@]}"; do [ "${line%%|*}" = "${e#pytest:}" ] && w="${line#*|}"; done
+    lines+=("$w ${e#pytest:} $e")
+  done
+  while read -r w _ e; do
+    if [ "$s1" -le "$s2" ]; then DB1+=("$e"); s1=$((s1 + w)); else DB2+=("$e"); s2=$((s2 + w)); fi
+  done < <(printf '%s\n' "${lines[@]}" | LC_ALL=C sort -k1,1nr -k2,2)
+  [ $(( ${#DB1[@]} + ${#DB2[@]} )) -eq ${#PY_DB[@]} ] || { echo "✗ split_db lost a file"; exit 1; }
+}
+split_db
+case "$ONLY" in
+  db1) DB_RUN=("${DB1[@]}") ;;
+  db2) DB_RUN=("${DB2[@]}") ;;
+  *)   DB_RUN=("${PY_DB[@]}") ;;
+esac
+
 FAILED=()
 FAILED_MSG=()
 run() {  # run <label> <cmd...>
   local label="$1"; shift
   local log; log=$(mktemp)
+  local t0=$SECONDS
   if "$@" >"$log" 2>&1; then
-    echo "  ✓ $label"
+    echo "  ✓ $label ($((SECONDS - t0))s)"
   else
-    echo "  ✗ $label"; echo "──── output: $label ────"; tail -n 60 "$log"; echo "────"
+    echo "  ✗ $label ($((SECONDS - t0))s)"; echo "──── output: $label ────"; tail -n 60 "$log"; echo "────"
     FAILED+=("$label")
     # first error line of this file → the summary at the end
     local first
@@ -258,10 +337,16 @@ run() {  # run <label> <cmd...>
   rm -f "$log"
 }
 
+echo "== Group: $ONLY =="
+if want node || want py; then
 echo "== Syntax =="
+fi
+if want node; then
 js_files=$(git ls-files '*.js' '*.mjs' | grep -v -E '(^|/)vendor/|\.min\.js$')
 run "node --check ($(echo "$js_files" | wc -l | tr -d ' ') JS files)" \
   bash -c 'for f in "$@"; do node --check "$f" || { echo "syntax error: $f"; exit 1; }; done' _ $js_files
+fi
+if want py; then
 run "python syntax (*.py)" \
   bash -c 'for f in $(git ls-files "*.py"); do '"$PY"' -c "import ast,sys; ast.parse(open(sys.argv[1],encoding=\"utf-8\").read(), sys.argv[1])" "$f" || exit 1; done'
 
@@ -270,8 +355,10 @@ for t in "${PY_PYTEST[@]}"; do run "$t" "$PY" -m pytest -q -p no:cacheprovider "
 
 echo "== Python (script) =="
 for t in "${PY_SCRIPT[@]}"; do run "$t" "$PY" "$T/$t"; done
+fi
 
-echo "== Python (PostgreSQL) =="
+if want db; then
+echo "== Python (PostgreSQL) — ${#DB_RUN[@]} of ${#PY_DB[@]} files ($ONLY) =="
 reset_db() {  # drop + re-create the test database (fresh schema per test file)
   "$PY" - "$DB_URL" <<'EOF'
 import sys, pg8000.native as pg
@@ -285,7 +372,7 @@ c.close()
 EOF
 }
 if [ "$NO_DB" = 1 ]; then
-  for t in "${PY_DB[@]}"; do echo "  - SKIPPED (--no-db): ${t#pytest:}"; done
+  for t in "${DB_RUN[@]}"; do echo "  - SKIPPED (--no-db): ${t#pytest:}"; done
 elif ! reset_db >/dev/null 2>&1; then
   echo "  ✗ PostgreSQL not reachable at $DB_URL"
   echo "    start one (ssl=on, see header) or run ./run_tests.sh --no-db"
@@ -293,7 +380,7 @@ elif ! reset_db >/dev/null 2>&1; then
   FAILED_MSG+=("not reachable at $DB_URL")
 else
   export TW_TEST_DB_URL="$DB_URL" OTP_TEST_DB_URL="$DB_URL"
-  for t in "${PY_DB[@]}"; do
+  for t in "${DB_RUN[@]}"; do
     reset_db || { FAILED+=("reset_db before $t"); FAILED_MSG+=("could not reset the test database"); continue; }
     case "$t" in
       pytest:*) run "${t#pytest:}" "$PY" -m pytest -q -p no:cacheprovider -rs "$T/${t#pytest:}" ;;
@@ -302,12 +389,18 @@ else
   done
 fi
 
+fi
+
+if want py; then
 echo "== Page audit (tools/page_audit.py — every number only goes down) =="
 run "page_audit.py vs tools/page_audit_baseline.json" "$PY" tools/page_audit.py
 run "changelog.d fragments (tools/changelog_collect.py --check)" "$PY" tools/changelog_collect.py --check
+fi
 
+if want node; then
 echo "== Node =="
 for t in "${NODE_TESTS[@]}"; do run "$t" node "$T/$t"; done
+fi
 
 echo "== Excluded (not run here — reason) =="
 for e in "${EXCLUDED[@]}"; do echo "  - ${e%%|*} — ${e#*|}"; done
@@ -318,5 +411,5 @@ if [ ${#FAILED[@]} -gt 0 ]; then
   for i in "${!FAILED[@]}"; do echo "  ✗ ${FAILED[$i]} — ${FAILED_MSG[$i]}"; done
   exit 1
 fi
-[ "$NO_DB" = 1 ] && echo "⚠ DB tests skipped (--no-db) — CI runs them."
-echo "✓ all tests passed"
+[ "$NO_DB" = 1 ] && want db && echo "⚠ DB tests skipped (--no-db) — CI runs them."
+[ "$ONLY" = all ] && echo "✓ all tests passed" || echo "✓ all tests passed (group: $ONLY)"

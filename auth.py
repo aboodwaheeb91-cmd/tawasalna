@@ -363,8 +363,39 @@ def _serialize(row: dict) -> dict:
     return out
 
 
+_BCRYPT_ROUNDS_ENV = "TW_BCRYPT_ROUNDS"   # task 8.11b — tests only (run_tests.sh sets 4); never in production
+
+
+def bcrypt_rounds():
+    """Cost for new hashes: None = bcrypt's default · TW_BCRYPT_ROUNDS (tests only, min 4, max 31).
+
+    APP_ENV=production (or unset — the default) + TW_BCRYPT_ROUNDS set → RuntimeError: a weak cost
+    can never reach a real hash (on_startup also refuses to boot — check_bcrypt_env).
+    """
+    raw = os.environ.get(_BCRYPT_ROUNDS_ENV)
+    if raw is None:
+        return None
+    if os.environ.get("APP_ENV", "production").strip().lower() == "production":
+        raise RuntimeError(f"❌ {_BCRYPT_ROUNDS_ENV} is a test-only setting and must not be set "
+                           "with APP_ENV=production — remove it")
+    try:
+        n = int(raw.strip())
+    except ValueError:
+        raise RuntimeError(f"❌ {_BCRYPT_ROUNDS_ENV} must be a whole number (4–31)") from None
+    return min(max(n, 4), 31)
+
+
+def check_bcrypt_env() -> None:
+    """Startup check (server.on_startup) — raises the clear error of bcrypt_rounds(), no secret in it."""
+    bcrypt_rounds()
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    # the ONE hasher (register · password change / reset · login dummy · staff · purge tombstone).
+    # verify_password reads the cost from the hash itself → old hashes are unaffected.
+    rounds = bcrypt_rounds()
+    salt = bcrypt.gensalt() if rounds is None else bcrypt.gensalt(rounds=rounds)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
