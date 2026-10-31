@@ -6545,6 +6545,23 @@ Written from ONE place: `admin_audit_middleware` in `server.py` — every `POST/
 ```
 Test: `python -m pytest tests/test_upload_security.py -q` · `node tests/test_upload_client_runtime.js` · `python -m pytest tests/test_kyc_docs_migration.py -q` (PR-7c) · `python -m pytest tests/test_supabase_settings.py -q`.
 
+### Certificate PDFs (task 8.7 — §29c)
+
+> القواعد الكاملة + جدول الصلاحية: `docs/rules/certificates.md` · SYSTEMS_INDEX §29c · tests `test_certificates_87.py` (SECURITY_TESTS) · `test_certificates_87_runtime.js`.
+
+**Schema:** `courses.certificate_path TEXT NULL` · `education.certificate_path TEXT NULL` = `cert-docs/{uid}_cert_{12hex}.pdf` (migration `certificates` — critical, `cert_access.migrate_certificates`; production `docs/migrations/8.7_certificates.sql` + private bucket `cert-docs`: `public = false`, `application/pdf`, 5 MB).
+
+| Method | Path | Auth | Body / reply |
+|--------|------|------|--------------|
+| POST | `/course/{id}/certificate` · `/education/{id}/certificate` | JWT · `emp` (403) · row owner (404) · `RATES cert_upload` (429) | `{data_url}` (PDF — `cert_access.validate_pdf`; 422 `invalid_file` / `too_large` / `not_pdf` / `pdf_encrypted` / `pdf_unsafe`) → `{ok, data:{has_certificate, can_view_certificate}}` · course: `certificate_url` → NULL |
+| DELETE | same paths | JWT · `emp` · row owner (404) | → `{ok, data:{has_certificate:false, can_view_certificate:false}}` (object deleted via `storage_delete`) |
+| GET | `/certificates/{kind}/{id}/view` (`kind` = `course` \| `education`) | JWT (401) · `RATES cert_view` reserved first (429) · `cert_access.can_view` | `{ok, data:{url, expires_in}}` (signed, `cert_url_ttl_s`) · no row / no access / no file / bad kind → the same 404 · sign failure → 503 |
+
+- Every reply of `/certificates/*` and `/course|education/{id}/certificate` → `Cache-Control: no-store` (`security_headers`, decided on `_req_path`).
+- `GET /profile/{id}` + `/profile/{id}/full`: each course / education entry → `has_certificate` + `can_view_certificate` (`_cert_flags`, per viewer — `can_view` once per profile); never `certificate_path`; legacy `certificate_url` → owner only (`project_public_profile` drops it).
+- `POST/PUT/DELETE /course*` + `/education*` → `emp` only (403). `POST /course` with a `certificate_url` → 422 `url_not_allowed`; `PUT` with a new / changed one → 422; `update_course` never writes `certificate_url`. Deleting a row (user or admin) deletes its PDF.
+- Final purge (`account_purge`) + export (`has_certificate` only) — `docs/rules/account-deletion.md` · `docs/rules/data-export.md`.
+
 ### Safe Rendering (PR security/admin-safe-rendering — §54)
 
 All API data rendered inside `admin.html` and `admin-view.html` template literals is now escaped via the shared helpers in `tw_shared.js` (§54 Safe Rendering):

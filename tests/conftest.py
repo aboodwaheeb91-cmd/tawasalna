@@ -22,6 +22,7 @@ SECURITY_TESTS = frozenset({
     "test_account_deletion_85a.py",
     "test_account_purge_85c.py",
     "test_account_self_delete_85d.py",
+    "test_certificates_87.py",
 })
 
 

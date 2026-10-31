@@ -620,6 +620,10 @@ async def security_headers(request, call_next):
         if _path == "/me/export" or _path.startswith("/me/export/"):
             # «تنزيل بياناتي» (task 8.5b): a personal data copy / signed links — never cached, every status
             response.headers["Cache-Control"] = "no-store"
+        if _path.startswith("/certificates/") or (_path.endswith("/certificate")
+                                                   and _path.startswith(("/course/", "/education/"))):
+            # certificate PDFs (task 8.7): signed view links + upload / delete replies — never cached, every status
+            response.headers["Cache-Control"] = "no-store"
         if _path == "/support/track" or _path.startswith("/support/track/"):
             # guest follow-up link (task 7.2a — ARCHITECTURE §81): page + API, every status
             response.headers["Cache-Control"] = "no-store"
@@ -937,6 +941,7 @@ import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks
 import account_deletion as ad    # task 8.5a — soft account delete + restore (SYSTEMS_INDEX §25i)
 import data_export                # task 8.5b — «تنزيل بياناتي» (docs/rules/data-export.md)
 import account_purge             # task 8.5c — final purge after account_purge_days (SYSTEMS_INDEX §25i)
+import cert_access               # task 8.7 — certificate PDFs: can_view · PDF check · names (docs/rules/certificates.md)
 import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _STAFF_PUBLIC_PATHS = frozenset({"/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
@@ -1200,6 +1205,7 @@ def _startup_migrations():
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("account_deletion",                  ad.migrate_account_deletion,         True),   # 8.5a — read by the session check + every visibility query
         ("account_purge",                     account_purge.migrate_account_purge, True),   # 8.5c — read by every restore (409 once a purge started)
+        ("certificates",                      cert_access.migrate_certificates,    True),   # 8.7 — certificate_path read by every profile
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
@@ -2762,6 +2768,10 @@ class ImageUploadInput(BaseModel):
     user_id: Optional[int] = None
     bucket: Optional[str] = None
     filename: Optional[str] = None
+
+class CertificateUploadInput(BaseModel):
+    # task 8.7 — the PDF as a data URL; the bucket / file name come from the server (cert_access.object_name)
+    data_url: str
 
 class AdminLogoInput(BaseModel):
     # PR-7a: `filename` is the logo slot key (logo_wide | logo_tall), not a
@@ -6358,6 +6368,16 @@ def public_profile(user_id: str, request: Request):
             "type":         get_profile_interest_type(actor_user_type),
         }
 
+    # task 8.7 — certificate flags per viewer; the legacy certificate link back for the owner only
+    if is_owner:
+        try:
+            _own = get_full_profile(profile_id) or {}
+            if isinstance(_own.get("courses"), list):
+                profile = {**profile, "courses": _own["courses"]}
+        except Exception as e:
+            print(f"[profile] owner courses read failed user={profile_id}: {type(e).__name__}")
+    profile = _cert_flags(profile, int(token_uid) if token_uid else 0, is_owner)
+
     return {
         "status":          "success",
         "profile":         profile,
@@ -6458,7 +6478,7 @@ def full_profile(user_id: str, token=Depends(verify_token)):
     profile = get_full_profile(uid)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
-    return {"status": "success", "profile": project_owner_profile(profile)}
+    return {"status": "success", "profile": _cert_flags(project_owner_profile(profile), uid, True)}
 
 
 # ══ Blocks + Suspension — visibility guard (task 5.4 · blocks_suspension.py · SYSTEMS_INDEX §25f) ══
@@ -6944,6 +6964,7 @@ def update_user_experience(exp_id: int, data: ExperienceUpdateInput, token=Depen
 def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_token)):
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    _require_emp_profile(token)   # task 8.7 #11 — courses / education = personal accounts only
     if not data.institution.strip():
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
@@ -6958,9 +6979,11 @@ def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_
 def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)):
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    _refuse_new_cert_url(data.certificate_url, None)   # task 8.7 — no new external certificate links (before any DB)
+    _require_emp_profile(token)   # task 8.7 #11
     if not data.title.strip():
         raise HTTPException(400, detail="اسم الدورة مطلوب")
-    data.certificate_url = _validate_external_url(data.certificate_url, "certificate_url", "رابط الشهادة")
+    data.certificate_url = None
     try:
         return {"status": "success", "course": add_course(user_id, data.dict())}
     except ContentValidationError as e:
@@ -7347,7 +7370,7 @@ _UPLOAD_KINDS = {
 }
 # Private buckets: no public URL exists — the server returns / stores the object
 # path "{bucket}/{name}" only (admin viewing via signed URL: GET /admin/kyc/{id}/docs — PR-7c).
-_PRIVATE_BUCKETS = frozenset({"kyc-docs"})
+_PRIVATE_BUCKETS = frozenset({"kyc-docs", "cert-docs"})   # cert-docs — certificate PDFs (task 8.7, cert_access)
 _LOGO_SLOTS = ("logo_wide", "logo_tall")
 _UPLOAD_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _UPLOAD_MAX_BYTES = 5 * 1024 * 1024        # decoded image
@@ -7904,10 +7927,10 @@ def _kyc_doc_path_reason(value, uid: int, kind: str):
     return None, "invalid_path"
 
 
-async def _sign_kyc_doc(name: str, expires: int = None):
-    """Supabase signed URL for kyc-docs/{name} → (url, None) or (None, reason).
-    Base via _supabase_base_url() (same as _store_image). Logs never contain
-    the signed URL / token."""
+async def _sign_kyc_doc(name: str, expires: int = None, bucket: str = "kyc-docs"):
+    """Supabase signed URL for {bucket}/{name} → (url, None) or (None, reason). bucket: kyc-docs (default) or
+    cert-docs (task 8.7 — the same signing for both private buckets). Base via _supabase_base_url() (same as
+    _store_image). Logs never contain the signed URL / token."""
     import httpx
     base, auth_headers = _supabase_base_url(), _supabase_auth_headers()
     if not base or not auth_headers:
@@ -7915,7 +7938,7 @@ async def _sign_kyc_doc(name: str, expires: int = None):
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
-                f"{base}/storage/v1/object/sign/kyc-docs/{name}",
+                f"{base}/storage/v1/object/sign/{bucket}/{name}",
                 json={"expiresIn": int(expires or _KYC_SIGN_EXPIRES)},
                 headers=auth_headers,
             )
@@ -7930,7 +7953,7 @@ async def _sign_kyc_doc(name: str, expires: int = None):
     except Exception:
         signed = ""
     url = f"{base}/storage/v1{signed}" if signed.startswith("/") else ""
-    if not url.startswith(f"{base}/storage/v1/object/sign/kyc-docs/{name}?"):
+    if not url.startswith(f"{base}/storage/v1/object/sign/{bucket}/{name}?"):
         print(f"[KYC docs] sign response unexpected shape name={name}")
         return None, "sign_failed"
     return url, None
@@ -9513,24 +9536,30 @@ def admin_delete_edu(edu_id: int, request: Request):
     check_admin(request, "users.edit")
     conn = get_conn()
     try:
-        conn.run("DELETE FROM education WHERE id = :id", id=edu_id)
-        return {"success": True}
+        rows = conn.run("DELETE FROM education WHERE id = :id RETURNING user_id, certificate_path", id=edu_id)
     except Exception as e:
         raise _server_error("admin_delete_edu", e)
     finally:
         release_conn(conn)
+    if rows:   # task 8.7 — the row's certificate PDF goes with it (no orphan)
+        _cache_del('profile:' + str(rows[0][0]))
+        _cert_delete_object(rows[0][1], int(rows[0][0]), "admin_delete_edu")
+    return {"success": True}
 
 @app.delete("/admin/course/{course_id}")
 def admin_delete_course(course_id: int, request: Request):
     check_admin(request, "users.edit")
     conn = get_conn()
     try:
-        conn.run("DELETE FROM courses WHERE id = :id", id=course_id)
-        return {"success": True}
+        rows = conn.run("DELETE FROM courses WHERE id = :id RETURNING user_id, certificate_path", id=course_id)
     except Exception as e:
         raise _server_error("admin_delete_course", e)
     finally:
         release_conn(conn)
+    if rows:   # task 8.7 — the row's certificate PDF goes with it (no orphan)
+        _cache_del('profile:' + str(rows[0][0]))
+        _cert_delete_object(rows[0][1], int(rows[0][0]), "admin_delete_course")
+    return {"success": True}
 
 ADMIN_MESSAGE_SUBJECT_MAX = 120
 ADMIN_MESSAGE_MAX = 2000
@@ -9582,6 +9611,7 @@ def delete_experience(exp_id: int, token=Depends(verify_token)):
 def update_education_entry(edu_id: int, data: EducationInput, token=Depends(verify_token)):
     uid = token.get('user_id')
     if not uid: raise HTTPException(401, "Unauthorized")
+    _require_emp_profile(token)   # task 8.7 #11
     try:
         result = update_education(edu_id, uid, data.dict())
         if not result:
@@ -9600,24 +9630,36 @@ def update_education_entry(edu_id: int, data: EducationInput, token=Depends(veri
 def delete_education(edu_id: int, token=Depends(verify_token)):
     uid = token.get('user_id')
     if not uid: raise HTTPException(401, "Unauthorized")
+    _require_emp_profile(token)   # task 8.7 #11
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM education WHERE id = :id AND user_id = :uid",
-                    id=edu_id, uid=uid)
+            rows = conn.run("DELETE FROM education WHERE id = :id AND user_id = :uid RETURNING certificate_path",
+                            id=edu_id, uid=uid)
             _cache_del('profile:'+str(uid))
-            return {"success": True}
         finally:
             release_conn(conn)
     except Exception as e:
         print(f"[delete_education] error: {e}")
         raise _server_error("delete_education", e)
+    _cert_delete_object(rows[0][0] if rows else None, int(uid), "delete_education")   # its PDF goes with it
+    return {"success": True}
 
 @app.put("/course/{course_id}")
 def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_token)):
     uid = token.get('user_id')
     if not uid: raise HTTPException(401, "Unauthorized")
-    data.certificate_url = _validate_external_url(data.certificate_url, "certificate_url", "رابط الشهادة")
+    _require_emp_profile(token)   # task 8.7 #11
+    try:
+        with db_conn() as conn:
+            cur = conn.run("SELECT certificate_url FROM courses WHERE id = :id AND user_id = :uid",
+                           id=course_id, uid=uid)
+    except Exception as e:
+        raise _server_error("update_course", e)
+    if not cur:
+        raise HTTPException(404, "لم يتم العثور على الدورة")
+    # task 8.7 — the stored legacy link stays (update_course never writes it); a new / changed one → 422
+    _refuse_new_cert_url(data.certificate_url, cur[0][0])
     try:
         result = update_course(course_id, uid, data.dict())
         if not result:
@@ -9636,18 +9678,230 @@ def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_
 def delete_course(course_id: int, token=Depends(verify_token)):
     uid = token.get('user_id')
     if not uid: raise HTTPException(401, "Unauthorized")
+    _require_emp_profile(token)   # task 8.7 #11
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM courses WHERE id = :id AND user_id = :uid",
-                    id=course_id, uid=uid)
+            rows = conn.run("DELETE FROM courses WHERE id = :id AND user_id = :uid RETURNING certificate_path",
+                            id=course_id, uid=uid)
             _cache_del('profile:'+str(uid))
-            return {"success": True}
         finally:
             release_conn(conn)
     except Exception as e:
         print(f"[delete_course] error: {e}")
         raise _server_error("delete_course", e)
+    _cert_delete_object(rows[0][0] if rows else None, int(uid), "delete_course")   # its PDF goes with it
+    return {"success": True}
+
+
+# ══ Certificate PDFs — courses / education (task 8.7 · docs/rules/certificates.md · SYSTEMS_INDEX §29b) ══
+# One PDF per row in the private bucket cert-docs, name {uid}_cert_{12hex}.pdf made here (never from the request),
+# stored as "cert-docs/{name}" in certificate_path — never returned, never a public URL. Who may view:
+# cert_access.can_view (the ONLY check) before every signed link (_sign_kyc_doc, bucket cert-docs, TTL
+# cert_url_ttl_s). Uploading gives no verification. Replies of /certificates/* are no-store (security_headers).
+
+def _require_emp_profile(token: dict) -> int:
+    """Courses / education + their certificates: personal accounts (emp) only — current type from the DB (403)."""
+    return _require_org_account(token, ("emp",), "هذه العملية متاحة للحسابات الشخصية فقط")
+
+
+def _refuse_new_cert_url(value, current) -> None:
+    """task 8.7 — no new external certificate links: a non-empty certificate_url that differs from the stored one
+    → 422 url_not_allowed. Empty / the same value → accepted (the stored legacy link is never rewritten)."""
+    v = (value or "").strip() if isinstance(value, str) else value
+    if v and v != (current or ""):
+        raise HTTPException(422, detail={"status": "error", "code": "url_not_allowed",
+                                         "message": _tw_text("cert.err.url_not_allowed"),
+                                         "field": "certificate_url"})
+
+
+def _cert_delete_object(path, uid: int, where: str) -> bool:
+    """Delete one certificate object of this account via storage_delete (the ONE storage delete). A path that is
+    not exactly cert-docs/{uid}_cert_… is never deleted (F24). Failure is logged (no name) — the final purge
+    lists {uid}_… later."""
+    name = cert_access.name_of(path, uid)
+    if not name:
+        return True
+    r = storage_delete(cert_access.BUCKET, name)
+    if not r.get("ok"):
+        print(f"[cert] {where}: old file delete failed user={uid} status={r.get('status')} reason={r.get('reason')}")
+        return False
+    return True
+
+
+def _cert_link(kind: str, rec_id: int, uid: int, new_path):
+    """certificate_path of (kind, rec_id) owned by uid → new_path, row locked (two uploads at once wait for each
+    other — each one deletes the file it replaced). → (found, old_path). course: the legacy link goes too
+    (the PDF replaces it — «استبدل بملف PDF»)."""
+    table = cert_access.KINDS[kind]
+    extra = ", certificate_url = NULL" if (kind == "course" and new_path) else ""
+    conn = get_conn()
+    committed = False
+    try:
+        conn.run("BEGIN")
+        rows = conn.run(f"SELECT certificate_path FROM {table} WHERE id = :id AND user_id = :uid FOR UPDATE",
+                        id=rec_id, uid=uid)
+        if not rows:
+            conn.run("ROLLBACK")
+            committed = True
+            return False, None
+        old = rows[0][0]
+        conn.run(f"UPDATE {table} SET certificate_path = :p{extra} WHERE id = :id AND user_id = :uid",
+                 p=new_path, id=rec_id, uid=uid)
+        conn.run("COMMIT")
+        committed = True
+        return True, old
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception as _rb:
+                print(f"[cert] rollback failed: {type(_rb).__name__}")
+        raise
+    finally:
+        release_conn(conn)
+
+
+def _cert_owned(kind: str, rec_id: int, uid: int) -> bool:
+    with db_conn() as conn:
+        return bool(conn.run(f"SELECT 1 FROM {cert_access.KINDS[kind]} WHERE id = :id AND user_id = :uid",
+                             id=rec_id, uid=uid))
+
+
+async def _cert_upload(kind: str, rec_id: int, data: CertificateUploadInput, token: dict):
+    uid = await asyncio.to_thread(_require_emp_profile, token)
+    if _rate_reserve([("cert_upload", uid)]) is None:
+        return _rate_limited()
+    try:
+        owned = await asyncio.to_thread(_cert_owned, kind, rec_id, uid)
+    except Exception as e:
+        raise _server_error("cert_upload", e)
+    if not owned:
+        return api_error(404, "not_found", _tw_text("cert.err.not_found"))
+    try:
+        pdf = await asyncio.to_thread(cert_access.validate_pdf, data.data_url)
+    except cert_access.CertificateError as e:
+        return api_error(422, e.code,
+                         _tw_text("cert.err." + e.code, max=f"{tw_settings.limit('cert_max_bytes') // 1048576} MB"),
+                         "file")
+    name = cert_access.object_name(uid)
+    stored = await _store_image(cert_access.BUCKET, name, pdf, "application/pdf", data.data_url, "[cert]")
+    path = f"{cert_access.BUCKET}/{name}"
+    if stored != path:   # dev data-URL fallback — a certificate is never kept outside the private bucket
+        return api_error(503, "storage_unavailable", _tw_text("cert.err.storage_unavailable"))
+    try:
+        found, old = await asyncio.to_thread(_cert_link, kind, rec_id, uid, path)
+    except Exception as e:
+        await asyncio.to_thread(_cert_delete_object, path, uid, "cert_upload_rollback")   # no orphan
+        raise _server_error("cert_upload", e)
+    if not found:   # the row was deleted meanwhile
+        await asyncio.to_thread(_cert_delete_object, path, uid, "cert_upload_gone")
+        return api_error(404, "not_found", _tw_text("cert.err.not_found"))
+    if old and old != path:
+        await asyncio.to_thread(_cert_delete_object, old, uid, "cert_upload_replace")
+    _cache_del('profile:' + str(uid))
+    print(f"[cert] uploaded user={uid} kind={kind} id={rec_id} bytes={len(pdf)}")
+    return api_ok({"has_certificate": True, "can_view_certificate": True})
+
+
+def _cert_remove(kind: str, rec_id: int, token: dict):
+    uid = _require_emp_profile(token)
+    try:
+        found, old = _cert_link(kind, rec_id, uid, None)
+    except Exception as e:
+        raise _server_error("cert_delete", e)
+    if not found:
+        return api_error(404, "not_found", _tw_text("cert.err.not_found"))
+    _cert_delete_object(old, uid, "cert_delete")
+    _cache_del('profile:' + str(uid))
+    return api_ok({"has_certificate": False, "can_view_certificate": False})
+
+
+@app.post("/course/{course_id}/certificate")
+async def upload_course_certificate(course_id: int, data: CertificateUploadInput, token=Depends(verify_token)):
+    return await _cert_upload("course", course_id, data, token)
+
+
+@app.post("/education/{edu_id}/certificate")
+async def upload_education_certificate(edu_id: int, data: CertificateUploadInput, token=Depends(verify_token)):
+    return await _cert_upload("education", edu_id, data, token)
+
+
+@app.delete("/course/{course_id}/certificate")
+def delete_course_certificate(course_id: int, token=Depends(verify_token)):
+    return _cert_remove("course", course_id, token)
+
+
+@app.delete("/education/{edu_id}/certificate")
+def delete_education_certificate(edu_id: int, token=Depends(verify_token)):
+    return _cert_remove("education", edu_id, token)
+
+
+def _cert_view_target(kind: str, rec_id: int, viewer: int):
+    """→ object name to sign, or None (no row · no access · no file · a path not named for the owner)."""
+    with db_conn() as conn:
+        rows = conn.run(f"SELECT user_id, certificate_path FROM {cert_access.KINDS[kind]} WHERE id = :id", id=rec_id)
+        if not rows:
+            return None
+        owner, path = int(rows[0][0]), rows[0][1]
+        if not cert_access.can_view(viewer, owner, conn):
+            return None
+    return cert_access.name_of(path, owner)
+
+
+@app.get("/certificates/{kind}/{rec_id}/view")
+async def view_certificate(kind: str, rec_id: int, token=Depends(verify_token)):
+    """A short-lived signed link to one certificate PDF → {url, expires_in}. Rate first, then
+    cert_access.can_view; no access and no file answer the same 404. The link is never logged."""
+    try:
+        viewer = int(token.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(401, "رمز غير صالح")
+    if _rate_reserve([("cert_view", viewer)]) is None:
+        return _rate_limited()
+    not_found = api_error(404, "not_found", _tw_text("cert.err.not_found"))
+    if kind not in cert_access.KINDS:
+        return not_found
+    try:
+        name = await asyncio.to_thread(_cert_view_target, kind, rec_id, viewer)
+    except Exception as e:
+        raise _server_error("view_certificate", e)
+    if not name:
+        return not_found
+    ttl = int(tw_settings.limit("cert_url_ttl_s"))
+    url, reason = await _sign_kyc_doc(name, ttl, bucket=cert_access.BUCKET)
+    if not url:
+        return api_error(503, "storage_unavailable", _tw_text("cert.err.storage_unavailable"))
+    print(f"[cert] view viewer={viewer} kind={kind} id={rec_id}")
+    return api_ok({"url": url, "expires_in": ttl})
+
+
+def _cert_flags(profile: dict, viewer_id: int, owner_view: bool) -> dict:
+    """Profile reply → courses / education entries with has_certificate + can_view_certificate for THIS viewer
+    (cert_access.can_view, computed once per profile — access is per owner). Copies (the profile cache is never
+    mutated). The path never leaves the server; certificate_url stays for the owner only."""
+    entries = [(k, profile.get(k)) for k in ("courses", "education") if isinstance(profile.get(k), list)]
+    if not entries:
+        return profile
+    if not any(e.get("has_certificate") for _, lst in entries for e in lst if isinstance(e, dict)):
+        allowed = False
+    else:
+        try:
+            allowed = cert_access.can_view(viewer_id, profile.get("id"))
+        except Exception as e:
+            print(f"[cert] can_view failed viewer={viewer_id} owner={profile.get('id')}: {type(e).__name__}")
+            allowed = False   # fail closed — no view button
+    out = dict(profile)
+    for key, lst in entries:
+        items = []
+        for e in lst:
+            if isinstance(e, dict):
+                e = {k: v for k, v in e.items() if k != "certificate_path" and (owner_view or k != "certificate_url")}
+                e["has_certificate"] = bool(e.get("has_certificate"))
+                e["can_view_certificate"] = bool(e["has_certificate"] and allowed)
+            items.append(e)
+        out[key] = items
+    return out
 
 
 # ══ News Posts (admin-managed editorial content) ══

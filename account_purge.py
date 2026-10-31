@@ -29,11 +29,12 @@ from datetime import datetime, timedelta, timezone
 JOB_TYPE = "account_purge"
 RUN_HOUR_UTC = 3                     # the daily job runs at 03:00 UTC (quiet hours)
 STAGES = ("files", "db", "done")
-# Every upload bucket (server._UPLOAD_KINDS values) — an account's objects are named `{uid}_{kind}_{12 hex}.{ext}`
-BUCKETS = ("avatars", "kyc-docs")
-_OBJECT_RE = re.compile(r"^(\d+)_[a-z-]+_[0-9a-f]{12}\.(?:jpg|png|webp)$")
+# Every upload bucket (server._UPLOAD_KINDS values + cert-docs, task 8.7) — an account's objects are named
+# `{uid}_{kind}_{12 hex}.{ext}` (certificates: `{uid}_cert_{12 hex}.pdf` — cert_access.object_name)
+BUCKETS = ("avatars", "kyc-docs", "cert-docs")
+_OBJECT_RE = re.compile(r"^(\d+)_[a-z-]+_[0-9a-f]{12}\.(?:jpg|png|webp|pdf)$")
 _PUBLIC_RE = re.compile(r"/storage/v1/object/public/([a-z0-9-]+)/([^/?#]+)$")
-_PRIVATE_RE = re.compile(r"^(kyc-docs)/([^/?#]+)$")
+_PRIVATE_RE = re.compile(r"^(kyc-docs|cert-docs)/([^/?#]+)$")
 _NEEDLE_MIN = 4                      # an identifier / name shorter than this is never searched for (too common)
 
 _storage = {"delete": None, "list": None}
@@ -220,11 +221,14 @@ def _object_of(value, uid: int):
 
 
 def account_files(uid: int, conn) -> set:
-    """Objects referenced by the account's own rows (profiles · company_profiles · kyc_submissions)."""
+    """Objects referenced by the account's own rows (profiles · company_profiles · kyc_submissions · the certificate
+    PDFs of courses / education — task 8.7)."""
     vals = []
     for sql in ("SELECT avatar_url, cover_url FROM profiles WHERE user_id = :u",
                 "SELECT cover_url, NULL FROM company_profiles WHERE user_id = :u",
-                "SELECT id_front_url, selfie_url FROM kyc_submissions WHERE user_id = :u"):
+                "SELECT id_front_url, selfie_url FROM kyc_submissions WHERE user_id = :u",
+                "SELECT certificate_path, NULL FROM courses WHERE user_id = :u",
+                "SELECT certificate_path, NULL FROM education WHERE user_id = :u"):
         for r in conn.run(sql, u=int(uid)):
             vals.extend(r)
     return {o for o in (_object_of(v, uid) for v in vals) if o}

@@ -1553,11 +1553,13 @@ def _get_extras(conn, user_id: int) -> dict:
             "FROM experience WHERE user_id = :uid ORDER BY sort_order ASC, id ASC", user_id),
         "education": _safe_query(conn,
             "SELECT id, institution, degree, field, start_year, end_year, "
-            "is_current, description, created_at "
+            "is_current, description, created_at, certificate_path IS NOT NULL AS has_certificate "
             "FROM education WHERE user_id = :uid ORDER BY id DESC", user_id),
+        # task 8.7 — has_certificate only, never certificate_path; certificate_url (legacy) → owner only
+        # (project_public_profile drops it — docs/rules/certificates.md)
         "courses": _safe_query(conn,
             "SELECT id, title, provider, completion_date, certificate_url, "
-            "description, created_at "
+            "description, created_at, certificate_path IS NOT NULL AS has_certificate "
             "FROM courses WHERE user_id = :uid ORDER BY id DESC", user_id),
         "skills": _safe_query(conn,
             "SELECT id, skill, level, note FROM user_skills "
@@ -1773,6 +1775,9 @@ def project_public_profile(raw: dict) -> dict:
     dob is consumed inside the projection boundary and never copied to the response.
     """
     projected = {k: v for k, v in raw.items() if k in _PUBLIC_PROFILE_FIELDS}
+    if isinstance(projected.get("courses"), list):   # task 8.7 — the legacy certificate link is the owner's only
+        projected["courses"] = [{k: v for k, v in c.items() if k != "certificate_url"} if isinstance(c, dict) else c
+                                for c in projected["courses"]]
     age = calculate_age_from_dob(raw.get("dob"))
     if age is not None:
         projected["age"] = age
@@ -2082,7 +2087,8 @@ def add_education(user_id: int, data: dict) -> dict:
         rows = conn.run(
             "INSERT INTO education (user_id, institution, degree, field, start_year, end_year, is_current, description) "
             "VALUES (:uid, :institution, :degree, :field, :start_year, :end_year, :is_current, :description) "
-            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at",
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at, "
+            "certificate_path IS NOT NULL AS has_certificate",
             uid=user_id, institution=data["institution"],
             degree=data.get("degree"), field=data.get("field"),
             start_year=data.get("start_year"), end_year=data.get("end_year"),
@@ -2105,7 +2111,8 @@ def add_course(user_id: int, data: dict) -> dict:
         rows = conn.run(
             "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
             "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
-            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at, "
+            "certificate_path IS NOT NULL AS has_certificate",
             uid=user_id, title=title_val, provider=data.get("provider"),
             completion_date=data.get("completion_date"),
             certificate_url=data.get("certificate_url"),
@@ -2126,7 +2133,8 @@ def update_education(edu_id: int, user_id: int, data: dict):
             "UPDATE education SET institution=:inst, degree=:deg, field=:fld, "
             "start_year=:sy, end_year=:ey, is_current=:isc, description=:desc "
             "WHERE id=:id AND user_id=:uid "
-            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at",
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at, "
+            "certificate_path IS NOT NULL AS has_certificate",
             inst=data.get("institution"), deg=data.get("degree"), fld=data.get("field"),
             sy=data.get("start_year"), ey=data.get("end_year"),
             isc=bool(data.get("is_current", False)),
@@ -2145,13 +2153,16 @@ def update_course(course_id: int, user_id: int, data: dict):
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
+        # task 8.7 — certificate_url is never written here: the stored (legacy) link stays as it is; a new or
+        # changed one is refused before this call (server.py — 422 url_not_allowed)
         rows = conn.run(
             "UPDATE courses SET title=:title, provider=:provider, completion_date=:cd, "
-            "certificate_url=:curl, description=:desc "
+            "description=:desc "
             "WHERE id=:id AND user_id=:uid "
-            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at, "
+            "certificate_path IS NOT NULL AS has_certificate",
             title=title_val, provider=data.get("provider"), cd=data.get("completion_date"),
-            curl=data.get("certificate_url"), desc=data.get("description"),
+            desc=data.get("description"),
             id=course_id, uid=user_id
         )
         cols = [c["name"] for c in conn.columns]

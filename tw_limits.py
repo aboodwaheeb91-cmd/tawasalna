@@ -60,6 +60,9 @@ LIMITS = {
     "admin_staff_name_max": 80,   # POST /admin/staff/invite name (chars — owner only, task 8.4c-2a2)
     "staff_password_min": 12,     # admin staff password (chars — invite / password reset, task 8.4c-2a2; max = password_max_bytes)
     "data_export_kyc_url_ttl_s": 300,  # POST /me/export/kyc-docs — signed link lifetime in seconds (task 8.5b — fixed, not admin-editable)
+    "cert_max_bytes": 5242880,    # course / education certificate PDF — decoded bytes (task 8.7 — docs/rules/certificates.md)
+    "cert_url_ttl_s": 300,        # … GET /certificates/{kind}/{id}/view — signed link lifetime in seconds
+    "cert_access_after_close_days": 14,  # … a company keeps viewing this many days after a rejection / the job closing
 }
 
 RATES = {
@@ -109,6 +112,8 @@ RATES = {
     "data_export_kyc": (3, 3600),     # POST /me/export/kyc-docs — per account, same rule, own bucket
     "account_delete": (5, 3600),      # DELETE /auth/user/{id}/delete — per account, reserved before bcrypt, kept (task 8.5d)
     "account_restore": (5, 3600),     # POST /auth/restore — per email, next to the login locks, before bcrypt (task 8.5d)
+    "cert_upload": (10, 3600),        # POST /course|education/{id}/certificate — per account (task 8.7)
+    "cert_view": (60, 3600),          # GET /certificates/{kind}/{id}/view — per account, reserved before the access check
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
@@ -135,7 +140,8 @@ _CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reaso
                   "support_subject_max", "support_body_max",
                   "staff_password_min", "password_max_bytes",   # task 8.4c-2b-1 — staff link page hint only
                   "data_export_kyc_url_ttl_s",                  # task 8.5b — /settings KYC links warning (minutes)
-                  "account_purge_days")                         # task 8.5d — /settings delete warning (grace days)
+                  "account_purge_days",                         # task 8.5d — /settings delete warning (grace days)
+                  "cert_max_bytes")                             # task 8.7 — certificate PDF size hint + client pre-check
 
 
 def page_block(limit=None) -> str:

@@ -1,5 +1,5 @@
 // profile-v2.courses.js — Courses Add / Edit / Delete
-// Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js
+// Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js, profile-v2.certs.js (task 8.7 — PDF)
 
 (function(){
   var overlay   = document.getElementById('courseOverlay');
@@ -13,6 +13,8 @@
   function sv(id,v){ var el=f(id); if(el) el.value=(v==null?'':v); }
 
   var _editId = null;
+  // task 8.7 — the certificate PDF field (no external links any more: certificate_url is never sent)
+  var cert = window.TwProfileCert ? window.TwProfileCert.field('course', 'course') : null;
 
   // Populate year select once — runs at module init
   (function _populateCourseYears(){
@@ -33,12 +35,13 @@
     _editId = null;
     _setCourseTitle('إضافة دورة');
     sv('courseTitle',''); sv('courseProv',''); sv('courseCD','');
-    sv('courseCurl',''); sv('courseDesc','');
+    sv('courseDesc','');
+    if(cert) cert.reset(null);
     overlay.classList.add('open');
     var inp=f('courseTitle'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
 
-  function openEdit(entry){
+  function openEdit(entry, opts){
     _editId = entry.id;
     _setCourseTitle('تعديل الدورة');
     sv('courseTitle', entry.title           || '');
@@ -46,10 +49,12 @@
     // completion_date may be stored as "YYYY-MM-DD" or "YYYY" — extract year only
     var cdYear = (entry.completion_date || '').split('-')[0] || '';
     sv('courseCD', cdYear);
-    sv('courseCurl',  entry.certificate_url || '');
     sv('courseDesc',  entry.description     || '');
+    if(cert) cert.reset(entry);
     overlay.classList.add('open');
-    var inp=f('courseTitle'); if(inp) setTimeout(function(){ inp.focus(); },120);
+    var inp=f('courseTitle');
+    if(opts && opts.focusCert && cert) setTimeout(function(){ cert.focus(); },120);   // «استبدل بملف PDF»
+    else if(inp) setTimeout(function(){ inp.focus(); },120);
   }
 
   function closeModal(){ overlay.classList.remove('open'); _editId=null; }
@@ -66,13 +71,10 @@
       var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_checkFields[_i]);
       if(_pcErr){ showToast(_pcErr, 'error'); return; }
     }
-    var _curl = fv('courseCurl');
-    if(_curl && !twSafeLinkUrl(_curl)){ showToast('رابط الشهادة غير صالح — يجب أن يبدأ بـ https:// أو http://', 'error'); return; }   // §54 rule 4b
     var payload = {
       title:            title,
       provider:         fv('courseProv')  || null,
       completion_date:  fv('courseCD')    || null,
-      certificate_url:  fv('courseCurl')  || null,
       description:      fv('courseDesc')  || null
     };
     saveBtn.disabled    = true;
@@ -99,11 +101,15 @@
           cache.courses = [entry].concat(cache.courses||[]);
         }
       }
-      closeModal();
       showToast(isEdit ? 'تم التحديث' : 'تمت الإضافة', 'success');
       if(window._updateCompletion) window._updateCompletion();
       _reRenderCourses();
       if(window._bgRefetch) window._bgRefetch();
+      // a PDF chosen before the new row existed goes up now; failure → the modal stays (edit mode) with the error
+      var flushed = (!isEdit && cert) ? cert.flush(entry.id) : Promise.resolve(true);
+      return flushed.then(function(ok){
+        if(ok) closeModal(); else { _editId = entry.id; _setCourseTitle('تعديل الدورة'); }
+      });
     }).catch(function(){
       showToast('خطأ في الاتصال بالخادم', 'error');
     }).finally(function(){
@@ -125,7 +131,6 @@
       var title  = twEscHtml(c.title    || '');
       var prov   = c.provider         ? twEscHtml(c.provider)         : '';
       var cd     = c.completion_date  ? twEscHtml(c.completion_date)  : '';
-      var curl   = twSafeLinkUrl(c.certificate_url || '');   // §54 rule 4b — unsafe stored URL → no link
       var desc   = c.description      ? twEscHtml(c.description)      : '';
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
@@ -151,8 +156,9 @@
         + (prov ? '<div class="sc-exp-company">' + prov + '</div>' : '')
         + (cd   ? '<div class="sc-exp-period">' + cd + '</div>' : '')
         + (desc ? '<div class="sc-exp-desc">'   + desc + '</div>' : '')
-        + (curl ? '<a href="' + twEscAttr(curl) + '" target="_blank" rel="noopener noreferrer" class="sc-cert-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> عرض الشهادة</a>'
-               : (c.certificate_url ? '<span class="sc-cert-link">' + twEscHtml(c.certificate_url) + '</span>' : ''))
+        // task 8.7 — «عرض الشهادة» only when the server says can_view_certificate; the legacy link → owner only
+        + (window.TwProfileCert ? window.TwProfileCert.viewButtonHtml('course', c)
+                                  + window.TwProfileCert.legacyHtml(c, isOwner) : '')
         + '</div>'
         + actions
         + '</div>'
@@ -173,7 +179,7 @@
   window._reRenderCourses = _reRenderCourses;
 
   window._courseOpenAdd  = function(){ openAdd(); };
-  window._courseOpenEdit = function(courseId){
+  window._courseOpenEdit = function(courseId, opts){
     var id   = parseInt(courseId, 10);
     var list = (window._scProfile && Array.isArray(window._scProfile.courses))
       ? window._scProfile.courses : [];
@@ -182,7 +188,7 @@
       if(list[i].id === id){ entry = list[i]; break; }
     }
     if(!entry){ showToast('لم يتم العثور على الدورة', 'error'); return; }
-    openEdit(entry);
+    openEdit(entry, opts);
   };
   window._courseConfirmDelete = function(id){
     id = parseInt(id);

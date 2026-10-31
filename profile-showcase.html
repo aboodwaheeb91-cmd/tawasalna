@@ -553,6 +553,17 @@
         <label for="eduDesc">وصف إضافي</label>
         <textarea id="eduDesc" placeholder="أي معلومات إضافية..."></textarea>
       </div>
+      <div class="sc-form-group sc-cert-field" id="eduCertWrap">
+        <label for="eduCertFile" data-tw-t="cert.field.label">ملف الشهادة (PDF)</label>
+        <input type="file" id="eduCertFile" class="sc-cert-input" accept="application/pdf,.pdf">
+        <div class="sc-cert-row">
+          <span class="sc-cert-status" id="eduCertStatus" aria-live="polite"></span>
+          <button type="button" class="sc-cert-btn" id="eduCertPick"><i data-tw-icon="upload" data-tw-size="sm"></i> <span data-cert-pick-label data-tw-t="cert.upload">رفع ملف PDF</span></button>
+          <button type="button" class="sc-cert-btn sc-cert-btn-del" id="eduCertDel" hidden><i data-tw-icon="delete" data-tw-size="sm"></i> <span data-tw-t="cert.remove">حذف الملف</span></button>
+        </div>
+        <div class="sc-cert-hint" id="eduCertHint"></div>
+        <div class="sc-cert-err" id="eduCertErr" role="alert"></div>
+      </div>
       <div class="sc-modal-actions">
         <button class="sc-modal-save" id="eduSaveBtn">حفظ</button>
         <button class="sc-modal-cancel" id="eduCancelBtn">إلغاء</button>
@@ -581,9 +592,16 @@
           <option value="">— اختر السنة —</option>
         </select>
       </div>
-      <div class="sc-form-group">
-        <label for="courseCurl">رابط الشهادة</label>
-        <input type="url" id="courseCurl" placeholder="https://..." dir="ltr">
+      <div class="sc-form-group sc-cert-field" id="courseCertWrap">
+        <label for="courseCertFile" data-tw-t="cert.field.label">ملف الشهادة (PDF)</label>
+        <input type="file" id="courseCertFile" class="sc-cert-input" accept="application/pdf,.pdf">
+        <div class="sc-cert-row">
+          <span class="sc-cert-status" id="courseCertStatus" aria-live="polite"></span>
+          <button type="button" class="sc-cert-btn" id="courseCertPick"><i data-tw-icon="upload" data-tw-size="sm"></i> <span data-cert-pick-label data-tw-t="cert.upload">رفع ملف PDF</span></button>
+          <button type="button" class="sc-cert-btn sc-cert-btn-del" id="courseCertDel" hidden><i data-tw-icon="delete" data-tw-size="sm"></i> <span data-tw-t="cert.remove">حذف الملف</span></button>
+        </div>
+        <div class="sc-cert-hint" id="courseCertHint"></div>
+        <div class="sc-cert-err" id="courseCertErr" role="alert"></div>
       </div>
       <div class="sc-form-group">
         <label for="courseDesc">وصف</label>
@@ -779,8 +797,9 @@
   <script src="/static/profile-v2.avatar.js?v=compl-v1"></script>
   <script src="/static/shared/tw-select.js?v={{v:tw-select.js}}"></script>
   <script src="/static/shared/tw-skills.js?v=taxonomy-v1"></script>
-  <script src="/static/profile-v2.edu.js?v=modal-a11y-v1"></script>
-  <script src="/static/profile-v2.courses.js?v=safe-link-v1"></script>
+  <script src="/static/profile-v2.certs.js?v=cert-87-v1"></script>
+  <script src="/static/profile-v2.edu.js?v=cert-87-v1"></script>
+  <script src="/static/profile-v2.courses.js?v=cert-87-v1"></script>
   <script src="/static/profile-v2.skills.js?v=taxonomy-v1"></script>
   <script src="/static/profile-v2.langs.js?v=compl-v1"></script>
   <script src="/static/profile-v2.links.js?v=safe-link-v1"></script>

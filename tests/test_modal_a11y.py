@@ -135,17 +135,17 @@ MODIFIED_CLOSE = ['exClose', 'eduClose', 'courseClose',
 LABEL_FORS_EXPECTED = [
     # Experience modal (7)
     'exTitle', 'exCompany', 'exStart', 'exEnd', 'exCountry', 'exCity', 'exDesc',
-    # Education modal (6)
-    'eduInst', 'eduDeg', 'eduField', 'eduSY', 'eduEY', 'eduDesc',
+    # Education modal (7)
+    'eduInst', 'eduDeg', 'eduField', 'eduSY', 'eduEY', 'eduDesc', 'eduCertFile',
     # Courses modal (5)
-    'courseTitle', 'courseProv', 'courseCD', 'courseCurl', 'courseDesc',
+    'courseTitle', 'courseProv', 'courseCD', 'courseCertFile', 'courseDesc',   # task 8.7 — PDF field, no URL
     # Skills modal (3)
     'skillName', 'skillLevel', 'skillNote',
     # Languages modal (2)
     'langName', 'langLevel',
     # Links modal (2)
     'linkType', 'linkUrl',
-]  # 25 total
+]  # 26 total
 
 CUSTOM_SELECTS = [
     # Experience

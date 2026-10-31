@@ -80,8 +80,6 @@ def _h(uid=7, utype="emp"):
 
 @pytest.mark.parametrize("method,path,body,field", [
     ("post", "/links/7", {"link_type": "website", "url": "javascript:alert(1)"}, "url"),
-    ("post", "/course/7", {"title": "دورة", "certificate_url": "javascript:alert(1)"}, "certificate_url"),
-    ("put", "/course/1", {"title": "دورة", "certificate_url": "data:text/html,x"}, "certificate_url"),
     ("put", "/profile/7", {"website": "vbscript:x"}, "website"),
 ])
 def test_endpoints_reject_422_before_db(monkeypatch, method, path, body, field):
@@ -91,6 +89,17 @@ def test_endpoints_reject_422_before_db(monkeypatch, method, path, body, field):
     j = r.json()
     assert j["detail"]["field"] == field and "https://" in j["detail"]["message"]
     assert j["errors"][0] == {"field": field, "code": "invalid_url", "message": j["detail"]["message"]}
+
+
+def test_course_new_certificate_url_refused_before_db(monkeypatch):
+    # task 8.7 — no new external certificate links at all (any scheme): 422 url_not_allowed before any DB access
+    # (PUT with a changed value: tests/test_certificates_87.py — it compares with the stored legacy value)
+    monkeypatch.setattr(server, "get_conn", lambda: pytest.fail("DB touched"))
+    monkeypatch.setattr(server, "get_current_user_type", lambda uid: pytest.fail("DB touched"))
+    for url in ("javascript:alert(1)", "https://ok.example/c"):
+        r = client.post("/course/7", json={"title": "دورة", "certificate_url": url}, headers=_h())
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "url_not_allowed"
+        assert r.json()["detail"]["field"] == "certificate_url"
 
 
 def test_profile_website_valid_saved(monkeypatch):
@@ -106,7 +115,9 @@ def test_render_sites_use_helper():
     courses = open(os.path.join(ROOT, "profile-v2.courses.js"), encoding="utf-8").read()
     utils = open(os.path.join(ROOT, "profile-v2.utils.js"), encoding="utf-8").read()
     assert "href=\"' + urlText" not in links and "twSafeLinkUrl(l.url" in links
-    assert "href=\"' + curl" not in courses and "twSafeLinkUrl(c.certificate_url" in courses
+    # task 8.7 — the legacy certificate link is rendered by TwProfileCert.legacyHtml (owner only, twSafeLinkUrl —
+    # behaviour: node tests/test_certificates_87_runtime.js C1–C3); the courses module calls it and builds no href
+    assert "href=\"' + curl" not in courses and "TwProfileCert.legacyHtml(" in courses
     # PR 4.2a: the local esc() alias is gone — escaping is twEscHtml (tw_shared.js) only
     assert not re.search(r"function\s+esc\s*\(", utils)
     from page_shell import apply_shell   # Page Shell page — check the served HTML (read_html)
