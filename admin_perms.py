@@ -61,6 +61,9 @@ UNGUARDED_ROUTES = {
     "admin_me":            "session-only (check_admin_session) — who is signed in + the effective perms",
     "admin_step_up":       "session-only (check_admin_session) — the owner's step-up code check (staff → 403)",
     "admin_forgot":        "public — staff password reset request (always the same reply; own IP + email limits)",
+    "staff_invite_page":         "HTML shell only — staff link page (token in #t=, sent in the POST body)",
+    "staff_mfa_reset_page":      "HTML shell only — staff link page (token in #t=, sent in the POST body)",
+    "staff_password_reset_page": "HTML shell only — staff link page (token in #t=, sent in the POST body)",
 }
 
 

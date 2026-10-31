@@ -106,7 +106,7 @@ function shell(opts) {
   ctx.window = ctx;
   vm.createContext(ctx);
   ['static/shared/admin-session.js', 'static/shared/admin-sections.js', 'static/shared/admin-shell.js',
-   'static/shared/admin-jobs.js']
+   'static/shared/admin-jobs.js', 'static/shared/admin-otp-ui.js']   // admin-otp-ui.js — task 8.4c-2b-1 (admin.html loads it)
     .concat(opts.page ? [opts.page === true ? 'static/admin/admin.js' : opts.page] : []).concat(opts.chart ? ['static/shared/tw-chart.js'] : [])
     .forEach(f => vm.runInContext(read(f), ctx, { filename: f }));
   return { ctx, rec, store };

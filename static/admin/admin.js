@@ -957,18 +957,21 @@
   // Login (task 8.4b — docs/rules/admin-staff.md → Admin Login): step 1 password (+ email for staff) →
   // step 2 authenticator / recovery code, or (owner, first time) bind the app → recovery codes shown once.
   // The ticket, the key and the codes stay in this closure only — never storage, never the URL.
+  // QR + key and the recovery codes box = TwOtpUi (static/shared/admin-otp-ui.js — shared with staff-link.html).
+  // forgotForm (task 8.4c-2b-1): staff forgot password → POST <panel>/forgot → always the same message.
   var LOGIN = { ticket: '', recovery: false, token: '' };
-  var LOGIN_BOXES = ['loginForm', 'codeForm', 'enrollForm', 'codesBox'];
+  var LOGIN_BOXES = ['loginForm', 'codeForm', 'enrollForm', 'codesBox', 'forgotForm'];
 
   function loginBox(id) {
     LOGIN_BOXES.forEach(function (b) { $(b).hidden = b !== id; });
-    var first = { loginForm: 'admin-pass', codeForm: 'admin-code', enrollForm: 'enroll-code', codesBox: 'codesSaved' }[id];
+    var first = { loginForm: 'admin-pass', codeForm: 'admin-code', enrollForm: 'enroll-code', forgotForm: 'forgot-email' }[id];
     if (first && $(first)) $(first).focus();
   }
   function loginReset() {
     LOGIN.ticket = ''; LOGIN.recovery = false; LOGIN.token = '';
-    ['admin-code', 'enroll-code'].forEach(function (i) { $(i).value = ''; });
-    $('enrollKey').textContent = ''; $('enrollOpen').removeAttribute('href'); $('codesList').textContent = '';
+    ['admin-code', 'enroll-code', 'forgot-email'].forEach(function (i) { $(i).value = ''; });
+    $('forgotMsg').textContent = '';
+    TwOtpUi.clear($('enrollBind')); TwOtpUi.clear($('codesBox'));
     loginBox('loginForm');
   }
   function loginErrText(r) {
@@ -998,9 +1001,6 @@
     $('codeErr').textContent = '';
     input.focus();
   }
-  function groupKey(secret) {
-    return String(secret || '').replace(/[^A-Z2-7]/g, '').replace(/(.{4})/g, '$1 ').trim();
-  }
 
   function showLogin(expired) {
     $('main-content').hidden = true;
@@ -1023,9 +1023,7 @@
       if (!d.ticket) { err.textContent = loginErrText(r); return; }
       $('admin-pass').value = '';
       LOGIN.ticket = d.ticket;
-      if (d.step === 'enroll' && d.secret && /^otpauth:\/\/totp\//.test(String(d.otpauth_uri || ''))) {
-        $('enrollKey').textContent = groupKey(d.secret);
-        $('enrollOpen').setAttribute('href', d.otpauth_uri);
+      if (d.step === 'enroll' && TwOtpUi.binding($('enrollBind'), { secret: d.secret, uri: d.otpauth_uri })) {
         $('enrollErr').textContent = '';
         loginBox('enrollForm');
         return;
@@ -1056,12 +1054,9 @@
       var codes = Array.isArray(d.recovery_codes) ? d.recovery_codes : [];
       if (!codes.length) { loginDone(d.token); return; }
       LOGIN.token = d.token;   // entered only after "حفظتها"
-      var list = $('codesList');
-      list.textContent = '';
-      codes.forEach(function (c) { var li = document.createElement('li'); li.textContent = String(c); list.appendChild(li); });
-      $('codesSaved').checked = false;
-      $('codesDone').disabled = true;
+      TwOtpUi.clear($('enrollBind'));
       loginBox('codesBox');
+      TwOtpUi.codes($('codesBox'), codes, function () { if (LOGIN.token) loginDone(LOGIN.token); });
     });
   }
   // POST /admin/owner/recovery-codes → the 10 new codes in a DS-OVL dialog (copy button + "old ones void")
@@ -1074,19 +1069,23 @@
       wrap.appendChild(list);
       twModal({ title: twT('admin.login.codes_title'), content: wrap, dismissible: false,
                 actions: [{ text: twT('admin.login.codes_copy'), variant: 'secondary',
-                            onClick: function () { writeClipboard(codes.join('\n')); return false; } },
+                            onClick: function () { TwOtpUi.copy(codes.join('\n')); return false; } },
                           { text: twT('admin.login.codes_saved'), variant: 'primary' }] });
       return res;
     });
   }
-  function writeClipboard(text) {
-    var done = function () { showToast(twT('admin.login.codes_copied'), 'success'); };
-    try {
-      navigator.clipboard.writeText(text).then(done, function () { showToast(twT('admin.login.codes_copy_fail'), 'error'); });
-    } catch (err) { showToast(twT('admin.login.codes_copy_fail'), 'error'); }
-  }
-  function copyCodes() {
-    writeClipboard(Array.prototype.map.call($('codesList').children, function (li) { return li.textContent; }).join('\n'));
+  // Staff forgot password (task 8.4c-2b-1): the same message whatever the reply (200 / 429 / network) — never tells
+  // whether the email belongs to a staff member.
+  function forgot(e) {
+    e.preventDefault();
+    var email = $('forgot-email').value.trim(), b = $('forgotBtn');
+    if (!email || b.disabled) return;
+    b.disabled = true;
+    $('forgotMsg').textContent = '';
+    twApi(TwAdminShell.base() + '/forgot', { method: 'POST', auth: false, body: { email: email } }).then(function () {
+      b.disabled = false;
+      $('forgotMsg').textContent = twT('admin.forgot.sent');
+    });
   }
   function bindLogin() {
     $('loginForm').addEventListener('submit', login);
@@ -1096,9 +1095,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-adm-login-back]'), function (b) {
       b.addEventListener('click', loginReset);
     });
-    $('codesCopy').addEventListener('click', copyCodes);
-    $('codesSaved').addEventListener('change', function () { $('codesDone').disabled = !this.checked; });
-    $('codesDone').addEventListener('click', function () { if (LOGIN.token && $('codesSaved').checked) loginDone(LOGIN.token); });
+    $('forgotOpen').addEventListener('click', function () { $('forgotMsg').textContent = ''; loginBox('forgotForm'); });
+    $('forgotForm').addEventListener('submit', forgot);
   }
 
   function boot() {

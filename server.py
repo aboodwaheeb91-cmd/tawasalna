@@ -605,7 +605,10 @@ async def security_headers(request, call_next):
         # task 8.4c-0b — HTTPS only for a year (sub-domains too). No preload; CSP is a separate task.
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # A route that set its own (stricter) policy keeps it — the staff link pages + /staff/* replies set
+        # no-referrer (task 8.4c-2b-1 · docs/rules/admin-staff.md rules 14–15); everything else gets the default.
+        if "referrer-policy" not in response.headers:
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         if response.headers.get("content-type", "").startswith("text/html") \
                 and not _is_indexable_page(_req_path(request)):
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
@@ -1490,6 +1493,7 @@ PUBLIC_RATE_EXEMPT = {
         "/notifications", "/notifications.html", "/messages", "/messages.html",
         "/job-detail", "/job-detail.html", "/admin-job", "/admin-job.html", "/admin-view", "/admin-view.html",
         "/settings", "/settings.html", "/reset-password", "/privacy", "/terms", "/confirm-email",
+        "/staff/invite", "/staff/mfa-reset", "/staff/password-reset",
         "/appointments", "/appointment-room",
         "/tw-ctrl-" + ADMIN_URL_TOKEN, "/tw-ctrl-" + ADMIN_URL_TOKEN + "/email",
         "/tw-ctrl-" + ADMIN_URL_TOKEN + "/settings", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/content",
@@ -2559,6 +2563,28 @@ def admin_job_page(): return read_html("admin-job.html")   # one job for the adm
 @app.get("/admin-view", response_class=HTMLResponse)
 @app.get("/admin-view.html", response_class=HTMLResponse)
 def admin_view(): return read_html("admin-view.html")
+
+
+# Staff link pages (task 8.4c-2b-1 · docs/rules/admin-staff.md rule 15) — one HTML shell for the three one-time links
+# of the emails (invite · authenticator reset · password reset). The token is in the URL fragment (#t=…) and never
+# reaches the server here; the page sends it in the body of /staff/*/start|complete. No token / panel path in the HTML.
+def _staff_link_page() -> HTMLResponse:
+    resp = HTMLResponse(read_html("staff-link.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
+
+
+@app.get("/staff/invite", response_class=HTMLResponse)
+def staff_invite_page(): return _staff_link_page()
+
+
+@app.get("/staff/mfa-reset", response_class=HTMLResponse)
+def staff_mfa_reset_page(): return _staff_link_page()
+
+
+@app.get("/staff/password-reset", response_class=HTMLResponse)
+def staff_password_reset_page(): return _staff_link_page()
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings(): return read_html("settings.html")

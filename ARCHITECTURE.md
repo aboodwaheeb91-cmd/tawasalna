@@ -4724,6 +4724,7 @@ Every page path also answers at its `.html` variant unless noted.
 | `/appointment-room` | `appointment-room.html` | All (no `.html` variant) — protected: `twRequireAuth()` (SHELL-09) |
 | `/admin-view` | `admin-view.html` | Admin (see §57) |
 | `/admin-job` | `admin-job.html` | Admin — one job (task 5.3j phase 4, see §57) |
+| `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset` | `staff-link.html` | Staff one-time link pages (task 8.4c-2b-1 — token in `#t=` only, `no-store` + `no-referrer`; `docs/rules/admin-staff.md` rule 15) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | Admin only (no `.html` variant; `GET /admin.html` deleted) |
 | `/support/track` | `support-track.html` | Guest — follow-up link page (task 7.2a — §81; token from the fragment, POST body only · headers + metas no-store / no-referrer / noindex) |
 | `/tw-ctrl-{ADMIN_URL_TOKEN}/support` | `admin-support.html` | Admin — support inbox (task 7.1 — §81; data needs `support.manage`) |
@@ -6391,6 +6392,7 @@ All rows below call `check_admin(request, perm)` (`X-Admin-Token` header = admin
 | GET | `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin_page` | Serves `admin.html` (HTML only — data calls are guarded) |
 | GET | `/admin-view` · `/admin-view.html` | `admin_view` | Serves `admin-view.html` (HTML only — data calls are guarded) |
 | GET | `/admin-job` · `/admin-job.html` | `admin_job_page` | Serves `admin-job.html` — one job (task 5.3j phase 4; HTML only — data calls are guarded) |
+| GET | `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset` | `staff_invite_page` · `staff_mfa_reset_page` · `staff_password_reset_page` | Serve `staff-link.html` (task 8.4c-2b-1; HTML only, no token / panel path, `Cache-Control: no-store` + `Referrer-Policy: no-referrer`; data = POST `/staff/*/start\|complete`) |
 | GET | `/admin/strings` | `admin_get_strings` | Strings System (PR 3.6 · SYSTEMS_INDEX §59): `{ok, data:{lang, defaults, overrides, max_len}}` · permission `content.edit` (§79) |
 | PUT | `/admin/strings` | `admin_put_strings` | Replace the UI-text override map `{"overrides": {key: text}}` → `site_settings` `strings_override.ar`. Known keys only · ≤ 300 · no `<` `>` · no control chars · only the default's `{vars}` · empty = default. Bad → 422 `{ok:false, error:{code, message, field}}`. Live on the next page load (no restart) · `content.edit` (§79) · audit target `keys=<changed keys>` |
 | GET | `/admin/profile/{user_id}` | `admin_get_profile` | Any user's full profile + `suspension` (task 5.4 — admin-only reason / by) |

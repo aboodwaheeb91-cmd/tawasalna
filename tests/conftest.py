@@ -13,6 +13,7 @@ SECURITY_TESTS = frozenset({
     "test_scope_path_88a.py",
     "test_admin_staff_84c2a1.py",
     "test_admin_staff_84c2a2.py",
+    "test_admin_staff_84c2b1.py",
     "test_security_84c0b.py",
     "test_admin_mfa_84b.py",
     "test_admin_email_view_84a.py",

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--tw:shell-head:admin-->
+<!-- Staff link pages (task 8.4c-2b-1 · docs/rules/admin-staff.md rule 15). Routes: server.py → staff_invite_page ·
+     staff_mfa_reset_page · staff_password_reset_page (one page; the mode comes from location.pathname).
+     The one-time token arrives in the URL fragment: read once, removed from the address bar at once,
+     kept in page memory and sent only in the POST body. This file holds no token and no panel path.
+     Logic: static/staff-link/staff-link.js · QR + recovery codes box: static/shared/admin-otp-ui.js -->
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="/static/shared/admin-shell.css?v={{v:admin-shell.css}}">
+<title></title>
+</head>
+<body class="tw-adm-body-page">
+<header data-tw-header="admin" hidden></header>
+
+<main class="adm-login" id="main-content">
+  <div class="adm-login-box" id="slBox">
+    <img class="adm-login-logo" src="/static/33333.svg" alt="" width="120" height="36">
+    <h1 class="adm-login-sub" id="slTitle"></h1>
+    <p class="adm-login-hint" id="slHint"></p>
+    <p class="adm-login-err" id="slMsg" role="alert"></p>
+    <button type="button" class="tw-act tw-act-secondary adm-login-btn" id="slRetry" data-tw-t="staff.link.retry" hidden></button>
+    <div class="adm-login-part" id="slBind"></div>   <!-- TwOtpUi.binding: QR + key + copy + open link -->
+    <form class="adm-login-part" id="slForm" novalidate hidden>
+      <label class="adm-field" id="slPassRow"><span data-tw-t="staff.link.password"></span>
+        <input class="tw-input" id="slPass" type="password" autocomplete="new-password"></label>
+      <label class="adm-field" id="slPass2Row"><span data-tw-t="staff.link.password2"></span>
+        <input class="tw-input" id="slPass2" type="password" autocomplete="new-password"></label>
+      <p class="adm-login-hint" id="slPassHint"></p>
+      <label class="adm-field" id="slCodeRow"><span data-tw-t="admin.login.enroll_code"></span>
+        <input class="tw-input adm-otp-input" id="slCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" dir="ltr"></label>
+      <button type="submit" class="tw-act tw-act-primary adm-login-btn" id="slSubmit"></button>
+      <p class="adm-login-err" id="slErr" role="alert"></p>
+    </form>
+  </div>
+  <div class="adm-login-box" id="slCodes" hidden></div>   <!-- TwOtpUi.codes -->
+  <div class="adm-login-box" id="slDone" hidden>
+    <h1 class="adm-login-sub" id="slDoneTitle"></h1>
+    <p class="adm-login-hint" id="slDoneText"></p>
+    <div class="adm-login-part" id="slPanel" hidden>
+      <p class="adm-login-hint" data-tw-t="staff.link.panel_hint"></p>
+      <p class="adm-login-url" id="slPanelUrl"></p>
+      <button type="button" class="tw-act tw-act-secondary adm-login-btn" id="slPanelCopy" data-tw-t="staff.link.panel_copy"></button>
+      <a class="tw-act tw-act-primary adm-login-btn" id="slPanelGo" data-tw-t="staff.link.panel_go"></a>
+    </div>
+  </div>
+</main>
+
+<!--tw:strings-->
+<!--tw:shell-scripts:admin-->
+<script src="/static/qrcode.min.js"></script>
+<script src="/static/shared/admin-otp-ui.js?v={{v:admin-otp-ui.js}}"></script>
+<script src="/static/staff-link/staff-link.js?v={{v:staff-link.js}}"></script>
+</body>
+</html>

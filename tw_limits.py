@@ -120,7 +120,8 @@ POST_TAGS = _load_post_tags()
 
 # What the pages need (window.TW_LIMITS) — limits only, no rates.
 _CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max",
-                  "support_subject_max", "support_body_max")
+                  "support_subject_max", "support_body_max",
+                  "staff_password_min", "password_max_bytes")   # task 8.4c-2b-1 — staff link page hint only
 
 
 def page_block(limit=None) -> str:
