@@ -4748,15 +4748,22 @@ async def upload_logo(data: AdminLogoInput, request: Request):
     if slot not in _LOGO_SLOTS:
         raise HTTPException(400, "نوع الشعار غير معروف")
     mime, ext, file_bytes = _validate_image_data_url(data.data_url)
-    logo_url = await _store_image("site", f"{slot}_{secrets.token_hex(6)}{ext}",
-                                  file_bytes, mime, data.data_url, "[Logo]")
-    # Always cache in memory
-    _html_cache[slot] = logo_url
+    name = f"{slot}_{secrets.token_hex(6)}{ext}"
+    logo_url = await _store_image("site", name, file_bytes, mime, data.data_url, "[Logo]")
+    # task 8.11a — DB first; the in-memory cache only after the save worked. Failure → 500, cache untouched,
+    # the just-stored object (now orphaned) deleted via storage_delete (dev data URL = nothing stored).
+    # site_settings: no startup migration creates it yet → ensure_site_settings_table stays on this path.
     try:
         await asyncio.to_thread(ensure_site_settings_table)
-        await asyncio.to_thread(set_site_setting, slot, logo_url)
+        if not await asyncio.to_thread(set_site_setting, slot, logo_url):
+            raise RuntimeError("set_site_setting returned False")
     except Exception as db_err:
-        print(f"[Logo] DB save failed: {db_err} - cached in memory only")
+        if not logo_url.startswith("data:"):
+            res = await asyncio.to_thread(storage_delete, "site", name)
+            if not res.get("ok"):
+                print(f"[Logo] orphan delete failed slot={slot} reason={res.get('reason')} status={res.get('status')}")
+        raise _server_error("upload_logo", db_err)
+    _html_cache[slot] = logo_url
     return {"status": "success", "url": logo_url}
 
 @app.get("/admin/logo", dependencies=[Depends(_public_rate)])

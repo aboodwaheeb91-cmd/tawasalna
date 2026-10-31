@@ -139,6 +139,7 @@ PY_DB=(
   pytest:test_entity_map_fixes_50c.py  # task 5.0c — reports by target · KYC badge · admin password · my applications
   pytest:test_admin_jobs.py           # task 5.3j — admin jobs list (every state) + status source + hard delete
   pytest:test_admin_jobs_control.py   # task 5.3j phase 2 — hide / reactivate / extend + #7 + #13
+  pytest:test_logo_upload_save_811a.py  # task 8.11a — POST /admin/logo: DB save first · failure → 500 + cache untouched + orphan deleted
   pytest:test_home_feed_86a.py        # task 8.6a — /home/feed hidden salary + accepts_all_professions · /admin/logo-sizes removed
   pytest:test_home_feed_posts_86b2.py # task 8.6b-2 — /home/feed posts carry the TwPostCard fields (viewer flags · blocked comments · blocked company) · /company/posts unchanged
   pytest:test_home_feed_cursor_86d.py # task 8.6d-1 — /home/feed load more: signed cursor · saved job order (feed_snapshots) · «all» pattern · 409 / 422 · timing at 5k jobs / 20k posts / 1k news
