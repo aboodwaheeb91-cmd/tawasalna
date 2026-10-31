@@ -11415,9 +11415,17 @@ def schedule_job(
 
     payload_str = _json_mod.dumps(payload)
 
-    own = conn is None          # task 8.5c — a caller's connection (the scheduler cycle) is used, never released here
-    if own:
-        conn = get_conn()
+    if conn is not None:   # task 8.5c — a caller's connection (the scheduler cycle): used, never released here
+        return _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts)
+    conn = get_conn()
+    try:
+        return _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts)
+    finally:
+        release_conn(conn)
+
+
+def _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts) -> dict:
+    """schedule_job's INSERT … ON CONFLICT DO NOTHING on a given connection (the caller owns it)."""
     try:
         # INSERT with RETURNING — only returns rows when INSERT actually succeeds.
         # ON CONFLICT DO NOTHING produces zero rows if dedupe_key already exists.
@@ -11468,9 +11476,6 @@ def schedule_job(
     except Exception as exc:
         print(f"[scheduler] schedule_job unexpected DB error: {type(exc).__name__}: {exc}")
         raise RuntimeError("schedule_job: unexpected DB error") from exc
-    finally:
-        if own:
-            release_conn(conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════
