@@ -104,6 +104,7 @@ def env(monkeypatch):
     auth._migrate_pr5_pipeline_linking()
     auth._migrate_applicants_candidates_split()
     auth._migrate_email_notify()
+    server.ad.migrate_account_deletion()      # task 8.5a — users.deleted_* (read by create_notification)
     server.admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth._migrate_company_settings()
     auth._migrate_company_settings()          # idempotent

@@ -9054,12 +9054,12 @@ def delete_user(user_id: int, request: Request, data: Optional[dict] = Body(None
 
 
 @app.post("/admin/user/{user_id}/restore")
-def restore_user(user_id: int, request: Request, data: dict = Body(...)):
+def restore_user(user_id: int, request: Request, data: Optional[dict] = Body(None)):
     """Restore a soft-deleted account (task 8.5a) — body {reason} (required, ≤ account_reason_max; kept in the
     admin audit log). Content shows again · jobs stay closed · cancelled interviews stay cancelled · old tokens
     stay 401 (a new login). users.delete + step-up (428)."""
     claims = check_admin(request, "users.delete")
-    reason, err = _account_reason(data, required=True)
+    reason, err = _account_reason(data or {}, required=True)
     if err:
         return err
     try:

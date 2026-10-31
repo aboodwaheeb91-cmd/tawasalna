@@ -327,6 +327,8 @@ def test_restore_old_token_dead_jobs_stay_closed_reason_required(db):
     r = _restore(co, "")
     assert r.status_code == 422 and r.json()["error"]["field"] == "reason"
     assert client.post(f"/admin/user/{co['id']}/restore", headers=_owner(), json={}).status_code == 422
+    r = client.post(f"/admin/user/{co['id']}/restore", headers=_owner(), content=b"null")   # no Content-Type (8.8b)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "reason_required", r.text
     assert _restore(co, "x" * 501).status_code == 422
     assert _sql("SELECT deleted_at FROM users WHERE id = :u", u=co["id"])[0][0] is not None
     r = _restore(co)
