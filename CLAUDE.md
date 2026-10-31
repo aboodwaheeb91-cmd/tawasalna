@@ -93,6 +93,7 @@ Source: `os.environ.get(...)` calls in `server.py` / `auth.py`. All secrets are 
 | `TRUSTED_PROXY_HOPS` | Optional | With `xff_right`: position from the right of `X-Forwarded-For` (default 1) |
 | `LOG_CLIENT_IP` | Optional (measure) | `1` → one `[client-ip]` line per `/auth/login` (headers + chosen IP, never credentials). Off by default |
 | `TW_DEV_UPLOAD` | Optional (dev) | `1` + missing Supabase keys → `/upload/image` returns the data URL (`dev_mode`). Never set in production (PR-7a) |
+| `TW_BCRYPT_ROUNDS` | Tests only | bcrypt cost for new hashes (min 4) — `run_tests.sh` sets `4` (task 8.11b). With `APP_ENV=production` (or unset) the server refuses to start. ❌ never a Railway Variable |
 | `PORT` | Yes (auto on Railway) | Server port |
 
 ---
@@ -115,7 +116,7 @@ uvicorn server:app --reload
 python -m pytest tests/test_safe_link_url.py -q     # or: python tests/test_post_comments.py / node tests/test_x_runtime.js
 
 # 5. Everything CI runs — locally only for a clear reason (Testing & CI rule 2b; needs PostgreSQL with ssl=on — see run_tests.sh header)
-./run_tests.sh            # or ./run_tests.sh --no-db
+./run_tests.sh            # or ./run_tests.sh --no-db · ./run_tests.sh --only py|db|db1|db2|node
 ```
 
 Server starts at `http://localhost:8000`.
@@ -125,6 +126,7 @@ Server starts at `http://localhost:8000`.
 ## Testing & CI (mandatory for all AI sessions — PR 6.4)
 
 1. **الجلسات بتشغّل اختبار مهمتها بس (توفير رصيد)، والـ CI هو اللي بيشغّل الكل على كل PR.** `.github/workflows/tests.yml` بيشغّل `./run_tests.sh` على كل PR لـ `main` وكل push لـ `main` (Python 3.11 + Node 20 + PostgreSQL بـ SSL) — بدون فلترة مسارات.
+1b. **مجموعات متوازية (task 8.11b):** نفس السكربت بـ `--only <group>` بـ jobs متوازية: `py` (بدون قاعدة + syntax + page audit + changelog) · `db1` / `db2` (نصّين ثابتين من `PY_DB` — `split_db()` بالأطول أولاً حسب `DB_WEIGHTS`، كل نص على PostgreSQL خاص فيه) · `node`. بدون `--only` = كل شي متل قبل. فحص «كل ملف بقائمة وحدة بالضبط» بيشتغل بكل مجموعة. الـ job الأخير `All tests (Python 3.11 + Node 20 + PostgreSQL)` (= الـ check المطلوب على `main`، نفس الاسم القديم) بيستنى الكل (`needs` + `if: always()`) وبيفشل إذا أي مجموعة فشلت / انلغت / انعملها skip. ❌ تغيير اسمه · ❌ ملف بيتشغّل برّا مجموعة. `TW_BCRYPT_ROUNDS=4` بالاختبارات بس (`auth.hash_password` الدالة الوحيدة للـ hash) — `APP_ENV=production` + المتغيّر = السيرفر ما بيشتغل. اختبار `python -m pytest tests/test_bcrypt_rounds_811b.py -q`.
 2. **قاعدة توفير الرصيد (ثابتة بكل مهمة، حتى لو المسج ما ذكرها):** اختبار واحد مركّز للمهمة · ممنوع screenshots (إلا إذا طُلبت صراحةً) · ممنوع بحث بكل الريبو · ممنوع تشغيل كل الاختبارات بالجلسة إلا بالاستثناء بالقاعدة 2b · فشل نفس الاختبار مرتين → وقف وبلّغ (`docs/rules/ai-usage-budget.md`). بعد الـ push: تأكّد إن `Tests` نجح على الـ PR — هاد هو فحص "الكل".
 2b. **الاختبارات محلياً:** شغّل الاختبارات المرتبطة بالتغيير فقط، واترك التشغيل الشامل لـ GitHub CI. لا تشغّل المجموعة كاملة محلياً (`./run_tests.sh`) إلا لسبب واضح (تغيير بنظام مشترك، migration، أو فشل بالـ CI ما بيبان محلياً)، واذكر السبب بالتقرير. اختصر المخرجات (ملخص / `tail`)، واعرض الخطأ كامل بس عند الفشل. ❌ `./run_tests.sh` كامل كخطوة روتينية قبل كل push.
 3. **`run_tests.sh` هو المصدر الوحيد لقائمة الاختبارات.** ملف `test_*` جديد لازم ينضاف لقائمة تشغيل، أو لـ `EXCLUDED` بسطر سبب (سيرفر حي :8000 / Playwright / حساب حقيقي) — ملف بدون قائمة = الـ CI بيفشل. اختبار script لازم يطلع بـ exit code ≠ 0 عند الفشل.

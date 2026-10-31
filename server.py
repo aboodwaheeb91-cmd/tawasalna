@@ -215,6 +215,7 @@ from auth import otp_code_valid   # task 8.4c-0b — the one OTP shape check (6 
 from auth import email_notify_user   # task 7.2b — support_reply email (name + address from users)
 import admin_perms   # task 8.4a — admin permission catalog (docs/rules/admin-staff.md)
 from auth import hash_password as _hash_password, verify_password as _verify_password
+from auth import check_bcrypt_env as _check_bcrypt_env   # task 8.11b — TW_BCRYPT_ROUNDS test-only
 import admin_staff   # task 8.4b — staff accounts + admin two-step login (docs/rules/admin-staff.md)
 import support   # task 7.1 — Support Tickets (docs/rules/support.md · SYSTEMS_INDEX §62)
 
@@ -1267,6 +1268,8 @@ async def on_startup():
             "❌ JWT_SECRET must be set as an environment variable (min 32 chars). "
             "Generate with: openssl rand -hex 32"
         )
+    # task 8.11b — TW_BCRYPT_ROUNDS is test-only: with APP_ENV=production the server refuses to boot
+    _check_bcrypt_env()
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
         print("⚠️  ADMIN_TOKEN not configured — admin login will return 503")
     if not _admin_jwt_secret_ok():
