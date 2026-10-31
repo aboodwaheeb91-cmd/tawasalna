@@ -8794,16 +8794,17 @@ def _staff_code(data: dict):
     return code.strip() if otp_code_valid(code) else None
 
 
-def _staff_password_hash(data: dict):
-    """→ (bcrypt hash, None) or (None, the 422)."""
-    pw = data.get("password")
-    err = admin_staff.staff_password_error(pw, tw_limits.LIMITS["staff_password_min"],
+def _staff_password_check(data: dict):
+    """The cheap shape check of the new password — None, or the 422. No bcrypt here: the hash runs only AFTER
+    _staff_link_reserve (these routes are outside the public limit — a bcrypt before the reservation would be an
+    unlimited CPU cost for anyone)."""
+    err = admin_staff.staff_password_error(data.get("password"), tw_limits.LIMITS["staff_password_min"],
                                            tw_limits.LIMITS["password_max_bytes"])
     if err:
-        return None, api_error(422, err, _tw_text("admin.staff.error." + err,
-                                                  min=tw_limits.LIMITS["staff_password_min"],
-                                                  max=tw_limits.LIMITS["password_max_bytes"]), "password")
-    return _hash_password(pw), None
+        return api_error(422, err, _tw_text("admin.staff.error." + err,
+                                            min=tw_limits.LIMITS["staff_password_min"],
+                                            max=tw_limits.LIMITS["password_max_bytes"]), "password")
+    return None
 
 
 def _staff_link_call(request: Request, name: str, fn):
@@ -8834,15 +8835,15 @@ def _staff_complete(request: Request, data: dict, kind: str, name: str):
     code = _staff_code(data)
     if code is None:
         return _staff_error(admin_staff.StaffError(422, "invalid_code_format", "code"))
-    pw_hash = None
     if kind == "invite":
-        pw_hash, err = _staff_password_hash(data)
+        err = _staff_password_check(data)
         if err:
             return err
     token = data.get("token")
-    _staff_link_reserve(request, token)
+    _staff_link_reserve(request, token)   # 429 before any bcrypt
 
     def run():
+        pw_hash = _hash_password(data["password"]) if kind == "invite" else None
         out = admin_staff.link_complete(token, kind, code, pw_hash)
         print(f"[admin-staff] {kind} completed staff={out['staff_id']} — authenticator bound, recovery codes issued")
         payload = {"recovery_codes": out["recovery_codes"], "name": out["name"]}
@@ -8906,14 +8907,14 @@ def staff_password_reset_complete(request: Request, background_tasks: Background
     """{token, password} → new password + every session ends (the authenticator stays — the login still asks for
     it) + staff_password_changed. A suspended staff member → invalid_link (never re-activated)."""
     data = _staff_body(data)
-    pw_hash, err = _staff_password_hash(data)
+    err = _staff_password_check(data)
     if err:
         return err
     token = data.get("token")
-    _staff_link_reserve(request, token)
+    _staff_link_reserve(request, token)   # 429 before any bcrypt
 
     def run():
-        out = admin_staff.password_reset_complete(token, pw_hash)
+        out = admin_staff.password_reset_complete(token, _hash_password(data["password"]))
         print(f"[admin-staff] password reset staff={out['staff_id']} — sessions ended")
         background_tasks.add_task(email_service.send_email, out["email"], "staff_password_changed",
                                   {"name": out["name"]})

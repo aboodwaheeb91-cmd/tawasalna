@@ -387,3 +387,21 @@ def test_forgot_429(db, mails):
     for i in range(per_ip - per_email):
         assert client.post(FORGOT, json={"email": f"b{i}@t.test"}).status_code == 200
     assert client.post(FORGOT, json={"email": "c@t.test"}).status_code == 429
+
+
+@pytest.mark.parametrize("bucket", ["staff_link_ip", "staff_link_token"])
+@pytest.mark.parametrize("path,body", [
+    ("/staff/invite/complete", {"token": "t" * 43, "password": PASSPHRASE, "code": "123456"}),
+    ("/staff/password-reset/complete", {"token": "t" * 43, "password": PASSPHRASE}),
+])
+def test_no_bcrypt_before_the_limit(monkeypatch, path, body, bucket):
+    """A full IP / link bucket → 429 with a well-formed password and NO bcrypt (no CPU spent before the limit)."""
+    calls = []
+    real = srv._hash_password
+    monkeypatch.setattr(srv, "_hash_password", lambda pw: calls.append(1) or real(pw))
+    hits, _ = tw_settings.rate(bucket)
+    who = "testclient" if bucket == "staff_link_ip" else admin_staff.link_hash(body["token"])[:32]
+    srv._rate_store[f"{bucket}:{who}"] = [__import__("time").time()] * hits
+    r = client.post(path, json=body)
+    assert r.status_code == 429, r.text
+    assert calls == []
