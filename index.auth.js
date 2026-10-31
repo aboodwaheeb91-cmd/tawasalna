@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v15
+// Version: auth-gw-v16
 
 'use strict';
 
@@ -230,6 +230,16 @@ function _deletedReply(res){
   return true;
 }
 
+// Restore failure → each server code its own text (auth.restore.err.<code>); the login's fixed texts for
+// 401 / 429 / network / 5xx; anything else → the generic login.restore.err.
+var _RESTORE_ERR_CODES = ['not_deleted', 'expired', 'purging', 'already_purged', 'admin_deleted'];
+function _restoreErrorText(res){
+  var code = res.raw && res.raw.error && res.raw.error.code;
+  if(code && _RESTORE_ERR_CODES.indexOf(code) >= 0) return twT('auth.restore.err.' + code);
+  if(res.status === 401 || res.status === 429 || res.status === 0 || res.status >= 500) return _loginErrorText(res);
+  return twT('login.restore.err');
+}
+
 async function doRestore(){
   if(_submitting) return;
   var emailEl = document.getElementById('lEmail');
@@ -247,11 +257,7 @@ async function doRestore(){
   try {
     var res = await twApi('/auth/restore', {method: 'POST', auth: false, body: {email: email, password: pass}});
     if(!res.ok){
-      var code = res.raw && res.raw.error && res.raw.error.code;
-      _lShowFormError(res.status === 403 && code === 'admin_deleted' ? twT('auth.restore.err.admin_deleted')
-                      : res.status === 409 ? twT('auth.restore.err.expired')
-                      : (res.status === 401 || res.status === 429 || res.status === 0 || res.status >= 500)
-                        ? _loginErrorText(res) : twT('login.restore.err'));
+      _lShowFormError(_restoreErrorText(res));
       return;
     }
     if(_finishLogin(res.data, 'login.restore.done')) _success = true;

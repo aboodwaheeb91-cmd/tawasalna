@@ -5895,16 +5895,16 @@ def restore_own_account(data: RestoreInput, request: Request, background_tasks: 
     _rate_release(held)
     _login_email_reset(data.email, ip)
     _password_changed_cache_set(uid, out["state"])   # every older JWT stays dead (session_version + 1)
+    if out["changed"]:   # every restore that committed — one email (a parallel second request changed nothing)
+        background_tasks.add_task(email_service.send_email, user["email"], "account_restored",
+                                  {"name": user.get("full_name") or ""})
+        _cache_del("jobs:")
     if user.get("suspended"):   # restored, but a suspended account never gets a token (task 5.4)
         return api_error(401, "account_suspended", "الحساب معلّق")
     for k in ("deleted", "suspended", "session_version"):
         user.pop(k, None)
     token = _jwt_encode({"user_id": uid, "user_type": user.get("user_type"),
                          "tw_id": user.get("tw_id", ""), "sv": int(out["state"]["sv"])})
-    if out["changed"]:   # one email per restore — a second parallel request changed nothing
-        background_tasks.add_task(email_service.send_email, user["email"], "account_restored",
-                                  {"name": user.get("full_name") or ""})
-        _cache_del("jobs:")
     print(f"[account-restore] user={uid} changed={out['changed']}")
     return {"status": "success", "user": user, "token": token, "restored": True}
 

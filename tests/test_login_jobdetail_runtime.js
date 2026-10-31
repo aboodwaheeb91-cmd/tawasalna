@@ -244,6 +244,19 @@ function gateway(opts) {
     await adm.ctx.doRestore();
     check('R6 403 admin_deleted → the contact-support text, no session',
       adm.banner() === STRINGS['auth.restore.err.admin_deleted'] && !('tw_jwt' in adm.store), adm.banner());
+    const RESTORE_CODES = ['not_deleted', 'expired', 'purging', 'already_purged', 'admin_deleted'];
+    check('R8 every restore error code has its own twT key',
+      RESTORE_CODES.every(c => typeof STRINGS['auth.restore.err.' + c] === 'string'));
+    const purge = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until },
+      { ok: false, status: 409, raw: { ok: false, error: { code: 'purging' } } });
+    // tell the texts apart even when two codes share the same wording
+    purge.ctx.TW_STRINGS.dict = Object.assign({}, STRINGS, { 'auth.restore.err.purging': 'P-TEXT', 'auth.restore.err.expired': 'E-TEXT' });
+    await purge.ctx.doRestore();
+    check('R9 409 purging → its own text, not the expired one', purge.banner() === 'P-TEXT', purge.banner());
+    const odd = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until },
+      { ok: false, status: 409, raw: { ok: false, error: { code: 'something_else' } } });
+    await odd.ctx.doRestore();
+    check('R10 unknown code → the generic restore text', odd.banner() === STRINGS['login.restore.err'], odd.banner());
     const cancel = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until }, RES_OK, false);
     await cancel.ctx.doRestore();
     check('R7 confirm cancelled → no restore request', !cancel.calls.some(c => c[0] === '/auth/restore'));

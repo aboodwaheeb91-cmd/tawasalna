@@ -391,3 +391,16 @@ def test_security_email_reaches_a_deleted_recipient(db, monkeypatch):
         assert out["ok"] is True and out["code"] == "sent", (tpl, out)
     assert [p["to"] for p in posted] == [[u["email"]], [u["email"]]]
     assert all("https://" not in p["text"] for p in posted)
+
+
+def test_restore_of_suspended_account_still_sends_the_security_email(db, _env85d):
+    """A suspended + self-deleted account: the restore commits → account_restored email once (+ jobs cache),
+    the reply stays 401 account_suspended without a token."""
+    u = _self_deleted()
+    _sql("UPDATE users SET suspended_at = NOW() WHERE id = :u", u=u["id"])   # test data: suspended by the admin
+    r = _restore(u["email"])
+    assert r.status_code == 401 and r.json()["error"]["code"] == "account_suspended", r.text
+    assert "token" not in r.json()
+    assert _deleted(u)[0] is False                                           # deleted_at is NULL again
+    mails = [m for m in _env85d if m[1] == "account_restored"]
+    assert len(mails) == 1 and mails[0][0] == u["email"], mails
