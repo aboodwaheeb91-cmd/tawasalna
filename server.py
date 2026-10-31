@@ -478,10 +478,19 @@ app = FastAPI(title="تواصلنا API", version="1.0.0")
 # Fix [A-4]: Prevent browser HTTP cache from serving stale .html/.js files
 # This is the correct architectural fix — works for every page, not just profile
 from starlette.middleware.base import BaseHTTPMiddleware
+
+
+def _req_path(request) -> str:
+    """The routed path — the ONLY input for a path decision (task 8.8a · GHSA-86qp-5c8j-p5mr / CVE-2026-48710).
+    request.url is rebuilt from the Host header, so a broken Host ("a#", "a/x") changes request.url.path while
+    routing still uses scope["path"]. ❌ request.url.path / request.url.hostname in any decision or log."""
+    return request.scope.get("path") or "/"
+
+
 class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        path = request.url.path
+        path = _req_path(request)
         if any(path.endswith(ext) for ext in ['.html', '.js', '.css']):
             response.headers['Cache-Control'] = 'no-cache, must-revalidate'
             response.headers['Pragma'] = 'no-cache'
@@ -571,7 +580,7 @@ async def validation_exception_handler(request, exc):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
-    print(f"[ERROR] {request.url.path}: {type(exc).__name__}: {exc}")
+    print(f"[ERROR] {_req_path(request)}: {type(exc).__name__}: {exc}")
     return JSONResponse(status_code=500, content={"error": _SERVER_ERROR_MSG})
 
 # ── Search indexing (task 5.0e — SYSTEMS_INDEX §54m) ──
@@ -598,15 +607,16 @@ async def security_headers(request, call_next):
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         if response.headers.get("content-type", "").startswith("text/html") \
-                and not _is_indexable_page(request.url.path):
+                and not _is_indexable_page(_req_path(request)):
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
-        if request.url.path == "/support/track" or request.url.path.startswith("/support/track/"):
+        _path = _req_path(request)
+        if _path == "/support/track" or _path.startswith("/support/track/"):
             # guest follow-up link (task 7.2a — ARCHITECTURE §81): page + API, every status
             response.headers["Cache-Control"] = "no-store"
             response.headers["Referrer-Policy"] = "no-referrer"
             response.headers["X-Robots-Tag"] = "noindex"
     except Exception as e:
-        print(f"[security_headers] {request.url.path}: {type(e).__name__}: {e}")
+        print(f"[security_headers] {_req_path(request)}: {type(e).__name__}: {e}")
     return response
 
 # ── Simple Rate Limiting ──
@@ -894,7 +904,7 @@ _RATE_LIMITED_PATHS = frozenset({
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
     # Only rate limit auth / OTP endpoints — IP from get_client_ip() only
-    _p = request.url.path
+    _p = _req_path(request)
     if _p == "/log/error":   # client error reports — own per-IP bucket, never eats the auth budget (task 5.0e)
         if not _rate_hit("log-error:" + get_client_ip(request), _LOG_ERROR_RATE, 60):
             from fastapi.responses import JSONResponse as _JR
@@ -928,7 +938,7 @@ _AUDIT_SETTINGS_ROUTES = frozenset({"admin_settings_update", "admin_settings_res
 
 def _admin_audit_entry(request, status: int):
     """The audit row for this request, or None when it is not an admin write / login."""
-    path = request.url.path
+    path = _req_path(request)
     if path in _ADMIN_LOGIN_PATHS and request.method == "POST":
         # task 8.4b — the account the login named (owner / staff:<id>, "-" = unknown); step 2 = admin_login_mfa
         return {"actor": str(getattr(request.state, "audit_actor", "-")),
@@ -2990,7 +3000,7 @@ _APP_ICON_FILES = {
 @app.get("/apple-touch-icon.png", include_in_schema=False)
 @app.get("/favicon.ico", include_in_schema=False)
 def app_icon(request: Request):
-    filename, mime = _APP_ICON_FILES[request.url.path]
+    filename, mime = _APP_ICON_FILES[_req_path(request)]
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icons", filename)
     try:
         with open(path, "rb") as f:

@@ -1427,6 +1427,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `CLAUDE.md → Safe Rendering / Output Escaping Rules` rule 9 · `docs/contracts/API-MUTATIONS-ERRORS.md` API-MUT-11 · F9 / F23
 **Do not recreate:** ❌ `HTTPException(500, str(e))` · ❌ `detail=f"...{e}"` · ❌ `{"error": str(e)}` / `RuntimeError(f"...{e}")` that can reach a response · ❌ `str(exc)` in a validation response · ❌ a second internal-error helper. Intended errors (`ValueError` / `PermissionError` / `KeyError` with an Arabic message written in code, `ContentValidationError`, `ExternalUrlError`) keep their 4xx message. Test (static AST check + runtime): `python -m pytest tests/test_server_error_leak.py -q`.
 
+### 54p. Routed Path for Decisions — `_req_path` (task 8.8a — GHSA-86qp-5c8j-p5mr / CVE-2026-48710)
+**Purpose:** A broken `Host` header (e.g. `a#`) rebuilds `request.url` so `request.url.path` differs from the path the router matched — a path check on it could skip the admin audit log, the per-IP auth limit or security headers.
+**Source of Truth:** `server.py` → `_req_path(request)` = `request.scope.get("path") or "/"`. Used by `NoCacheMiddleware` · `general_exception_handler` (log) · `security_headers` (`_is_indexable_page` · `/support/track`) · `rate_limit_middleware` · `_admin_audit_entry` · `app_icon` (`_APP_ICON_FILES`).
+**Details:** `docs/rules/dev-guidelines.md` rule 5
+**Do not recreate:** ❌ `request.url.path` / `request.url.hostname` in any decision or log · ❌ a second path helper. Test (bad Host over real HTTP + PostgreSQL · guard): `python -m pytest tests/test_scope_path_88a.py -q`.
+
 ### 54e. DB Connection Lifecycle + No Sync Work in `async def` (PR 2A)
 **Purpose:** A pg8000 connection that is never returned exhausts the Supabase connection limit for the whole site; sync DB / bcrypt work inside `async def` blocks the event loop (every request + every WebSocket).
 **Source of Truth:** `auth.py` → `get_conn()` / `release_conn(conn)` (pool) + **`db_conn()`** context manager (`with db_conn() as conn:` — release in `finally`; a broken socket `pg8000.exceptions.InterfaceError` is closed instead of pooled). Existing manual pairs stay valid when `release_conn(conn)` is in a `finally`. Endpoints with no real `await` are plain `def` (FastAPI threadpool); an `async def` with a real `await` (WS push, `_store_image`, `request.json()` is NOT a reason — use `data: dict = Body(...)`) runs its sync DB part via `await asyncio.to_thread(fn, ...)` or a nested sync helper.

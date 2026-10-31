@@ -122,6 +122,7 @@ PY_DB=(
   pytest:test_admin_mfa_84b.py         # task 8.4b — two-step admin login (RFC 6238 · owner bind / recovery / ADMIN_MFA_RESET) · staff perms from the DB every request
   pytest:test_security_84c0b.py   # task 8.4c-0b — messages hidden by block / suspension (every messaging route) · user login locks atomic under concurrency · one email link per user + purpose · OTP shape 422 (no attempt) · HSTS
   pytest:test_admin_security_84c0.py   # task 8.4c-0 — admin login locks under concurrency (atomic reserve) · one token per ticket · every admin route 401 / 403 · tickets + sessions · no secret leaks
+  pytest:test_scope_path_88a.py        # task 8.8a — bad Host (GHSA-86qp-5c8j-p5mr): admin write + failed admin login + /staff/* still audited · auth path still rate limited · no request.url.path in server.py
   pytest:test_admin_stepup_84c.py      # task 8.4c-1 — /admin/me · owner step-up (428 · grant bound to token + sv · atomic locks) · new owner recovery codes
   pytest:test_admin_staff_84c2a1.py    # task 8.4c-2a1 — roles + staff API (owner + step-up) · OWNER_ONLY never reaches staff · same token after each change · delete ‖ assign · seed once · staff emails
   pytest:test_admin_staff_84c2a2.py    # task 8.4c-2a2 — staff invite · staff password reset · authenticator reset (one-time links, atomic, one live link) · public routes 429 · no token / secret leaks
