@@ -81,6 +81,7 @@ def env(monkeypatch):
     auth._migrate_password_changed_at()
     auth._migrate_session_version()
     auth.bs.migrate_blocks_suspension()
+    auth.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     auth._migrate_password_reset_tokens()
     auth._migrate_email_notify()
     admin_insights.migrate_admin_audit_log()

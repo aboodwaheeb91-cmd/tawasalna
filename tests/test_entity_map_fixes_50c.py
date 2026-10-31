@@ -25,9 +25,11 @@ os.environ["SUPABASE_DB_URL"] = os.environ.get(
 import pytest
 from fastapi.testclient import TestClient
 
+import account_deletion
 import admin_insights
 import auth
 import admin_staff
+import blocks_suspension
 import server as srv
 
 
@@ -86,6 +88,8 @@ def env(monkeypatch):
     auth._migrate_reports_targets()
     auth._migrate_reports_targets()          # idempotent
     auth._migrate_verified_source()
+    blocks_suspension.migrate_blocks_suspension()   # users.suspended_at — read with the deletion state (task 8.5a)
+    account_deletion.migrate_account_deletion()   # task 8.5a — users.deleted_* (read by reports / applications / delete)
     monkeypatch.setattr(srv, "ADMIN_TOKEN", PASSWORD)
     monkeypatch.setattr(srv, "ADMIN_JWT_SECRET", "test-admin-secret-50c-" + "s" * 32)
     srv._rate_store.clear()

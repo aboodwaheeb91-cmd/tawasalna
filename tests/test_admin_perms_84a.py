@@ -83,6 +83,7 @@ ROUTE_PERMS = {
     ("POST", "/admin/message"): "message.send",
     # owner only
     ("DELETE", "/admin/user/{user_id}"): "users.delete",
+    ("POST", "/admin/user/{user_id}/restore"): "users.delete",   # task 8.5a
     ("PUT", "/admin/user/{user_id}/type"): "users.type",
     ("PUT", "/admin/user/{user_id}/password"): "users.password",
     ("PUT", "/admin/user/{user_id}/email"): "users.email",

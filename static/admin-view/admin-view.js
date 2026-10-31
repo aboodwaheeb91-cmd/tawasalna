@@ -48,11 +48,16 @@
       confirm: { title: 'admin.unsuspend.title', message: 'admin.unsuspend.message', confirm: 'admin.unsuspend.confirm' },
       request: function (c) { return { url: '/admin/user/' + uid(c) + '/suspension', method: 'PUT', body: { suspended: false } }; },
       done: 'admin.done.unsuspended' },
+    // task 8.5a — soft delete (content hidden · jobs closed · interviews cancelled) · restore = admin only
     'user.delete': {
       confirm: { title: 'admin.delete_user.title', message: 'admin.delete_user.message', confirm: 'admin.delete.confirm',
                  danger: true, typeWord: 'admin.confirm.word.delete' },
-      request: function (c) { return { url: '/admin/user/' + uid(c), method: 'DELETE' }; },
+      request: function (c) { return { url: '/admin/user/' + uid(c), method: 'DELETE', body: { reason: c.reason || '' } }; },
       done: 'admin.done.deleted' },
+    'user.restore': {
+      confirm: { title: 'admin.restore.title', message: 'admin.restore.message', confirm: 'admin.restore.confirm' },
+      request: function (c) { return { url: '/admin/user/' + uid(c) + '/restore', method: 'POST', body: { reason: c.reason } }; },
+      done: 'admin.done.restored' },
     'profile.edit': {
       confirm: { title: 'admin.view.edit.title', message: 'admin.view.edit.message', confirm: 'admin.view.edit.confirm' },
       request: function (c) { var b = {}; b[c.field] = c.value; return { url: '/admin/profile/' + uid(c), method: 'PUT', body: b }; },
@@ -185,8 +190,15 @@
     });
   }
   function deleteUser() {
-    run('user.delete').then(function (res) {
-      if (res && res.ok) location.href = TwAdminShell.base() + '#users';
+    formDialog('admin.delete_user.title', 'admin.delete_user.reason', 'textarea', '', 'admin.delete_user.next', function (v) {
+      return run('user.delete', { reason: String(v || '').trim() }).then(reloadIfOk);
+    });
+  }
+  function openRestore() {
+    formDialog('admin.restore.title', 'admin.restore.reason', 'textarea', '', 'admin.restore.next', function (v, _x, fieldError) {
+      var reason = String(v || '').trim();
+      if (!reason) { if (fieldError) fieldError(twT('admin.account.err.reason')); return false; }
+      return run('user.restore', { reason: reason }).then(reloadIfOk);
     });
   }
 
@@ -201,11 +213,19 @@
     pills.appendChild(pill(twT(P.is_verified ? 'admin.view.verified' : 'admin.view.unverified'), P.is_verified ? 'ok' : ''));
     var sus = P.suspension && P.suspension.suspended ? P.suspension : null;
     if (sus) pills.appendChild(pill(twT('admin.view.suspended'), 'danger'));
+    var del = P.deletion && P.deletion.deleted ? P.deletion : null;
+    if (del) pills.appendChild(pill(twT('admin.view.deleted'), 'danger'));
     acc.appendChild(row(P.full_name, [P.email, P.tw_id], pills).row);
     if (P.created_at) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.since', { date: twFormatDate(P.created_at) })));
     if (sus) {
       acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.suspended_since', { date: twFormatDateTime(sus.suspended_at) })));
       if (sus.suspended_reason) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.suspended_reason', { reason: sus.suspended_reason })));
+    }
+    if (del) {
+      acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.deleted_since', { date: twFormatDateTime(del.deleted_at) })));
+      var kind = del.deleted_kind === 'self' ? 'self' : 'admin';
+      acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.deleted_kind', { kind: twT('admin.view.deleted_kind.' + kind) })));
+      if (del.deleted_reason) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.deleted_reason', { reason: del.deleted_reason })));
     }
 
     var act = TwAdminShell.card(root, { titleKey: 'admin.view.actions', hintKey: 'admin.view.actions.hint', icon: 'settings' });
@@ -219,7 +239,9 @@
     b1.appendChild(sus
       ? btn('primary', 'user-check', 'admin.view.unsuspend', function () { run('user.unsuspend').then(reloadIfOk); })
       : btn('danger', 'lock', 'admin.view.suspend', openSuspend));
-    b1.appendChild(btn('danger', 'delete', 'admin.view.delete', deleteUser));
+    b1.appendChild(del
+      ? btn('primary', 'user-check', 'admin.view.restore', openRestore)
+      : btn('danger', 'delete', 'admin.view.delete', deleteUser));
     act.appendChild(b1);
 
     var ty = TwAdminShell.card(root, { titleKey: 'admin.view.type', hintKey: 'admin.view.type.hint', icon: 'users' });

@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Optional
 
 import blocks_suspension as bs   # task 5.4 — visibility rule (pure SQL builders; no import cycle)
+import account_deletion as ad    # task 8.5a — soft delete: «حساب محذوف» scrub (DB functions import auth lazily)
 
 # ══ Emoji / symbol prevention ══
 _EMOJI_RE = re.compile(
@@ -995,7 +996,8 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     try:
         rows = conn.run(
             "SELECT id, tw_id, full_name, email, password_hash, user_type, country_code, created_at, "
-            "session_version, suspended_at IS NOT NULL AS suspended FROM users WHERE email = :email",
+            "session_version, suspended_at IS NOT NULL AS suspended, deleted_at IS NOT NULL AS deleted "
+            "FROM users WHERE email = :email",
             email=email.lower().strip()
         )
         if not rows:
@@ -1067,16 +1069,16 @@ def set_user_type(user_id: int, new_type: str) -> Optional[dict]:
 
 def get_session_state(user_id: int) -> Optional[dict]:
     """{changed: password_changed_at epoch seconds | None, sv: users.session_version,
-    suspended: users.suspended_at set (task 5.4)}; None = no such user.
+    suspended: users.suspended_at set (task 5.4), deleted: users.deleted_at set (task 8.5a)}; None = no such user.
     Read only through server._session_state (cached) — never per request."""
     with db_conn() as conn:
         rows = conn.run("SELECT EXTRACT(EPOCH FROM password_changed_at), session_version, "
-                        "suspended_at IS NOT NULL FROM users WHERE id = :uid", uid=user_id)
+                        "suspended_at IS NOT NULL, deleted_at IS NOT NULL FROM users WHERE id = :uid", uid=user_id)
     if not rows:
         return None
     changed = rows[0][0]
     return {"changed": int(changed) if changed is not None else None, "sv": int(rows[0][1] or 0),
-            "suspended": bool(rows[0][2])}
+            "suspended": bool(rows[0][2]), "deleted": bool(rows[0][3])}
 
 
 def get_current_user_type(user_id: int) -> Optional[str]:
@@ -1194,12 +1196,14 @@ def email_token_consume(purpose: str, token: str) -> Optional[dict]:
 
 
 def get_user_for_password_reset(email: str) -> Optional[dict]:
-    """{id, email, full_name} of the account with this email, or None."""
+    """{id, email, full_name} of the account with this email, or None. A deleted account (task 8.5a) = None:
+    the request answers the same and no email is sent."""
     email = (email or "").strip().lower()
     if not email:
         return None
     with db_conn() as conn:
-        rows = conn.run("SELECT id, email, full_name FROM users WHERE email = :e LIMIT 1", e=email)
+        rows = conn.run("SELECT id, email, full_name FROM users WHERE email = :e AND deleted_at IS NULL LIMIT 1",
+                        e=email)
     if not rows:
         return None
     return {"id": rows[0][0], "email": rows[0][1], "full_name": rows[0][2] or ""}
@@ -1254,10 +1258,11 @@ def email_change_apply(token: str) -> Optional[dict]:
             if by_admin:
                 r = conn.run("UPDATE users SET email = :e, session_version = session_version + 1 "
                              "WHERE id = :uid RETURNING EXTRACT(EPOCH FROM password_changed_at), "
-                             "session_version, suspended_at IS NOT NULL", e=row["payload"], uid=row["id"])
+                             "session_version, suspended_at IS NOT NULL, deleted_at IS NOT NULL",
+                             e=row["payload"], uid=row["id"])
                 if r:
                     state = {"changed": int(r[0][0]) if r[0][0] is not None else None,
-                             "sv": int(r[0][1] or 0), "suspended": bool(r[0][2])}
+                             "sv": int(r[0][1] or 0), "suspended": bool(r[0][2]), "deleted": bool(r[0][3])}
             else:
                 conn.run("UPDATE users SET email = :e WHERE id = :uid", e=row["payload"], uid=row["id"])
     except Exception as e:
@@ -3404,7 +3409,7 @@ def get_job_applicants(
     _SELECT_COLS = (
         "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
         "u.full_name, u.user_type, u.tw_id, "
-        "p.avatar_url, p.city, p.country, p.headline, "
+        "p.avatar_url, p.city, p.country, p.headline, u.deleted_at IS NOT NULL AS is_deleted, "
         "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
         "jpe.id AS pipeline_entry_id, "
         "jpe.stage, "
@@ -3489,6 +3494,7 @@ def get_job_applicants(
             a['pipeline_notes_count'] = int(a.get('pipeline_notes_count') or 0)
             a['next_appointment'] = None
             a['match_score']      = None
+            ad.scrub(a, a.get('is_deleted'))   # task 8.5a — the application stays; the identity does not
 
         # Batch-fetch next future active appointment per pipeline entry
         entry_ids = [a['pipeline_entry_id'] for a in items if a.get('pipeline_entry_id')]
@@ -3586,7 +3592,7 @@ def get_user_applications(user_id: int) -> list:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.status, ja.applied_at, "
             "j.title, j.location, j.company_id, "
-            "u.full_name AS company_name, u.tw_id AS company_tw_id "
+            "u.full_name AS company_name, u.tw_id AS company_tw_id, u.deleted_at IS NOT NULL AS company_deleted "
             "FROM job_applications ja "
             "JOIN jobs j ON j.id=ja.job_id "
             "JOIN users u ON u.id=j.company_id "
@@ -3597,6 +3603,8 @@ def get_user_applications(user_id: int) -> list:
         apps = [_serialize(_row_to_dict(cols, r)) for r in rows]
         for a in apps:
             a["status"] = applicant_visible_status(a.get("status"))
+            ad.scrub(a, a.get("company_deleted"), name_keys=("company_name",), clear_keys=("company_tw_id",),
+                     flag="company_deleted")   # task 8.5a
         return apps
     finally:
         release_conn(conn)
@@ -4907,17 +4915,20 @@ def get_conversations(user_id: int) -> list:
             "CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END AS other_id, "
             "m.content, m.created_at, m.is_read, m.sender_id, "
             "u.full_name, u.user_type, u.tw_id, "
-            "p.avatar_url, p.headline, p.title "
+            "p.avatar_url, p.headline, p.title, u.deleted_at IS NOT NULL AS is_deleted "
             "FROM messages m "
             "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE m.sender_id=:uid OR m.receiver_id=:uid "
             "ORDER BY other_id, m.created_at DESC"
-            ") sub WHERE " + bs.visible_sql("sub.other_id", ":uid") + " ORDER BY created_at DESC",
+            # task 8.5a — a deleted peer's conversation stays (read only), scrubbed to «حساب محذوف»
+            ") sub WHERE " + bs.visible_sql("sub.other_id", ":uid", keep_deleted=True) + " ORDER BY created_at DESC",
             uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
         convs = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        for c in convs:
+            ad.scrub(c, c.get("is_deleted"))
 
         # Enrich with per-conversation unread_count in a single batch query
         if convs:
@@ -4951,9 +4962,12 @@ def get_messages(user_id: int, other_id: int):
     try:
         # task 8.4c-0b — a missing / suspended account or a block either way = the messaging «not found»
         # (404), checked BEFORE anything is read or marked read / delivered. The rule: bs.visible_sql.
-        if not conn.run("SELECT 1 FROM users WHERE id = :oid AND " + bs.visible_sql(":oid", ":uid"),
-                        uid=user_id, oid=other_id):
+        # task 8.5a — a deleted peer's history stays readable (keep_deleted); sending is refused by the policy.
+        peer = conn.run("SELECT deleted_at IS NOT NULL FROM users WHERE id = :oid AND "
+                        + bs.visible_sql(":oid", ":uid", keep_deleted=True), uid=user_id, oid=other_id)
+        if not peer:
             raise MessagePolicyError("not_found", 404)
+        peer_deleted = bool(peer[0][0])
         # Root-cause note: must take the latest 100 by DESC first, then
         # re-sort ASC for display — "ORDER BY created_at ASC LIMIT 100"
         # silently dropped the newest messages once a conversation passed
@@ -4970,6 +4984,10 @@ def get_messages(user_id: int, other_id: int):
         )
         cols = [c["name"] for c in conn.columns]
         messages = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        if peer_deleted:
+            for m in messages:
+                if m.get("sender_id") == other_id:
+                    ad.scrub(m, True, name_keys=("sender_name",), flag="sender_deleted")
 
         # Mark undelivered messages as delivered (receiver is viewing the conversation)
         conn.run(
@@ -5004,7 +5022,7 @@ def get_unread_count(user_id: int) -> int:
     try:
         rows = conn.run(
             "SELECT COUNT(*) FROM messages m WHERE m.receiver_id=:uid AND m.is_read=FALSE AND "
-            + bs.visible_sql("m.sender_id", ":uid"),
+            + bs.visible_sql("m.sender_id", ":uid", keep_deleted=True),   # same rows as the conversation list
             uid=user_id
         )
         return rows[0][0] if rows else 0
@@ -5060,13 +5078,15 @@ def create_notification(
     actor_id: int = None, entity_id: int = None, entity_type: str = None,
     event_key: str = None, email_values: dict = None
 ):
-    """Create a notification. Returns the created row dict, or None if event_key already exists (idempotent).
+    """Create a notification. Returns the created row dict, or None if event_key already exists (idempotent)
+    or the recipient is a deleted account (task 8.5a — nothing in-app, no email).
     email_values = extra template variables of the mapped email (5.1d) — never stored."""
     conn = get_conn()
     try:
         rows = conn.run(
             "INSERT INTO notifications (user_id, type, title, body, link, actor_id, entity_id, entity_type, event_key) "
-            "VALUES (:uid, :type, :title, :body, :link, :actor, :eid, :etype, :ekey) "
+            "SELECT :uid::int, :type::text, :title::text, :body::text, :link::text, :actor::int, :eid::int, :etype::text, :ekey::text "
+            "WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = :uid AND deleted_at IS NOT NULL) "
             "ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING "
             "RETURNING id, user_id, type, title, body, link, is_read, created_at",
             uid=user_id, type=type_, title=title, body=body, link=link,
@@ -5574,8 +5594,9 @@ def get_company_extras(company_id: int, viewer_id: int = None) -> dict:
     conn = get_conn()
     try:
         # followers count — Follow System (PR 3.5): profile_follows only (idx_pf_followed)
-        fc = conn.run("SELECT COUNT(*) FROM profile_follows WHERE followed_id = :cid",
-                      cid=company_id)
+        # task 8.5a — same accounts as the followers list (bs.active_sql: no suspended / deleted follower)
+        fc = conn.run("SELECT COUNT(*) FROM profile_follows pf WHERE pf.followed_id = :cid AND "
+                      + bs.active_sql("pf.follower_id"), cid=company_id)
         followers_count = fc[0][0] if fc else 0
 
         # rating avg + count — uses idx_ratings_company
@@ -6375,12 +6396,13 @@ def unfollow_profile(follower_id: int, followed_id: int) -> int:
 
 
 def get_profile_followers_count(followed_id: int) -> int:
-    """Return number of followers for a profile."""
+    """Return number of followers for a profile — the same accounts as the followers list (task 8.5a:
+    bs.active_sql — a suspended / deleted follower is not counted)."""
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
-            fdid=followed_id)
+            "SELECT COUNT(*) FROM profile_follows pf WHERE pf.followed_id = :fdid AND "
+            + bs.active_sql("pf.follower_id"), fdid=followed_id)
         return rows[0][0] if rows else 0
     finally:
         release_conn(conn)
@@ -9464,8 +9486,10 @@ def cancel_appointment(appointment_id: int, user_id: int, reason: str = "") -> d
             payload={"reason": reason} if reason else None
         )
 
-        actor_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        actor_rows = conn.run("SELECT full_name, deleted_at IS NOT NULL FROM users WHERE id=:id", id=user_id)
         actor_name = actor_rows[0][0] if actor_rows else "أحد الأطراف"
+        if actor_rows and actor_rows[0][1]:   # task 8.5a — cancelled by the account deletion
+            actor_name = ad.deleted_label()
 
         for uid in [appt['company_id'], appt['applicant_id']]:
             if uid != user_id:
@@ -9670,6 +9694,18 @@ def search_schedule_people(company_id: int, q: str = "", limit: int = 20) -> lis
              "avatar_url": r[3] or "", "sources": sorted(r[4] or [])} for r in rows]
 
 
+def _appt_scrub(d: dict) -> None:
+    """task 8.5a — a deleted company / applicant shows as «حساب محذوف» without avatar (the appointment stays)."""
+    if d.get('company_deleted'):
+        d['company_name'] = ad.deleted_label()
+        if 'company_avatar' in d:
+            d['company_avatar'] = None
+    if d.get('applicant_deleted'):
+        d['applicant_name'] = ad.deleted_label()
+        if 'applicant_avatar' in d:
+            d['applicant_avatar'] = None
+
+
 def list_appointments(user_id: int, status_filter: str = None,
                       limit: int = 20, offset: int = 0) -> list:
     """List appointments where user is a participant. Enriched with names and computed status."""
@@ -9693,7 +9729,9 @@ def list_appointments(user_id: int, status_filter: str = None,
                        ap.role AS viewer_role,
                        co.full_name AS company_name,
                        emp.full_name AS applicant_name,
-                       j.title AS job_title
+                       j.title AS job_title,
+                       co.deleted_at IS NOT NULL AS company_deleted,
+                       emp.deleted_at IS NOT NULL AS applicant_deleted
                 FROM appointments a
                 JOIN appointment_participants ap
                      ON ap.appointment_id = a.id AND ap.user_id = :uid
@@ -9708,11 +9746,13 @@ def list_appointments(user_id: int, status_filter: str = None,
         cols = ["id","job_id","application_id","company_id","applicant_id",
                 "status","mode","scheduled_at","response_deadline_at",
                 "created_at","updated_at","closed_at","representative_name",
-                "viewer_role","company_name","applicant_name","job_title"]
+                "viewer_role","company_name","applicant_name","job_title",
+                "company_deleted","applicant_deleted"]
         result = []
         for r in (rows or []):
             d = _serialize(_row_to_dict(cols, r))
             d['computed_status'] = _appt_computed_status(d)
+            _appt_scrub(d)
             result.append(d)
         return result
     finally:
@@ -9734,12 +9774,12 @@ def get_appointment_room(appointment_id: int, user_id: int) -> dict:
         appt['computed_status'] = _appt_computed_status(appt)
 
         co_rows = conn.run(
-            "SELECT u.full_name, COALESCE(p.avatar_url,'') FROM users u "
+            "SELECT u.full_name, COALESCE(p.avatar_url,''), u.deleted_at IS NOT NULL FROM users u "
             "LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=:id",
             id=appt['company_id']
         )
         emp_rows = conn.run(
-            "SELECT u.full_name, COALESCE(p.avatar_url,'') FROM users u "
+            "SELECT u.full_name, COALESCE(p.avatar_url,''), u.deleted_at IS NOT NULL FROM users u "
             "LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=:id",
             id=appt['applicant_id']
         )
@@ -9747,6 +9787,9 @@ def get_appointment_room(appointment_id: int, user_id: int) -> dict:
         appt['company_avatar'] = co_rows[0][1] if co_rows else ""
         appt['applicant_name'] = emp_rows[0][0] if emp_rows else ""
         appt['applicant_avatar'] = emp_rows[0][1] if emp_rows else ""
+        appt['company_deleted'] = bool(co_rows and co_rows[0][2])
+        appt['applicant_deleted'] = bool(emp_rows and emp_rows[0][2])
+        _appt_scrub(appt)
 
         if appt.get('job_id'):
             j_rows = conn.run("SELECT title FROM jobs WHERE id=:id", id=appt['job_id'])
@@ -9755,15 +9798,16 @@ def get_appointment_room(appointment_id: int, user_id: int) -> dict:
             appt['job_title'] = None
 
         p_rows = conn.run(
-            """SELECT ap.user_id, ap.role, ap.can_message, ap.can_decide, u.full_name
+            """SELECT ap.user_id, ap.role, ap.can_message, ap.can_decide, u.full_name,
+                      u.deleted_at IS NOT NULL
                FROM appointment_participants ap
                JOIN users u ON u.id=ap.user_id
                WHERE ap.appointment_id=:appt ORDER BY ap.created_at""",
             appt=appointment_id
         )
         appt['participants'] = [
-            {"user_id": r[0], "role": r[1], "can_message": r[2],
-             "can_decide": r[3], "full_name": r[4]}
+            ad.scrub({"user_id": r[0], "role": r[1], "can_message": r[2],
+                      "can_decide": r[3], "full_name": r[4]}, r[5])
             for r in (p_rows or [])
         ]
         return appt
@@ -9782,7 +9826,8 @@ def get_appointment_events(appointment_id: int, user_id: int) -> list:
         rows = conn.run(
             """SELECT ae.id, ae.event_type, ae.old_status, ae.new_status,
                       ae.payload, ae.created_at, ae.actor_id,
-                      COALESCE(u.full_name, 'النظام') AS actor_name
+                      COALESCE(u.full_name, 'النظام') AS actor_name,
+                      u.deleted_at IS NOT NULL AS actor_deleted
                FROM appointment_events ae
                LEFT JOIN users u ON u.id=ae.actor_id
                WHERE ae.appointment_id=:appt
@@ -9790,10 +9835,11 @@ def get_appointment_events(appointment_id: int, user_id: int) -> list:
             appt=appointment_id
         )
         cols = ["id","event_type","old_status","new_status","payload",
-                "created_at","actor_id","actor_name"]
+                "created_at","actor_id","actor_name","actor_deleted"]
         result = []
         for r in (rows or []):
             d = _serialize(_row_to_dict(cols, r))
+            ad.scrub(d, d.get('actor_deleted'), name_keys=("actor_name",), flag="actor_deleted")   # 8.5a
             if d.get('payload') and isinstance(d['payload'], str):
                 try:
                     d['payload'] = _json_mod.loads(d['payload'])
@@ -9820,7 +9866,8 @@ def get_appointment_messages(appointment_id: int, user_id: int,
             _params["before"] = int(before_id)
         rows = conn.run(
             f"""SELECT am.id, am.appointment_id, am.sender_id, am.body,
-                      am.created_at, am.edited_at, u.full_name AS sender_name
+                      am.created_at, am.edited_at, u.full_name AS sender_name,
+                      u.deleted_at IS NOT NULL AS sender_deleted
                FROM appointment_messages am
                JOIN users u ON u.id=am.sender_id
                WHERE am.appointment_id=:appt AND am.deleted_at IS NULL {_before_sql}
@@ -9829,10 +9876,11 @@ def get_appointment_messages(appointment_id: int, user_id: int,
             **_params
         )
         rows = list(reversed(rows or []))
-        cols = ["id","appointment_id","sender_id","body","created_at","edited_at","sender_name"]
+        cols = ["id","appointment_id","sender_id","body","created_at","edited_at","sender_name","sender_deleted"]
         result = []
         for r in (rows or []):
             d = _serialize(_row_to_dict(cols, r))
+            ad.scrub(d, d.get('sender_deleted'), name_keys=("sender_name",), flag="sender_deleted")   # 8.5a
             d['is_own'] = (d['sender_id'] == user_id)
             result.append(d)
         return result

@@ -80,6 +80,7 @@ def env(monkeypatch):
     auth._migrate_email_notify()
     auth._migrate_email_notify()          # idempotent
     server.bs.migrate_blocks_suspension()   # task 8.4c-0b — the message email job reads the block rule
+    server.ad.migrate_account_deletion()     # task 8.5a — users.deleted_* (read by the session check)
     server.admin_staff.migrate_admin_staff()   # task 8.4b — check_admin reads the owner session_version
     auth._migrate_scheduler_jobs()
     f = FakeResend()
