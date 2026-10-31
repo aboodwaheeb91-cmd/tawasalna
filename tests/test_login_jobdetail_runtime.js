@@ -8,6 +8,9 @@
  *   D  static/job/job-detail.js (real) — twApi only · apply = twAction('apply_job') · Gregorian date
  *      · real links (company / similar jobs) · apply → twModal → POST /jobs/{id}/apply
  *   E  structure — radios / buttons / no role=link / mobile sidebar / every twT key exists
+ *   R  «استعادة حسابي» (task 8.5d) — the restore button only with account_deleted + restorable (date shown) ·
+ *      restorable false → «الحساب غير متاح» · click → twConfirm → its own POST /auth/restore (the typed email +
+ *      password) → the login success path · 403 admin_deleted → the support text · cancel → no request
  *
  * Run: node tests/test_login_jobdetail_runtime.js
  */
@@ -195,6 +198,55 @@ function gateway(opts) {
     const broken = await login({ ok: true, status: 200, data: { user: USER, token: 'bad' } });
     check('C6 2xx with a bad token → banner, no session, no redirect',
       broken.banner === STRINGS['login.err.incomplete'] && !('tw_jwt' in broken.store) && broken.timers.length === 0);
+  }
+  // ── R — deleted account + «استعادة حسابي» (task 8.5d) ──
+  console.log('\nR — restore my account');
+  async function loginDeleted(raw, restoreRes, confirmed) {
+    const g = gateway({ auth: true, dom: true });
+    g.el('lEmail').value = 'gone@b.co';
+    g.el('lPass').value = 'secret1';
+    const calls = [];
+    let shown = null;
+    g.ctx._lShowRestore = on => { shown = on; };
+    g.ctx.twConfirm = o => { calls.push(['confirm', o]); return Promise.resolve(confirmed !== false); };
+    g.ctx.twApi = (p, o) => { calls.push([p, o]);
+      return Promise.resolve(p === '/auth/login' ? { ok: false, status: 401, raw } : restoreRes); };
+    await g.ctx.doLogin();
+    return Object.assign(g, { calls, shown: () => shown, banner: () => g.el('l-form-error').text.textContent });
+  }
+  {
+    const until = '2026-12-01T10:00:00+00:00';
+    const RES_OK = { ok: true, status: 200, data: { user: USER, token: GOOD_JWT, restored: true } };
+    const g = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until }, RES_OK);
+    check('R1 account_deleted + restorable → the date in the banner + the restore button shown',
+      g.shown() === true && g.banner() === STRINGS['login.deleted.restorable'].replace('{date}', g.ctx.twFormatDate(until))
+      && !('tw_jwt' in g.store), g.banner());
+    await g.ctx.doRestore();
+    const req = g.calls.filter(c => c[0] === '/auth/restore');
+    check('R2 restore = twConfirm first, then its own POST /auth/restore with the typed email + password (auth:false)',
+      g.calls.findIndex(c => c[0] === 'confirm') < g.calls.findIndex(c => c[0] === '/auth/restore')
+      && req.length === 1 && req[0][1].method === 'POST' && req[0][1].auth === false
+      && req[0][1].body.email === 'gone@b.co' && req[0][1].body.password === 'secret1');
+    g.timers.forEach(fn => fn());
+    check('R3 restore success → the login success path (session + redirect to the account)',
+      g.store.tw_jwt === GOOD_JWT && g.nav.href === '/u/' + USER.tw_id
+      && g.toasts.some(t => t[0] === STRINGS['login.restore.done']), g.nav.href);
+
+    const no = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: false, restore_until: null }, RES_OK);
+    check('R4 restorable false → «الحساب غير متاح» only, no restore button',
+      no.shown() !== true && no.banner() === STRINGS['login.deleted.unavailable']);
+    const plain = await loginDeleted({ ok: false, error: { code: 'unauthorized' } }, RES_OK);
+    check('R5 a normal 401 (wrong password) → the usual text, no restore button',
+      plain.shown() !== true && plain.banner() === STRINGS['login.err.failed']);
+
+    const adm = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until },
+      { ok: false, status: 403, raw: { ok: false, error: { code: 'admin_deleted' } } });
+    await adm.ctx.doRestore();
+    check('R6 403 admin_deleted → the contact-support text, no session',
+      adm.banner() === STRINGS['auth.restore.err.admin_deleted'] && !('tw_jwt' in adm.store), adm.banner());
+    const cancel = await loginDeleted({ ok: false, error: { code: 'account_deleted' }, restorable: true, restore_until: until }, RES_OK, false);
+    await cancel.ctx.doRestore();
+    check('R7 confirm cancelled → no restore request', !cancel.calls.some(c => c[0] === '/auth/restore'));
   }
   async function register(res, opts) {
     const g = gateway({ auth: true, dom: true });

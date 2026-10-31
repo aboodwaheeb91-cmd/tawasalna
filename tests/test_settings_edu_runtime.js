@@ -18,6 +18,9 @@
  *   O  «تنزيل بياناتي» (task 8.5b) — twModal + password → POST /me/export → file saved only on res.ok ·
  *      wrong password → field error, dialog open, no file · KYC option = a separate POST /me/export/kyc-docs
  *      (password again) → links through twSafeLinkUrl (rel noopener) · empty → empty text · 401 → no toast
+ *   P  «حذف الحساب» (task 8.5d) — twModal: warning with twLimit days (+ company line for co only) · button
+ *      disabled until «حذف» is typed · 422 → error under its field, dialog open · 429 → toast · success →
+ *      TwAuthSync.invalidateSession + redirect /login?account=deleted · body {password, confirm:'delete'}
  *
  * Run: node tests/test_settings_edu_runtime.js
  */
@@ -122,7 +125,8 @@ function sharedStubs(rec, opts) {
       const e = res && res.error; const f = e && e.fieldErrors && e.fieldErrors[0];
       return (f && f.message) || (e && e.generalError && e.generalError.code !== 'unknown' && e.generalError.message) || fb;
     },
-    twModal: m => { const ctl = { close() { ctl.closed = true; }, m }; rec.modals.push(ctl); return ctl; },
+    twModal: m => { const ctl = { close() { ctl.closed = true; }, m, disabled: {},
+                                 setActionDisabled(i, on) { ctl.disabled[i] = !!on; } }; rec.modals.push(ctl); return ctl; },
     twActionState: id => {
       const d = merged[id];
       return d && !d.off && (d.visibleTo || []).indexOf(opts.userType || 'edu') >= 0 ? 'enabled' : 'hidden';
@@ -143,7 +147,7 @@ function sharedStubs(rec, opts) {
     twAvatarEl: () => new El('span'),
     twFormatDate: v => 'D(' + v + ')',
     twFormatNumber: n => String(n),
-    twLimit: name => (name === 'data_export_kyc_url_ttl_s' ? 300 : null),
+    twLimit: name => (name === 'data_export_kyc_url_ttl_s' ? 300 : name === 'account_purge_days' ? 30 : null),
     Blob: class { constructor(parts, o) { this.parts = parts; this.type = o && o.type; rec.blobs.push(this); } },
     URL: { createObjectURL: b => { rec.objectUrls.push(b); return 'blob:tw-' + rec.objectUrls.length; },
            revokeObjectURL: u => rec.revoked.push(u) },
@@ -180,13 +184,15 @@ async function runSettings(opts) {
   opts.api = Object.assign({ 'GET /my/email-notifications': OK({ types: [] }),
                             'GET /blocks?offset=0': OK({ items: [], total: 0 }) }, opts.api || {});   // «المحظورون» (5.4)
   const rec = newRec();
-  const rows = ['phone', 'password', 'export'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
+  const rows = ['phone', 'password', 'export', 'delete'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
   const kycRow = new El('div'); kycRow.id = 'kycRow'; kycRow.hidden = true;
   ['kycState', 'kycAction'].forEach(id => { const e = new El('span'); e.id = id; kycRow.appendChild(e); });
-  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList', 'blockedList'], rows.concat([kycRow]));
+  const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList', 'blockedList',
+                                 'companySettings', 'coNotifyResult'], rows.concat([kycRow]));
   const ctx = baseCtx(rec, opts, document);
-  ctx.twRequireAuth = () => (opts.guest ? null : { isAuthenticated: true, userId: 7, userType: 'edu' });
-  ctx.TwAuthSync = { getToken: () => 'JWT', renewToken: t => { rec.renewed = t; return true; }, invalidateSession: r => { rec.invalidated = r; } };
+  ctx.twRequireAuth = () => (opts.guest ? null : { isAuthenticated: true, userId: 7, userType: opts.userType || 'edu' });
+  ctx.TwAuthSync = { getToken: () => 'JWT', renewToken: t => { rec.renewed = t; return true; },
+                     invalidateSession: (r, o) => { rec.invalidated = r; rec.invalidatedOpts = o; } };
   vm.runInNewContext(SETTINGS_JS, ctx, { filename: 'settings.js' });
   await flush();
   return { rec, ctx, document, rows, $: id => document.getElementById(id) };
@@ -586,6 +592,59 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
     m.m.content.find(e => e.tagName === 'INPUT')[0].value = 'x';
     const r = await m.m.actions[1].onClick();
     check('O9 401 → no toast, no file (twApi / the guard handle the session)', r === false && p.rec.toasts.length === 0 && p.rec.blobs.length === 0);
+  }
+
+  // ── P — «حذف الحساب» (task 8.5d) ──
+  console.log('\nP — account delete');
+  {
+    const FE = (field, code) => FAIL(422, { fieldErrors: [{ field, code, message: 'ERR-' + field }], generalError: null });
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE,
+      'DELETE /auth/user/7/delete': o => (o.body.password === 'wrong' ? FE('password', 'wrong_password')
+        : o.body.password === 'noconfirm' ? FE('confirm', 'confirm_required')
+        : o.body.password === 'flood' ? FAIL(429, { fieldErrors: [], generalError: { code: 'rate_limited', message: 'كثير' } })
+        : OK({ deleted: true, purge_after: '2026-12-01T00:00:00+00:00' })) } });
+    p.rows[3].click();
+    const m = lastModal(p);
+    const inputs = m && m.m.content.find(e => e.tagName === 'INPUT');
+    const pw = inputs && inputs.find(e => e.getAttribute('type') === 'password');
+    const word = inputs && inputs.find(e => e.getAttribute('type') === 'text');
+    check('P1 «حذف الحساب» opens one twModal: warning with the grace days · password + word fields · no company line for edu',
+          m && m.m.title === 'settings.delete.title' && !!pw && !!word
+          && m.m.content.find(e => e._text === 'settings.delete.warn{"days":"30"}').length === 1
+          && m.m.content.find(e => e._text === 'settings.delete.warn_co').length === 0);
+    check('P2 the delete button opens disabled (danger)', m.m.actions[1].disabled === true && m.m.actions[1].variant === 'danger');
+    word.value = 'حذ'; word.fire('input');
+    const stillOff = m.disabled[1] === true;
+    word.value = 'settings.delete.confirm_word'; word.fire('input');   // twT stub returns the key = the word
+    check('P3 the button follows the typed word (off → on)', stillOff && m.disabled[1] === false);
+    word.value = 'settings.delete.confirm_word';
+    check('P4 empty password → stays open, no request', m.m.actions[1].onClick() === false
+          && !p.rec.api.some(a => a.key === 'DELETE /auth/user/7/delete') && pw._err._text === 'settings.delete.err.password_required');
+    pw.value = 'wrong';
+    let kept = await m.m.actions[1].onClick();
+    const sent = p.rec.api.filter(a => a.key === 'DELETE /auth/user/7/delete').pop();
+    check('P5 wrong password (422) → error under the password, open · body {password, confirm:"delete"}',
+          kept === false && pw._err._text === 'ERR-password' && sent.body.confirm === 'delete' && sent.body.password === 'wrong'
+          && !p.rec.invalidated);
+    pw.value = 'noconfirm';
+    kept = await m.m.actions[1].onClick();
+    check('P6 confirm_required (422) → error under the word field, open', kept === false && word._err._text === 'ERR-confirm');
+    pw.value = 'flood';
+    const toasts = p.rec.toasts.length;
+    kept = await m.m.actions[1].onClick();
+    check('P7 429 → error toast, open, no sign-out', kept === false && p.rec.toasts.length === toasts + 1
+          && p.rec.toasts[toasts].type === 'error' && !p.rec.invalidated);
+    pw.value = 'right';
+    await m.m.actions[1].onClick();
+    check('P8 success → TwAuthSync.invalidateSession + /login?account=deleted (the logout path)',
+          p.rec.invalidated === 'account_deleted' && p.rec.invalidatedOpts && p.rec.invalidatedOpts.redirect === '/login?account=deleted');
+  }
+  {
+    const CO = OK({ profile: { user_type: 'co', tw_id: 'C1', full_name: 'شركة', email: 'c@b.co', phone: '' } });
+    const p = await runSettings({ userType: 'co', api: { 'GET /profile/7/full': CO } });
+    p.rows[3].click();
+    const m = lastModal(p);
+    check('P9 company → the jobs / interviews line is shown', m.m.content.find(e => e._text === 'settings.delete.warn_co').length === 1);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

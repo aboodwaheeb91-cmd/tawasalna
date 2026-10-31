@@ -9,6 +9,8 @@ pipeline, appointments, posts, comments, jobs). The final purge after the grace 
   soft_delete()  → the ONE writer of deleted_* (set) — + session_version + 1 (every token dies) + pending
                    password-reset links deleted, in one statement-level transaction.
   restore()      → the ONE writer of deleted_* (clear) — + session_version + 1 (old tokens stay dead: a new login).
+                   self_only=True (8.5d — POST /auth/restore): kind 'self' + inside the grace period, checked
+                   under the same FOR UPDATE · restore_info() = the login reply's restorable / restore_until.
   apply_effects()→ what a deletion does to other people (company: open jobs closed + one in-app notice per
                    affected applicant · any account: upcoming interviews cancelled through auth.cancel_appointment).
                    Run by the call that changed the state only → deleting twice = one notice. Restore never undoes it.
@@ -72,7 +74,8 @@ def scrub(d: dict, deleted, name_keys=("full_name",), clear_keys=PARTY_CLEAR, fl
 
 
 class DeletionError(Exception):
-    """code: invalid_kind (422) · purging / already_purged (409 — restore after the final purge started)."""
+    """code: invalid_kind (422) · purging / already_purged (409 — restore after the final purge started) ·
+    self restore (8.5d): not_deleted / expired (409) · admin_deleted (403)."""
     def __init__(self, code: str, status: int):
         super().__init__(code)
         self.code = code
@@ -124,23 +127,40 @@ def soft_delete(user_id: int, by: str, kind: str, reason=None):
             "user_type": r[2], "state": _state(r[3:])}
 
 
-def restore(user_id: int, by: str, reason: str):
+def _purge_days() -> int:
+    import tw_settings
+    return int(tw_settings.limit("account_purge_days"))
+
+
+def restore(user_id: int, by: str, reason, self_only: bool = False):
     """The ONE writer (clear). → None (no such user) | {changed, state}. Old tokens stay dead (session_version + 1).
     Jobs stay closed and cancelled interviews stay cancelled. The reason goes to the admin audit log (server).
     Task 8.5c: users row FOR UPDATE (the lock account_purge.claim_due takes) → a purge already started →
-    DeletionError purging / already_purged (409) — restore and purge never interleave."""
+    DeletionError purging / already_purged (409) — restore and purge never interleave.
+    Task 8.5d — self_only (the owner's POST /auth/restore): checked INSIDE the same lock, in this order:
+    not deleted → not_deleted (409) · deleted by the admin → admin_deleted (403 — the admin decides) · purge
+    started → purging / already_purged (409) · grace period over → expired (409)."""
     import account_purge
     from auth import db_conn
     with db_conn() as conn:
         conn.run("BEGIN")
         try:
-            if not conn.run("SELECT 1 FROM users WHERE id = :uid FOR UPDATE", uid=int(user_id)):
+            row = conn.run("SELECT deleted_at IS NOT NULL, deleted_kind, "
+                           "deleted_at > NOW() - make_interval(days => :d) "
+                           "FROM users WHERE id = :uid FOR UPDATE", uid=int(user_id), d=_purge_days())
+            if not row:
                 conn.run("ROLLBACK")
                 return None
+            is_del, kind, in_grace = bool(row[0][0]), row[0][1], bool(row[0][2])
+            if self_only and not is_del:
+                raise DeletionError("not_deleted", 409)
+            if self_only and kind != "self":
+                raise DeletionError("admin_deleted", 403)
             purge = account_purge.purge_state(user_id, conn)
             if purge is not None:
-                conn.run("ROLLBACK")
                 raise DeletionError("already_purged" if purge == "purged" else "purging", 409)
+            if self_only and not in_grace:
+                raise DeletionError("expired", 409)
             rows = conn.run(
                 "UPDATE users SET deleted_at = NULL, deleted_by = NULL, deleted_kind = NULL, deleted_reason = NULL, "
                 "session_version = session_version + 1 WHERE id = :uid AND deleted_at IS NOT NULL "
@@ -150,6 +170,7 @@ def restore(user_id: int, by: str, reason: str):
                 rows = conn.run("SELECT " + _STATE_COLS + " FROM users WHERE id = :uid", uid=int(user_id))
             conn.run("COMMIT")
         except DeletionError:
+            conn.run("ROLLBACK")
             raise
         except Exception:
             conn.run("ROLLBACK")
@@ -157,6 +178,24 @@ def restore(user_id: int, by: str, reason: str):
     if not rows:
         return None
     return {"changed": changed, "state": _state(rows[0])}
+
+
+def restore_info(user_id: int) -> dict:
+    """Login reply of a deleted account (right password only — task 8.5d): {restorable, restore_until}.
+    restorable = deleted by the owner + inside the grace period + no purge started. restore_until = deleted_at +
+    account_purge_days (ISO) for self deletions, else None (never said for an admin deletion)."""
+    from auth import db_conn
+    with db_conn() as conn:
+        rows = conn.run(
+            "SELECT u.deleted_kind, u.deleted_at + make_interval(days => :d), "
+            "u.deleted_at > NOW() - make_interval(days => :d), p.stage "
+            "FROM users u LEFT JOIN account_purge p ON p.user_id = u.id "
+            "WHERE u.id = :uid AND u.deleted_at IS NOT NULL", uid=int(user_id), d=_purge_days())
+    if not rows:
+        return {"restorable": False, "restore_until": None}
+    kind, until, in_grace, stage = rows[0]
+    restorable = kind == "self" and bool(in_grace) and stage is None
+    return {"restorable": restorable, "restore_until": _iso(until) if restorable else None}
 
 
 def get_deletion(user_id: int):
@@ -184,7 +223,7 @@ def is_deleted(user_id: int, conn=None) -> bool:
     return bool(rows and rows[0][0])
 
 
-# ── Effects on other people (one function — the admin delete now, the user's own delete in 8.5d) ──
+# ── Effects on other people (one function — the admin delete + the owner's own delete, task 8.5d) ──
 
 def apply_effects(user_id: int) -> dict:
     """While the account is still deleted: company → its open / paused jobs closed (auth.set_job_status — the one

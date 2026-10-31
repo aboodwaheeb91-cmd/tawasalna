@@ -75,6 +75,7 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 | جديدة: شخصي → شركة | 403 `company_start` «لا يمكنك بدء محادثة مع شركة» |
 | نوع مش معروف | 403 `forbidden` (fail closed) · حساب مش موجود → 404 `not_found` |
 | حظر بأي اتجاه أو المستلم معلّق (task 5.4 — `docs/rules/blocks-suspension.md`) | 404 `not_found` — بدء ورد، قبل أي قاعدة تانية (عمود سادس بـ `_MESSAGE_POLICY_FACTS_SQL` من `bs.visible_sql`) |
+| المستلم محذوف (task 8.5d — `docs/rules/account-deletion.md`) | في رسائل سابقة بينهم → 403 `peer_deleted` (twT `msg.policy.peer_deleted` «لا يمكن الرد على هذا الحساب») — المحادثة بتضل قراءة بس · بدون رسائل سابقة → 404 `not_found` متل الحظر (ما بينكشف الحذف لحدا بيجرّب أرقام). العمود السابع بـ `_MESSAGE_POLICY_FACTS_SQL` = محذوف وبقية القاعدة بتشوفه (`bs.visible_sql(..., keep_deleted=True)`) · الإرسال HTTP + WS مرفوض |
 
 17. **كل مسار بيبعت رسالة بيفحصها بنفس transaction الـ INSERT، بعد `pg_advisory_xact_lock` على الزوج** (`MESSAGE_PAIR_LOCK_SQL_*` — نفس القفل بـ `end_conversation`): `send_message_pipeline` (pg8000) و `_pipeline_asyncpg` (asyncpg) → رفض = `MessagePolicyError` وما في شي انكتب → `_message_policy_error` → `{ok:false, error:{code, message}}` (النص = twT `msg.policy.*` مع override الأدمن). الـ WebSocket ما بيبعت رسائل (typing / active_conversation بس).
 
@@ -87,6 +88,7 @@ Full technical specification: `ARCHITECTURE.md §47 → Messenger Session Lifecy
 
 ```
 ❌ مسار بيبعت رسالة بدون can_send_message بنفس الـ transaction وتحت قفل الزوج (task 5.0g)
+❌ composer أو «إنهاء المحادثة» أو زر موعد أو رابط ملف مع محاور محذوف (`peer_deleted` — task 8.5d: `_renderConvPolicy` بـ `messages.render.js` من سبب السيرفر بس، والاسم «حساب محذوف» من `ad.scrub`) · ❌ `peer_deleted` بدون رسائل سابقة
 ❌ مسار رسائل (قراءة / تعليم مقروء / إنهاء / إيميل) بدون bs — بيرجع رسائل طرف محظور أو معلّق (task 8.4c-0b)
 ❌ قاعدة «مين بيراسل مين» تانية (بالصفحة، من نوع الـ JWT، أو فحص Python تاني)
 ❌ إشعار للشخص عن إنهاء المحادثة

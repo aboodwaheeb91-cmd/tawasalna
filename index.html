@@ -15,7 +15,7 @@
 <meta name="twitter:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://tawasolna.com">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v12">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v13">
 <link rel="stylesheet" href="/static/support/support.css?v={{v:support.css}}">
 </head>
 <body>
@@ -75,6 +75,14 @@
       <!-- DS-VAL VAL-09: auth failure banner (form-level, not field-level) -->
       <div id="l-form-error" class="l-form-error" role="alert" aria-live="assertive" hidden>
         <span class="l-form-error-text"></span>
+      </div>
+      <!-- task 8.5d — «استعادة حسابي»: shown only with account_deleted + restorable (index.auth.js) -->
+      <div id="l-restore" class="l-restore" hidden>
+        <button type="button" class="tw-btn" id="lRestoreBtn" data-tw-t="login.restore.btn"></button>
+      </div>
+      <!-- task 8.5d — after the owner's own delete (/login?account=deleted) -->
+      <div id="l-form-notice" class="l-form-notice" role="status" aria-live="polite" hidden>
+        <span class="l-form-notice-text"></span>
       </div>
 
       <!-- DS-INP: email field -->
@@ -237,7 +245,7 @@
 <script src="/static/shared/tw-overlay.js?v={{v:tw-overlay.js}}"></script>
 <!-- «مشكلة بالدخول؟» → guest support form (task 7.1 — docs/rules/support.md) -->
 <script src="/static/support/support-form.js?v={{v:support-form.js}}"></script>
-<script src="/static/index.auth.js?v=auth-gw-v14"></script>
-<script src="/static/index.ui.js?v=auth-gw-v11"></script>
+<script src="/static/index.auth.js?v=auth-gw-v15"></script>
+<script src="/static/index.ui.js?v=auth-gw-v12"></script>
 </body>
 </html>

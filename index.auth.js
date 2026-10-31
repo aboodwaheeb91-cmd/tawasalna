@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v13
+// Version: auth-gw-v15
 
 'use strict';
 
@@ -81,7 +81,10 @@ function _clearFormBanner(id){
   if(banner) banner.setAttribute('hidden', '');
 }
 function _lShowFormError(msg){ _showFormBanner('l-form-error', msg); }
-function _lClearFormError(){ _clearFormBanner('l-form-error'); }
+function _lClearFormError(){
+  _clearFormBanner('l-form-error');
+  if(typeof _lShowRestore === 'function') _lShowRestore(false);   // the restore offer belongs to that error
+}
 
 // The new session goes through TwAuthSync only (auth-sync.js — the one session writer).
 function _startSession(user, token){
@@ -177,30 +180,85 @@ async function doLogin(){
     var res = await twApi('/auth/login', {method: 'POST', auth: false, body: {email: email, password: pass}});
 
     if(!res.ok){
+      // task 8.5d — account_deleted only comes with the RIGHT password (a wrong one = the normal reply)
+      if(_deletedReply(res)) return;
       // DS-VAL VAL-09: auth failure → form-level banner (not DS-FEEDBACK toast)
       // Status-based fixed messages only — never the raw server text (API-MUT-11)
       _lShowFormError(_loginErrorText(res));
       return;
     }
-
-    // One session writer (TwAuthSync.startSession — validates the pair; malformed 2xx → false,
-    // nothing kept, no redirect).
-    var data = res.data;
-    if(!data || !data.user || !_startSession(data.user, data.token)){
-      _lShowFormError(twT('login.err.incomplete'));
-      return;
-    }
-
-    _success = true;
-    // Success operational feedback via DS-FEEDBACK F34 (success is not a form error)
-    showToast(twT('login.welcome'), 'success');
-    setTimeout(function(){ redirect(data.user); }, 600);
+    if(_finishLogin(res.data, 'login.welcome')) _success = true;
   } catch(e){
     console.error('[login] unexpected error:', e);
     _lShowFormError(twT('login.err.network'));
   } finally {
     // On failure only: restore button and unlock guard
     // On success: _submitting stays true, button stays loading until redirect
+    if(!_success){
+      _submitting = false;
+      setBtnLoad(btn, false);
+    }
+  }
+}
+
+// One session writer (TwAuthSync.startSession — validates the pair; malformed 2xx → false,
+// nothing kept, no redirect). Shared by login + «استعادة حسابي» (same success path).
+function _finishLogin(data, toastKey){
+  if(!data || !data.user || !_startSession(data.user, data.token)){
+    _lShowFormError(twT('login.err.incomplete'));
+    return false;
+  }
+  // Success operational feedback via DS-FEEDBACK F34 (success is not a form error)
+  showToast(twT(toastKey), 'success');
+  setTimeout(function(){ redirect(data.user); }, 600);
+  return true;
+}
+
+// ── Deleted account + «استعادة حسابي» (task 8.5d — docs/rules/account-deletion.md) ──
+// 401 account_deleted (right password): restorable → the date + the restore button · else «الحساب غير متاح».
+// The restore is its own request (POST /auth/restore with the email + password typed now) after twConfirm;
+// success → the same path as a login. 403 admin_deleted → the support text. Never decided from tw_user.
+function _deletedReply(res){
+  var raw = res && res.raw;
+  if(!(res.status === 401 && raw && raw.error && raw.error.code === 'account_deleted')) return false;
+  if(raw.restorable === true){
+    _lShowFormError(twT('login.deleted.restorable', { date: twFormatDate(raw.restore_until) }));
+    if(typeof _lShowRestore === 'function') _lShowRestore(true);   // index.ui.js — appearance only
+  } else {
+    _lShowFormError(twT('login.deleted.unavailable'));
+  }
+  return true;
+}
+
+async function doRestore(){
+  if(_submitting) return;
+  var emailEl = document.getElementById('lEmail');
+  var passEl  = document.getElementById('lPass');
+  var email   = emailEl ? emailEl.value.trim() : '';
+  var pass    = passEl  ? passEl.value          : '';
+  if(!email || !pass){ _lShowFormError(twT(email ? 'login.err.pass_required' : 'login.err.email_required')); return; }
+  var ok = await twConfirm({ title: twT('login.restore.confirm_title'), message: twT('login.restore.confirm_msg'),
+                             confirmText: twT('login.restore.btn') });
+  if(!ok) return;
+  _submitting = true;
+  var btn = document.getElementById('lRestoreBtn');
+  setBtnLoad(btn, true);
+  var _success = false;
+  try {
+    var res = await twApi('/auth/restore', {method: 'POST', auth: false, body: {email: email, password: pass}});
+    if(!res.ok){
+      var code = res.raw && res.raw.error && res.raw.error.code;
+      _lShowFormError(res.status === 403 && code === 'admin_deleted' ? twT('auth.restore.err.admin_deleted')
+                      : res.status === 409 ? twT('auth.restore.err.expired')
+                      : (res.status === 401 || res.status === 429 || res.status === 0 || res.status >= 500)
+                        ? _loginErrorText(res) : twT('login.restore.err'));
+      return;
+    }
+    if(_finishLogin(res.data, 'login.restore.done')) _success = true;
+  } catch(e){
+    console.error('[restore] unexpected error:', e);
+    _lShowFormError(twT('login.err.network'));
+  } finally {
     if(!_success){
       _submitting = false;
       setBtnLoad(btn, false);

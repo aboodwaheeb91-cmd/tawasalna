@@ -295,6 +295,27 @@ document.querySelectorAll('[data-pass-eye]').forEach(function(eyeBtn){
   });
 }());
 
+// ── «استعادة حسابي» + deleted notice (task 8.5d) — appearance only; the decision + request are in index.auth.js ──
+function _lShowRestore(on){
+  var box = document.getElementById('l-restore');
+  if(box) box.hidden = !on;
+}
+function _lShowNotice(msg){
+  var box = document.getElementById('l-form-notice');
+  if(!box) return;
+  var t = box.querySelector('.l-form-notice-text');
+  if(t) t.textContent = msg || '';
+  box.hidden = !msg;
+}
+;(function(){
+  var b = document.getElementById('lRestoreBtn');
+  if(b) b.addEventListener('click', function(){ doRestore(); });
+  // After the owner's own delete (settings → /login?account=deleted): one notice with the way back.
+  try {
+    if(new URLSearchParams(window.location.search).get('account') === 'deleted') _lShowNotice(twT('login.deleted.notice'));
+  } catch(e){}
+}());
+
 // ── DS-ICON: static <i data-tw-icon> placeholders (once) ─────────────────────
 if(window.twIcon && typeof twIcon.hydrate === 'function') twIcon.hydrate(document.body);
 

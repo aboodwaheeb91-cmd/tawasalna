@@ -8,7 +8,8 @@ and with TW_SECURITY_TESTS_REQUIRED=1 (CI) a skip is a failure — tests/conftes
   reply) · content hidden + counters down · shared records stay scrubbed (conversation · applicants · pipeline ·
   appointments) and sending refused · company effects (jobs closed · one notice per applicant · interviews
   cancelled) · concurrency · restore (old token dead · jobs stay closed · reason required) · password reset +
-  register for a deleted email = the normal reply, no email · rows never removed · self delete still 403.
+  register for a deleted email = the normal reply, no email · rows never removed · self delete needs a password
+  (8.5d — tests/test_account_self_delete_85d.py).
 Run: python -m pytest tests/test_account_deletion_85a.py -q
 """
 import os, sys, threading, uuid
@@ -116,7 +117,7 @@ def _label():
 
 
 # ── gate ──
-def test_gate_401_403_428_and_self_delete_still_403(db, _env):
+def test_gate_401_403_428_and_self_delete_needs_password(db, _env):
     target, emp = _user("emp"), _user("emp")
     for call in (lambda h: _delete(target, hdr=h), lambda h: _restore(target, hdr=h)):
         assert call({}).status_code == 401                                         # no token
@@ -128,7 +129,8 @@ def test_gate_401_403_428_and_self_delete_still_403(db, _env):
         r = call({"X-Admin-Token": tok})
         assert r.status_code == 428 and "step_up_required" in r.text
     assert _sql("SELECT deleted_at FROM users WHERE id = :u", u=target["id"])[0][0] is None
-    assert client.delete(f"/auth/user/{emp['id']}/delete", headers=_h(emp)).status_code == 403
+    # task 8.5d — the owner's path is open now: without a password nothing is deleted (full contract: 85d tests)
+    assert client.delete(f"/auth/user/{emp['id']}/delete", headers=_h(emp)).status_code == 422
     assert _sql("SELECT deleted_at FROM users WHERE id = :u", u=emp["id"])[0][0] is None
     # the audit log names every refused / accepted call
     assert _sql("SELECT COUNT(*) FROM admin_audit_log WHERE action IN ('delete_user', 'restore_user') "
@@ -222,7 +224,8 @@ def test_shared_records_stay_scrubbed_and_sending_refused(db):
     _identity_absent(msgs.text, emp)
     assert client.get(f"/messages/unread/{co['id']}", headers=hc).json()["count"] == 0
     r = client.post("/messages/send", headers=hc, json={"receiver_id": emp["id"], "content": "x"})
-    assert r.status_code == 404, r.text
+    # task 8.5d — earlier messages → peer_deleted (403, read-only thread); without history it stays 404 (85d tests)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "peer_deleted", r.text
     assert client.get(f"/messages/can-send/{emp['id']}", headers=hc).json()["data"]["can_message"] is False
 
     for q in ("", "?view=candidates"):

@@ -8879,9 +8879,9 @@ check("492-12. genStatus and genLbl variables removed from _showJobChipPop",
       and 'genLbl' not in _pop492)
 
 # ── §SEC-1 — DELETE /auth/user/{user_id}/delete ───────────────────────────
-# Task 5.0e: the self-delete path is CLOSED until soft delete (ADMIN_ENTITY_MAP §1) — every call → 403,
-# nothing touches the database (no IDOR possible, no hard delete). Behavioural only (CLAUDE.md Testing 6);
-# the full HTTP contract lives in tests/test_account_security.py.
+# Task 8.5d: the owner's soft delete. Another user's id → 403; the owner's own id without a password → 422 —
+# neither reaches the database (no IDOR, no hard delete). Behavioural only (CLAUDE.md Testing 6);
+# the full HTTP + DB contract lives in tests/test_account_self_delete_85d.py.
 
 import sys as _sys_sec1b
 import os as _os_sec1b
@@ -8905,21 +8905,23 @@ except Exception as _e_sec1b:
     _srv_sec1_err = str(_e_sec1b)[:150]
 
 if _srv_sec1 is not None:
-    # sec-1-01 / 02: another user's id and the owner's own id → both 403, DB never reached
-    for _sec1_n, _sec1_uid in (("01", 99), ("02", 1)):
+    # sec-1-01: another user's id → 403 · sec-1-02: own id, no password → 422 — DB never reached
+    for _sec1_n, _sec1_uid, _sec1_want in (("01", 99, 403), ("02", 1, 422)):
         _gc_sec1 = _Mb()
         _st_sec1 = None
         with _Pb.object(_srv_sec1, 'get_conn', _gc_sec1), \
              _Pb.object(_srv_sec1, 'release_conn', _Mb()):
             try:
-                _srv_sec1.delete_own_account(user_id=_sec1_uid, token={'user_id': 1, 'user_type': 'emp'})
+                _r_sec1 = _srv_sec1.delete_own_account(user_id=_sec1_uid, data=None,
+                                                       token={'user_id': 1, 'user_type': 'emp'})
+                _st_sec1 = getattr(_r_sec1, 'status_code', None)
             except _FHE_sec1 as _ex_sec1:
                 _st_sec1 = _ex_sec1.status_code
             except Exception:
                 pass
         check(
-            f"sec-1-{_sec1_n}. [BEHAVIORAL] token(user=1) deleting user_id={_sec1_uid} → 403, get_conn never called",
-            _st_sec1 == 403 and _gc_sec1.call_count == 0
+            f"sec-1-{_sec1_n}. [BEHAVIORAL] token(user=1) deleting user_id={_sec1_uid} → {_sec1_want}, get_conn never called",
+            _st_sec1 == _sec1_want and _gc_sec1.call_count == 0
         )
 
     # sec-1-03: No JWT → verify_token raises HTTP 401

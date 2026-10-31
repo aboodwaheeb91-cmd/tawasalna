@@ -13,7 +13,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, ConfigDict, ValidationError, field_validator
 import base64, hashlib, mimetypes
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import re, secrets, json, os, time, asyncio
 try:
     import asyncpg as _asyncpg
@@ -907,6 +907,7 @@ _RATE_LIMITED_PATHS = frozenset({
     "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login",   # admin login, under the panel path (task 5.3a; old /tw-ctrl-login removed 5.3b)
     "/auth/password-reset/request", "/auth/password-reset/confirm",
     "/auth/email-change/request", "/auth/email-change/confirm",
+    "/auth/restore",   # task 8.5d — own login locks too (_login_reserve + account_restore)
     "/kyc/email/send", "/kyc/phone/send", "/kyc/email/verify", "/kyc/phone/verify",
 })
 
@@ -920,7 +921,7 @@ async def rate_limit_middleware(request, call_next):
             from fastapi.responses import JSONResponse as _JR
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
     elif _p in _RATE_LIMITED_PATHS \
-            or (_p.startswith("/auth/user/") and _p.endswith("/delete")):  # account delete (closed — always 403, task 5.0e)
+            or (_p.startswith("/auth/user/") and _p.endswith("/delete")):  # the owner's account delete (task 8.5d)
         if not _rate_hit("ip:" + get_client_ip(request), _RATE_LIMIT, 60):
             from fastapi.responses import JSONResponse as _JR
             return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
@@ -1520,7 +1521,7 @@ PUBLIC_RATE_EXEMPT = {
     "/log/error": "own per-IP bucket log-error (rate_limit_middleware)",
     **{p: _EXEMPT_AUTH_RATE for p in (
         "/auth/register", "/auth/login", "/auth/password-reset/request", "/auth/password-reset/confirm",
-        "/auth/email-change/confirm", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")},
+        "/auth/email-change/confirm", "/auth/restore", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")},
     **{p: "own atomic per-IP + per-link / per-email reservation (RATES staff_link_* / staff_forgot_*) — task 8.4c-2a2"
        for p in ("/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
                  "/staff/mfa-reset/complete", "/staff/password-reset/complete",
@@ -1531,6 +1532,20 @@ PUBLIC_RATE_EXEMPT = {
 def _fmt_number(n: int) -> str:
     """Thousands separator like twFormatNumber (task 5.3a3) — for numbers inside server texts."""
     return f"{int(n):,}"
+
+
+def _fmt_date(value) -> str:
+    """«8 أكتوبر 2026» exactly like twFormatDate (date.format.long + date.month.N — Strings System) — for dates
+    inside server texts (emails). UTC date. Empty / invalid → ''."""
+    if value is None or value == "":
+        return ""
+    try:
+        d = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return ""
+    if d.tzinfo is not None:
+        d = d.astimezone(timezone.utc)
+    return _tw_text("date.format.long", day=d.day, month=_tw_text(f"date.month.{d.month}"), year=d.year)
 
 
 # Unified Email System (task 5.1a · SYSTEMS_INDEX §54j): email_service.send_email is the only
@@ -5803,6 +5818,19 @@ def register(data: RegisterInput, request: Request):
     except Exception as e:
         raise _server_error("register", e)
 
+def _account_deleted_reply(uid: int) -> JSONResponse:
+    """401 account_deleted (right password only — task 8.5a) + restorable / restore_until (task 8.5d): true only
+    for the owner's own deletion inside the grace period with no purge started. No token."""
+    try:
+        info = ad.restore_info(uid)
+    except Exception as e:
+        print(f"[login] restore info user={uid} failed: {type(e).__name__}")
+        info = {"restorable": False, "restore_until": None}
+    return JSONResponse(status_code=401, content={
+        "ok": False, "error": {"code": "account_deleted", "message": _tw_text("auth.account_unavailable")},
+        "restorable": bool(info["restorable"]), "restore_until": info["restore_until"]})
+
+
 @app.post("/auth/login")
 def login(data: LoginInput, request: Request):
     if os.environ.get("LOG_CLIENT_IP") == "1":
@@ -5822,13 +5850,64 @@ def login(data: LoginInput, request: Request):
     _rate_release(held)
     _login_email_reset(data.email, ip)
     if user.pop("deleted", False):     # task 8.5a — right password only (a wrong one got the normal 401 above)
-        return api_error(401, "account_deleted", _tw_text("auth.account_unavailable"))
+        return _account_deleted_reply(int(user["id"]))
     if user.pop("suspended", False):   # task 5.4 — a suspended account never gets a token
         return api_error(401, "account_suspended", "الحساب معلّق")
     sv = int(user.pop("session_version", 0) or 0)   # read with the password check — never sent to the client
     token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"),
                          "tw_id": user.get("tw_id",""), "sv": sv})
     return {"status": "success", "user": user, "token": token}
+
+# ── «استعادة حسابي» (task 8.5d · docs/rules/account-deletion.md → حذف صاحب الحساب والاستعادة) ──
+# No JWT: email + password. The login locks + account_restore are reserved BEFORE bcrypt; an unknown email, a wrong
+# password and a missing account get the login's own 401 word for word (authenticate_user runs a dummy bcrypt for an
+# unknown email — same time). Right password: ad.restore(self_only=True) decides under the users row lock.
+class RestoreInput(BaseModel):
+    email: str = ""
+    password: str = ""
+
+
+def _restore_reserve(email: str, ip: str):
+    who = list(_login_lock_who(email, ip).items()) + [("account_restore", (email or "").strip().lower())]
+    return _rate_reserve_window(who)
+
+
+@app.post("/auth/restore")
+def restore_own_account(data: RestoreInput, request: Request, background_tasks: BackgroundTasks):
+    if not data.email.strip() or not data.password:
+        raise HTTPException(400, detail="البريد وكلمة المرور مطلوبان")
+    ip = get_client_ip(request)
+    held, locked = _restore_reserve(data.email, ip)
+    if held is None:
+        return _limit_error(429, "login_locked", "limits.login_locked", minutes=_fmt_number(-(-locked // 60)))
+    user = authenticate_user(data.email, data.password)
+    if not user:   # the login's reply, word for word — never says whether the account exists or is deleted
+        raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
+    uid = int(user["id"])
+    try:
+        out = ad.restore(uid, "self", None, self_only=True)
+    except ad.DeletionError as e:
+        return api_error(e.status, e.code, _tw_text("auth.restore.err." + e.code))
+    except Exception as e:
+        raise _server_error("restore_own_account", e)
+    if out is None:
+        raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
+    _rate_release(held)
+    _login_email_reset(data.email, ip)
+    _password_changed_cache_set(uid, out["state"])   # every older JWT stays dead (session_version + 1)
+    if user.get("suspended"):   # restored, but a suspended account never gets a token (task 5.4)
+        return api_error(401, "account_suspended", "الحساب معلّق")
+    for k in ("deleted", "suspended", "session_version"):
+        user.pop(k, None)
+    token = _jwt_encode({"user_id": uid, "user_type": user.get("user_type"),
+                         "tw_id": user.get("tw_id", ""), "sv": int(out["state"]["sv"])})
+    if out["changed"]:   # one email per restore — a second parallel request changed nothing
+        background_tasks.add_task(email_service.send_email, user["email"], "account_restored",
+                                  {"name": user.get("full_name") or ""})
+        _cache_del("jobs:")
+    print(f"[account-restore] user={uid} changed={out['changed']}")
+    return {"status": "success", "user": user, "token": token, "restored": True}
+
 
 @app.put("/auth/password")
 def change_password(data: PasswordChangeInput, token=Depends(verify_token)):
@@ -9157,12 +9236,74 @@ def admin_get_profile(user_id: int, request: Request):
         print(f"admin_get_profile error: {err}")
         raise _server_error("admin_get_profile", e)
 
+# ── The owner's own account delete (task 8.5d · docs/rules/account-deletion.md → حذف صاحب الحساب والاستعادة) ──
+# Order fixed: JWT → path id = JWT id (else 403, nothing said) → password (422 required, nothing reserved) →
+# confirm == "delete" (422 confirm_required) → RATES account_delete reserved BEFORE bcrypt (full → 429; kept) →
+# wrong password 422 (not 401 — twApi signs out on 401). Then ad.soft_delete(kind 'self') — the one writer.
+class AccountDeleteInput(BaseModel):
+    password: str = ""
+    confirm: str = ""
+
+
 @app.delete("/auth/user/{user_id}/delete")
-def delete_own_account(user_id: int, token=Depends(verify_token)):
-    """Self-service account delete — CLOSED (task 5.0e): always 403, nothing is deleted from this path
-    until soft delete (F27) is built (ADMIN_ENTITY_MAP §1). The old path hard-deleted users with every
-    CASCADE row. The user's own soft delete comes in task 8.5d (account_deletion.soft_delete kind 'self')."""
-    raise HTTPException(403, "حذف الحساب غير متاح حالياً")
+def delete_own_account(user_id: int, data: Optional[AccountDeleteInput] = Body(None),
+                       token=Depends(verify_token)):
+    uid = int(token.get("user_id") or 0)
+    if not uid or uid != int(user_id):
+        raise HTTPException(403, "غير مصرح")
+    password = (data.password if data else "") or ""
+    confirm = (data.confirm if data else "") or ""
+    if not password:
+        return api_error(422, "required", _tw_text("settings.delete.err.password_required"), "password")
+    if confirm != "delete":
+        return api_error(422, "confirm_required", _tw_text("settings.delete.err.confirm"), "confirm")
+    if _rate_reserve([("account_delete", uid)]) is None:
+        return _rate_limited()
+    try:
+        ok = check_user_password(uid, password)
+    except Exception as e:
+        raise _server_error("delete_own_account", e)
+    if ok is None:
+        return api_error(401, "unauthorized", "غير مصرح")
+    if not ok:   # 422, not 401 — a wrong password is not an ended session
+        return api_error(422, "wrong_password", _tw_text("settings.delete.err.wrong_password"), "password")
+    try:
+        out = ad.soft_delete(uid, "self", "self")
+        if out is None:
+            return api_error(401, "unauthorized", "غير مصرح")
+        _password_changed_cache_set(uid, out["state"])   # every token of the account → 401 at once
+    except Exception as e:
+        raise _server_error("delete_own_account", e)
+    _ws_revoke_user(uid, "self_deleted")
+    purge_after = None
+    try:
+        purge_after = (datetime.fromisoformat(str(out["deleted_at"]))
+                       + timedelta(days=int(tw_settings.limit("account_purge_days")))).isoformat()
+    except (TypeError, ValueError):
+        pass
+    if out["changed"]:   # the call that changed the state only — a parallel second call: no effects, no email
+        try:
+            ad.apply_effects(uid)
+        except Exception as e:   # the account is deleted either way — logged (F9)
+            print(f"[delete_own_account] effects user={uid} failed: {type(e).__name__}: {e}")
+        _cache_del("jobs:")
+        try:
+            who = _account_email_name(uid)
+            if who:
+                email_service.send_email(who[0], "account_deleted",
+                                         {"name": who[1], "date": _fmt_date(purge_after)})
+        except Exception as e:
+            print(f"[delete_own_account] email user={uid} failed: {type(e).__name__}")
+    print(f"[account-delete] self user={uid} changed={out['changed']}")
+    return api_ok({"deleted": True, "purge_after": purge_after})
+
+
+def _account_email_name(uid: int):
+    """(email, full_name) of an account — the deletion email goes to the account's own address."""
+    with db_conn() as conn:
+        rows = conn.run("SELECT email, full_name FROM users WHERE id = :u", u=int(uid))
+    return (rows[0][0], rows[0][1] or "") if rows else None
+
 
 def _account_reason(data: dict, required: bool):
     """→ (reason | None, None) or (None, 422 response). ≤ LIMITS account_reason_max."""
