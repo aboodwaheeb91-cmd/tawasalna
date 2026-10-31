@@ -11356,7 +11356,8 @@ def schedule_job(
     payload: dict,
     run_at,
     dedupe_key: str,
-    max_attempts: int = 5
+    max_attempts: int = 5,
+    conn=None,
 ) -> dict:
     """
     Insert a job into scheduler_jobs idempotently.
@@ -11414,7 +11415,9 @@ def schedule_job(
 
     payload_str = _json_mod.dumps(payload)
 
-    conn = get_conn()
+    own = conn is None          # task 8.5c — a caller's connection (the scheduler cycle) is used, never released here
+    if own:
+        conn = get_conn()
     try:
         # INSERT with RETURNING — only returns rows when INSERT actually succeeds.
         # ON CONFLICT DO NOTHING produces zero rows if dedupe_key already exists.
@@ -11466,7 +11469,8 @@ def schedule_job(
         print(f"[scheduler] schedule_job unexpected DB error: {type(exc).__name__}: {exc}")
         raise RuntimeError("schedule_job: unexpected DB error") from exc
     finally:
-        release_conn(conn)
+        if own:
+            release_conn(conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -12116,7 +12120,7 @@ def run_scheduler_cycle(limit: int = 20, runner_id: str = None) -> dict:
         stale = reset_stale_scheduler_jobs(conn)
         try:   # task 8.5c — the next daily account_purge job exists (one row per date, never due at creation)
             import account_purge
-            account_purge.ensure_daily_job()
+            account_purge.ensure_daily_job(conn)
         except Exception as e:
             print(f"[scheduler] account_purge daily job not ensured: {type(e).__name__}: {e}")
         result = run_due_scheduler_jobs(limit=limit, runner_id=runner_id)

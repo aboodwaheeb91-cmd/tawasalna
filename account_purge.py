@@ -101,12 +101,13 @@ def next_run_at(now=None) -> datetime:
     return at if at > now else at + timedelta(days=1)
 
 
-def ensure_daily_job() -> None:
+def ensure_daily_job(conn=None) -> None:
     """The next day's job exists (scheduler_jobs, dedupe per date — never due at creation). Called by every
-    scheduler cycle; ON CONFLICT DO NOTHING keeps it one row per day."""
+    scheduler cycle on the cycle's own connection (no second pool checkout); ON CONFLICT DO NOTHING keeps it one
+    row per day."""
     import auth
     at = next_run_at()
-    auth.schedule_job(JOB_TYPE, {}, at, f"{JOB_TYPE}:{at.date().isoformat()}", max_attempts=3)
+    auth.schedule_job(JOB_TYPE, {}, at, f"{JOB_TYPE}:{at.date().isoformat()}", max_attempts=3, conn=conn)
 
 
 def run_daily() -> dict:
