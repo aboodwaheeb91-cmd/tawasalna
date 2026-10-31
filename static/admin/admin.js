@@ -16,7 +16,7 @@
 (function () {
   'use strict';
   var PAG = 20, SEARCH_DELAY = 300;
-  var S = { kyc: [], reports: [], logo: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '', actPage: 1 };
+  var S = { kyc: [], reports: [], logo: '', logoSaved: '', built: false, logoLoaded: false, auditPage: 1, auditAction: '', actPage: 1 };
   // users table views — 'companies' = the same view with a fixed type filter (task 5.3a2, no 2nd table code)
   function view(fixed) { return { fixed: fixed, type: fixed, status: '', sort: 'newest', q: '', page: 1, seq: 0 }; }
   var VIEWS = { users: view(''), companies: view('co') };
@@ -145,7 +145,15 @@
     var up = btn('primary', 'upload', 'admin.logo.upload', function () {
       if (!S.logo) { showToast(twT('admin.logo.pick_first'), 'error'); return; }
       up.disabled = true;
-      run('logo.upload', { dataUrl: S.logo }).then(function () { up.disabled = false; });
+      // task 8.11a — the shell toasts success only on res.ok; a failed save puts the saved logo back in the preview
+      run('logo.upload', { dataUrl: S.logo }).then(function (res) {
+        up.disabled = false;
+        if (!res) return;                                   // confirm cancelled — keep the picked file
+        if (res.ok) { S.logoSaved = twSafeImageUrl(res.data && res.data.url) || S.logoSaved; S.logo = ''; return; }
+        S.logo = '';
+        file.value = '';
+        resetLogoPreview(prev);
+      });
     });
     bl.appendChild(up);
 
@@ -899,10 +907,16 @@
     img.alt = '';
     prev.appendChild(img);
   }
+  function resetLogoPreview(prev) {
+    if (S.logoSaved) { setLogoPreview(prev, S.logoSaved); return; }
+    prev.textContent = '';
+    prev.appendChild(twIconEl('upload', { size: 'md' }));
+  }
   function loadLogo() {
     S.logoLoaded = true;
     getJson('/admin/logo').then(function (d) {
       var logo = twSafeImageUrl(d.logo_wide);
+      S.logoSaved = logo || '';
       if (logo && !S.logo) setLogoPreview($('prevWide'), logo);
     }).catch(function (e) { console.error('[admin] logo:', e); });
   }
