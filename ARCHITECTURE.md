@@ -12898,7 +12898,7 @@ Same-second edge closed in 5.0b by `sv`; pre-5.0b tokens (no `sv`) kept the seco
 | RLS lockdown | `auth._migrate_rls_lockdown()` — startup `rls_lockdown`, critical, last | RLS (no policies) on every `public` table owned by the connected role · `REVOKE ALL` tables + sequences + default privileges from `anon`, `authenticated` (skipped when the roles do not exist). Owner bypasses RLS → app unaffected; ❌ `FORCE ROW LEVEL SECURITY` |
 | One-time data migration | `auth._migration_claim_once(conn, name)` → `app_migrations(name TEXT PK, applied_at TIMESTAMPTZ)` | mark in the same transaction as the data change; user: `verified_source` (also `ON CONFLICT DO NOTHING` — never overwrites a withdrawn badge) |
 | Organisation gate | `server._require_org_account(token, allowed, message)` → `auth.get_current_user_type(uid)` | current `users.user_type`: no user 401 · other type 403. Applicants · application status · promote · company posts create / edit / delete (co, edu) · Talent Bank + suggestions · appointments create / send / reschedule / complete / close · `/api/schedule/*` (co) |
-| Dependencies | `requirements.txt` | FastAPI 0.121.3 + Starlette 0.50.0 (≥ 0.49.1 — multipart / Range DoS fixes) · pg8000 1.31.5 |
+| Dependencies | `requirements.txt` | FastAPI 0.162.0 + Starlette 1.10.0 (≥ 1.3.1 — task 8.8b: GHSA-86qp-5c8j-p5mr · 82w8 · jp82 · wqp7 · x746; `strict_content_type=False` keeps the pre-upgrade body parsing) · pg8000 1.31.5 |
 
 ### `settings.html` contract
 

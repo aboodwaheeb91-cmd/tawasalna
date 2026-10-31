@@ -1,9 +1,12 @@
 """Task 8.8a — path decisions read scope["path"] (_req_path), never request.url.path
 (GHSA-86qp-5c8j-p5mr / CVE-2026-48710 · docs/rules/dev-guidelines.md).
 
-On starlette 0.50.0 request.url is rebuilt from the Host header: Host "a#" → request.url.path == "" while
-routing still uses scope["path"]. The first test pins that poisoning (if it stops reproducing, the behavioural
-tests below no longer prove anything — they must fail on the old code and pass on the new one).
+On starlette 0.50.0 request.url was rebuilt from the Host header: Host "a#" → request.url.path == "" while
+routing still used scope["path"]. Since task 8.8b (starlette ≥ 1.3.1, the pinned version in requirements.txt)
+a malformed Host is ignored when request.url is built. The first test pins that: a broken Host never reaches
+request.url (path = the routed path, host ≠ the broken value) — if a future starlette lets it through again,
+this test fails and _req_path stays the only defence. The behavioural tests below (bad Host on every request)
+keep proving that path decisions — admin audit, per-IP limits — do not depend on the Host header.
 
 Real FastAPI app + real PostgreSQL (TW_TEST_DB_URL — run_tests.sh sets it; without it skipped, and with
 TW_SECURITY_TESTS_REQUIRED=1 (CI) a skip is a failure — tests/conftest.py), every request with the bad Host:
@@ -40,11 +43,15 @@ def _audit(action):
     return _sql("SELECT actor, status FROM admin_audit_log WHERE action = :a", a=action)
 
 
-def test_bad_host_poisons_request_url_path():
+def test_bad_host_does_not_reach_request_url():
     async def h(request):
-        return JSONResponse({"url": request.url.path, "scope": request.scope["path"]})
+        return JSONResponse({"url": request.url.path, "host": request.url.netloc,
+                             "scope": request.scope["path"], "srv": srv._req_path(request)})
     c = TestClient(Starlette(routes=[Route("/auth/login", h)]))
-    assert c.get("/auth/login", headers=BAD_HOST).json() == {"url": "", "scope": "/auth/login"}
+    for host in ("a#", "a/x", "a?b", "evil.example/x#"):
+        out = c.get("/auth/login", headers={"host": host}).json()
+        assert out["url"] == out["scope"] == out["srv"] == "/auth/login", (host, out)
+        assert out["host"] != host, (host, out)
 
 
 # ── A. admin write audited ──
