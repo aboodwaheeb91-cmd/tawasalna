@@ -160,6 +160,7 @@ def test_rating_with_comment_returns_200(fake_db, monkeypatch):
     ts = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
     conn.run.side_effect = [[[4.0, 1]], [[4, 1]], [[4, "ممتازة", ts]]]
     monkeypatch.setattr(srv, "_resolve_company_id", lambda cid: 5)
+    monkeypatch.setattr(srv.bs, "is_suspended", lambda *a, **k: False)   # fake DB — visible company (5.4f check)
     r = client.get("/company/5/ratings")
     assert r.status_code == 200
     assert r.json()["recent_comments"][0]["created_at"] == ts.isoformat()
