@@ -15,6 +15,9 @@
  *      override enabled:true → row back (action states from the REAL tw_actions.py merged registry)
  *   L  notification emails (5.1c) — one switch per type from GET /my/email-notifications · change →
  *      PUT {types:{key:bool}} · failure → switch rolled back + error toast · admin-off type disabled
+ *   O  «تنزيل بياناتي» (task 8.5b) — twModal + password → POST /me/export → file saved only on res.ok ·
+ *      wrong password → field error, dialog open, no file · KYC option = a separate POST /me/export/kyc-docs
+ *      (password again) → links through twSafeLinkUrl (rel noopener) · empty → empty text · 401 → no toast
  *
  * Run: node tests/test_settings_edu_runtime.js
  */
@@ -139,6 +142,11 @@ function sharedStubs(rec, opts) {
     twSafeLinkUrl: u => (/^https?:\/\/[^\s/]/.test(u) ? u : ''),
     twAvatarEl: () => new El('span'),
     twFormatDate: v => 'D(' + v + ')',
+    twFormatNumber: n => String(n),
+    twLimit: name => (name === 'data_export_kyc_url_ttl_s' ? 300 : null),
+    Blob: class { constructor(parts, o) { this.parts = parts; this.type = o && o.type; rec.blobs.push(this); } },
+    URL: { createObjectURL: b => { rec.objectUrls.push(b); return 'blob:tw-' + rec.objectUrls.length; },
+           revokeObjectURL: u => rec.revoked.push(u) },
     TW: {
       uploadImage: o => { rec.uploads.push(o.kind); return Promise.resolve(opts.upload || { ok: true, status: 200, data: { path: 'kyc-docs/7_' + o.kind + '_abc.png' } }); },
       uploadError: (r, fb) => { const e = new Error('u'); e.userMsg = fb; return e; },
@@ -159,7 +167,8 @@ function baseCtx(rec, opts, document) {
   ctx.window = ctx;
   return ctx;
 }
-const newRec = () => ({ api: [], toasts: [], modals: [], actions: [], uploads: [], timers: [], missingKeys: new Set(), lsTouched: false });
+const newRec = () => ({ api: [], toasts: [], modals: [], actions: [], uploads: [], timers: [], missingKeys: new Set(), lsTouched: false,
+                       blobs: [], objectUrls: [], revoked: [] });
 
 const OK = data => ({ ok: true, status: 200, data, error: null });
 const FAIL = (status, error) => ({ ok: false, status, data: null, error });
@@ -171,7 +180,7 @@ async function runSettings(opts) {
   opts.api = Object.assign({ 'GET /my/email-notifications': OK({ types: [] }),
                             'GET /blocks?offset=0': OK({ items: [], total: 0 }) }, opts.api || {});   // «المحظورون» (5.4)
   const rec = newRec();
-  const rows = ['phone', 'password'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
+  const rows = ['phone', 'password', 'export'].map(k => { const b = new El('button'); b.setAttribute('data-st-open', k); return b; });
   const kycRow = new El('div'); kycRow.id = 'kycRow'; kycRow.hidden = true;
   ['kycState', 'kycAction'].forEach(id => { const e = new El('span'); e.id = id; kycRow.appendChild(e); });
   const document = makeDocument(['dispName', 'dispEmail', 'dispPhone', 'dispType', 'dispID', 'notifyList', 'blockedList'], rows.concat([kycRow]));
@@ -512,6 +521,71 @@ const btnByKey = (root, key) => root.find(e => e.tagName === 'BUTTON' && e._text
           && p.rec.toasts.some(t => t.type === 'success' && t.msg === 'settings.unblock.done'));
     const e = await runSettings({ api: { 'GET /profile/7/full': PROFILE } });
     check('M4 empty list → empty-state text', e.$('blockedList').find(x => x._text === 'settings.blocked.empty').length === 1);
+  }
+
+  // ── O — «تنزيل بياناتي» (task 8.5b) ──
+  console.log('\nO — data export');
+  {
+    const FILE = { export: { format_version: 1 }, account: { tw_id: 'T123' } };
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE,
+      'POST /me/export': o => (o.body.password === 'wrong'
+        ? FAIL(422, { fieldErrors: [{ field: 'password', code: 'wrong_password', message: 'كلمة المرور غير صحيحة' }], generalError: null })
+        : o.body.password === 'boom' ? FAIL(500, { fieldErrors: [], generalError: { code: 'unknown', message: 'x' } })
+        : { ok: true, status: 200, data: FILE, raw: FILE, error: null }),
+      'POST /me/export/kyc-docs': o => (o.body.password === 'empty' ? OK({ expires_in: 300, docs: [] })
+        : OK({ expires_in: 300, docs: [
+          { kind: 'id_front', url: 'https://sb.supabase.co/storage/v1/object/sign/kyc-docs/7_kyc-id-front_x.jpg?token=t', reason: null },
+          { kind: 'selfie', url: 'javascript:alert(1)', reason: null }] })) } });
+    const anchors = [];
+    const mk = p.document.createElement;
+    p.document.createElement = t => { const e = mk(t); if (t === 'a') { anchors.push(e); e.click = () => { e.clicked = true; }; } return e; };
+    p.rows[2].click();
+    const m = lastModal(p);
+    check('O1 «تنزيل بياناتي» opens one twModal with a password field + the KYC option',
+          m && m.m.title === 'settings.export.title' && m.m.content.find(e => e.tagName === 'INPUT' && e.getAttribute('type') === 'password').length === 1
+          && byClass(m.m.content, 'st-export-kyc').length === 1);
+    const pw = m.m.content.find(e => e.tagName === 'INPUT')[0];
+    check('O2 empty password → stays open, no request', m.m.actions[1].onClick() === false
+          && !p.rec.api.some(a => a.key === 'POST /me/export') && pw._err._text === 'settings.export.password_required');
+    pw.value = 'wrong';
+    const kept = await m.m.actions[1].onClick();
+    check('O3 wrong password → field error, open, no file, no success', kept === false && pw._err._text === 'كلمة المرور غير صحيحة'
+          && p.rec.blobs.length === 0 && !p.rec.toasts.some(t => t.type === 'success'));
+    pw.value = 'boom';
+    const kept2 = await m.m.actions[1].onClick();
+    check('O4 server error → error toast, no file', kept2 === false && p.rec.blobs.length === 0 && p.rec.toasts.some(t => t.type === 'error'));
+    pw.value = 'right';
+    const done = await m.m.actions[1].onClick();
+    const sent = p.rec.api.filter(a => a.key === 'POST /me/export').pop();
+    check('O5 success (res.ok) → password sent in the body, JSON file saved + success toast',
+          done !== false && sent.body.password === 'right' && p.rec.blobs.length === 1
+          && JSON.parse(p.rec.blobs[0].parts[0]).account.tw_id === 'T123'
+          && anchors.some(a => a.clicked && a.download && a.href === 'blob:tw-1')
+          && p.rec.toasts.some(t => t.type === 'success' && t.msg === 'settings.export.done'));
+    const kb = btnByKey(m.m.content, 'settings.export.kyc.submit');
+    const before = p.rec.api.length;
+    kb.click();
+    await flush();
+    const kreq = p.rec.api.slice(before).filter(a => a.key === 'POST /me/export/kyc-docs');
+    const links = m.m.content.find(e => e.tagName === 'A');
+    check('O6 KYC option = its own request with the password again', kreq.length === 1 && kreq[0].body.password === 'right'
+          && !p.rec.api.slice(before).some(a => a.key === 'POST /me/export'));
+    check('O7 safe signed link only (rel noopener, new tab) · unsafe URL → «غير متاحة» text',
+          links.length === 1 && links[0].href.indexOf('https://sb.supabase.co/') === 0 && links[0].rel === 'noopener noreferrer'
+          && links[0].target === '_blank' && m.m.content.find(e => e._text === 'settings.export.kyc.unavailable').length === 1);
+    pw.value = 'empty';
+    kb.click();
+    await flush();
+    check('O8 no documents → empty text, no link', m.m.content.find(e => e.tagName === 'A').length === 0
+          && m.m.content.find(e => e._text === 'settings.export.kyc.empty').length === 1);
+  }
+  {
+    const p = await runSettings({ api: { 'GET /profile/7/full': PROFILE, 'POST /me/export': FAIL(401, { fieldErrors: [], generalError: { code: 'unauthorized', message: 'x' } }) } });
+    p.rows[2].click();
+    const m = lastModal(p);
+    m.m.content.find(e => e.tagName === 'INPUT')[0].value = 'x';
+    const r = await m.m.actions[1].onClick();
+    check('O9 401 → no toast, no file (twApi / the guard handle the session)', r === false && p.rec.toasts.length === 0 && p.rec.blobs.length === 0);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
