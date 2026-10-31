@@ -130,7 +130,20 @@ jobs:
         with:
           node-version: '20'
 
-      # no pip / PostgreSQL — the few node tests that call python3 use the standard library only
+      # no PostgreSQL — but some node tests run python3 on repo modules (test_actions_registry_runtime.js
+      # imports server → fastapi), so the Python deps are installed here too
+      - name: Set up Python (same as runtime.txt)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
       - name: Run group node
         run: ./run_tests.sh --only node
 

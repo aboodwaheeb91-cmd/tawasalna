@@ -10,7 +10,8 @@
 #        db1 / db2  the two fixed halves of PY_DB — split_db() below: longest-first by the measured
 #              seconds in DB_WEIGHTS (unlisted file = 2 s), each file to the lighter half, tie → db1.
 #              Deterministic (same lists → same split). In CI each half runs on its own PostgreSQL.
-#        node  JS syntax (node --check) · NODE_TESTS (no PostgreSQL, no pip — a few call python3 stdlib)
+#        node  JS syntax (node --check) · NODE_TESTS (no PostgreSQL — some run python3 on repo modules
+#              (e.g. import server), so the Python deps from requirements*.txt are needed)
 #      The "every test file in exactly one list" guard runs first in EVERY group — a file in no list
 #      fails even when its group is not the one running. --no-db works with --only too.
 #   TW_BCRYPT_ROUNDS=4 (exported below — tests only): auth.hash_password uses cost 4 instead of the
