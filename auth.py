@@ -11356,7 +11356,8 @@ def schedule_job(
     payload: dict,
     run_at,
     dedupe_key: str,
-    max_attempts: int = 5
+    max_attempts: int = 5,
+    conn=None,
 ) -> dict:
     """
     Insert a job into scheduler_jobs idempotently.
@@ -11414,7 +11415,17 @@ def schedule_job(
 
     payload_str = _json_mod.dumps(payload)
 
+    if conn is not None:   # task 8.5c — a caller's connection (the scheduler cycle): used, never released here
+        return _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts)
     conn = get_conn()
+    try:
+        return _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts)
+    finally:
+        release_conn(conn)
+
+
+def _schedule_job_on(conn, job_type, payload_str, run_at, dedupe_key, max_attempts) -> dict:
+    """schedule_job's INSERT … ON CONFLICT DO NOTHING on a given connection (the caller owns it)."""
     try:
         # INSERT with RETURNING — only returns rows when INSERT actually succeeds.
         # ON CONFLICT DO NOTHING produces zero rows if dedupe_key already exists.
@@ -11465,8 +11476,6 @@ def schedule_job(
     except Exception as exc:
         print(f"[scheduler] schedule_job unexpected DB error: {type(exc).__name__}: {exc}")
         raise RuntimeError("schedule_job: unexpected DB error") from exc
-    finally:
-        release_conn(conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -11490,6 +11499,7 @@ _SCHEDULER_HANDLERS = {
     "appointment_missed",            # S4: mark confirmed appointment missed (_appt_missed_at — PR 2B).
     "job_expiring_soon",             # S4: notify company 48h before job listing expires.
     "message_email",                 # 5.1c: email for a message still unread after N minutes.
+    "account_purge",                 # 8.5c: daily final purge of accounts deleted > account_purge_days ago.
 }
 
 
@@ -11836,6 +11846,9 @@ def _execute_scheduler_job(job: dict) -> None:
         _handle_job_expiring_soon(job); return
     if job_type == "message_email":
         _handle_message_email(job); return
+    if job_type == "account_purge":
+        import account_purge   # task 8.5c — files first, then one DB transaction (docs/rules/account-deletion.md)
+        account_purge.run_daily(); return
 
     raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
 
@@ -12110,6 +12123,11 @@ def run_scheduler_cycle(limit: int = 20, runner_id: str = None) -> dict:
                     "retried": 0, "update_failed": 0, "stuck_running": 0, "stale_reset": 0,
                     "runner_id": runner_id or f"runner-{os.getpid()}", "jobs": []}
         stale = reset_stale_scheduler_jobs(conn)
+        try:   # task 8.5c — the next daily account_purge job exists (one row per date, never due at creation)
+            import account_purge
+            account_purge.ensure_daily_job(conn)
+        except Exception as e:
+            print(f"[scheduler] account_purge daily job not ensured: {type(e).__name__}: {e}")
         result = run_due_scheduler_jobs(limit=limit, runner_id=runner_id)
         result["stale_reset"] = stale
         if result.get("ok"):

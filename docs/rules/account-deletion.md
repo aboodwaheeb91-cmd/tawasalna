@@ -1,12 +1,12 @@
-# Account Deletion — الحذف الناعم + الاستعادة + «حساب محذوف» (task 8.5a · F27)
+# Account Deletion — الحذف الناعم + الاستعادة + «حساب محذوف» + الحذف النهائي (task 8.5a · 8.5c · F27)
 
-> إلزامي بنفس قوة `CLAUDE.md`. Spec: `docs/SYSTEMS_INDEX.md §25i` · `docs/ADMIN_ENTITY_MAP.md §1` · test `python -m pytest tests/test_account_deletion_85a.py -q` (SECURITY_TESTS).
+> إلزامي بنفس قوة `CLAUDE.md`. Spec: `docs/SYSTEMS_INDEX.md §25i` · `docs/ADMIN_ENTITY_MAP.md §1` · tests `python -m pytest tests/test_account_deletion_85a.py -q` · `python -m pytest tests/test_account_purge_85c.py -q` (SECURITY_TESTS).
 
 ## المصدر الوحيد
 
 - **`account_deletion.py`** (`ad`) — الـ migration (`migrate_account_deletion`، حرجة، بعد `blocks_suspension`) · الكاتب الوحيد `soft_delete(uid, by, kind, reason)` / `restore(uid, by, reason)` · أثر الحذف على الناس التانيين `apply_effects(uid)` · القراءة للأدمن `get_deletion` · التنقية `scrub()` + `deleted_label()` (twT `account.deleted` = «حساب محذوف»).
 - **الأعمدة:** `users.deleted_at` · `deleted_by` (`sub` الأدمن) · `deleted_kind` (`'admin'` | `'self'` — `CHECK users_deleted_kind_chk`) · `deleted_reason` (للأدمن بس، ≤ `LIMITS["account_reason_max"]`، فاضي لـ `self`). الإنتاج: `docs/migrations/8.5a_soft_delete.sql` (فحص قراءة أولاً).
-- **ما في حذف نهائي من أي مسار** — الصف وكل الصفوف المربوطة فيه بتضل (رسائل · طلبات · pipeline · مواعيد · منشورات · تعليقات · وظائف). النهائي بمهمة 8.5c.
+- **ما في حذف نهائي من أي مسار طلب** — الحذف الناعم بيخلّي الصف وكل الصفوف المربوطة فيه. النهائي بس من المهمة المجدولة اليومية `account_purge` (task 8.5c — القسم «الحذف النهائي» تحت).
 
 ## القواعد
 
@@ -17,13 +17,53 @@
 5. **الإرسال للمحذوف مرفوض:** `MESSAGE_POLICY_FACTS_SQL` (قاعدة الظهور العادية) → 404 `not_found` · `can-send` = false · أحداث الـ WS بتنرمى.
 6. **الدخول:** محذوف + كلمة سر صح → 401 `account_deleted` «الحساب غير متاح» بدون توكن · كلمة سر غلط → نفس الرد العادي · استرجاع كلمة السر → نفس الرد العام وما بينبعت إيميل (`get_user_for_password_reset` بيتجاهل المحذوف) · التسجيل بإيميله → نفس رد «الإيميل مستعمل» (الصف موجود). ما في رد بيقول «محذوف» لغير الأدمن.
 7. **أثر الحذف (`ad.apply_effects` — بيتنادى من الطلب اللي غيّر الحالة بس):** شركة → وظائفها النشطة / الموقوفة بتتسكّر عبر `auth.set_job_status` + إشعار داخلي **واحد** لكل متقدم لسا قيد المراجعة (`application_closed`، بدون سبب، `event_key account_closed:{uid}:{وقت الحذف}`) · أي حساب → المقابلات القادمة بتنلغى عبر `auth.cancel_appointment` (الطرف التاني بيوصله إشعاره باسم «حساب محذوف»). `create_notification` ما بيكتب شي لمستلم محذوف (ولا إيميل).
-8. **الاستعادة:** ما بتفتح الوظائف ولا بترجّع المقابلات · المحتوى بيرجع يظهر · السبب إجباري وبينحفظ بسجل الأدمن (`new_value`).
+8. **الاستعادة:** ما بتفتح الوظائف ولا بترجّع المقابلات · المحتوى بيرجع يظهر · السبب إجباري وبينحفظ بسجل الأدمن (`new_value`). **بعد ما يبلّش الحذف النهائي ← 409** `purging` / `already_purged` (task 8.5c).
 9. **الأدمن:** `DELETE /admin/user/{id}` `{reason?}` · `POST /admin/user/{id}/restore` `{reason}` — `check_admin(request, "users.delete")` بأول سطر (صلاحية المالك → التحقق الإضافي 428 `step_up_required`) · مستخدم / بدون توكن 401 · أدمن بدون الصلاحية 403 · بيتسجّلوا بـ `admin_audit_middleware`. الواجهة: `admin-view` — «حذف الحساب» (سبب اختياري ثم كتابة «حذف») / شارة «محذوف» + التاريخ + النوع + السبب / «استعادة الحساب» (سبب إجباري ثم تأكيد) · قائمة المستخدمين بتعرض الشارة وبتشيل زر الحذف · هدف البلاغ لحساب محذوف = «حساب محذوف» بدون رابط ولا زر حذف. كل كتابة عبر `TwAdminShell.run`.
 10. **مسار صاحب الحساب** `DELETE /auth/user/{id}/delete` لسا 403 (بيفتح بـ 8.5d عبر `ad.soft_delete(kind='self')` + نفس `apply_effects`).
 
+## الحذف النهائي (task 8.5c)
+
+- **المصدر الوحيد:** `account_purge.py` — migration `account_purge` (حرجة، بعد `account_deletion`؛ الإنتاج `docs/migrations/8.5c_account_purge.sql`) · المهمة اليومية `account_purge` بـ `scheduler_jobs` (`auth._SCHEDULER_HANDLERS`؛ كل دورة scheduler بتتأكد إن مهمة اليوم الجاي موجودة — `ensure_daily_job`، 03:00 UTC، `dedupe_key account_purge:{التاريخ}`، ما بتكون مستحقة وقت إنشائها) → `run_daily()`.
+- **المدة:** `tw_settings.limit("account_purge_days")` = 30 يوم من `deleted_at` (للنوعين `admin` و `self`) · `account_purge_batch` · `account_purge_retry_max_hours` — كلهم بـ `tw_limits.py`.
+- **الطابور `account_purge`:** `user_id` (PK) · `stage` `files` → `db` → `done` · `attempts` · `next_attempt_at` · `last_error` (كود / عدد / status بس — ما في اسم ولا إيميل ولا هاتف ولا اسم ملف).
+  1. **claim:** لكل حساب: `SELECT … FROM users … FOR UPDATE` (نفس قفل `ad.restore`) + لسا محذوف + أقدم من المدة → صف `files`.
+  2. **files:** كل ملفات الحساب بكل الـ buckets (`avatars` · `kyc-docs`): المسارات المخزّنة بصفوفه (`profiles.avatar_url` / `cover_url` · `company_profiles.cover_url` · `kyc_submissions.id_front_url` / `selfie_url`) + كل object اسمه `{uid}_…` من `storage_list` (الصور القديمة اللي انبدلت) — بس الأسماء `{uid}_{kind}_{12 hex}.{ext}` لنفس الحساب (F24، ما بينحذف ملف غيره) → `server.storage_delete` (`docs/rules/upload.md` القاعدة 11). 404 = نجاح. أي فشل → `attempts + 1` + `next_attempt_at = NOW() + 2^attempts ساعة` (≤ السقف) والقاعدة **ما بتنلمس**؛ المحاولة الجاية بتعيد الكل (المحذوف = 404 = نجاح).
+  3. **db:** transaction وحدة: صف users `FOR UPDATE` + لسا محذوف + أقدم من المدة + الطابور `db` → الجدول تحت → tombstone → `done`.
+  4. **retention** (بنفس المهمة): صفوف مربوطة بحساب انحذف نهائياً بتنحذف بعد مدتها — `admin_audit_log` (`target user_id=N`) بعد `retention_admin_audit_days` (730) · `reports` (مبلّغ أو مبلَّغ عنه) بعد `retention_reports_days` (365) · `appointment_events` (الفاعل أو موعد هو طرفه) بعد `retention_appointment_events_days` (365).
+- **tombstone `users`:** بيضل `id` · `user_type` · `created_at` · `deleted_at` · `deleted_kind` · `purged_at` (حتى الـ FKs والسجلات المشتركة تضل) · `email = '#purged:{id}'` (قيمة داخلية فريدة مش إيميل → الإيميل الأصلي حر: التسجيل فيه = حساب جديد ما بيورث شي) · `password_hash` = bcrypt لسر عشوائي محدش بيعرفه · `full_name = ''` · `tw_id` / `deleted_by` / `deleted_reason` / `suspended_*` / `terms_*` / `country_code` = NULL · التوثيق false · `session_version + 1`.
+- **الظهور بعد النهائي:** نفس الحذف الناعم (`deleted_at` باقي) — المحتوى مخفي والسجلات المشتركة باسم «حساب محذوف». admin-view: شارة «محذوف نهائياً» / «الحذف النهائي جارٍ» (`profile.deletion.purge` = `purged` | `purging`) بدون زر استعادة.
+
+### جدول الحذف النهائي (القاعدة: اللي عمله عن حاله ← حذف · سجل مشترك ← الصف بيضل والنسخ الشخصية NULL · سجل طرف تاني عنه ← بيضل)
+
+| الجدول | القرار | السبب |
+|--------|--------|-------|
+| `profiles` · `company_profiles` · `company_branches` · `company_settings` · `experience` · `education` · `user_skills` · `user_langs` · `user_links` · `courses` | حذف | ملفه هو |
+| `kyc_submissions` (+ ملفاتها) · `password_reset_tokens` (استرجاع + تغيير إيميل) · `email_notify_prefs` · `email_send_log` · `feed_snapshots` · `profession_suggestions` | حذف | توثيقه / توكناته / OTP / تفضيلاته |
+| `company_posts` (+ CASCADE تعليقات وتقديرات وحفظ ومشاهدات غيره عليها) · `company_post_comments` (تبعه — ردود غيره `reply_to` → NULL) · `company_post_appreciations` · `company_post_saves` · `company_post_views` (هو المشاهد) · `company_post_comment_mentions` (بتشير لـ `tw_id` تبعه) | حذف | محتواه وتفاعله |
+| `profile_follows` · `profile_interests` · `profile_views` · `blocks` (الاتجاهين) | حذف | متابعاته / حظره — الطرف التاني انحذف |
+| `notifications` (إله + أي إشعار لغيره هو فاعله `actor_id` / `last_actor_id` + أي إشعار نصّه فيه اسمه / إيميله / هاتفه / `tw_id`) | حذف | النص فيه اسمه (الأحفظ للخصوصية) |
+| `company_ratings` (هو المقيِّم) | حذف | محتواه |
+| `company_saved_candidates` · `candidate_bank_notes` · `company_candidate_job_refs` (هو الشركة) · `pipeline_notes` (كتبها أو على pipeline شركته) | حذف | ملاحظات شركته الخاصة |
+| `support_tickets` (حسابه أو `guest_email` = إيميله — CASCADE رسائلها وتوكناتها) · `support_guest_otp` (إيميله) | حذف | تذاكره هو |
+| `messages` · `appointment_messages` | بيضل كما هو | رسائله بتضل عند الطرف التاني باسم «حساب محذوف» |
+| `job_applications` | بيضل · `cover_letter` = NULL | سجل مشترك (الشركة) |
+| `jobs` (هو الشركة) | بيضل (مسكّرة من 8.5a) · `description` = NULL | طلبات غيره مربوطة فيها (CASCADE كان رح يمسحها) |
+| `appointments` · `appointment_participants` | بيضل · هو الشركة / المنشئ → `representative_name` / `notes` / `location_text` / `online_url` = NULL · هو الممثّل → `representative_user_id` / `representative_name` = NULL | سجل مشترك |
+| `appointment_events` | بيضل برقم داخلي · `payload` (سبب كتبه) = NULL لأحداثه · بينحذف بعد سنة | سجل المواعيد |
+| `job_pipeline_entries` · `conversation_endings` | بيضل كما هو | سجل مشترك بدون نص شخصي |
+| `pipeline_stage_events` | بيضل · `reason` = NULL لأحداثه | سجل مشترك |
+| `reports` (مبلِّغ أو مبلَّغ عنه) | بيضل برقم داخلي · `reason` / `target_url` = NULL · بينحذف بعد سنة | البلاغات |
+| `admin_audit_log` | بيضل برقم داخلي · `old_value` / `new_value` = NULL للصفوف عنه + لأي صف نصه فيه إيميله / اسمه / هاتفه / `tw_id` · بينحذف بعد سنتين | سجل الأدمن — `actor` دايماً أدمن / موظف (ما في `ip` لأفعال المستخدم بهالجدول) |
+| `company_ratings` (عن شركته) · `company_saved_candidates` / `candidate_bank_notes` / `company_candidate_job_refs` / `job_pipeline_entries` / `pipeline_notes` (هو المرشّح عند شركة تانية) | بيضل | سجلات أطراف تانية عنه (نصوصهم مش نصه) |
+| `scheduler_jobs` | بيضل | `payload` أرقام داخلية بس؛ handlers بتعيد قراءة القاعدة |
+| `account_purge` | بيضل (`done`) | رقم داخلي بس |
+
 ## ممنوعات
 
-- ❌ `DELETE FROM users` بأي مسار · ❌ كتابة `users.deleted_*` برّا `ad.soft_delete` / `ad.restore`.
+- ❌ `DELETE FROM users` بأي مسار (الحذف النهائي = tombstone) · ❌ كتابة `users.deleted_*` برّا `ad.soft_delete` / `ad.restore` · ❌ كتابة `purged_at` / الـ tombstone برّا `account_purge.purge_db`.
+- ❌ حذف نهائي من طلب HTTP · ❌ مرحلة القاعدة قبل ما تخلص الملفات · ❌ حذف ملف مش مسمّى `{uid}_…` لنفس الحساب · ❌ استدعاء Supabase Storage للحذف برّا `server.storage_delete`.
+- ❌ استعادة بعد ما بلّش الحذف النهائي · ❌ claim أو استعادة بدون `FOR UPDATE` على صف users.
+- ❌ اسم / إيميل / هاتف / اسم ملف بـ `account_purge.last_error` أو بالـ log · ❌ مدة (30 / 365 / 730) مكتوبة بالكود — `tw_limits.py`.
 - ❌ قاعدة ظهور تانية للمحذوف — `bs.active_sql` / `bs.visible_sql` بس · ❌ `keep_deleted=True` برّا السجلات المشتركة (محادثات · عدّاد غير المقروء).
 - ❌ إرجاع اسم / صورة / `tw_id` / إيميل / هاتف حساب محذوف بأي رد لغير الأدمن · ❌ التنقية بالواجهة بدل السيرفر.
 - ❌ رد بيقول «محذوف» بالدخول / الاسترجاع / التسجيل.

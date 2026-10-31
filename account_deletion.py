@@ -1,8 +1,9 @@
 """account_deletion.py — Soft account delete + restore (task 8.5a · F27 · docs/rules/account-deletion.md ·
 docs/SYSTEMS_INDEX.md §25i).
 
-Nothing is removed: a deleted account keeps its row and every row that points at it (messages, applications,
-pipeline, appointments, posts, comments, jobs). Hard delete does not exist on any path (task 8.5c).
+Nothing is removed here: a deleted account keeps its row and every row that points at it (messages, applications,
+pipeline, appointments, posts, comments, jobs). The final purge after the grace period lives in account_purge.py
+(task 8.5c — the daily scheduler job); once it started, restore() is refused (409).
 
   users.deleted_at / deleted_by / deleted_kind ('admin' | 'self') / deleted_reason (admin-only text)
   soft_delete()  → the ONE writer of deleted_* (set) — + session_version + 1 (every token dies) + pending
@@ -71,7 +72,7 @@ def scrub(d: dict, deleted, name_keys=("full_name",), clear_keys=PARTY_CLEAR, fl
 
 
 class DeletionError(Exception):
-    """code: invalid_kind (422)."""
+    """code: invalid_kind (422) · purging / already_purged (409 — restore after the final purge started)."""
     def __init__(self, code: str, status: int):
         super().__init__(code)
         self.code = code
@@ -125,32 +126,53 @@ def soft_delete(user_id: int, by: str, kind: str, reason=None):
 
 def restore(user_id: int, by: str, reason: str):
     """The ONE writer (clear). → None (no such user) | {changed, state}. Old tokens stay dead (session_version + 1).
-    Jobs stay closed and cancelled interviews stay cancelled. The reason goes to the admin audit log (server)."""
+    Jobs stay closed and cancelled interviews stay cancelled. The reason goes to the admin audit log (server).
+    Task 8.5c: users row FOR UPDATE (the lock account_purge.claim_due takes) → a purge already started →
+    DeletionError purging / already_purged (409) — restore and purge never interleave."""
+    import account_purge
     from auth import db_conn
     with db_conn() as conn:
-        rows = conn.run(
-            "UPDATE users SET deleted_at = NULL, deleted_by = NULL, deleted_kind = NULL, deleted_reason = NULL, "
-            "session_version = session_version + 1 WHERE id = :uid AND deleted_at IS NOT NULL "
-            "RETURNING " + _STATE_COLS, uid=int(user_id))
-        changed = bool(rows)
-        if not changed:
-            rows = conn.run("SELECT " + _STATE_COLS + " FROM users WHERE id = :uid", uid=int(user_id))
+        conn.run("BEGIN")
+        try:
+            if not conn.run("SELECT 1 FROM users WHERE id = :uid FOR UPDATE", uid=int(user_id)):
+                conn.run("ROLLBACK")
+                return None
+            purge = account_purge.purge_state(user_id, conn)
+            if purge is not None:
+                conn.run("ROLLBACK")
+                raise DeletionError("already_purged" if purge == "purged" else "purging", 409)
+            rows = conn.run(
+                "UPDATE users SET deleted_at = NULL, deleted_by = NULL, deleted_kind = NULL, deleted_reason = NULL, "
+                "session_version = session_version + 1 WHERE id = :uid AND deleted_at IS NOT NULL "
+                "RETURNING " + _STATE_COLS, uid=int(user_id))
+            changed = bool(rows)
+            if not changed:
+                rows = conn.run("SELECT " + _STATE_COLS + " FROM users WHERE id = :uid", uid=int(user_id))
+            conn.run("COMMIT")
+        except DeletionError:
+            raise
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
     if not rows:
         return None
     return {"changed": changed, "state": _state(rows[0])}
 
 
 def get_deletion(user_id: int):
-    """Admin view → None (no such user) | {deleted, deleted_at, deleted_by, deleted_kind, deleted_reason}."""
+    """Admin view → None (no such user) | {deleted, deleted_at, deleted_by, deleted_kind, deleted_reason, purge,
+    purged_at}. purge: None | 'purging' | 'purged' (task 8.5c — no restore once it is set)."""
     from auth import db_conn
     with db_conn() as conn:
-        rows = conn.run("SELECT deleted_at, deleted_by, deleted_kind, deleted_reason FROM users WHERE id = :uid",
+        rows = conn.run("SELECT u.deleted_at, u.deleted_by, u.deleted_kind, u.deleted_reason, u.purged_at, p.stage "
+                        "FROM users u LEFT JOIN account_purge p ON p.user_id = u.id WHERE u.id = :uid",
                         uid=int(user_id))
     if not rows:
         return None
-    at, by, kind, reason = rows[0]
+    at, by, kind, reason, purged_at, stage = rows[0]
     return {"deleted": at is not None, "deleted_at": _iso(at), "deleted_by": by, "deleted_kind": kind,
-            "deleted_reason": reason}
+            "deleted_reason": reason, "purge": None if stage is None else ("purged" if stage == "done" else "purging"),
+            "purged_at": _iso(purged_at)}
 
 
 def is_deleted(user_id: int, conn=None) -> bool:

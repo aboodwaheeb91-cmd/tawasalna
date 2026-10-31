@@ -214,7 +214,8 @@
     var sus = P.suspension && P.suspension.suspended ? P.suspension : null;
     if (sus) pills.appendChild(pill(twT('admin.view.suspended'), 'danger'));
     var del = P.deletion && P.deletion.deleted ? P.deletion : null;
-    if (del) pills.appendChild(pill(twT('admin.view.deleted'), 'danger'));
+    var purge = del && del.purge ? del.purge : null;   // task 8.5c — 'purging' | 'purged' → no restore
+    if (del) pills.appendChild(pill(twT(purge ? 'admin.view.' + purge : 'admin.view.deleted'), 'danger'));
     acc.appendChild(row(P.full_name, [P.email, P.tw_id], pills).row);
     if (P.created_at) acc.appendChild(el('p', 'tw-adm-row-sub', twT('admin.view.since', { date: twFormatDate(P.created_at) })));
     if (sus) {
@@ -239,9 +240,8 @@
     b1.appendChild(sus
       ? btn('primary', 'user-check', 'admin.view.unsuspend', function () { run('user.unsuspend').then(reloadIfOk); })
       : btn('danger', 'lock', 'admin.view.suspend', openSuspend));
-    b1.appendChild(del
-      ? btn('primary', 'user-check', 'admin.view.restore', openRestore)
-      : btn('danger', 'delete', 'admin.view.delete', deleteUser));
+    if (!del) b1.appendChild(btn('danger', 'delete', 'admin.view.delete', deleteUser));
+    else if (!purge) b1.appendChild(btn('primary', 'user-check', 'admin.view.restore', openRestore));
     act.appendChild(b1);
 
     var ty = TwAdminShell.card(root, { titleKey: 'admin.view.type', hintKey: 'admin.view.type.hint', icon: 'users' });
