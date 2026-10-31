@@ -18,6 +18,7 @@
    - `hmac.compare_digest` is used for all token comparisons (timing-safe)
    - No secrets are logged or returned in error responses
    - Passwords are never returned from any endpoint
+   - **قرار أمني على المسار = `scope["path"]` بس — عبر `_req_path(request)` في `server.py` (task 8.8a · GHSA-86qp-5c8j-p5mr / CVE-2026-48710).** Starlette بيبني `request.url` من ترويسة `Host`، و Host معطوب (`a#` · `a/x`) بيغيّر `request.url.path` بينما التوجيه بيستعمل `scope["path"]`. كل middleware / معالج بيقرر من المسار (rate limit · سجل الأدمن · ترويسات الأمان · الكاش · الأيقونات) أو بيطبعه باللوج بيستعمل `_req_path`. ❌ `request.url.path` / `request.url.hostname` بأي قرار أو لوج (مكان مبرّر = تعليق بجنبه). Test: `python -m pytest tests/test_scope_path_88a.py -q`.
 
 6. **Real-time transport is WebSocket for messages, polling for notifications.**
    - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ✅ P0 Security Debt Fully Resolved (PR `security/ws-auth-hardening`): the route uses First-Message JWT Authentication with fail-closed origin policy, bounded cache, async DB, per-user connection limits, and rate-limit-before-DB ordering.
