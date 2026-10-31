@@ -931,6 +931,7 @@ async def rate_limit_middleware(request, call_next):
 import admin_insights
 import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
 import account_deletion as ad    # task 8.5a — soft account delete + restore (SYSTEMS_INDEX §25i)
+import account_purge             # task 8.5c — final purge after account_purge_days (SYSTEMS_INDEX §25i)
 import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
 _STAFF_PUBLIC_PATHS = frozenset({"/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
@@ -1193,6 +1194,7 @@ def _startup_migrations():
         ("conversation_endings",              _migrate_conversation_endings,       True),   # 5.0g — read by every message send
         ("blocks_suspension",                 bs.migrate_blocks_suspension,        True),   # 5.4 — read by the session check + every visibility query
         ("account_deletion",                  ad.migrate_account_deletion,         True),   # 8.5a — read by the session check + every visibility query
+        ("account_purge",                     account_purge.migrate_account_purge, True),   # 8.5c — read by every restore (409 once a purge started)
         ("terms_acceptance",                  tw_terms.migrate_terms_acceptance,   True),   # terms — written by every registration
         ("app_settings",                      tw_settings.migrate_app_settings,    False),  # 4.1 — after admin_audit_log; failure → defaults
         ("support_tickets",                   support.migrate_support,             False),  # 7.1 — support only; failure → its routes 500
@@ -7424,6 +7426,78 @@ async def _store_image(bucket: str, name: str, file_bytes: bytes, mime: str,
     return f"{supabase_url}/storage/v1/object/public/{bucket}/{name}"
 
 
+# ── Storage delete (task 8.5c — docs/rules/upload.md rule 11) ──
+# The ONE delete of a storage object (+ its companion list), same settings as the uploads (_supabase_base_url /
+# _supabase_auth_headers). Sync (the scheduler's account purge runs in a worker thread). 404 = already gone =
+# success · anything else = failure, logged with bucket + status only (never the key, a signed URL or a body).
+_STORAGE_TIMEOUT_S = 15
+_STORAGE_LIST_PAGE = 100
+_STORAGE_LIST_MAX_PAGES = 50
+
+
+def _storage_not_found(r) -> bool:
+    """404 — or the older Supabase shape: 400 with {"statusCode": "404"} in the body."""
+    if r.status_code == 404:
+        return True
+    if r.status_code == 400:
+        try:
+            return str((r.json() or {}).get("statusCode")) == "404"
+        except Exception:
+            return False
+    return False
+
+
+def storage_delete(bucket: str, name: str) -> dict:
+    """DELETE {base}/storage/v1/object/{bucket}/{name} → {ok, status, reason}. ok = deleted or not there (404)."""
+    import httpx
+    base, auth_headers = _supabase_base_url(), _supabase_auth_headers()
+    if not base or not auth_headers:
+        print(f"[storage] delete bucket={bucket}: storage not configured")
+        return {"ok": False, "status": None, "reason": "storage_unavailable"}
+    try:
+        with httpx.Client(timeout=_STORAGE_TIMEOUT_S) as client:
+            r = client.delete(f"{base}/storage/v1/object/{bucket}/{name}", headers=auth_headers)
+    except Exception as e:
+        print(f"[storage] delete bucket={bucket} error: {type(e).__name__}")
+        return {"ok": False, "status": None, "reason": "network"}
+    if r.status_code in (200, 204) or _storage_not_found(r):
+        return {"ok": True, "status": r.status_code, "reason": None}
+    print(f"[storage] delete bucket={bucket} rejected status={r.status_code}")
+    return {"ok": False, "status": r.status_code, "reason": "rejected"}
+
+
+def storage_list(bucket: str, prefix: str):
+    """Object names in `bucket` that start with `prefix` (flat bucket — PR-7a names) → list | None (failure)."""
+    import httpx
+    base, auth_headers = _supabase_base_url(), _supabase_auth_headers()
+    if not base or not auth_headers:
+        print(f"[storage] list bucket={bucket}: storage not configured")
+        return None
+    names = []
+    try:
+        with httpx.Client(timeout=_STORAGE_TIMEOUT_S) as client:
+            for page in range(_STORAGE_LIST_MAX_PAGES):
+                r = client.post(f"{base}/storage/v1/object/list/{bucket}", headers=auth_headers,
+                                json={"prefix": "", "search": prefix, "limit": _STORAGE_LIST_PAGE,
+                                      "offset": page * _STORAGE_LIST_PAGE,
+                                      "sortBy": {"column": "name", "order": "asc"}})
+                if r.status_code != 200:
+                    print(f"[storage] list bucket={bucket} rejected status={r.status_code}")
+                    return None
+                items = r.json() or []
+                names.extend(str(i.get("name") or "") for i in items if isinstance(i, dict))
+                if len(items) < _STORAGE_LIST_PAGE:
+                    return [n for n in names if n.startswith(prefix)]
+    except Exception as e:
+        print(f"[storage] list bucket={bucket} error: {type(e).__name__}")
+        return None
+    print(f"[storage] list bucket={bucket} more than {_STORAGE_LIST_MAX_PAGES} pages")
+    return None
+
+
+account_purge.set_storage(storage_delete, storage_list)
+
+
 @app.post("/upload/image")
 async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
     """Upload an image for the JWT user → {status, url} (public bucket) or
@@ -9057,7 +9131,8 @@ def delete_user(user_id: int, request: Request, data: Optional[dict] = Body(None
 def restore_user(user_id: int, request: Request, data: Optional[dict] = Body(None)):
     """Restore a soft-deleted account (task 8.5a) — body {reason} (required, ≤ account_reason_max; kept in the
     admin audit log). Content shows again · jobs stay closed · cancelled interviews stay cancelled · old tokens
-    stay 401 (a new login). users.delete + step-up (428)."""
+    stay 401 (a new login). users.delete + step-up (428). A final purge started → 409 purging / already_purged
+    (task 8.5c)."""
     claims = check_admin(request, "users.delete")
     reason, err = _account_reason(data or {}, required=True)
     if err:
@@ -9067,6 +9142,8 @@ def restore_user(user_id: int, request: Request, data: Optional[dict] = Body(Non
         if out is None:
             return api_error(404, "not_found", "الحساب غير موجود")
         _password_changed_cache_set(user_id, out["state"])
+    except ad.DeletionError as e:   # task 8.5c — the final purge started / finished → never restored
+        return api_error(e.status, e.code, _tw_text("admin.account.err." + e.code))
     except Exception as e:
         raise _server_error("restore_user", e)
     request.state.audit_change = ("deleted" if out["changed"] else "active", reason)

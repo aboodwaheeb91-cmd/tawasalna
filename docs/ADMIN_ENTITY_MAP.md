@@ -52,6 +52,7 @@
 | الإيميل / الجوال موثّق | `users.email_verified` / `users.phone_verified` (من KYC OTP) | مخزّنة |
 | نسخة الجلسة | `users.session_version` + `password_changed_at` — تغيير كلمة السر بينهي الجلسات | مخزّنة |
 | محذوف (task 8.5a — ناعم) | `users.deleted_at` (+ `deleted_by` / `deleted_kind` `admin`\|`self` / `deleted_reason` — للأدمن بس) — كل طلباته 401 + محتواه مخفي بنفس قاعدة التعليق + السجلات المشتركة باسم «حساب محذوف» · الصف ما بينمسح · `docs/rules/account-deletion.md` | مخزّنة |
+| محذوف نهائياً (task 8.5c) | `users.purged_at` + طابور `account_purge` (`files` → `db` → `done`) — بعد `account_purge_days` (30) من `deleted_at` · tombstone (`id` · `user_type` · `deleted_at` · `deleted_kind` · `purged_at`) والإيميل حر · `docs/rules/account-deletion.md` «الحذف النهائي» | مخزّنة |
 
 ### 1.2 مين بيشوف شو
 
@@ -71,6 +72,7 @@
 | غير موثّق → موثّق (KYC) | الأدمن | `PUT /admin/kyc/{id}/approve` (طلب بانتظار المراجعة بس — غير هيك 409) → `set_user_verified(TRUE)` · الرفض → FALSE |
 | نوع → نوع | الأدمن | `PUT /admin/user/{id}/type` |
 | موجود → محذوف | الأدمن بس (`DELETE /admin/user/{id}` `{reason?}`) | **حذف ناعم** (task 8.5a — `ad.soft_delete`): `deleted_*` + `session_version + 1` · شركة: وظائفها المفتوحة بتتسكّر + إشعار واحد لكل متقدم · المقابلات القادمة بتنلغى · مسار صاحبه `DELETE /auth/user/{id}/delete` لسا **مسكّر** (403) لحد 8.5d |
+| محذوف → محذوف نهائياً (task 8.5c) | تلقائي — المهمة اليومية `account_purge` بعد `account_purge_days` (30) من `deleted_at` | الملفات بالتخزين أول (إعادة محاولة بتأخير متزايد، 404 = نجاح) ← القاعدة بـ transaction وحدة ← صف `users` tombstone (الإيميل حر · `purged_at`) · الاستعادة بعد البدء 409 · الجدول: `docs/rules/account-deletion.md` «الحذف النهائي» |
 | محذوف → موجود | الأدمن بس (`POST /admin/user/{id}/restore` `{reason}` إجباري) | `ad.restore` — المحتوى بيرجع · التوكنات القديمة بتضل 401 · الوظائف بتضل مسكّرة والمقابلات ملغاة |
 | تلقائي | — | لا يوجد أي انتقال تلقائي |
 
@@ -85,13 +87,14 @@
 | تغيير كلمة السر | `PUT /admin/user/{id}/password` — نفس `_password_policy_error` (ضعيفة → 422) | ✅ صفحة المستخدم |
 | حذف (ناعم — task 8.5a) | `DELETE /admin/user/{id}` `{reason?}` (`users.delete` + التحقق الإضافي) | ✅ صفحة المستخدم (سبب اختياري + كتابة «حذف») · القائمة · البلاغات |
 | استعادة (task 8.5a) | `POST /admin/user/{id}/restore` `{reason}` | ✅ صفحة المستخدم (شارة «محذوف» + التاريخ + النوع + السبب) |
+| حذف نهائي (task 8.5c) | ما في endpoint — المهمة اليومية `account_purge` بس | ✅ صفحة المستخدم: شارة «محذوف نهائياً» / «الحذف النهائي جارٍ» (`deletion.purge`) بدون زر استعادة · الاستعادة 409 `purging` / `already_purged` |
 | تعليق / فك تعليق (task 5.4) | `PUT /admin/user/{id}/suspension` `{suspended, reason?}` | ✅ صفحة المستخدم |
 | «رسالة للمستخدم» | `POST /admin/message` | ✅ شاشة — **بس الـ endpoint ما بيبعت شي** (مشكلة #9) |
 
 ### 1.5 ناقص للتحكم الكامل
 
 - ~~إيقاف / تعليق حساب~~ — انعمل (task 5.4: `users.suspended_at` + فحص الجلسة + الدخول + `_ws_revoke_user`).
-- ~~حذف ناعم + إرجاع الحساب (F27)~~ — انعمل (task 8.5a). باقي: حذف الحساب لصاحبه (8.5d) · الحذف النهائي (8.5c).
+- ~~حذف ناعم + إرجاع الحساب (F27)~~ — انعمل (task 8.5a). ~~الحذف النهائي~~ — انعمل (task 8.5c). باقي: حذف الحساب لصاحبه (8.5d).
 - ~~مصدر واحد للتوثيق (مشكلة #4)~~ — انعمل (5.0c). باقي: `company_profiles.verified_co` بلا كاتب.
 - تعديل الإيميل / الاسم من الأدمن (`PUT /admin/profile` بيمشي على قواعد `_apply_profile_update` بس).
 - pagination + فلترة لقائمة الحسابات.
@@ -100,7 +103,7 @@
 ### 1.6 ملاحظات خطر
 
 - البلاغات ضد الحساب **ما بتنمسح** (5.0c — `reported_id` SET NULL، اللوحة بتبيّن «حساب محذوف»).
-- **الحذف النهائي (ما في مسار إله من task 8.5a — بيرجع بـ 8.5c) كان بيمسح بـ CASCADE:** profiles · company_profiles · experience / education / courses / skills / langs / links · jobs (→ طلباتها، refs، targets) · job_applications · messages (الطرفين) · notifications · company_posts (→ تعليقات، تقديرات، حفظ، مشاهدات) · تعليقات الشخص على منشورات غيره · company_ratings (اللي عطاها واللي أخدها) · profile_follows / interests / views · company_saved_candidates · job_pipeline_entries (→ stage events + notes) · candidate_bank_notes · appointments (→ participants / events / messages) · kyc_submissions · password_reset_tokens · company_settings · company_branches. ملفات Storage (أفاتار / غلاف / وثائق KYC) **ما بتنحذف**.
+- **الحذف النهائي (task 8.5c):** ما بيمسح صف `users` (tombstone) فالـ CASCADE ما بيشتغل — كل جدول بقرار صريح (حذف / تجهيل / بيضل) بـ `docs/rules/account-deletion.md` «الحذف النهائي»، وملفات Storage (أفاتار / غلاف / وثائق KYC + القديمة `{uid}_…`) بتنحذف قبل القاعدة. **المسار القديم (قبل 5.0e) كان بيمسح بـ CASCADE:** profiles · company_profiles · experience / education / courses / skills / langs / links · jobs (→ طلباتها، refs، targets) · job_applications · messages (الطرفين) · notifications · company_posts (→ تعليقات، تقديرات، حفظ، مشاهدات) · تعليقات الشخص على منشورات غيره · company_ratings (اللي عطاها واللي أخدها) · profile_follows / interests / views · company_saved_candidates · job_pipeline_entries (→ stage events + notes) · candidate_bank_notes · appointments (→ participants / events / messages) · kyc_submissions · password_reset_tokens · company_settings · company_branches. ملفات Storage (أفاتار / غلاف / وثائق KYC) **ما بتنحذف**.
 - تغيير النوع (`co` → `emp` مثلاً): الوظائف والمنشورات والـ pipeline بتضل مربوطة بحساب صار `emp`؛ `tw_id` بيضل ببادئته القديمة (C/U/T) — حالة متضاربة.
 - ~~ما في حالة «معلّق»~~ — في «معلّق» (5.4) و«محذوف ناعم» قابل للاستعادة (8.5a).
 

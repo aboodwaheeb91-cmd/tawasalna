@@ -37,6 +37,12 @@ LIMITS = {
     "blocks_page_max": 50,        # GET /blocks ?limit= ceiling (task 5.4)
     "suspend_reason_max": 500,    # PUT /admin/user/{id}/suspension reason (chars — admin only)
     "account_reason_max": 500,    # DELETE /admin/user/{id} reason (optional) + POST …/restore reason (task 8.5a — admin only)
+    "account_purge_days": 30,     # a deleted account (admin / self) is purged for good this many days after deleted_at (task 8.5c)
+    "account_purge_batch": 100,   # … accounts claimed / processed per daily run (account_purge.run_daily)
+    "account_purge_retry_max_hours": 168,  # … a failed file / db step retries after 2^attempts hours, at most this
+    "retention_admin_audit_days": 730,     # admin audit rows about a purged account are deleted after 2 years
+    "retention_reports_days": 365,         # reports by / about a purged account are deleted after 1 year
+    "retention_appointment_events_days": 365,  # appointment_events of a purged account are deleted after 1 year
     "otp_ttl_min": 10,            # KYC OTP (email / phone) — code lifetime in minutes (auth._otp_issue · task 4.2)
     "otp_max_attempts": 5,        # … wrong tries before the code dies (auth._otp_verify)
     "support_subject_max": 120,   # support ticket subject (chars — task 7.1)

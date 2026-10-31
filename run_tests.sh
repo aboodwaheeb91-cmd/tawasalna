@@ -160,6 +160,7 @@ PY_DB=(
   pytest:test_blocks_suspension.py    # task 5.4 — admin suspension (401 · hidden content · back) + user blocks both ways · applications untouched
   pytest:test_hidden_account_subpaths.py    # task 5.4f — suspension / blocks → 404 on /profile/{id}/score · /company/branches/{id} · /company/{id}/ratings (5.4g: + blocks) · contact_email public · followers_count total
   pytest:test_account_deletion_85a.py  # task 8.5a — soft delete: 401 + WS 4008 · hidden content + counters · «حساب محذوف» records · company effects · restore · 401/403/428
+  pytest:test_account_purge_85c.py    # task 8.5c — final purge after 30 days: files first (retry · 404 = ok) then one DB transaction · idempotent · restore 409 · «حساب محذوف» · email free · retention · sentinel scan
   pytest:test_experience_sort_order_49.py  # AUD-P2-49 — experience sort_order backfill / add / tie order / reorder ownership + save-job button gone
 )
 

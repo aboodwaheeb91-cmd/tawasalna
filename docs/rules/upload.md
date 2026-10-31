@@ -52,4 +52,11 @@ These rules are permanent and apply to all future AI sessions.
 
 10. **Legacy `data:` migration (PR-7c).** `POST /admin/maintenance/migrate-data-images?dry_run=1` (`check_admin`, dry run by default) — every `data:` value in `profiles.avatar_url` (`co` → `company-logo`, else `employee-avatar`) · `profiles.cover_url` (`employee-cover`) · `company_profiles.cover_url` (`company-cover`) · `kyc_submissions.id_front_url` / `selfie_url` · `site_settings` `logo_wide` / `logo_tall` goes through `_validate_image_data_url` → `_store_image` → `UPDATE … WHERE col = <old value> RETURNING 1` (never overwrite a newer value). Invalid values are left and reported, never deleted. Idempotent. Response = counts + reasons only.
 
-Test: `python -m pytest tests/test_upload_security.py -q` · `node tests/test_upload_client_runtime.js` · `python -m pytest tests/test_kyc_docs_migration.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.
+11. **Storage delete (task 8.5c).** `server.storage_delete(bucket, name)` is the ONLY delete of a storage object — sync, `DELETE {_supabase_base_url()}/storage/v1/object/{bucket}/{name}` with `_supabase_auth_headers()` → `{ok, status, reason}`: 200 / 204 = deleted · **404 (or the older 400 + `{"statusCode": "404"}`) = already gone = success** · anything else / network / not configured = failure, logged as bucket + status only. Its companion `server.storage_list(bucket, prefix)` (`POST …/object/list/{bucket}`, paged, names filtered by `startswith(prefix)`) → list | `None` on failure. Both are registered into `account_purge.set_storage` — the final account purge (`docs/rules/account-deletion.md` «الحذف النهائي») is the only caller; it deletes only names `{uid}_{kind}_{12 hex}.{ext}` of the purged account.
+    ```
+    ❌ A second storage delete / list (httpx call to /storage/v1/object outside these two + _store_image + _sign_kyc_doc)
+    ❌ Treating 404 as a failure (a retry would never finish)
+    ❌ Logging the object name with the key, a signed URL or the response body
+    ```
+
+Test: `python -m pytest tests/test_upload_security.py -q` · `python -m pytest tests/test_account_purge_85c.py -q` (storage delete) · `node tests/test_upload_client_runtime.js` · `python -m pytest tests/test_kyc_docs_migration.py -q`. Full spec: `ARCHITECTURE.md → Image Upload Security Contract (PR-7a — §29a)`.

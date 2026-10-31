@@ -11490,6 +11490,7 @@ _SCHEDULER_HANDLERS = {
     "appointment_missed",            # S4: mark confirmed appointment missed (_appt_missed_at — PR 2B).
     "job_expiring_soon",             # S4: notify company 48h before job listing expires.
     "message_email",                 # 5.1c: email for a message still unread after N minutes.
+    "account_purge",                 # 8.5c: daily final purge of accounts deleted > account_purge_days ago.
 }
 
 
@@ -11836,6 +11837,9 @@ def _execute_scheduler_job(job: dict) -> None:
         _handle_job_expiring_soon(job); return
     if job_type == "message_email":
         _handle_message_email(job); return
+    if job_type == "account_purge":
+        import account_purge   # task 8.5c — files first, then one DB transaction (docs/rules/account-deletion.md)
+        account_purge.run_daily(); return
 
     raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
 
@@ -12110,6 +12114,11 @@ def run_scheduler_cycle(limit: int = 20, runner_id: str = None) -> dict:
                     "retried": 0, "update_failed": 0, "stuck_running": 0, "stale_reset": 0,
                     "runner_id": runner_id or f"runner-{os.getpid()}", "jobs": []}
         stale = reset_stale_scheduler_jobs(conn)
+        try:   # task 8.5c — the next daily account_purge job exists (one row per date, never due at creation)
+            import account_purge
+            account_purge.ensure_daily_job()
+        except Exception as e:
+            print(f"[scheduler] account_purge daily job not ensured: {type(e).__name__}: {e}")
         result = run_due_scheduler_jobs(limit=limit, runner_id=runner_id)
         result["stale_reset"] = stale
         if result.get("ok"):
