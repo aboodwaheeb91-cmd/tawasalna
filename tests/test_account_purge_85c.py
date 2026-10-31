@@ -440,3 +440,37 @@ def test_cycle_ensures_next_daily_job(db, store):
     rows = _sql("SELECT status, run_at > NOW(), dedupe_key FROM scheduler_jobs WHERE job_type = 'account_purge' "
                 "AND dedupe_key NOT LIKE 'account_purge:test:%'")
     assert len(rows) == 1 and rows[0][0] == "pending" and rows[0][1] is True, rows
+
+
+# ── 10. the name is never a search key outside the account's own circle (task 8.5c-2) ──
+def test_name_hits_only_related_people_never_strangers(db, store):
+    p, friend, pen_pal, stranger = _user("emp"), _user("emp"), _user("emp"), _user("emp")
+    common = "Common" + uuid.uuid4().hex[:8]                       # a name another (live) person shares
+    _sql("UPDATE users SET full_name = :n WHERE id = :u", n=common, u=p["id"])
+    twin = _user("emp")
+    _sql("UPDATE users SET full_name = :n WHERE id = :u", n=common, u=twin["id"])
+    _sql("INSERT INTO profile_follows (follower_id, followed_id) VALUES (:a, :b)", a=friend["id"], b=p["id"])
+    _sql("INSERT INTO messages (sender_id, receiver_id, content) VALUES (:a, :b, 'hi')", a=pen_pal["id"], b=p["id"])
+
+    def notif(owner, body):
+        return _sql("INSERT INTO notifications (user_id, type, title, body) VALUES (:o, 'x', :t, :b) RETURNING id",
+                    o=owner, t="t " + common, b=body)[0][0]
+    n_friend = notif(friend["id"], common + " شارك منشوراً")
+    n_pal = notif(pen_pal["id"], "رسالة من " + common)
+    n_stranger = notif(stranger["id"], common + " (الحساب الحي) قبل طلبك")
+    audit = _sql("INSERT INTO admin_audit_log (actor, action, target, result, status, old_value, new_value) "
+                 "VALUES ('owner', 'edit_name', :t, 'ok', 200, :o, :n) RETURNING id",
+                 t=f"user_id={twin['id']}", o="old " + common, n="new " + common)[0][0]
+    _deleted(p, 31)
+    _run_job()
+    assert _stage(p)[0] == "done"
+
+    def text(nid):
+        r = _sql("SELECT title, body FROM notifications WHERE id = :i", i=nid)
+        return tuple(r[0]) if r else None
+    assert text(n_stranger) == ("t " + common, common + " (الحساب الحي) قبل طلبك")          # untouched
+    assert _sql("SELECT old_value, new_value FROM admin_audit_log WHERE id = :i", i=audit)[0] == \
+        ["old " + common, "new " + common]                                                 # untouched
+    lab = _label()
+    assert text(n_friend) == ("t " + lab, lab + " شارك منشوراً")                            # kept, name replaced
+    assert text(n_pal) == ("t " + lab, "رسالة من " + lab)
