@@ -3580,13 +3580,8 @@ def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
         payload = _jwt_decode(auth_header[7:])
         if payload:
             viewer_id = payload.get("user_id")
-    # Suspended company → 404 (task 5.4 rule). Blocks are not applied here yet (pending decision).
-    try:
-        suspended = bs.is_suspended(resolved_id)
-    except Exception as e:
-        raise _server_error("company_ratings_visibility", e)
-    if suspended:
-        raise HTTPException(404, "الشركة غير موجودة")
+    # Suspended company or a block either way → 404 (task 5.4g); the company always sees its own.
+    _404_if_hidden(_optional_viewer_id(request), resolved_id, "الشركة غير موجودة")
     result = get_company_ratings_detail(resolved_id, viewer_id, limit)
     return {"status": "success", **result}
 
