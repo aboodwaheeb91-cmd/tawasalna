@@ -107,6 +107,14 @@ button.st-row:focus-visible, a.st-row:focus-visible { outline: 2px solid var(--c
 label.st-row { cursor: pointer; }
 label.st-row.is-off { cursor: default; opacity: .6; }
 .st-switch { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--color-brand-primary); cursor: inherit; }
+/* ── «تنزيل بياناتي» — the KYC documents option inside the dialog (task 8.5b) ── */
+.st-export-kyc { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px;
+  border: 1px solid rgba(var(--color-status-warning-rgb), .35); background: rgba(var(--color-status-warning-rgb), .08); }
+.st-export-kyc-title { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 800; color: var(--color-text-primary); }
+.st-export-kyc-title svg { color: var(--color-status-warning); }
+.st-export-docs { display: flex; flex-direction: column; gap: 6px; }
+.st-export-doc { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .75rem; }
+.st-export-doc a { color: var(--color-brand-primary); font-weight: 700; }
 .st-note { font-size: .65rem; color: var(--color-text-muted); line-height: 1.7; padding: 8px 4px 0; }
 </style>
 </head>
@@ -242,6 +250,22 @@ label.st-row.is-off { cursor: default; opacity: .6; }
         <span class="st-body"><span class="st-name" data-tw-t="settings.support"></span></span>
         <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
       </a>
+    </div>
+  </section>
+
+  <!-- ── الخصوصية — «تنزيل بياناتي» (task 8.5b · docs/rules/data-export.md): twModal + current password →
+       POST /me/export (JSON file) · inside: a separate KYC documents option → POST /me/export/kyc-docs ── -->
+  <section class="st-sec" id="privacy">
+    <h2 class="st-sec-title" data-tw-t="settings.sec.privacy"></h2>
+    <div class="st-card">
+      <button type="button" class="st-row" data-st-open="export">
+        <span class="st-ico"><i data-tw-icon="download"></i></span>
+        <span class="st-body">
+          <span class="st-name" data-tw-t="settings.export"></span>
+          <span class="st-val" data-tw-t="settings.export.hint"></span>
+        </span>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </button>
     </div>
   </section>
 
