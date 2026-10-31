@@ -41,7 +41,7 @@
 | `kyc_submissions` (+ ملفاتها) · `password_reset_tokens` (استرجاع + تغيير إيميل) · `email_notify_prefs` · `email_send_log` · `feed_snapshots` · `profession_suggestions` | حذف | توثيقه / توكناته / OTP / تفضيلاته |
 | `company_posts` (+ CASCADE تعليقات وتقديرات وحفظ ومشاهدات غيره عليها) · `company_post_comments` (تبعه — ردود غيره `reply_to` → NULL) · `company_post_appreciations` · `company_post_saves` · `company_post_views` (هو المشاهد) · `company_post_comment_mentions` (بتشير لـ `tw_id` تبعه) | حذف | محتواه وتفاعله |
 | `profile_follows` · `profile_interests` · `profile_views` · `blocks` (الاتجاهين) | حذف | متابعاته / حظره — الطرف التاني انحذف |
-| `notifications` (إله + أي إشعار لغيره هو فاعله `actor_id` / `last_actor_id` + أي إشعار نصّه فيه اسمه / إيميله / هاتفه / `tw_id`) | حذف | النص فيه اسمه (الأحفظ للخصوصية) |
+| `notifications` | حذف: إله + أي إشعار هو فاعله (`actor_id` / `last_actor_id`) + أي إشعار نصّه فيه معرّف دقيق (إيميله / `tw_id` / هاتفه / `contact_email`) · **الاسم ما بينحذف فيه أبداً**: بإشعارات اللي تعامل معهم بس (طرف رسائل · شركة قدّم عندها / متقدم على وظائفه · طرف موعد · متابِع / متابَع · `profile_interests` · `profile_views` · تفاعل / تعليق على منشوراته أو على منشور علّق عليه) الاسم بـ `title` / `body` بيصير «حساب محذوف» (`ad.deleted_label()`) — المجموعة بتنحسب بأول الـ transaction قبل `_OWN_DELETES` | اسم شائع كان بيحذف إشعارات ناس ما إلهم علاقة (task 8.5c-2) |
 | `company_ratings` (هو المقيِّم) | حذف | محتواه |
 | `company_saved_candidates` · `candidate_bank_notes` · `company_candidate_job_refs` (هو الشركة) · `pipeline_notes` (كتبها أو على pipeline شركته) | حذف | ملاحظات شركته الخاصة |
 | `support_tickets` (حسابه أو `guest_email` = إيميله — CASCADE رسائلها وتوكناتها) · `support_guest_otp` (إيميله) | حذف | تذاكره هو |
@@ -53,7 +53,7 @@
 | `job_pipeline_entries` · `conversation_endings` | بيضل كما هو | سجل مشترك بدون نص شخصي |
 | `pipeline_stage_events` | بيضل · `reason` = NULL لأحداثه | سجل مشترك |
 | `reports` (مبلِّغ أو مبلَّغ عنه) | بيضل برقم داخلي · `reason` / `target_url` = NULL · بينحذف بعد سنة | البلاغات |
-| `admin_audit_log` | بيضل برقم داخلي · `old_value` / `new_value` = NULL للصفوف عنه + لأي صف نصه فيه إيميله / اسمه / هاتفه / `tw_id` · بينحذف بعد سنتين | سجل الأدمن — `actor` دايماً أدمن / موظف (ما في `ip` لأفعال المستخدم بهالجدول) |
+| `admin_audit_log` | بيضل برقم داخلي · `old_value` / `new_value` = NULL للصفوف عنه (`target user_id=N`) + لأي صف نصه فيه معرّف دقيق (إيميله / `tw_id` / هاتفه / `contact_email`) — **مش الاسم** (ما بيلمس سجل حساب تاني بنفس الاسم — task 8.5c-2) · بينحذف بعد سنتين | سجل الأدمن — `actor` دايماً أدمن / موظف (ما في `ip` لأفعال المستخدم بهالجدول) |
 | `company_ratings` (عن شركته) · `company_saved_candidates` / `candidate_bank_notes` / `company_candidate_job_refs` / `job_pipeline_entries` / `pipeline_notes` (هو المرشّح عند شركة تانية) | بيضل | سجلات أطراف تانية عنه (نصوصهم مش نصه) |
 | `scheduler_jobs` | بيضل | `payload` أرقام داخلية بس؛ handlers بتعيد قراءة القاعدة |
 | `account_purge` | بيضل (`done`) | رقم داخلي بس |

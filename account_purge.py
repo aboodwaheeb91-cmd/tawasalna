@@ -34,7 +34,7 @@ BUCKETS = ("avatars", "kyc-docs")
 _OBJECT_RE = re.compile(r"^(\d+)_[a-z-]+_[0-9a-f]{12}\.(?:jpg|png|webp)$")
 _PUBLIC_RE = re.compile(r"/storage/v1/object/public/([a-z0-9-]+)/([^/?#]+)$")
 _PRIVATE_RE = re.compile(r"^(kyc-docs)/([^/?#]+)$")
-_NEEDLE_MIN = 4                      # a name shorter than this is never searched for in free text (too common)
+_NEEDLE_MIN = 4                      # an identifier / name shorter than this is never searched for (too common)
 
 _storage = {"delete": None, "list": None}
 
@@ -318,12 +318,50 @@ def _run(conn, stmt: str, **params):
 
 
 def _needles(row) -> list:
-    """Identity strings searched for in free text left in other rows (e-mail · tw_id · phone · full name)."""
-    tw, name, email, phone, contact = row
+    """EXACT identifiers searched for in free text left in other rows (e-mail · tw_id · phone · contact e-mail).
+    Never the name: a common name («محمد») would hit other people's rows (task 8.5c-2)."""
+    tw, _name, email, phone, contact = row
     out = [v.strip() for v in (email, tw, phone, contact) if isinstance(v, str) and v.strip()]
-    if isinstance(name, str) and len(name.strip()) >= _NEEDLE_MIN:
-        out.append(name.strip())
     return [v for v in out if len(v) >= _NEEDLE_MIN]
+
+
+def _name_needle(row):
+    """The full name, replaced by «حساب محذوف» in the notifications of related people only — or None."""
+    name = row[1]
+    return name.strip() if isinstance(name, str) and len(name.strip()) >= _NEEDLE_MIN else None
+
+
+# Everyone the account dealt with (task 8.5c-2) — computed BEFORE _OWN_DELETES (it deletes follows / interests /
+# views). Only their notifications get the name replaced; nobody else's text is ever touched by name.
+_RELATED_SQL = (
+    "SELECT receiver_id FROM messages WHERE sender_id = :u "
+    "UNION SELECT sender_id FROM messages WHERE receiver_id = :u "
+    "UNION SELECT j.company_id FROM job_applications a JOIN jobs j ON j.id = a.job_id WHERE a.user_id = :u "
+    "UNION SELECT a.user_id FROM job_applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_id = :u "
+    "UNION SELECT unnest(ARRAY[company_id, applicant_id, created_by, representative_user_id]) FROM appointments "
+    "WHERE :u IN (company_id, applicant_id, created_by, representative_user_id) "
+    "UNION SELECT followed_id FROM profile_follows WHERE follower_id = :u "
+    "UNION SELECT follower_id FROM profile_follows WHERE followed_id = :u "
+    "UNION SELECT target_user_id FROM profile_interests WHERE actor_user_id = :u "
+    "UNION SELECT actor_user_id FROM profile_interests WHERE target_user_id = :u "
+    "UNION SELECT viewed_user_id FROM profile_views WHERE viewer_user_id = :u "
+    "UNION SELECT viewer_user_id FROM profile_views WHERE viewed_user_id = :u "
+    # reactions / comments on the account's posts
+    "UNION SELECT x.user_id FROM company_post_appreciations x JOIN company_posts p ON p.id = x.post_id "
+    "WHERE p.company_id = :u "
+    "UNION SELECT x.user_id FROM company_post_comments x JOIN company_posts p ON p.id = x.post_id "
+    "WHERE p.company_id = :u "
+    # posts the account reacted to / commented on: the owner + the other commenters
+    "UNION SELECT p.company_id FROM company_posts p WHERE p.id IN "
+    "(SELECT post_id FROM company_post_appreciations WHERE user_id = :u "
+    "UNION SELECT post_id FROM company_post_comments WHERE user_id = :u) "
+    "UNION SELECT x.user_id FROM company_post_comments x WHERE x.post_id IN "
+    "(SELECT post_id FROM company_post_comments WHERE user_id = :u)"
+)
+
+
+def _related_ids(conn, uid: int) -> list:
+    return sorted({int(r[0]) for r in conn.run(_RELATED_SQL, u=int(uid)) if r[0] is not None and int(r[0]) != uid})
 
 
 def purge_db(uid: int) -> bool:
@@ -346,14 +384,22 @@ def purge_db(uid: int) -> bool:
                 conn.run("ROLLBACK")
                 return False
             tw, email = row[0][0], row[0][2]
-            needles = _needles(row[0])
+            needles, name = _needles(row[0]), _name_needle(row[0])
+            related = _related_ids(conn, uid) if name else []   # before _OWN_DELETES (follows / interests / views)
             if tw:
                 conn.run("DELETE FROM company_post_comment_mentions WHERE mentioned_tw_id = :t", t=tw)
-            # notifications: the account's own + every one another person got about it (they carry its name)
+            # notifications: the account's own + every one it acted in + every one naming an exact identifier
             conn.run("DELETE FROM notifications WHERE user_id = :u OR actor_id = :u OR last_actor_id = :u", u=uid)
             for nd in needles:
                 conn.run("DELETE FROM notifications WHERE strpos(COALESCE(title, '') || ' ' || COALESCE(body, ''), "
                          ":n) > 0", n=nd)
+            # the name: never deleted by — replaced by «حساب محذوف», in related people's notifications only
+            if related:
+                import account_deletion as ad
+                conn.run("UPDATE notifications SET title = replace(title, :n, :l), body = replace(body, :n, :l) "
+                         "WHERE user_id = ANY(CAST(:ids AS BIGINT[])) "
+                         "AND (strpos(COALESCE(title, ''), :n) > 0 OR strpos(COALESCE(body, ''), :n) > 0)",
+                         n=name, l=ad.deleted_label(), ids=related)
             for stmt in _OWN_DELETES:
                 _run(conn, stmt, u=uid, us=str(uid))
             if conn.run("SELECT to_regclass('public.support_tickets') IS NOT NULL")[0][0]:
@@ -362,7 +408,7 @@ def purge_db(uid: int) -> bool:
                 conn.run("DELETE FROM support_guest_otp WHERE lower(email) = lower(:e)", e=email or "")
             for stmt in _SHARED_UPDATES:
                 _run(conn, stmt, u=uid, us=str(uid))
-            for nd in needles:   # free text anywhere in the audit log that names the person
+            for nd in needles:   # free text anywhere in the audit log with an exact identifier (never the name)
                 conn.run("UPDATE admin_audit_log SET old_value = NULL WHERE strpos(lower(old_value), lower(:n)) > 0",
                          n=nd)
                 conn.run("UPDATE admin_audit_log SET new_value = NULL WHERE strpos(lower(new_value), lower(:n)) > 0",
