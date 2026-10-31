@@ -12,6 +12,8 @@
  *      MSG_MAX_FAILS + notice · manual retry restarts
  *   F  schedule button — twScheduleButton called with the other side, button mounted in the header
  *   G  structure — every msg.* twT key used exists in tw_strings.json
+ *   H  deleted peer (task 8.5d) — can-send reason peer_deleted → composer hidden + the reason in its place ·
+ *      no «إنهاء المحادثة» · schedule slot + profile menu cleared · a normal answer keeps them
  *
  * Run: node tests/test_messages_page_runtime.js
  */
@@ -64,7 +66,8 @@ function makePage(opts) {
   MockWS.all = [];
   const ids = ['convList', 'convItems', 'convSearch', 'convFilters', 'chatArea', 'chatHead', 'chMenuWrap',
     'chMenuBtn', 'chMenuDropdown', 'chatAva', 'chatName', 'chatTypeBadge', 'chBackArrow', 'chatRole',
-    'chatStatus', 'chatSchedSlot', 'msgConnBar', 'msgConnText', 'messages', 'chatInput', 'msgInput'];
+    'chatStatus', 'chatSchedSlot', 'msgConnBar', 'msgConnText', 'messages', 'chatInput', 'msgInput',
+    'chatLocked', 'chatEndSlot'];
   const els = {};
   ids.forEach(i => { els[i] = new El(i); });
   els.msgConnBar.hidden = true;
@@ -110,6 +113,8 @@ function makePage(opts) {
     twNotifBadgeLabel: n => String(n),
     showToast: (m, t) => rec.toasts.push([m, t]),
     twScheduleButton: o => { rec.sched.push(o); const b = new El('sched'); b.isSched = true; return b; },
+    twAction: (id, c) => { rec.actions = (rec.actions || []).concat([[id, c]]);
+      if (id === 'end_conversation' && !c.canEnd) return null; const b = new El(id); b.action = id; return b; },
   };
   ctx.twEscAttr = ctx.twEscHtml;
   ctx.window = ctx;
@@ -274,6 +279,33 @@ const FAIL = status => ({ ok: false, status, data: null, error: {} });
     check('F2 button mounted in the chat header slot', p.els.chatSchedSlot.children.some(c => c.isSched));
     p.ctx.backToConvList();
     check('F3 leaving the conversation clears the slot', p.els.chatSchedSlot.innerHTML === '');
+  }
+
+  console.log('\nH — conversation with a deleted account (task 8.5d)');
+  {
+    const p = makePage({ type: 'co' });
+    p.ready();
+    await flush();
+    p.ctx.openConversation(5, 'حساب محذوف', 'emp', '', '', '');
+    p.reply('/messages/can-send/5', OK({ can_message: false, reason: 'peer_deleted',
+                                         reason_key: 'msg.policy.peer_deleted', ended: false, can_end: false }));
+    await flush();
+    check('H1 peer_deleted → composer hidden, the reason shown in its place',
+      p.els.chatInput.hidden === true && p.els.chatLocked.hidden === false
+      && p.els.chatLocked.textContent === 'msg.policy.peer_deleted');
+    check('H2 no «إنهاء المحادثة» (twAction not even asked), no schedule button, no profile menu',
+      p.els.chatEndSlot.children.length === 0 && !(p.rec.actions || []).some(a => a[0] === 'end_conversation')
+      && p.els.chatSchedSlot.innerHTML === '' && p.els.chMenuBtn.hidden === true);
+
+    const q = makePage({ type: 'co' });
+    q.ready();
+    await flush();
+    q.ctx.openConversation(6, 'Ahmad', 'emp', '', '', 'U6');
+    q.reply('/messages/can-send/6', OK({ can_message: true, reason: null, reason_key: null, ended: false, can_end: true }));
+    await flush();
+    check('H3 a normal answer keeps the composer, «إنهاء المحادثة» and the menu',
+      q.els.chatInput.hidden === false && q.els.chatEndSlot.children.some(c => c.action === 'end_conversation')
+      && q.els.chMenuBtn.hidden === false);
   }
 
   console.log('\nG — strings');

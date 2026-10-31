@@ -12,7 +12,8 @@
 //     (section #notifications — the link + List-Unsubscribe target of every notification email)
 //   - company settings (task 5.1d, co only): «إبلاغ المتقدمين بالنتيجة النهائية» → GET / PUT
 //     /company/settings (section #companySettings)
-//   - account delete hidden until plan 5.5 (soft delete — F27)
+//   - «حذف الحساب» (task 8.5d — docs/rules/account-deletion.md): twModal + password + typing «حذف» → DELETE
+//     /auth/user/{uid}/delete → TwAuthSync.invalidateSession → /login?account=deleted (restore notice)
 //   - «تنزيل بياناتي» (task 8.5b — docs/rules/data-export.md): twModal + current password → POST /me/export
 //     → the JSON file is saved (success only on res.ok) · inside: a separate KYC documents option
 //     (warning + POST /me/export/kyc-docs → short-lived signed links, opened through twSafeLinkUrl)
@@ -49,11 +50,11 @@
     input.id = 'st-f' + (++_fid);
     input.className = 'tw-input' + (attrs.cls ? ' ' + attrs.cls : '');
     Object.keys(attrs).forEach(function (k) {
-      if (k === 'cls') return;
+      if (k === 'cls' || k === 'labelVars') return;
       if (k === 'value') input.value = attrs.value || '';
       else input.setAttribute(k, attrs[k]);
     });
-    var label = el('label', null, twT(labelKey));
+    var label = el('label', null, attrs.labelVars ? twT(labelKey, attrs.labelVars) : twT(labelKey));
     label.setAttribute('for', input.id);
     input._err = el('div', 'st-err');
     input._err.setAttribute('aria-live', 'polite');
@@ -268,6 +269,56 @@
         box.appendChild(row);
       });
       return true;
+    });
+  }
+
+  // ══ حذف الحساب (task 8.5d — docs/rules/account-deletion.md) — password + typing the word; the server checks
+  //    both (confirm === "delete") · 422 → under its field, the dialog stays · 429 → toast · success → the session
+  //    ends through TwAuthSync (like the logout) → /login with the restore notice ══
+  var DELETE_FIELD = { password: 'pw', confirm: 'word' };
+  function openDelete() {
+    var days = twLimit('account_purge_days');
+    var word = twT('settings.delete.confirm_word');
+    var form = el('div', 'st-form');
+    var warn = el('div', 'st-export-kyc');
+    var head = el('div', 'st-export-kyc-title');
+    head.appendChild(twIconEl('alert', { size: 'sm' }));
+    head.appendChild(el('span', null, twT('settings.delete.title')));
+    warn.appendChild(head);
+    warn.appendChild(el('p', 'st-hint', twT('settings.delete.warn', { days: twFormatNumber(days) })));
+    if (acct.user_type === 'co') warn.appendChild(el('p', 'st-hint', twT('settings.delete.warn_co')));
+    form.appendChild(warn);
+    var f = {
+      pw: field('settings.delete.password', { type: 'password', autocomplete: 'current-password' }),
+      word: field('settings.delete.confirm_label', { type: 'text', autocomplete: 'off', dir: 'auto', labelVars: { word: word } })
+    };
+    form.appendChild(f.pw.wrap);
+    form.appendChild(f.word.wrap);
+    var ctl = twModal({ title: twT('settings.delete.title'), content: form, actions: [
+      { text: twT('common.cancel'), variant: 'secondary' },
+      { text: twT('settings.delete.submit'), variant: 'danger', disabled: true,
+        onClick: function () { return deleteAccount(f, word); } }
+    ] });
+    // The button opens disabled and follows the typed word (the server decides anyway)
+    f.word.input.addEventListener('input', function () {
+      ctl.setActionDisabled(1, f.word.input.value.trim() !== word);
+    });
+  }
+  // false keeps the dialog open (twModal)
+  function deleteAccount(f, word) {
+    var pw = f.pw.input.value, ok = true;
+    if (!pw) { setErr(f.pw.input, twT('settings.delete.err.password_required')); ok = false; }
+    if (f.word.input.value.trim() !== word) { setErr(f.word.input, twT('settings.delete.err.confirm')); ok = false; }
+    if (!ok) return false;
+    return twApi('/auth/user/' + uid + '/delete', { method: 'DELETE', body: { password: pw, confirm: 'delete' } }).then(function (res) {
+      if (res.ok) {
+        if (window.TwAuthSync) TwAuthSync.invalidateSession('account_deleted', { redirect: '/login?account=deleted' });
+        return;
+      }
+      var fe = res.error && res.error.fieldErrors[0];
+      if (res.status === 422 && fe && DELETE_FIELD[fe.field]) { setErr(f[DELETE_FIELD[fe.field]].input, fe.message); return false; }
+      if (res.status !== 401) showToast(twApiMessage(res, twT('settings.delete.error')), 'error');
+      return false;
     });
   }
 
@@ -634,7 +685,7 @@
   else kycRow.remove();
 
   // ── wire up ──
-  var OPEN = { email: openEmail, phone: openPhone, password: openPassword, export: openExport };
+  var OPEN = { email: openEmail, phone: openPhone, password: openPassword, export: openExport, delete: openDelete };
   document.querySelectorAll('[data-st-open]').forEach(function (b) {
     b.addEventListener('click', function () { OPEN[b.getAttribute('data-st-open')](); });
   });

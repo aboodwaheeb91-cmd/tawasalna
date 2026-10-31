@@ -1,4 +1,4 @@
-"""PR 1.2 — settings account operations: PUT /auth/password + account delete (closed — always 403, task 5.0e).
+"""PR 1.2 — settings account operations: PUT /auth/password + account delete gate (task 8.5d — soft delete).
 
 Run: python -m pytest tests/test_account_security.py -q
 DB helpers (check_user_password / set_user_password / get_conn) are monkeypatched — no database.
@@ -91,15 +91,21 @@ def test_register_rule_is_shared():
     assert server._password_policy_error("12345") == "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
 
 
-# ── DELETE /auth/user/{id}/delete — closed until soft delete (task 5.0e · ADMIN_ENTITY_MAP §1) ──
-def test_delete_is_closed_even_with_right_password(fake_db, monkeypatch):
-    def _no_db():
-        raise AssertionError("the closed delete path must not touch the database")
-    monkeypatch.setattr(server, "get_conn", _no_db)
-    for body in ({"password": CURRENT}, {"password": "nope"}, None):
-        r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json=body)
-        assert r.status_code == 403 and r.json()["error"] == "حذف الحساب غير متاح حالياً"
-    assert fake_db["deleted"] == []
+# ── DELETE /auth/user/{id}/delete — the owner's soft delete (task 8.5d — full DB contract in
+#    tests/test_account_self_delete_85d.py). Here: the gate before any database write. ──
+def test_delete_gate_before_any_write(fake_db, monkeypatch):
+    def _no_delete(*a, **k):
+        raise AssertionError("no soft delete before the password + confirm pass")
+    monkeypatch.setattr(server.ad, "soft_delete", _no_delete)
+    server._rate_store.clear()
+    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json=None)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "required"
+    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(), json={"password": CURRENT})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "confirm_required"
+    r = client.request("DELETE", f"/auth/user/{UID}/delete", headers=_auth(),
+                       json={"password": "nope", "confirm": "delete"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "wrong_password"
+    server._rate_store.clear()
 
 
 def test_delete_requires_jwt(fake_db):

@@ -310,6 +310,9 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 /* ── DS-VAL: Form-level auth error banner (VAL-09) ── */
 .l-form-error{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:var(--auth-error-banner-bg);border:1px solid var(--auth-error-banner-border);margin-bottom:12px;}
 .l-form-error-text{font-size:.75rem;color:rgb(var(--color-status-danger-rgb));font-family:'Cairo',sans-serif;font-weight:600;line-height:1.4;}
+.l-restore{margin:-4px 0 12px;}
+.l-form-notice{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(var(--color-status-info-rgb), .08);border:1px solid rgba(var(--color-status-info-rgb), .22);margin-bottom:12px;}
+.l-form-notice-text{font-size:.75rem;color:var(--color-status-info);font-family:'Cairo',sans-serif;font-weight:600;line-height:1.4;}
 
 /* ── DS-INP: Register email direction (INP-09) ── */
 #rEmail{direction:ltr;text-align:left;}

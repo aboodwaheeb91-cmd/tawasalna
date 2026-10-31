@@ -1,4 +1,4 @@
-# Unified Email System + Forgot Password + Email Change + Notification Emails (tasks 5.1a · 5.1b · 5.1c · 5.1d · 7.3)
+# Unified Email System + Forgot Password + Email Change + Notification Emails (tasks 5.1a · 5.1b · 5.1c · 5.1d · 7.3 · 8.5d)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتبعت إيميل أو بتلمس إعادة تعيين كلمة السر.
 > المواصفة: `docs/SYSTEMS_INDEX.md` §54j (الإيميل) + §1b (نسيت كلمة المرور) + §1c (تغيير الإيميل) + §54c (OTP التوثيق) · `ARCHITECTURE.md → Unified Email System + Password Reset (5.1a)`.
@@ -12,6 +12,9 @@
 5. **الـ logs:** النوع + السبب بس (`http 500` / نوع الخطأ) — ❌ المفتاح · ❌ عنوان المستلم · ❌ النص · ❌ رابط / توكن.
 - ❌ `smtplib` / مزوّد تاني / `urlopen` لـ Resend برّا `email_service.py` · ❌ نص إيميل ثابت بالكود · ❌ رابط إيميل مبني من `request`.
 6. **OTP التوثيق (5.1b):** `is_email_otp_delivery_available()` = `email_service.can_send("kyc_email_otp")` · الرمز بينبعت عبر `send_email` (قالب `kyc_email_otp`) لبريد الحساب (`users.email`) بس — عنوان تاني بالطلب → 400 · الرمز مخزّن hash (`_otp_issue`) متل ما هو. الهاتف بدون مزوّد SMS → `verify_identity` بيضل مطفّى افتراضياً.
+
+7. **إيميلات حذف الحساب / استعادته (task 8.5d — `docs/rules/account-deletion.md` → حذف صاحب الحساب والاستعادة):** قالبين SECURITY — `account_deleted` (`{name, date}` · subject / body / note — `date` = `deleted_at + account_purge_days` عبر `server._fmt_date` بنفس شكل `twFormatDate`، والنص بيقول إنه بيقدر يستعيد حسابه من صفحة الدخول بكلمة السر) · `account_restored` (`{name}` · «إذا ما كنت إنت غيّر كلمة السر فوراً»). **بدون رابط** · مش بـ `TYPES` (ما بينطفوا من الأدمن، متل `staff_*`) · بينبعتوا مرة وحدة بس من الطلب اللي غيّر الحالة (`changed`). `send_email` ما بيفحص حالة المستلم → بيوصل للحساب المحذوف قصداً (`create_notification` بيضل يمنع الإشعارات والإيميلات العادية عنه).
+- ❌ رابط بإيميل الحذف / الاستعادة · ❌ إيميل حذف أو استعادة تاني لنفس التغيير · ❌ فحص «محذوف» جوّا `send_email` بيمنع القوالب الأمنية.
 
 ## Forgot Password Rules (mandatory for all AI sessions)
 

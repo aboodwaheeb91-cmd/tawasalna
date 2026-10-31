@@ -321,9 +321,19 @@ function _renderConvPolicy(otherId, st) {
     locked.hidden = allowed || !st;
     locked.textContent = (!allowed && st) ? twT(st.reason_key || 'msg.policy.forbidden') : '';
   }
+  // task 8.5d — deleted peer (server reason peer_deleted — the name is already «حساب محذوف» from the server):
+  // read-only thread — no composer, no «إنهاء المحادثة», no schedule button, no profile link / menu.
+  var peerDeleted = !!(st && st.reason === 'peer_deleted');
+  if (peerDeleted) {
+    var sched = document.getElementById('chatSchedSlot');
+    if (sched) sched.innerHTML = '';
+    var menuBtn = document.getElementById('chMenuBtn');
+    if (menuBtn) menuBtn.hidden = true;
+    if (_activeConvMeta && _activeConvMeta.id === otherId) _activeConvMeta.twId = '';
+  }
   if (!endSlot) return;
   endSlot.innerHTML = '';
-  if (!st || !otherId) return;
+  if (!st || !otherId || peerDeleted) return;
   var type = (_activeConvMeta && _activeConvMeta.type) || 'emp';
   var btn = twAction('end_conversation', {
     targetType: type, canEnd: st.can_end === true,

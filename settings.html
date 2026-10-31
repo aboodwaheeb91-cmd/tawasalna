@@ -269,17 +269,19 @@ label.st-row.is-off { cursor: default; opacity: .6; }
     </div>
   </section>
 
-  <!-- ── منطقة الخطر — account delete hidden until soft delete (plan 5.5 · F27) ── -->
-  <section class="st-sec">
+  <!-- ── منطقة الخطر — the owner's account delete (task 8.5d · docs/rules/account-deletion.md): twModal + password +
+       typing «حذف» → DELETE /auth/user/{id}/delete (soft delete, restorable from /login within the grace period) ── -->
+  <section class="st-sec" id="danger">
     <h2 class="st-sec-title" data-tw-t="settings.sec.danger"></h2>
     <div class="st-card st-danger">
-      <div class="st-row is-locked">
+      <button type="button" class="st-row" data-st-open="delete">
         <span class="st-ico is-danger"><i data-tw-icon="delete"></i></span>
         <span class="st-body">
           <span class="st-name" data-tw-t="settings.delete"></span>
-          <span class="st-val" data-tw-t="settings.delete_soon"></span>
+          <span class="st-val" data-tw-t="settings.delete.hint"></span>
         </span>
-      </div>
+        <span class="st-end"><i data-tw-icon="next" data-tw-size="xs"></i></span>
+      </button>
     </div>
   </section>
 </main>

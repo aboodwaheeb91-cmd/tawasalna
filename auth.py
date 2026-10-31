@@ -991,6 +991,22 @@ def create_user(
         release_conn(conn)
 
 
+_DUMMY_PW_HASH = None
+
+
+def _dummy_password_check(password: str) -> None:
+    """Unknown email → one bcrypt check against a throw-away hash, so the reply time of /auth/login and
+    /auth/restore (task 8.5d) does not tell whether the address has an account."""
+    global _DUMMY_PW_HASH
+    if _DUMMY_PW_HASH is None:
+        import secrets
+        _DUMMY_PW_HASH = hash_password(secrets.token_urlsafe(16))
+    try:
+        verify_password(password or "", _DUMMY_PW_HASH)
+    except Exception:
+        pass
+
+
 def authenticate_user(email: str, password: str) -> Optional[dict]:
     conn = get_conn()
     try:
@@ -1001,6 +1017,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
             email=email.lower().strip()
         )
         if not rows:
+            _dummy_password_check(password)   # same bcrypt cost as a real account (task 8.5d)
             return None
         cols = [c["name"] for c in conn.columns]
         user = _row_to_dict(cols, rows[0])
@@ -4684,6 +4701,7 @@ MESSAGE_POLICY_REASONS = {
     "not_found":     "msg.policy.not_found",
     "end_forbidden": "msg.policy.end_forbidden",
     "no_conversation": "msg.policy.no_conversation",
+    "peer_deleted":  "msg.policy.peer_deleted",   # task 8.5d — deleted peer + earlier messages only (read-only thread)
 }
 
 # One facts query for both drivers — {s} / {r} become :s / :r (pg8000) or $1 / $2 (asyncpg).
@@ -4695,7 +4713,9 @@ _MESSAGE_POLICY_FACTS_SQL = (
     "AND EXISTS(SELECT 1 FROM profile_follows WHERE follower_id={r} AND followed_id={s}), "
     "(SELECT ended_by FROM conversation_endings "
     "WHERE user_a=LEAST({s},{r}) AND user_b=GREATEST({s},{r})), "
-    "NOT (" + bs.visible_sql("{r}", "{s}") + ") "
+    "NOT (" + bs.visible_sql("{r}", "{s}") + "), "
+    # task 8.5d — receiver deleted but otherwise visible (no block · not suspended): with history → peer_deleted
+    "ru.deleted_at IS NOT NULL AND " + bs.visible_sql("{r}", "{s}", keep_deleted=True) + " "
     "FROM users su, users ru WHERE su.id={s} AND ru.id={r}"
 )
 MESSAGE_POLICY_FACTS_SQL_PG8000  = _MESSAGE_POLICY_FACTS_SQL.format(s=":s::int", r=":r::int")
@@ -4712,8 +4732,11 @@ def message_policy_decide(sender_id: int, row) -> dict:
     """Pure decision from one facts row (or None = an account is missing).
     → {allowed, reason, reopen, ended, can_end}."""
     if not row or (len(row) > 5 and row[5]):
-        # missing account — or hidden (receiver suspended / a block either way, task 5.4): the same answer
-        return {"allowed": False, "reason": "not_found", "reopen": False, "ended": False, "can_end": False}
+        # missing account — or hidden (receiver suspended / a block either way, task 5.4): the same answer.
+        # task 8.5d — a deleted receiver with earlier messages → peer_deleted (the thread stays read-only);
+        # without any earlier message the same not_found (trying ids never reveals a deletion).
+        reason = "peer_deleted" if (row and len(row) > 6 and row[6] and row[2]) else "not_found"
+        return {"allowed": False, "reason": reason, "reopen": False, "ended": False, "can_end": False}
     s_type, r_type, has_history, mutual, ended_by = row[0], row[1], bool(row[2]), bool(row[3]), row[4]
     ended = ended_by is not None
     can_end = s_type == "co" and r_type == "emp" and has_history and not ended

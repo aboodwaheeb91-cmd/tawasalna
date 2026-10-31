@@ -107,6 +107,8 @@ RATES = {
     "staff_forgot_email": (3, 3600),  # … per email address (counted for unknown addresses too — same reply)
     "data_export": (3, 3600),         # POST /me/export — per account, reserved before bcrypt, every attempt counts (task 8.5b)
     "data_export_kyc": (3, 3600),     # POST /me/export/kyc-docs — per account, same rule, own bucket
+    "account_delete": (5, 3600),      # DELETE /auth/user/{id}/delete — per account, reserved before bcrypt, kept (task 8.5d)
+    "account_restore": (5, 3600),     # POST /auth/restore — per email, next to the login locks, before bcrypt (task 8.5d)
 }
 
 REPORT_TYPES = ("fraud", "spam", "misleading", "harassment", "other")
@@ -132,7 +134,8 @@ POST_TAGS = _load_post_tags()
 _CLIENT_LIMITS = ("message_max", "post_body_max", "post_tags_max", "report_reason_max",
                   "support_subject_max", "support_body_max",
                   "staff_password_min", "password_max_bytes",   # task 8.4c-2b-1 — staff link page hint only
-                  "data_export_kyc_url_ttl_s")                  # task 8.5b — /settings KYC links warning (minutes)
+                  "data_export_kyc_url_ttl_s",                  # task 8.5b — /settings KYC links warning (minutes)
+                  "account_purge_days")                         # task 8.5d — /settings delete warning (grace days)
 
 
 def page_block(limit=None) -> str:
