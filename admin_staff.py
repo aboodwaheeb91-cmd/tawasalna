@@ -9,7 +9,10 @@ The ONE reader / writer of the admin account tables. server.py (admin_login · c
     admin_owner_mfa       ONE row (id = 1): the owner's MFA secret (encrypted) · enabled_at · last_step ·
                           session_version · reset_on (the ADMIN_MFA_RESET day already applied)
     admin_recovery_codes  subject 'owner' | 'staff:<id>' · SHA-256 of the code · used_at (each code once)
-    admin_invites         token hash · staff · kind invite | mfa_reset — table only here, used by 8.4c
+    admin_invites         one-time links: SHA-256 of the token · staff · kind invite | mfa_reset | password_reset ·
+                          expires_at · used_at — ONE live link per (staff, kind) (partial unique index, task 8.4c-2a2)
+  Invite / authenticator reset / password reset links (task 8.4c-2a2): invite_staff · resend_invite ·
+  delete_invited · mfa_reset (owner) · link_start · link_complete · forgot_issue (public, by the token).
   Roles + staff management (task 8.4c-2a1): seed_default_roles (once ever) · list / create / update / delete_role ·
   list_staff · set_access · set_suspended — the owner's writes, each in one transaction (server.py checks
   staff.manage + step-up first and sends the emails after the commit).
@@ -89,7 +92,8 @@ SCHEMA_SQL = (
         id         SERIAL PRIMARY KEY,
         token_hash TEXT NOT NULL UNIQUE,
         staff_id   INTEGER NOT NULL REFERENCES admin_staff(id) ON DELETE CASCADE,
-        kind       TEXT NOT NULL CONSTRAINT admin_invites_kind_chk CHECK (kind IN ('invite', 'mfa_reset')),
+        kind       TEXT NOT NULL CONSTRAINT admin_invites_kind_chk
+                   CHECK (kind IN ('invite', 'mfa_reset', 'password_reset')),
         expires_at TIMESTAMPTZ NOT NULL,
         used_at    TIMESTAMPTZ NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -97,11 +101,34 @@ SCHEMA_SQL = (
 )
 
 
+LINK_KINDS = ("invite", "mfa_reset", "password_reset")
+
+
 def migrate_admin_staff():
-    """Idempotent (task 8.4b). Critical: check_admin reads admin_owner_mfa / admin_staff on every admin request."""
+    """Idempotent (task 8.4b). Critical: check_admin reads admin_owner_mfa / admin_staff on every admin request.
+    Task 8.4c-2a2: admin_invites.kind also takes 'password_reset' (the CHECK is rewritten only when it lacks it) +
+    one live link per (staff, kind) — older live duplicates are deleted, then the partial unique index, in one
+    transaction."""
     with db_conn() as conn:
         for sql in SCHEMA_SQL:
             conn.run(sql)
+        conn.run("BEGIN")
+        try:
+            conn.run("LOCK TABLE admin_invites IN SHARE ROW EXCLUSIVE MODE")
+            chk = conn.run("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                           "WHERE conname = 'admin_invites_kind_chk' AND conrelid = 'admin_invites'::regclass")
+            if not chk or "password_reset" not in chk[0][0]:
+                conn.run("ALTER TABLE admin_invites DROP CONSTRAINT IF EXISTS admin_invites_kind_chk")
+                conn.run("ALTER TABLE admin_invites ADD CONSTRAINT admin_invites_kind_chk "
+                         "CHECK (kind IN ('invite', 'mfa_reset', 'password_reset'))")
+            conn.run("DELETE FROM admin_invites a WHERE a.used_at IS NULL AND EXISTS (SELECT 1 FROM admin_invites b "
+                     "WHERE b.staff_id = a.staff_id AND b.kind = a.kind AND b.used_at IS NULL AND b.id > a.id)")
+            conn.run("CREATE UNIQUE INDEX IF NOT EXISTS admin_invites_live_uq ON admin_invites (staff_id, kind) "
+                     "WHERE used_at IS NULL")
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
 
 
 # ── TOTP (RFC 6238 over RFC 4226) ──
@@ -595,3 +622,226 @@ def set_suspended(sid: int, suspended: bool):
             conn.run("ROLLBACK")
             raise
     return out, status != new
+
+
+# ── invite · authenticator reset · password reset links (task 8.4c-2a2 · docs/rules/admin-staff.md rule 14) ──
+# One table (admin_invites), one token shape: secrets.token_urlsafe(32), stored as SHA-256 only; the plain token
+# goes into the email link fragment (#t=…) and nowhere else. ONE live link per (staff, kind): every issue locks the
+# staff row FOR UPDATE, deletes the unused links of that kind, inserts the new one (partial unique index as the
+# backstop). Lock order everywhere: staff row → link row (a link is looked up without a lock, then the staff row is
+# locked, then the link row re-read FOR UPDATE) — an issue and a completion at the same moment serialise.
+# A wrong / expired / used / other-kind link or a staff member in the wrong status → the same StaffError
+# 400 invalid_link. A wrong authenticator code → 400 invalid_code and the link stays (the per-link lock counts it).
+INVITE_TTL_S = 24 * 3600
+MFA_RESET_TTL_S = 24 * 3600
+PASSWORD_RESET_TTL_S = 30 * 60
+LINK_TTL_S = {"invite": INVITE_TTL_S, "mfa_reset": MFA_RESET_TTL_S, "password_reset": PASSWORD_RESET_TTL_S}
+LINK_TOKEN_MAX = 200
+LINK_PATHS = {"invite": "/staff/invite", "mfa_reset": "/staff/mfa-reset", "password_reset": "/staff/password-reset"}
+# status the staff member must have for the link to work
+_LINK_STATUS = {"invite": "invited", "mfa_reset": "active", "password_reset": "active"}
+
+
+def link_hash(token: str) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def link_url(site_url: str, kind: str, token: str) -> str:
+    """The email link — the token in the fragment: never in a server log or a Referer."""
+    return str(site_url or "").rstrip("/") + LINK_PATHS[kind] + "#t=" + token
+
+
+def token_shape_ok(token) -> bool:
+    return isinstance(token, str) and 0 < len(token) <= LINK_TOKEN_MAX and token.isascii() and token.isprintable()
+
+
+def staff_password_error(password, min_len: int, max_bytes: int):
+    """None, or the StaffError code: weak_password (< min_len chars / blank) · password_too_long (> max_bytes UTF-8 —
+    bcrypt cuts there). Spaces are allowed (long passphrases)."""
+    if not isinstance(password, str) or len(password) < min_len or not password.strip():
+        return "weak_password"
+    if len(password.encode("utf-8")) > max_bytes:
+        return "password_too_long"
+    return None
+
+
+def clean_staff_name(value, max_len: int) -> str:
+    name = " ".join(value.split()) if isinstance(value, str) else ""
+    if not name:
+        raise StaffError(422, "invalid_staff_name", "name")
+    if len(name) > max_len:
+        raise StaffError(422, "staff_name_too_long", "name")
+    return name
+
+
+def _issue_link(conn, sid: int, kind: str) -> str:
+    """Inside a transaction that already holds the staff row FOR UPDATE → the plain token (for the email only)."""
+    token = secrets.token_urlsafe(32)
+    conn.run("DELETE FROM admin_invites WHERE staff_id = :s AND kind = :k AND used_at IS NULL", s=int(sid), k=kind)
+    conn.run("INSERT INTO admin_invites (token_hash, staff_id, kind, expires_at) "
+             "VALUES (:h, :s, :k, NOW() + make_interval(secs => :ttl))",
+             h=link_hash(token), s=int(sid), k=kind, ttl=int(LINK_TTL_S[kind]))
+    return token
+
+
+def _tx(fn):
+    with db_conn() as conn:
+        conn.run("BEGIN")
+        try:
+            out = fn(conn)
+            conn.run("COMMIT")
+        except Exception:
+            conn.run("ROLLBACK")
+            raise
+    return out
+
+
+def invite_staff(name: str, email: str, role_id, allow: list, deny: list):
+    """New staff member (status invited, no password, no authenticator) + an invite link. name / perms cleaned,
+    email lower-case + valid. → (staff dict, token). 409 already_invited (an invited row has this email) ·
+    409 email_taken (active / suspended) · 422 invalid_role."""
+    def run(conn):
+        if role_id is not None and not conn.run("SELECT 1 FROM admin_roles WHERE id = :id FOR SHARE", id=int(role_id)):
+            raise StaffError(422, "invalid_role", "role_id")
+        rows = conn.run("SELECT status FROM admin_staff WHERE lower(email) = :e FOR UPDATE", e=email)
+        if rows:
+            raise StaffError(409, "already_invited" if rows[0][0] == "invited" else "email_taken", "email")
+        rows = conn.run("INSERT INTO admin_staff (email, name, role_id, allow_perms, deny_perms, status) "
+                        "VALUES (:e, :n, :r, :a, :d, 'invited') ON CONFLICT DO NOTHING RETURNING id",
+                        e=email, n=name, r=None if role_id is None else int(role_id), a=list(allow), d=list(deny))
+        if not rows:   # the same email inserted by a parallel invite that committed first
+            raise StaffError(409, "already_invited", "email")
+        sid = int(rows[0][0])
+        return _get_staff(conn, sid), _issue_link(conn, sid, "invite")
+    return _tx(run)
+
+
+def _lock_staff(conn, sid: int):
+    rows = conn.run("SELECT status, email, name FROM admin_staff WHERE id = :id FOR UPDATE", id=int(sid))
+    if not rows:
+        raise StaffError(404, "staff_not_found")
+    return rows[0]
+
+
+def resend_invite(sid: int):
+    """Invited only (else 409 not_invited) → (staff dict, new token); the old link dies in the same transaction."""
+    def run(conn):
+        if _lock_staff(conn, sid)[0] != "invited":
+            raise StaffError(409, "not_invited")
+        return _get_staff(conn, sid), _issue_link(conn, sid, "invite")
+    return _tx(run)
+
+
+def delete_invited(sid: int) -> None:
+    """An invite that was never accepted: the row goes (its links with it — CASCADE). active / suspended → 409
+    staff_active (a staff member who joined is never deleted — suspend instead)."""
+    def run(conn):
+        if _lock_staff(conn, sid)[0] != "invited":
+            raise StaffError(409, "staff_active")
+        conn.run("DELETE FROM admin_recovery_codes WHERE subject = :s", s=STAFF_PREFIX + str(int(sid)))
+        conn.run("DELETE FROM admin_staff WHERE id = :id", id=int(sid))
+    _tx(run)
+
+
+def mfa_reset(sid: int):
+    """Owner (after checking the person outside the system): active only (else 409 not_active). In ONE transaction:
+    authenticator cleared + recovery codes deleted + session_version + 1 (every token dies now) + a 24 h re-bind
+    link. The password stays. → (staff dict, token)."""
+    def run(conn):
+        if _lock_staff(conn, sid)[0] != "active":
+            raise StaffError(409, "not_active")
+        conn.run("UPDATE admin_staff SET mfa_secret_enc = NULL, mfa_enabled_at = NULL, mfa_last_step = NULL, "
+                 "session_version = session_version + 1 WHERE id = :id", id=int(sid))
+        conn.run("DELETE FROM admin_recovery_codes WHERE subject = :s", s=STAFF_PREFIX + str(int(sid)))
+        return _get_staff(conn, sid), _issue_link(conn, sid, "mfa_reset")
+    return _tx(run)
+
+
+def _take_link(conn, token: str, kind: str):
+    """Staff row locked first, then the link row → (link id, staff id, status, email, name, password_hash,
+    mfa_secret_enc, mfa_enabled_at) of a live link of this kind whose staff member has the right status;
+    else StaffError 400 invalid_link."""
+    if not token_shape_ok(token):
+        raise StaffError(400, "invalid_link")
+    h = link_hash(token)
+    rows = conn.run("SELECT staff_id FROM admin_invites WHERE token_hash = :h", h=h)
+    if not rows:
+        raise StaffError(400, "invalid_link")
+    sid = int(rows[0][0])
+    st = conn.run("SELECT status, email, name, password_hash, mfa_secret_enc, mfa_enabled_at FROM admin_staff "
+                  "WHERE id = :id FOR UPDATE", id=sid)
+    link = conn.run("SELECT id FROM admin_invites WHERE token_hash = :h AND staff_id = :s AND kind = :k "
+                    "AND used_at IS NULL AND expires_at > NOW() FOR UPDATE", h=h, s=sid, k=kind)
+    if not st or not link or st[0][0] != _LINK_STATUS[kind]:
+        raise StaffError(400, "invalid_link")
+    return (int(link[0][0]), sid) + tuple(st[0])
+
+
+def link_start(token: str, kind: str) -> dict:
+    """invite / mfa_reset: a fresh pending authenticator secret (stored encrypted, mfa_enabled_at stays NULL) →
+    {secret, otpauth_uri, name}. Does NOT use the link up (a second start replaces the pending secret)."""
+    if kind not in ("invite", "mfa_reset"):
+        raise StaffError(400, "invalid_link")
+
+    def run(conn):
+        _lid, sid, _status, email, name, _pw, _enc, bound = _take_link(conn, token, kind)
+        if bound is not None:
+            raise StaffError(400, "invalid_link")
+        secret = new_secret()
+        conn.run("UPDATE admin_staff SET mfa_secret_enc = :e, mfa_last_step = NULL WHERE id = :id",
+                 e=encrypt(secret), id=sid)
+        return {"secret": secret, "otpauth_uri": otpauth_uri(secret, email), "name": name or "", "staff_id": sid}
+    return _tx(run)
+
+
+def link_complete(token: str, kind: str, code: str, password_hash: str = None, now: float = None) -> dict:
+    """invite (password_hash required) / mfa_reset (password kept): the first app code binds the pending secret.
+    In ONE transaction: link used · status active · session_version + 1 · 10 recovery codes (old ones void) ·
+    invite → the password hash. → {staff_id, name, recovery_codes}. Wrong code → 400 invalid_code (link kept)."""
+    if kind not in ("invite", "mfa_reset") or (kind == "invite" and not password_hash):
+        raise StaffError(400, "invalid_link")
+
+    def run(conn):
+        lid, sid, _status, _email, name, _pw, enc, bound = _take_link(conn, token, kind)
+        if bound is not None or not enc:
+            raise StaffError(400, "invalid_link")
+        step = match_step(decrypt(enc) or "", code, now)
+        if step is None:
+            raise StaffError(400, "invalid_code", "code")
+        conn.run("UPDATE admin_staff SET mfa_enabled_at = NOW(), mfa_last_step = :st, status = 'active', "
+                 "password_hash = COALESCE(:ph, password_hash), session_version = session_version + 1 WHERE id = :id",
+                 st=step, ph=password_hash if kind == "invite" else None, id=sid)
+        conn.run("UPDATE admin_invites SET used_at = NOW() WHERE id = :id", id=lid)
+        return {"staff_id": sid, "name": name or "", "recovery_codes": _replace_recovery_codes(conn, STAFF_PREFIX + str(sid))}
+    return _tx(run)
+
+
+def forgot_issue(email: str):
+    """<panel>/forgot (background): an ACTIVE staff member with a password AND a bound authenticator → a 30-minute
+    password_reset link → {email, name, token}; anyone else (unknown · invited · suspended · no MFA) → None."""
+    def run(conn):
+        rows = conn.run("SELECT id FROM admin_staff WHERE lower(email) = :e", e=str(email or "").strip().lower())
+        if not rows:
+            return None
+        sid = int(rows[0][0])
+        st = conn.run("SELECT status, email, name, password_hash IS NOT NULL AND mfa_enabled_at IS NOT NULL "
+                      "FROM admin_staff WHERE id = :id FOR UPDATE", id=sid)
+        if not st or st[0][0] != "active" or not st[0][3]:
+            return None
+        return {"staff_id": sid, "email": st[0][1], "name": st[0][2] or "", "token": _issue_link(conn, sid, "password_reset")}
+    return _tx(run)
+
+
+def password_reset_complete(token: str, password_hash: str) -> dict:
+    """A live password_reset link of an ACTIVE staff member → new password + session_version + 1 (every token dies)
+    + link used, one transaction. The authenticator is untouched (the next login still asks for it); a suspended
+    staff member → invalid_link (never re-activated). → {staff_id, email, name}."""
+    def run(conn):
+        lid, sid, _status, email, name, pw, _enc, bound = _take_link(conn, token, "password_reset")
+        if not pw or bound is None:
+            raise StaffError(400, "invalid_link")
+        conn.run("UPDATE admin_staff SET password_hash = :ph, session_version = session_version + 1 WHERE id = :id",
+                 ph=password_hash, id=sid)
+        conn.run("UPDATE admin_invites SET used_at = NOW() WHERE id = :id", id=lid)
+        return {"staff_id": sid, "email": email, "name": name or ""}
+    return _tx(run)

@@ -915,6 +915,9 @@ import admin_insights
 import blocks_suspension as bs   # task 5.4 — Account Suspension + User Blocks (SYSTEMS_INDEX §25f)
 import tw_terms
 _ADMIN_LOGIN_PATHS = frozenset({"/tw-ctrl-" + ADMIN_URL_TOKEN + "/login"})
+_STAFF_PUBLIC_PATHS = frozenset({"/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
+                                 "/staff/mfa-reset/complete", "/staff/password-reset/complete",
+                                 "/tw-ctrl-" + ADMIN_URL_TOKEN + "/forgot"})
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # Reads that are still recorded (task 5.3a3): data leaving the site — route names under /admin/.
 AUDIT_READ_ROUTES = frozenset({"admin_users_export"})
@@ -931,6 +934,12 @@ def _admin_audit_entry(request, status: int):
         return {"actor": str(getattr(request.state, "audit_actor", "-")),
                 "action": str(getattr(request.state, "audit_action", "admin_login")), "target": None,
                 "status": status, "ip": get_client_ip(request)}
+    if path in _STAFF_PUBLIC_PATHS and request.method == "POST":
+        # task 8.4c-2a2 — the staff member the link belongs to (staff:<id>, "-" = bad link / forgot — never which
+        # email exists); never the token, the code or the password
+        route = request.scope.get("route")
+        return {"actor": str(getattr(request.state, "audit_actor", "-")), "action": getattr(route, "name", "-") or "-",
+                "target": None, "status": status, "ip": get_client_ip(request)}
     if not path.startswith("/admin/"):
         return None
     route = request.scope.get("route")
@@ -1485,6 +1494,10 @@ PUBLIC_RATE_EXEMPT = {
     **{p: _EXEMPT_AUTH_RATE for p in (
         "/auth/register", "/auth/login", "/auth/password-reset/request", "/auth/password-reset/confirm",
         "/auth/email-change/confirm", "/tw-ctrl-" + ADMIN_URL_TOKEN + "/login")},
+    **{p: "own atomic per-IP + per-link / per-email reservation (RATES staff_link_* / staff_forgot_*) — task 8.4c-2a2"
+       for p in ("/staff/invite/start", "/staff/invite/complete", "/staff/mfa-reset/start",
+                 "/staff/mfa-reset/complete", "/staff/password-reset/complete",
+                 "/tw-ctrl-" + ADMIN_URL_TOKEN + "/forgot")},
 }
 
 
@@ -8669,6 +8682,244 @@ def admin_staff_restore(staff_id: int, request: Request):
     token never comes back."""
     claims = check_admin(request, STAFF_PERM)
     return _staff_status(claims, staff_id, False, "admin_staff_restore")
+
+
+# ── Staff invite · authenticator reset · password reset (task 8.4c-2a2 · docs/rules/admin-staff.md rule 14) ──
+# Owner routes (staff.manage + step-up — check_admin first line) create the link; the public /staff/* routes use it
+# (the token comes in the body — the page reads it from the email link's #t= fragment). The logic + SQL live in
+# admin_staff.py; the plain token only ever goes into the email link — never a reply, a log or an audit row.
+# Every public route: an atomic reservation per client IP + per link / email (RATES staff_link_* / staff_forgot_*)
+# BEFORE the slow check → 429; the hits stay (a wrong code counts). A bad code shape → 422 before anything counts.
+# The panel path is never in an email — only in the reply of a completed invite.
+def _staff_link_email(to: str, template: str, name: str, kind: str, token: str) -> bool:
+    try:
+        link = admin_staff.link_url(email_service.get_settings()["site_url"], kind, token)
+        ttl = admin_staff.LINK_TTL_S[kind]
+        vars_ = {"name": name or "", "link": link}
+        vars_.update({"minutes": ttl // 60} if template == "staff_password_reset" else {"hours": ttl // 3600})
+        return email_service.send_email(to, template, vars_).get("ok") is True
+    except Exception as e:   # send_email never raises — the write is committed; the owner can resend
+        print(f"[admin-staff] email failed template={template}: {type(e).__name__}")
+        return False
+
+
+@app.post("/admin/staff/invite")
+def admin_staff_invite(request: Request, data: dict = Body(...)):
+    """New staff member (invited) + a 24 h one-time invite link by email (staff_invite). 409 already_invited /
+    email_taken · 422 invalid perms / role / name / email."""
+    claims = check_admin(request, STAFF_PERM)
+    data = _staff_body(data)
+    role_id = data.get("role_id")
+    if role_id is not None and (isinstance(role_id, bool) or not isinstance(role_id, int) or role_id < 1):
+        return _staff_error(admin_staff.StaffError(422, "invalid_role", "role_id"))
+    email = data.get("email").strip().lower() if isinstance(data.get("email"), str) else ""
+    try:
+        name = admin_staff.clean_staff_name(data.get("name"), tw_settings.limit("admin_staff_name_max"))
+        if not email_service.valid_address(email):
+            raise admin_staff.StaffError(422, "invalid_email", "email")
+        allow = admin_staff.clean_perms(data.get("allow"), "allow")
+        deny = admin_staff.clean_perms(data.get("deny"), "deny")
+        st, token = admin_staff.invite_staff(name, email, role_id, allow, deny)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_staff_invite", e)
+    request.state.audit_target = f"staff_id={st['id']}"
+    sent = _staff_link_email(st["email"], "staff_invite", st["name"], "invite", token)
+    return api_ok(_admin_contacts(claims, dict(st, email_sent=sent)))
+
+
+@app.post("/admin/staff/{staff_id}/invite/resend")
+def admin_staff_invite_resend(staff_id: int, request: Request):
+    """Invited only (409 not_invited) — a new invite link; the old one dies in the same transaction."""
+    claims = check_admin(request, STAFF_PERM)
+    try:
+        st, token = admin_staff.resend_invite(staff_id)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_staff_invite_resend", e)
+    sent = _staff_link_email(st["email"], "staff_invite", st["name"], "invite", token)
+    return api_ok(_admin_contacts(claims, dict(st, email_sent=sent)))
+
+
+@app.delete("/admin/staff/{staff_id}")
+def admin_staff_delete(staff_id: int, request: Request):
+    """Cancel an invite that was never accepted (the row + its links go). active / suspended → 409 staff_active."""
+    check_admin(request, STAFF_PERM)
+    try:
+        admin_staff.delete_invited(staff_id)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_staff_delete", e)
+    return api_ok({"id": staff_id})
+
+
+@app.post("/admin/staff/{staff_id}/mfa-reset")
+def admin_staff_mfa_reset(staff_id: int, request: Request):
+    """Lost device (the owner checked who it is outside the system): active only (409 not_active). Authenticator +
+    recovery codes cleared + every session ends + a 24 h re-bind link by email (staff_mfa_reset). Password kept."""
+    claims = check_admin(request, STAFF_PERM)
+    try:
+        st, token = admin_staff.mfa_reset(staff_id)
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except Exception as e:
+        raise _server_error("admin_staff_mfa_reset", e)
+    print(f"[admin-staff] authenticator reset staff={staff_id} — sessions ended")
+    sent = _staff_link_email(st["email"], "staff_mfa_reset", st["name"], "mfa_reset", token)
+    return api_ok(_admin_contacts(claims, dict(st, email_sent=sent)))
+
+
+def _staff_link_reserve(request: Request, token) -> None:
+    """Per client IP + per link (SHA-256 of the token — never the token) in one locked step → else 429."""
+    who = admin_staff.link_hash(token if isinstance(token, str) else "")[:32]
+    if _rate_reserve([("staff_link_ip", get_client_ip(request)), ("staff_link_token", who)]) is None:
+        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+
+
+def _staff_public_reply(request: Request, payload: dict, actor=None) -> JSONResponse:
+    if actor is not None:
+        request.state.audit_actor = admin_staff.STAFF_PREFIX + str(int(actor))
+    resp = JSONResponse(api_ok(payload))
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
+
+
+def _staff_code(data: dict):
+    """The authenticator code → the cleaned code, or None (wrong shape — 422, nothing counted / used)."""
+    code = data.get("code")
+    return code.strip() if otp_code_valid(code) else None
+
+
+def _staff_password_check(data: dict):
+    """The cheap shape check of the new password — None, or the 422. No bcrypt here: the hash runs only AFTER
+    _staff_link_reserve (these routes are outside the public limit — a bcrypt before the reservation would be an
+    unlimited CPU cost for anyone)."""
+    err = admin_staff.staff_password_error(data.get("password"), tw_limits.LIMITS["staff_password_min"],
+                                           tw_limits.LIMITS["password_max_bytes"])
+    if err:
+        return api_error(422, err, _tw_text("admin.staff.error." + err,
+                                            min=tw_limits.LIMITS["staff_password_min"],
+                                            max=tw_limits.LIMITS["password_max_bytes"]), "password")
+    return None
+
+
+def _staff_link_call(request: Request, name: str, fn):
+    try:
+        return fn()
+    except admin_staff.StaffError as e:
+        return _staff_error(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _server_error(name, e)
+
+
+def _staff_start(request: Request, data: dict, kind: str, name: str):
+    data = _staff_body(data)
+    token = data.get("token")
+    _staff_link_reserve(request, token)
+
+    def run():
+        out = admin_staff.link_start(token, kind)
+        return _staff_public_reply(request, {"secret": out["secret"], "otpauth_uri": out["otpauth_uri"],
+                                             "name": out["name"]}, out["staff_id"])
+    return _staff_link_call(request, name, run)
+
+
+def _staff_complete(request: Request, data: dict, kind: str, name: str):
+    data = _staff_body(data)
+    code = _staff_code(data)
+    if code is None:
+        return _staff_error(admin_staff.StaffError(422, "invalid_code_format", "code"))
+    if kind == "invite":
+        err = _staff_password_check(data)
+        if err:
+            return err
+    token = data.get("token")
+    _staff_link_reserve(request, token)   # 429 before any bcrypt
+
+    def run():
+        pw_hash = _hash_password(data["password"]) if kind == "invite" else None
+        out = admin_staff.link_complete(token, kind, code, pw_hash)
+        print(f"[admin-staff] {kind} completed staff={out['staff_id']} — authenticator bound, recovery codes issued")
+        payload = {"recovery_codes": out["recovery_codes"], "name": out["name"]}
+        if kind == "invite":   # the ONLY place the panel path leaves the server for a staff member
+            payload["panel"] = "/tw-ctrl-" + ADMIN_URL_TOKEN
+        return _staff_public_reply(request, payload, out["staff_id"])
+    return _staff_link_call(request, name, run)
+
+
+@app.post("/staff/invite/start")
+def staff_invite_start(request: Request, data: dict = Body(...)):
+    return _staff_start(request, data, "invite", "staff_invite_start")
+
+
+@app.post("/staff/invite/complete")
+def staff_invite_complete(request: Request, data: dict = Body(...)):
+    """{token, password, code} → password + authenticator bound + active + 10 recovery codes + the panel path."""
+    return _staff_complete(request, data, "invite", "staff_invite_complete")
+
+
+@app.post("/staff/mfa-reset/start")
+def staff_mfa_reset_start(request: Request, data: dict = Body(...)):
+    return _staff_start(request, data, "mfa_reset", "staff_mfa_reset_start")
+
+
+@app.post("/staff/mfa-reset/complete")
+def staff_mfa_reset_complete(request: Request, data: dict = Body(...)):
+    """{token, code} → the new authenticator bound + 10 new recovery codes (password unchanged)."""
+    return _staff_complete(request, data, "mfa_reset", "staff_mfa_reset_complete")
+
+
+def _staff_forgot_send(email: str) -> None:
+    """Background: an active staff member with password + authenticator → a 30-minute link. Logs: no email / token."""
+    try:
+        out = admin_staff.forgot_issue(email)
+        if out:
+            _staff_link_email(out["email"], "staff_password_reset", out["name"], "password_reset", out["token"])
+            print(f"[admin-staff] password reset link sent staff={out['staff_id']}")
+    except Exception as e:
+        print(f"[admin-staff] forgot failed: {type(e).__name__}")
+
+
+@app.post("/tw-ctrl-" + ADMIN_URL_TOKEN + "/forgot")
+def admin_forgot(request: Request, background_tasks: BackgroundTasks, data: dict = Body(...)):
+    """Staff forgot the password: always the same 200 (exists or not, any status). The lookup + link + email run
+    AFTER the reply (BackgroundTasks) so the time does not tell either. 429 per IP / per email (reserved first)."""
+    data = _staff_body(data)
+    email = data.get("email").strip().lower() if isinstance(data.get("email"), str) else ""
+    email = email[:254]
+    if _rate_reserve([("staff_forgot_ip", get_client_ip(request)), ("staff_forgot_email", email or "-")]) is None:
+        raise HTTPException(status_code=429, detail=_tw_text("limits.rate_limited"))
+    if email_service.valid_address(email):
+        background_tasks.add_task(_staff_forgot_send, email)
+    resp = JSONResponse(api_ok({"sent": True}))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.post("/staff/password-reset/complete")
+def staff_password_reset_complete(request: Request, background_tasks: BackgroundTasks, data: dict = Body(...)):
+    """{token, password} → new password + every session ends (the authenticator stays — the login still asks for
+    it) + staff_password_changed. A suspended staff member → invalid_link (never re-activated)."""
+    data = _staff_body(data)
+    err = _staff_password_check(data)
+    if err:
+        return err
+    token = data.get("token")
+    _staff_link_reserve(request, token)   # 429 before any bcrypt
+
+    def run():
+        out = admin_staff.password_reset_complete(token, _hash_password(data["password"]))
+        print(f"[admin-staff] password reset staff={out['staff_id']} — sessions ended")
+        background_tasks.add_task(email_service.send_email, out["email"], "staff_password_changed",
+                                  {"name": out["name"]})
+        return _staff_public_reply(request, {"reset": True}, out["staff_id"])
+    return _staff_link_call(request, "staff_password_reset_complete", run)
 
 
 # ══════════════════════════════════════════

@@ -1,4 +1,4 @@
-# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1) + Roles & Staff API (task 8.4c-2a1)
+# Admin Staff Permissions (task 8.4a) + Staff Accounts & Two-Step Login (task 8.4b) + Step-up (task 8.4c-1) + Roles & Staff API (task 8.4c-2a1) + Invite · Password Reset · Authenticator Reset (task 8.4c-2a2)
 
 > قوانين إلزامية بنفس قوة `CLAUDE.md` لأي مهمة بتلمس مسار أدمن (`/admin/*` · مسار اللوحة `/tw-ctrl-…` · `/admin-view` · `/admin-job`).
 > المواصفة: `docs/SYSTEMS_INDEX.md` §25h · جلسة الأدمن: §25 · الـ shell: `docs/rules/admin-shell.md`.
@@ -25,7 +25,7 @@
     - **المنطق والـ SQL بـ `admin_staff.py` بس** (`clean_perms` · `create_role` · `update_role` · `delete_role` · `list_staff` · `set_access` · `set_suspended`) — كل عملية transaction وحدة، والأقفال بترتيب واحد: الدور ثم الموظف. `server.py` بيفحص ويبعت الإيميل بس.
     - **الصلاحيات من `GRANTABLE` بس:** perm من `OWNER_ONLY` أو `"*"` أو اسم مش معروف أو مش list نصوص → 422 `invalid_perms` (الدور · `allow` · `deny`). الاسم فريد (409 `name_taken`) ومش فاضي وحدّه `admin_role_name_max` (422). حتى لو انكتب شي من `OWNER_ONLY` / `"*"` بالقاعدة مباشرة: `effective_perms` بتشيله و `check_admin` بيرفض.
     - **ما في حذف لدور عليه موظفين** (أي حالة) → 409 `role_in_use` لحد ما المالك ينقلهم. ذرّي: الحذف بيقفل الدور `FOR UPDATE` والتعيين بيقفله `FOR SHARE` — حذف + تعيين بنفس اللحظة = يا الحذف 409 يا التعيين 422 `invalid_role`، وما في موظف `role_id` صار NULL بسبب حذف (الـ FK `SET NULL` ما بيشتغل أبداً).
-    - **ما في حذف لموظف — إيقاف وإرجاع بس.** الإيقاف → `suspended` + `session_version + 1` (كل التوكنات بتموت بالطلب الجاي). الإرجاع (من `suspended` بس، غير هيك 409 `not_suspended`) → `active` إذا كلمة السر والمصادقة مربوطين وإلا `invited`، + `session_version + 1` (التوكن القديم ما بيرجع).
+    - **ما في حذف لموظف انضم — إيقاف وإرجاع بس** (الدعوة اللي ما انقبلت بتنلغى وصفّها بينحذف — القاعدة 14). الإيقاف → `suspended` + `session_version + 1` (كل التوكنات بتموت بالطلب الجاي). الإرجاع (من `suspended` بس، غير هيك 409 `not_suspended`) → `active` إذا كلمة السر والمصادقة مربوطين وإلا `invited`، + `session_version + 1` (التوكن القديم ما بيرجع).
     - **`session_version + 1` لما تتغيّر الصلاحيات الفعلية فعلاً** (`set_access` · تعديل دور مشترك — لكل موظف عليه تغيّرت صلاحياته). إعادة تسمية أو قيمة بتعطي نفس الصلاحيات = بدون زيادة.
     - **إيميل للموظف (SECURITY، بالاسم بس — بدون رابط اللوحة، بدون قائمة الصلاحيات):** `staff_suspended` (الإيقاف) · `staff_restored` (الإرجاع) · `staff_perms_changed` (تغيّرت صلاحياته الفعلية — للـ `active` بس؛ الموقوف واللي لسا `invited` ما بيوصله). تعديل دور مشترك بيبعت بس للي `effective_perms` تبعه تغيّرت. بينبعت **بعد الـ commit** وفشله ما بيرجّع العملية. القوالب دايماً شغّالة (برّا `TYPES` متل `admin_test`).
     - **السجل:** `admin_audit_middleware` (actor `owner`، action = اسم الـ route، الهدف ids بس — `role_id=…` للإنشاء) — بدون أسرار.
@@ -41,7 +41,23 @@
       ولا دور جاهز فيه `users.email.view` أو `users.phone.view`.
     - ❌ SQL أدوار / موظفين برّا `admin_staff.py` · ❌ حذف موظف · ❌ حذف دور عليه موظفين · ❌ صلاحية من `OWNER_ONLY` / `"*"` بدور أو `allow` · ❌ إيميل فيه رابط اللوحة أو أسماء صلاحيات · ❌ إيميل قبل الـ commit · ❌ زرع الأدوار بكل تشغيل.
     - Test: `python -m pytest tests/test_admin_staff_84c2a1.py -q` (HTTP حقيقي + PostgreSQL: 401 / 403 (موظف بكل GRANTABLE) / 428 / نجاح لكل route · 422 لـ OWNER_ONLY / `*` / مجهول + المكتوب بالقاعدة ما بيعيش · نفس التوكن بعد الإيقاف / الدور / allow / deny / الدور المشترك → 401 / 403 · الإرجاع ما بيحيي التوكن · حذف ‖ تعيين · الزرع مرة وحدة (متزامن + بعد الحذف) · الإيميلات (2 من 3 · موقوف / invited لأ · بدون مسار اللوحة أو صلاحيات · فشل الإيميل ما بيرجّع) · ما في hash / سر بالرد / اللوج / السجل).
-    - الدعوة بالإيميل (`admin_invites`) + الواجهة = مراحل 8.4c-2 الجاية — لهلق إضافة موظف جديد بالقاعدة بس.
+    - الدعوة بالإيميل + استرجاع كلمة السر + إعادة ربط المصادقة = القاعدة 14 (8.4c-2a2) · الواجهة = 8.4c-2b.
+
+## Invite · Staff Password Reset · Authenticator Reset (task 8.4c-2a2 — mandatory for all AI sessions)
+
+14. **روابط لمرة وحدة بجدول واحد (`admin_invites`) — المنطق والـ SQL بـ `admin_staff.py` بس** (`invite_staff` · `resend_invite` · `delete_invited` · `mfa_reset` · `link_start` · `link_complete` · `forgot_issue` · `password_reset_complete`).
+    - **التوكن:** `secrets.token_urlsafe(32)` · بينحفظ SHA-256 بس (`link_hash`) · الرابط بالإيميل = `site_url` + مسار عام + `#t=<token>` (fragment — ما بيوصل لوج السيرفر ولا Referer؛ الصفحة بـ 2b بتقراه وبتبعته بالـ body). المسارات: `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset`. **رابط اللوحة السري ما بيكون بأي إيميل** — بيرجع بس برد `/staff/invite/complete` (`panel`).
+    - **رابط حي واحد لكل (موظف، نوع):** كل إصدار بيقفل صف الموظف `FOR UPDATE` وبيحذف الروابط غير المستعملة من نفس النوع بنفس الـ transaction (+ unique جزئي كحماية). ترتيب القفل بكل مكان: صف الموظف ← صف الرابط (الرابط بينقرا بدون قفل، بعدين الموظف، بعدين الرابط `FOR UPDATE`) → إصدار وإكمال بنفس اللحظة بيتسلسلوا.
+    - **المدة:** دعوة 24 ساعة · إعادة ربط 24 ساعة · كلمة السر 30 دقيقة (`admin_staff.LINK_TTL_S`).
+    - **المالك (`staff.manage` + التحقق الإضافي، `check_admin` أول سطر):** `POST /admin/staff/invite {name, email, role_id, allow, deny}` → صف `invited` (بلا كلمة سر ولا مصادقة) + رابط + إيميل `staff_invite` (نفس فحوصات القاعدة 10 للصلاحيات / الدور، الإيميل lower؛ موظف `invited` بنفس الإيميل → 409 `already_invited`، `active` / `suspended` → 409 `email_taken`) · `POST /admin/staff/{id}/invite/resend` (`invited` بس، غير هيك 409 `not_invited` — القديم بيموت) · `DELETE /admin/staff/{id}` (`invited` بس: الصف والروابط بينحذفوا؛ `active` / `suspended` → 409 `staff_active`) · `POST /admin/staff/{id}/mfa-reset` (`active` بس، غير هيك 409 `not_active` — بعد ما المالك يتحقق من الهوية برّا النظام: بشي واحد ذرّي بيمسح `mfa_secret_enc` / `mfa_enabled_at` / `mfa_last_step` + بيحذف رموز الاسترداد + `session_version + 1` + رابط 24 ساعة + إيميل `staff_mfa_reset`؛ كلمة السر بتضل). الرد = الموظف (`_admin_contacts`) + `email_sent` — **ما في توكن بأي رد**.
+    - **العامة:** `POST /staff/invite/start` · `/staff/mfa-reset/start` `{token}` → سر TOTP جديد معلّق (مشفّر، `mfa_enabled_at` NULL) + `otpauth_uri` + الاسم — ما بيستهلك الرابط · `POST /staff/invite/complete {token, password, code}` (bcrypt قبل القفل، بعدين transaction وحدة: الرابط غير مستعمل وغير منتهي ومن نوعه والموظف `invited` ← الكود بيطابق السر المعلّق ← كلمة السر + `mfa_enabled_at` + `active` + `session_version + 1` + `used_at` + 10 رموز) → `{recovery_codes, name, panel}` · `POST /staff/mfa-reset/complete {token, code}` (نفس الشي للموظف `active`، كلمة السر ما بتتغيّر، بدون `panel`) · `POST <panel>/forgot {email}` → **دايماً** `200 {sent: true}` — الرابط (30 دقيقة، `staff_password_reset`) بينبعت بس لموظف `active` مع كلمة سر ومصادقة، والبحث + الإيميل بالخلفية (BackgroundTasks) حتى ما يبيّن الفرق بالوقت · `POST /staff/password-reset/complete {token, password}` → كلمة سر جديدة + `session_version + 1` + `used_at` ذرّي، الموظف لازم `active` (الموقوف = نفس خطأ الرابط وما بيتفعّل)، المصادقة ما بتتغيّر (الدخول بعدها بيطلب TOTP) + إيميل `staff_password_changed`.
+    - **الأخطاء:** رابط غلط / منتهي / مستعمل / من نوع تاني / لموظف حالته غلط = نفس الخطأ 400 `invalid_link` · كود TOTP غلط = 400 `invalid_code` (الرابط بيضل، بس المحاولة بتنحسب) · شكل كود غلط = 422 `invalid_code_format` بدون استهلاك (`otp_code_valid`). الردود `Cache-Control: no-store` + `Referrer-Policy: no-referrer`.
+    - **كلمة سر الموظف:** ≥ `LIMITS["staff_password_min"]` (12) حرف · المسافات مسموحة (عبارات مرور طويلة) · ≤ `password_max_bytes` (72 byte تبع bcrypt) → 422 `weak_password` / `password_too_long`.
+    - **حدود الطلبات (حجز ذرّي قبل الفحص — `_rate_reserve`، 429، الضربة بتضل):** `/staff/*` → `staff_link_ip` (20 / 15 د) + `staff_link_token` (10 / 15 د — مفتاحه SHA-256 التوكن، مش التوكن) · `<panel>/forgot` → `staff_forgot_ip` (10 / ساعة) + `staff_forgot_email` (3 / ساعة — بينعدّ للإيميل المش موجود كمان). كلهم بـ `PUBLIC_RATE_EXEMPT` بالسبب · `admin_forgot` بـ `admin_perms.UNGUARDED_ROUTES`.
+    - **القوالب (SECURITY، برّا `TYPES` متل القاعدة 10):** `staff_invite` (name, link, hours) · `staff_mfa_reset` (name, link, hours) · `staff_password_reset` (name, link, minutes) · `staff_password_changed` (name). ولا واحد فيهم فيه مسار اللوحة.
+    - **السجل:** مسارات المالك عبر `admin_audit_middleware` (actor `owner`، الهدف ids) · العامة → actor `staff:<id>` (أو `-` لرابط غلط / forgot — ما بيكشف أي إيميل موجود)، action = اسم الـ route — **بدون توكن، رمز، سر أو hash** (لا بالسجل ولا باللوج ولا بأي رد غير سر `start` المقصود).
+    - ❌ توكن رابط بـ query string / رد / لوج / سجل · ❌ مسار اللوحة بإيميل · ❌ رابطين حيين لنفس (موظف، نوع) · ❌ رابط بيفعّل موظف موقوف · ❌ استرجاع كلمة سر بيلغي المصادقة · ❌ حذف موظف انضم · ❌ SQL روابط برّا `admin_staff.py`.
+    - Test: `python -m pytest tests/test_admin_staff_84c2a2.py -q` (HTTP حقيقي + PostgreSQL: 401 / 403 / 428 / نجاح لمسارات المالك · رحلة الدعوة كاملة لحد الدخول بخطوتين · منتهية / مستعملة / إعادة إرسال / إلغاء · complete ‖ complete = واحد + 10 رموز بالضبط · resend ‖ complete · forgot ‖ forgot = رابط حي واحد · reset ‖ reset = واحد · الاسترجاع: التوكن القديم 401 + المصادقة باقية + الموقوف ما بيتفعّل · mfa_reset: التوكن 401 فوراً + الرموز القديمة ميتة + الدخول بالتطبيق الجديد بس · 11 حرف 422 / عبارة بمسافات مقبولة · ما في تسريب توكن / سر / hash · 429 على كل مسار عام).
 
 ## Session Perms + Step-up + Owner Recovery Codes (task 8.4c-1 — mandatory for all AI sessions)
 
@@ -65,7 +81,7 @@
 | `admin_staff` | `id` · `email` (CHECK = lower + UNIQUE على `lower(email)`) · `name` · `password_hash` NULL · `role_id` NULL → `admin_roles` (SET NULL) · `allow_perms text[]` · `deny_perms text[]` · `status` invited / active / suspended · `mfa_secret_enc` NULL · `mfa_enabled_at` NULL · `mfa_last_step bigint` · `session_version` (1) · `created_at` · `last_login_at` |
 | `admin_owner_mfa` | صف واحد (`id = 1`): `secret_enc` · `enabled_at` · `last_step` · `session_version` (1) · `reset_on date` (يوم `ADMIN_MFA_RESET` اللي انطبق — حتى ما ينعاد بنفس اليوم) |
 | `admin_recovery_codes` | `subject` (`owner` / `staff:<id>`) · `code_hash` (SHA-256) · `used_at` |
-| `admin_invites` | `token_hash` UNIQUE · `staff_id` → `admin_staff` (CASCADE) · `kind` invite / mfa_reset · `expires_at` · `used_at` — الجدول بس، الاستعمال بـ 8.4c |
+| `admin_invites` | `token_hash` UNIQUE (SHA-256 بس) · `staff_id` → `admin_staff` (CASCADE) · `kind` invite / mfa_reset / password_reset (الـ CHECK بينعدّل بالـ migration بس إذا ناقصه `password_reset`) · `expires_at` · `used_at` · unique جزئي `admin_invites_live_uq (staff_id, kind) WHERE used_at IS NULL` = رابط حي واحد (8.4c-2a2 — القاعدة 14) |
 
 ### استعادة المالك (خطوة خطوة — ما في أي طريق تاني)
 
@@ -80,7 +96,7 @@
 
 ## مؤجّل (8.4c)
 
-- شاشة الموظفين (الواجهة — الـ API صار بـ 8.4c-2a1، القاعدة 10) + إضافة موظف + الدعوة بالإيميل (`admin_invites` kind `invite`) + إعادة ربط MFA لموظف (`mfa_reset`). لهلق ما في واجهة لإضافة موظفين. (التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 — القواعد 11–13.)
+- شاشة الموظفين + صفحات الروابط العامة `/staff/invite` · `/staff/mfa-reset` · `/staff/password-reset` + «نسيت كلمة السر» بشاشة الدخول (8.4c-2b — الـ API صار بـ 8.4c-2a1 + 8.4c-2a2، القاعدتين 10 و 14). لهلق روابط الإيميل بتفتح صفحة مش موجودة لحد 2b. (التحقق الإضافي + `/admin/me` + رموز استرداد جديدة = 8.4c-1 — القواعد 11–13.)
 - `admin-support.js` بدون `users.email.view`: الإيميل الغايب ما بيطلع (لا «undefined» ولا « · » فاضية) — صار بـ 8.4c-1.
 
 - Test: `python -m pytest tests/test_admin_perms_84a.py -q` (كل المسارات + سلوك `check_admin` بتوكنات حقيقية) · `python -m pytest tests/test_admin_email_view_84a.py -q` (PostgreSQL — الإيميل والبحث) · `python -m pytest tests/test_admin_email_keys_84a2.py -q` (حارس `support.FIELDS` email / phone + الإيميل والهاتف بكل تركيبة صلاحيات بنص الـ JSON كامل على users · profile · kyc · support + regex إيميل + ما في سر OTP حتى للمالك).
@@ -153,8 +169,10 @@
 | — | **كل** مسار perm تبعه من «المالك بس» بـ `POST/PUT/PATCH/DELETE` (حذف · نوع · كلمة سر · إيميل · إعداد أمني · `PUT /admin/email` · الصيانة / pipeline · رموز الاسترداد) | + step-up → بدونه **428** `step_up_required` (task 8.4c-1 — القاعدة 11) |
 | GET | `/admin/roles` · `/admin/staff` | `staff.manage` (task 8.4c-2a1 — القاعدة 10؛ قراءة بدون step-up) |
 | POST · PUT · DELETE | `/admin/roles` · `/admin/roles/{role_id}` · `/admin/staff/{staff_id}/access` · `/admin/staff/{staff_id}/suspend` · `/restore` | `staff.manage` + step-up (428 بدونه) |
+| POST · DELETE | `/admin/staff/invite` · `/admin/staff/{staff_id}/invite/resend` · `/admin/staff/{staff_id}` · `/admin/staff/{staff_id}/mfa-reset` | `staff.manage` + step-up (task 8.4c-2a2 — القاعدة 14) |
 | GET | `/admin/me` | بدون perm — `check_admin_session` (جلسة أدمن صالحة؛ task 8.4c-1 — القاعدة 12) |
 | POST | `/admin/step-up` | بدون perm — `check_admin_session` + المالك بس (موظف 403) + أقفال `admin_mfa_*` (القاعدة 11) |
 | POST | `<panel>/login` | بدون — الدخول نفسه (خطوتين — task 8.4b، القواعد 5–9) |
+| POST | `<panel>/forgot` | بدون — عام: طلب استرجاع كلمة سر موظف (نفس الرد دايماً + حدود IP / إيميل — القاعدة 14) |
 | GET | `/admin/logo` | بدون — عام (الشعار بكل صفحة) |
 | GET | `<panel>` · `/email` · `/settings` · `/content` · `/support` · `/admin-view` · `/admin-job` | بدون — صفحة HTML بس، البيانات من `/admin/*` بصلاحيتها |
