@@ -4,8 +4,10 @@ test_hidden_account_subpaths.py — account hiding (suspension / blocks) on publ
 
   GET /profile/{id}/score            — suspended → 404 for everyone · block → 404 both ways
   GET /company/branches/{company_id} — suspended → 404 for everyone · block → 404 both ways
-  GET /company/{company_id}/ratings  — suspended → 404 for everyone (block case pending a decision)
+  GET /company/{company_id}/ratings  — suspended → 404 for everyone · block → 404 both ways (task 5.4g)
   Normal account → the same 200 response as before.
+  GET /company/profile/{id} (non-owner) — company.contact_email public · users.email / phone never (5.4g)
+  followers_count = total follow rows, not filtered per viewer; the list hides blocked (5.4g)
 
 Real PostgreSQL, in-process client. TW_TEST_DB_URL (run_tests.sh sets it) — without it skipped.
 Run: python -m pytest tests/test_hidden_account_subpaths.py -q
@@ -121,3 +123,58 @@ def test_block_404_both_ways_on_score_and_branches():
     # the owner still sees their own
     assert client.get(_paths(a)["score"], headers=_h(a)).status_code == 200
     assert client.get(_paths(a)["branches"], headers=_h(a)).status_code == 200
+
+
+def test_ratings_block_404_both_ways_guest_and_owner_unchanged():
+    co, viewer = _user("co"), _user("emp")
+    path = _paths(co)["ratings"]
+    before = client.get(path)
+    assert before.status_code == 200, before.text
+    # the company blocks the viewer → 404
+    assert client.put(f"/blocks/{viewer['id']}", headers=_h(co)).status_code == 200
+    assert client.get(path, headers=_h(viewer)).status_code == 404
+    assert client.delete(f"/blocks/{viewer['id']}", headers=_h(co)).status_code == 200
+    assert client.get(path, headers=_h(viewer)).status_code == 200
+    # the viewer blocks the company → 404
+    assert client.put(f"/blocks/{co['id']}", headers=_h(viewer)).status_code == 200
+    assert client.get(path, headers=_h(viewer)).status_code == 404
+    # guest + the company itself → 200, same response as before
+    for hdr in ({}, _h(co)):
+        r = client.get(path, headers=hdr)
+        assert r.status_code == 200 and r.json() == before.json(), r.text
+
+
+def test_company_contact_email_public_login_email_and_phone_owner_only():
+    co, viewer = _user("co"), _user("emp")
+    _sql("INSERT INTO company_profiles (user_id, contact_email) VALUES (:u, 'hr@co.test') "
+         "ON CONFLICT (user_id) DO UPDATE SET contact_email = EXCLUDED.contact_email", u=co["id"])
+    _sql("UPDATE profiles SET phone = '0790000000' WHERE user_id = :u", u=co["id"])
+    login_email = _sql("SELECT email FROM users WHERE id = :u", u=co["id"])[0][0]
+    for hdr in ({}, _h(viewer)):
+        r = client.get(f"/company/profile/{co['id']}", headers=hdr)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["company"]["contact_email"] == "hr@co.test"
+        assert "email" not in body["profile"] and "phone" not in body["profile"]
+        assert login_email not in r.text and "0790000000" not in r.text
+    own = client.get(f"/company/profile/{co['id']}", headers=_h(co)).json()
+    assert own["profile"]["email"] == login_email and own["profile"]["phone"] == "0790000000"
+
+
+def test_followers_count_is_total_while_list_hides_blocked_follower():
+    page, follower, viewer = _user("co"), _user("emp"), _user("emp")
+    assert client.post(f"/profile/{page['id']}/follow", headers=_h(follower)).status_code == 200
+
+    def _count():
+        return client.get(f"/company/profile/{page['id']}", headers=_h(viewer)).json()["stats"]["followers_count"]
+
+    def _listed():
+        r = client.get(f"/profile/{page['id']}/followers", headers=_h(viewer))
+        assert r.status_code == 200, r.text
+        return {int(f["id"]) for f in r.json()["items"]}
+
+    count_before = _count()
+    assert follower["id"] in _listed()
+    assert client.put(f"/blocks/{follower['id']}", headers=_h(viewer)).status_code == 200
+    assert follower["id"] not in _listed()
+    assert _count() == count_before == 1

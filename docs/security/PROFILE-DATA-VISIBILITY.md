@@ -60,6 +60,12 @@ Fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `su
 
 > The KYC allowlist is exactly these 7 fields. `kyc_status`, `docs_submitted`, `created_at`, `updated_at` are NOT in the allowlist as of this version.
 
+### Company contact fields (`GET /company/profile/{id}` — task 5.4g decision)
+- `company.contact_email` (`company_profiles`) is a **public** contact field the company chooses to show — returned to every visitor (guest / signed-in / owner).
+- `profile.email` (= `users.email`, the login email) and `profile.phone` are **owner-only** — stripped for every non-owner (with `created_at`).
+- ❌ Falling back to `users.email` when `contact_email` is empty · ❌ treating `contact_email` as private.
+- Test: `python -m pytest tests/test_hidden_account_subpaths.py -q`.
+
 ### Tier 4 — Never Returned via API
 `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens, admin flags.  
 `dob` is never in any public (Tier 1) response — only in Tier 2 (owner).
